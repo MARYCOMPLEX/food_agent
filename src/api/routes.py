@@ -1,12 +1,13 @@
 """
-API Routes - 搜索路由定义 (含SSE流式输出).
+API Routes - 搜索路由定义 (含SSE流式输出 + 会话管理).
 """
 
 import asyncio
 import json
-from typing import AsyncGenerator
+import uuid
+from typing import AsyncGenerator, Dict
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Header
 from fastapi.responses import StreamingResponse
 from sse_starlette.sse import EventSourceResponse
 from loguru import logger
@@ -14,21 +15,21 @@ from loguru import logger
 from api.schemas import SearchRequest, SearchResponse, StreamEvent
 from xhs_food import XHSFoodOrchestrator
 from xhs_food.di import get_xhs_tool_registry
+from xhs_food.services import get_session_manager
 
 router = APIRouter(prefix="/api/v1", tags=["search"])
 
-# Global orchestrator instance (per-request would be inefficient)
-_orchestrator = None
+# Session-based orchestrator instances
+_orchestrators: Dict[str, XHSFoodOrchestrator] = {}
 
 
-def get_orchestrator() -> XHSFoodOrchestrator:
-    """Get or create orchestrator instance."""
-    global _orchestrator
-    if _orchestrator is None:
-        _orchestrator = XHSFoodOrchestrator(
+def get_orchestrator(session_id: str) -> XHSFoodOrchestrator:
+    """Get or create orchestrator for a session."""
+    if session_id not in _orchestrators:
+        _orchestrators[session_id] = XHSFoodOrchestrator(
             xhs_registry=get_xhs_tool_registry()
         )
-    return _orchestrator
+    return _orchestrators[session_id]
 
 
 @router.post("/search", response_model=SearchResponse)
@@ -38,21 +39,46 @@ async def search(request: SearchRequest) -> SearchResponse:
     
     Request Body:
         - query: 搜索查询（如 "成都本地人常去的老店"）
+        - session_id: 会话ID（可选，不提供则自动创建）
         - reset_context: 是否重置对话上下文（默认False）
     
     Returns:
-        SearchResponse 包含推荐结果
+        SearchResponse 包含推荐结果和session_id
     """
-    orchestrator = get_orchestrator()
+    # Get or create session_id
+    session_id = request.session_id or str(uuid.uuid4())
+    
+    orchestrator = get_orchestrator(session_id)
     
     if request.reset_context:
         orchestrator.reset_context()
+        # Also clear from session manager cache
+        try:
+            manager = await get_session_manager()
+            manager._redis.clear_session(session_id)
+        except Exception:
+            pass
     
     try:
+        # Store user message
+        try:
+            manager = await get_session_manager()
+            await manager.add_user_message(session_id, request.query)
+        except Exception as e:
+            logger.warning(f"Failed to save user message: {e}")
+        
         result = await orchestrator.search(request.query)
+        
+        # Store assistant response
+        try:
+            manager = await get_session_manager()
+            await manager.add_assistant_message(session_id, result.summary or str(result.recommendations))
+        except Exception as e:
+            logger.warning(f"Failed to save assistant message: {e}")
         
         return SearchResponse(
             status=result.status,
+            session_id=session_id,
             recommendations=[r.to_dict() for r in result.recommendations],
             filtered_count=result.filtered_count,
             summary=result.summary,
@@ -63,6 +89,7 @@ async def search(request: SearchRequest) -> SearchResponse:
         logger.exception("Search failed")
         return SearchResponse(
             status="error",
+            session_id=session_id,
             error_message=str(e),
         )
 
@@ -70,6 +97,7 @@ async def search(request: SearchRequest) -> SearchResponse:
 @router.get("/search/stream")
 async def search_stream(
     query: str = Query(..., description="搜索查询"),
+    session_id: str = Query(None, description="会话ID，不提供则自动创建"),
     reset_context: bool = Query(False, description="是否重置上下文"),
 ):
     """
@@ -79,6 +107,7 @@ async def search_stream(
     
     Query Parameters:
         - query: 搜索查询
+        - session_id: 会话ID（可选）
         - reset_context: 是否重置对话上下文
     
     SSE Events:
@@ -87,8 +116,11 @@ async def search_stream(
         - result: 最终结果
         - error: 错误信息
     """
+    # Get or create session_id
+    sid = session_id or str(uuid.uuid4())
+    
     async def generate_events() -> AsyncGenerator[dict, None]:
-        orchestrator = get_orchestrator()
+        orchestrator = get_orchestrator(sid)
         
         if reset_context:
             orchestrator.reset_context()
@@ -99,6 +131,7 @@ async def search_stream(
                 "event": "status",
                 "data": json.dumps({
                     "status": "started",
+                    "session_id": sid,
                     "message": f"开始搜索: {query}",
                 }),
             }
@@ -129,6 +162,7 @@ async def search_stream(
                 "event": "result",
                 "data": json.dumps({
                     "status": result.status,
+                    "session_id": sid,
                     "recommendations": [r.to_dict() for r in result.recommendations],
                     "filtered_count": result.filtered_count,
                     "summary": result.summary,
@@ -156,8 +190,71 @@ async def search_stream(
 
 
 @router.post("/reset")
-async def reset_context():
-    """重置对话上下文."""
-    orchestrator = get_orchestrator()
-    orchestrator.reset_context()
-    return {"status": "ok", "message": "对话上下文已重置"}
+async def reset_context(session_id: str = Query(..., description="要重置的会话ID")):
+    """重置指定会话的对话上下文."""
+    if session_id in _orchestrators:
+        _orchestrators[session_id].reset_context()
+    
+    try:
+        manager = await get_session_manager()
+        manager._redis.clear_session(session_id)
+    except Exception:
+        pass
+    
+    return {"status": "ok", "session_id": session_id, "message": "对话上下文已重置"}
+
+
+@router.get("/session/{session_id}")
+async def get_session_info(session_id: str):
+    """获取会话信息."""
+    try:
+        manager = await get_session_manager()
+        
+        exists = manager.session_exists(session_id)
+        length = manager.get_session_length(session_id) if exists else 0
+        context = await manager.get_context(session_id, count=5) if exists else []
+        
+        return {
+            "session_id": session_id,
+            "exists": exists,
+            "message_count": length,
+            "recent_messages": context,
+        }
+    except Exception as e:
+        return {
+            "session_id": session_id,
+            "exists": False,
+            "error": str(e),
+        }
+
+
+@router.get("/session/{session_id}/history")
+async def get_session_history(
+    session_id: str,
+    limit: int = Query(50, description="最大返回条数"),
+):
+    """获取会话完整历史（从PostgreSQL）."""
+    try:
+        manager = await get_session_manager()
+        history = await manager.get_full_history(session_id, limit=limit)
+        
+        return {
+            "session_id": session_id,
+            "count": len(history),
+            "messages": [h.to_dict() for h in history],
+        }
+    except Exception as e:
+        return {
+            "session_id": session_id,
+            "error": str(e),
+        }
+
+
+@router.post("/session/create")
+async def create_session():
+    """创建新会话."""
+    session_id = str(uuid.uuid4())
+    return {
+        "session_id": session_id,
+        "message": "新会话已创建",
+    }

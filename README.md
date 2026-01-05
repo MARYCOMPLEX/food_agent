@@ -7,15 +7,17 @@
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![LangChain](https://img.shields.io/badge/LangChain-🦜-2C3E50?style=for-the-badge)](https://www.langchain.com/)
+[![Redis](https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&logo=redis&logoColor=white)](https://redis.io/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 
 <p align="center">
-  <strong>🔍 智能搜索 · 🎯 本地推荐 · ❌ 过滤网红 · 💬 多轮对话</strong>
+  <strong>🔍 智能搜索 · 🎯 本地推荐 · ❌ 过滤网红 · 💬 多轮对话 · 🧠 长期记忆</strong>
 </p>
 
 ---
 
-*一个基于 LLM 的智能美食推荐系统，通过分析小红书社区真实用户评论，*
+*一个基于 LLM 的智能美食推荐系统，通过分析小红书社区真实用户评论，*  
 *识别本地人推荐的隐藏美食，过滤网红流量店，帮你找到真正值得打卡的美食。*
 
 </div>
@@ -36,10 +38,28 @@
 </td>
 <td width="50%">
 
-### 🚀 开箱即用
+### � 混合记忆系统
+- **Redis (L1)** — 短期上下文，滑动窗口
+- **PostgreSQL (L2)** — 长期持久化 + pgvector 向量检索
+- **智能缓存预热** — 自动恢复历史对话
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+### �🚀 生产就绪
 - **SSE 流式输出** — 实时获取搜索进度
-- **多轮对话支持** — 过滤、扩展、详情查询
+- **会话管理 API** — 完整的多用户支持
 - **FastAPI 服务** — 简洁 RESTful API
+
+</td>
+<td width="50%">
+
+### 🔧 灵活配置
+- **多 LLM 支持** — SiliconFlow / OpenAI / DeepSeek
+- **独立 Embedding** — 可配置专用向量模型
+- **优雅降级** — 组件缺失时自动 fallback
 
 </td>
 </tr>
@@ -50,26 +70,26 @@
 ## 🛠️ 技术架构
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                     XHS Food Agent                          │
-├─────────────────────────────────────────────────────────────┤
-│  ┌─────────────┐  ┌─────────────┐  ┌──────────────────────┐ │
-│  │   FastAPI   │──│ Orchestrator│──│  Multi-Agent System  │ │
-│  │   (SSE)     │  │   (Core)    │  │  Intent │ Analyzer   │ │
-│  └─────────────┘  └─────────────┘  └──────────────────────┘ │
-│         │                │                    │             │
-│         ▼                ▼                    ▼             │
-│  ┌─────────────────────────────────────────────────────────┐│
-│  │                    LLM Service                          ││
-│  │         (SiliconFlow Qwen / OpenAI Compatible)          ││
-│  └─────────────────────────────────────────────────────────┘│
-│         │                                                   │
-│         ▼                                                   │
-│  ┌─────────────────────────────────────────────────────────┐│
-│  │                   XHS Spider                            ││
-│  │      (Search · Note Content · Comments Scraping)        ││
-│  └─────────────────────────────────────────────────────────┘│
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│                         XHS Food Agent                                │
+├──────────────────────────────────────────────────────────────────────┤
+│  ┌──────────────┐   ┌─────────────────┐   ┌────────────────────────┐ │
+│  │   FastAPI    │───│  SessionManager │───│   Multi-Agent System   │ │
+│  │ (SSE + REST) │   │  (会话编排器)    │   │  Intent │ Analyzer    │ │
+│  └──────────────┘   └─────────────────┘   └────────────────────────┘ │
+│         │                  │    │                     │              │
+│         ▼                  ▼    ▼                     ▼              │
+│  ┌─────────────┐   ┌───────────────────────────┐  ┌───────────────┐ │
+│  │   Redis     │   │      PostgreSQL           │  │  LLM Service  │ │
+│  │ (L1 Cache)  │   │  + pgvector (L2 Storage)  │  │ (SiliconFlow) │ │
+│  └─────────────┘   └───────────────────────────┘  └───────────────┘ │
+│                              │                            │          │
+│                              ▼                            ▼          │
+│  ┌───────────────────────────────────────────────────────────────┐  │
+│  │                      XHS Spider                                │  │
+│  │          (Search · Note Content · Comments Scraping)           │  │
+│  └───────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -89,51 +109,67 @@ cd xhs-food-agent
 cp .env.example .env
 ```
 
-编辑 `.env` 文件，配置以下必需项：
+编辑 `.env` 文件，配置以下项目：
 
-| 变量 | 说明 | 获取方式 |
-|------|------|----------|
-| `XHS_COOKIES` | 小红书登录 Cookie | 浏览器登录后从开发者工具获取 |
-| `OPENAI_API_KEY` | LLM API 密钥 | 默认支持 SiliconFlow |
-| `OPENAI_API_BASE` | API 基础地址 | 默认为 SiliconFlow 地址 |
+| 变量 | 必需 | 说明 |
+|------|:----:|------|
+| `XHS_COOKIES` | ✅ | 小红书登录 Cookie |
+| `OPENAI_API_KEY` | ✅ | LLM API 密钥 |
+| `OPENAI_API_BASE` | ✅ | API 基础地址 |
+| `REDIS_HOST` | ❌ | Redis 地址（可选，fallback 到内存） |
+| `POSTGRES_HOST` | ❌ | PostgreSQL 地址（可选，长期存储） |
+| `EMBEDDING_API_KEY` | ❌ | Embedding API 密钥（可选，向量搜索） |
 
 ### 3️⃣ 安装依赖
 
 ```bash
-# 推荐使用 uv (更快)
-uv sync
+# 创建虚拟环境
+python -m venv .venv
+.\.venv\Scripts\activate  # Windows
+source .venv/bin/activate  # Linux/Mac
 
-# 或使用 pip
+# 安装依赖
 pip install -e .
 ```
 
 ### 4️⃣ 启动服务
 
 ```bash
-uv run uvicorn src.api.main:app --reload --port 8000
+uvicorn src.api.main:app --reload --port 8000
 ```
 
 🎉 **服务已启动!** 访问 http://localhost:8000/docs 查看 API 文档
 
 ---
 
-## 📡 API 使用
+## 📡 API 接口
 
-### 普通搜索
+### 搜索接口
 
 ```bash
+# 普通搜索
 curl -X POST http://localhost:8000/api/v1/search \
   -H "Content-Type: application/json" \
-  -d '{
-    "query": "成都本地人常去的老火锅",
-    "session_id": "optional-session-id"
-  }'
+  -d '{"query": "成都本地人常去的老火锅"}'
+
+# SSE 流式搜索 (推荐)
+curl -N "http://localhost:8000/api/v1/search/stream?query=成都春熙路附近早餐推荐"
 ```
 
-### SSE 流式搜索 (推荐)
+### 会话管理
 
 ```bash
-curl -N "http://localhost:8000/api/v1/search/stream?query=成都春熙路附近早餐推荐"
+# 创建新会话
+curl -X POST http://localhost:8000/api/v1/session/create
+
+# 获取会话信息
+curl http://localhost:8000/api/v1/session/{session_id}
+
+# 获取完整历史
+curl http://localhost:8000/api/v1/session/{session_id}/history
+
+# 重置会话
+curl -X POST "http://localhost:8000/api/v1/reset?session_id={session_id}"
 ```
 
 <details>
@@ -142,8 +178,12 @@ curl -N "http://localhost:8000/api/v1/search/stream?query=成都春熙路附近�
 | 方法 | 端点 | 说明 |
 |------|------|------|
 | `GET` | `/health` | 健康检查 |
-| `POST` | `/api/v1/search` | 同步搜索 |
+| `POST` | `/api/v1/search` | 同步搜索（支持 session_id） |
 | `GET` | `/api/v1/search/stream` | SSE 流式搜索 |
+| `POST` | `/api/v1/session/create` | 创建新会话 |
+| `GET` | `/api/v1/session/{id}` | 获取会话信息 |
+| `GET` | `/api/v1/session/{id}/history` | 获取完整历史 |
+| `POST` | `/api/v1/reset` | 重置会话上下文 |
 
 </details>
 
@@ -156,7 +196,8 @@ xhs_food_agent/
 ├── 📁 src/
 │   ├── 📁 api/                    # FastAPI 服务层
 │   │   ├── main.py               # 应用入口
-│   │   └── routes/               # API 路由
+│   │   ├── routes.py             # API 路由（含会话管理）
+│   │   └── schemas.py            # 请求/响应模型
 │   │
 │   └── 📁 xhs_food/              # 核心 Agent 模块
 │       ├── orchestrator.py       # 🎯 主编排器
@@ -167,14 +208,16 @@ xhs_food_agent/
 │       │   ├── intent_parser.py  # 意图解析 Agent
 │       │   └── analyzer.py       # 结果分析 Agent
 │       │
-│       ├── 📁 spider/            # XHS 爬虫组件
-│       │   ├── core.py           # 爬虫核心
-│       │   ├── search.py         # 搜索功能
-│       │   └── note.py           # 笔记获取
+│       ├── 📁 services/          # 💾 核心服务
+│       │   ├── llm_service.py    # LLM 服务封装
+│       │   ├── redis_memory.py   # Redis L1 缓存
+│       │   ├── postgres_storage.py  # PostgreSQL L2 存储
+│       │   └── session_manager.py   # 会话统一管理
 │       │
+│       ├── 📁 spider/            # XHS 爬虫组件
 │       ├── 📁 prompts/           # Prompt 模板
-│       ├── 📁 providers/         # 服务提供者
-│       └── 📁 services/          # 业务服务
+│       ├── 📁 providers/         # 工具提供者
+│       └── 📁 protocols/         # 协议定义
 │
 ├── 📁 tests/                     # 测试用例
 ├── .env.example                  # 环境变量模板
@@ -184,42 +227,70 @@ xhs_food_agent/
 
 ---
 
-## 🎯 工作原理
+## 💾 会话管理架构
+
+系统采用 **Redis + PostgreSQL** 混合记忆架构：
 
 ```mermaid
 flowchart LR
-    A[🙋 用户查询] --> B[意图解析 Agent]
-    B --> C{搜索策略}
-    C --> D[广撒网搜索]
-    C --> E[挖掘隐藏店]
-    C --> F[定向验证]
-    C --> G[细分搜索]
-    D & E & F & G --> H[XHS Spider]
-    H --> I[评论分析 Agent]
-    I --> J[本地人权重计算]
-    J --> K[网红店过滤]
-    K --> L[🍜 精选推荐]
+    subgraph Write["写入流程"]
+        W1["用户消息"] --> W2["Redis (同步)"]
+        W1 -.->|异步| W3["PostgreSQL + Embedding"]
+    end
+    
+    subgraph Read["读取流程"]
+        R1["get_context()"] --> R2{"Redis\n命中?"}
+        R2 -->|是| R3["返回缓存"]
+        R2 -->|否| R4["查询 PostgreSQL"]
+        R4 --> R5["缓存预热"]
+        R5 --> R3
+    end
 ```
+
+| 组件 | 用途 | 特点 |
+|------|------|------|
+| **Redis** | L1 缓存 | 滑动窗口、24h TTL、毫秒级响应 |
+| **PostgreSQL** | L2 存储 | 永久保存、pgvector 向量搜索 |
+| **SessionManager** | 编排层 | 双写策略、缓存预热、优雅降级 |
 
 ---
 
 ## 🔧 高级配置
 
-### 自定义 LLM 模型
-
-默认使用 SiliconFlow 的 Qwen3-8B 模型。你可以在 `.env` 中更换为其他兼容 OpenAI API 的模型：
+### 完整环境变量
 
 ```bash
-# 使用 OpenAI 官方
+# ========== LLM API ==========
 OPENAI_API_KEY="sk-xxx"
-OPENAI_API_BASE="https://api.openai.com/v1/"
-DEFAULT_LLM_MODEL="gpt-4o-mini"
+OPENAI_API_BASE="https://api.siliconflow.cn/v1/"
+DEFAULT_LLM_MODEL="Qwen/Qwen3-8B"
 
-# 使用 DeepSeek
-OPENAI_API_KEY="sk-xxx"
-OPENAI_API_BASE="https://api.deepseek.com/v1/"
-DEFAULT_LLM_MODEL="deepseek-chat"
+# ========== Redis (可选) ==========
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_DATABASE=0
+REDIS_PASSWORD=
+
+# ========== PostgreSQL (可选) ==========
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_DB=xhs_food_agent
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=
+
+# ========== Embedding API (可选) ==========
+EMBEDDING_API_KEY="sk-xxx"
+EMBEDDING_API_BASE="https://api.openai.com/v1/"
+EMBEDDING_MODEL="text-embedding-3-small"
 ```
+
+### 支持的 LLM 提供商
+
+| 提供商 | API Base | 推荐模型 |
+|--------|----------|----------|
+| SiliconFlow | `https://api.siliconflow.cn/v1/` | `Qwen/Qwen3-8B` |
+| OpenAI | `https://api.openai.com/v1/` | `gpt-4o-mini` |
+| DeepSeek | `https://api.deepseek.com/v1/` | `deepseek-chat` |
 
 ---
 
@@ -228,6 +299,9 @@ DEFAULT_LLM_MODEL="deepseek-chat"
 - [x] 基础多轮对话支持
 - [x] SSE 流式输出
 - [x] 评论权重分析系统
+- [x] Redis 会话缓存
+- [x] PostgreSQL 持久化存储
+- [x] pgvector 向量搜索
 - [ ] 地理位置感知 (GPS 推荐)
 - [ ] 用户偏好学习
 - [ ] Web UI 界面
@@ -259,7 +333,7 @@ DEFAULT_LLM_MODEL="deepseek-chat"
 
 ---
 
-## � 致谢
+## 🙏 致谢
 
 本项目的小红书数据采集能力基于以下优秀开源项目：
 
@@ -280,7 +354,7 @@ DEFAULT_LLM_MODEL="deepseek-chat"
 
 ---
 
-## �📄 License
+## 📄 License
 
 本项目采用 [MIT License](LICENSE) 开源协议。
 
@@ -290,6 +364,6 @@ DEFAULT_LLM_MODEL="deepseek-chat"
 
 **如果这个项目对你有帮助，请给一个 ⭐ Star 支持一下！**
 
-Made with ❤️ by [Your Name]
+Made with ❤️
 
 </div>

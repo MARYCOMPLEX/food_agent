@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 class SearchRequest(BaseModel):
     """搜索请求."""
     query: str = Field(..., description="搜索查询，如 '成都本地人常去的老店'")
+    session_id: Optional[str] = Field(None, description="会话ID，不提供则自动创建")
     reset_context: bool = Field(False, description="是否重置对话上下文")
 
 
@@ -27,6 +28,7 @@ class RecommendationItem(BaseModel):
 class SearchResponse(BaseModel):
     """搜索响应."""
     status: str = Field("ok", description="状态: ok, clarify, error")
+    session_id: Optional[str] = Field(None, description="会话ID")
     recommendations: List[Dict[str, Any]] = Field(default_factory=list, description="推荐列表")
     filtered_count: int = Field(0, description="被过滤的店铺数")
     summary: str = Field("", description="结果摘要")
