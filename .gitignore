@@ -1,0 +1,129 @@
+# ===============================
+# XHS Food Agent .gitignore
+# ===============================
+
+# ----- Python -----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ----- Virtual Environments -----
+.env
+.venv/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.python-version
+pythonenv*
+
+# ----- IDE & Editors -----
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.spyderproject
+.spyproject
+*.sublime-workspace
+*.sublime-project
+
+# ----- Jupyter Notebooks -----
+.ipynb_checkpoints/
+*.ipynb
+
+# ----- Testing -----
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+
+# ----- Type Checking -----
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pytype/
+.pyre/
+
+# ----- Distribution / Packaging -----
+*.manifest
+*.spec
+
+# ----- Logs -----
+*.log
+logs/
+log/
+
+# ----- Local Configuration -----
+.env
+.env.local
+.env.*.local
+*.local
+
+# ----- OS Generated Files -----
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# ----- Temporary Files -----
+*.tmp
+*.temp
+*.bak
+*.cache
+.cache/
+tmp/
+temp/
+
+# ----- Data & Output -----
+data/
+output/
+exports/
+downloads/
+*.csv
+*.json
+!.env.example
+!package.json
+
+# ----- XHS Spider Specific -----
+cookies.txt
+session.json
+*.pickle
+
+# ----- Security -----
+*.pem
+*.key
+secrets/
+credentials/
