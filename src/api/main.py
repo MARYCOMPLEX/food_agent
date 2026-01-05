@@ -20,6 +20,7 @@ load_dotenv()
 
 # Import after loading env
 from api.routes import router
+from api.openai_compat import router as openai_router
 
 
 @asynccontextmanager
@@ -43,7 +44,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="XHS Food Agent API",
-    description="小红书美食智能推荐Agent API服务",
+    description="小红书美食智能推荐Agent API服务 (OpenAI Compatible)",
     version="1.0.0",
     lifespan=lifespan,
 )
@@ -59,6 +60,7 @@ app.add_middleware(
 
 # Include routes
 app.include_router(router)
+app.include_router(openai_router)  # OpenAI-compatible endpoints
 
 
 @app.get("/health")
