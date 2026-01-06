@@ -72,11 +72,15 @@ class XHSFoodOrchestrator:
         intent_parser: Optional[IntentParserAgent] = None,
         analyzer: Optional[AnalyzerAgent] = None,
         llm_service=None,
+        deep_search: bool = True,  # True=深度研究模式, False=快速模式
+        fast_mode_limit: int = 10,  # 快速模式下的笔记数上限
     ):
         self._xhs_registry = xhs_registry
         self._intent_parser = intent_parser
         self._analyzer = analyzer
         self._llm_service = llm_service
+        self._deep_search = deep_search
+        self._fast_mode_limit = fast_mode_limit
         
         # 多轮对话上下文
         self._context = ConversationContext()
@@ -91,7 +95,8 @@ class XHSFoodOrchestrator:
             self._intent_parser = IntentParserAgent(llm_service=self._llm_service)
         
         if self._analyzer is None:
-            self._analyzer = AnalyzerAgent(llm_service=self._llm_service)
+            # 临时使用旧版模式测试店铺识别
+            self._analyzer = AnalyzerAgent(llm_service=self._llm_service, use_legacy_mode=True)
         
         if self._xhs_registry is None:
             from xhs_food.di.factories import get_xhs_tool_registry
@@ -108,6 +113,23 @@ class XHSFoodOrchestrator:
         """获取当前对话上下文."""
         return self._context
     
+    def _record_response(self, response: XHSFoodResponse) -> XHSFoodResponse:
+        """记录响应到对话历史并返回."""
+        # 构建摘要消息
+        if response.status == "ok":
+            if response.recommendations:
+                shop_names = [r.name for r in response.recommendations[:5]]
+                summary = f"{response.summary}\n推荐店铺: {', '.join(shop_names)}"
+                if len(response.recommendations) > 5:
+                    summary += f" 等{len(response.recommendations)}家"
+            else:
+                summary = response.summary
+        else:
+            summary = response.summary or response.error_message or "处理完成"
+        
+        self._context.add_assistant_message(summary)
+        return response
+    
     async def search(
         self,
         user_input: str,
@@ -123,7 +145,164 @@ class XHSFoodOrchestrator:
         Returns:
             XHSFoodResponse
         """
-        return await self.process(user_input)
+        response = await self.process(user_input)
+        return self._record_response(response)
+    
+    async def search_stream(
+        self,
+        user_input: str,
+        emitter: "SearchEventEmitter",
+    ):
+        """
+        流式搜索（支持 SSE 推送）.
+        
+        通过 emitter 发射中间步骤和结果。
+        
+        Args:
+            user_input: 用户输入
+            emitter: 事件发射器
+            
+        流程:
+            1. step1: 解析意图
+            2. step2: 搜索笔记
+            3. step3: 分析评论
+            4. step4: 交叉验证
+            5. step5: POI 补充（流式输出店铺）
+            6. step6: 生成结果
+        """
+        from xhs_food.events import SearchEventType
+        from xhs_food.agents import get_poi_enricher
+        
+        await self._ensure_initialized()
+        self._context.add_user_message(user_input)
+        emitter.init_steps(user_input)
+        
+        try:
+            # ========== Step 1: 解析意图 ==========
+            await emitter.step_start("step1", f"解析: {user_input[:30]}...")
+            
+            # 检查是否追问
+            if self._context.last_recommendations:
+                result = await self._process_follow_up_with_llm(user_input)
+                if result is not None:
+                    await emitter.step_done("step1", "追问处理完成")
+                    # 跳到 POI 补充
+                    await self._stream_poi_enrich(result.recommendations, emitter)
+                    await emitter.emit_result(result.summary, len(result.recommendations))
+                    await emitter.emit_done()
+                    self._record_response(result)
+                    return
+            
+            parse_result = await self._intent_parser.parse(user_input, self._context)
+            
+            if not parse_result.success:
+                await emitter.step_error("step1", parse_result.error or "意图解析失败")
+                await emitter.emit_error(parse_result.error or "意图解析失败")
+                return
+            
+            await emitter.step_done("step1", f"意图: {parse_result.intent.location} {parse_result.intent.food_type or ''}", {
+                "intent": parse_result.intent.to_dict() if parse_result.intent else None,
+            })
+            
+            # ========== Step 2: 搜索笔记 ==========
+            await emitter.step_start("step2", "搜索小红书笔记...")
+            
+            intent = parse_result.intent
+            search_queries = intent.to_search_queries()
+            all_notes = []
+            
+            for query in search_queries[:3]:
+                try:
+                    notes = await self._search_xhs_notes(query)
+                    all_notes.extend(notes)
+                except Exception as e:
+                    logger.warning(f"搜索 '{query}' 失败: {e}")
+            
+            if not all_notes:
+                await emitter.step_error("step2", "未找到相关笔记")
+                await emitter.emit_error("未找到相关笔记")
+                return
+            
+            await emitter.step_done("step2", f"找到 {len(all_notes)} 篇笔记")
+            
+            # ========== Step 3: 分析评论 ==========
+            await emitter.step_start("step3", "分析评论内容...")
+            
+            all_shops = []
+            for note in all_notes[:15]:
+                try:
+                    shops = await self._analyze_note(note)
+                    all_shops.extend(shops)
+                except Exception as e:
+                    logger.warning(f"分析笔记失败: {e}")
+            
+            await emitter.step_done("step3", f"识别到 {len(all_shops)} 家店铺")
+            
+            # ========== Step 4: 交叉验证 ==========
+            await emitter.step_start("step4", "交叉验证筛选...")
+            
+            recommendations = self._cross_validate_and_filter(all_shops, intent)
+            
+            await emitter.step_done("step4", f"筛选出 {len(recommendations)} 家推荐")
+            
+            # 保存到上下文
+            for rec in recommendations:
+                self._context.last_recommendations[rec.name] = rec.to_dict()
+            
+            # ========== Step 5: POI 补充（流式） ==========
+            await self._stream_poi_enrich(recommendations, emitter)
+            
+            # ========== Step 6: 生成结果 ==========
+            await emitter.step_start("step6", "生成推荐结果...")
+            
+            response = XHSFoodResponse(
+                status="ok",
+                recommendations=recommendations,
+                filtered_count=len(all_shops) - len(recommendations),
+                summary=f"在{intent.location}找到 {len(recommendations)} 家推荐店铺",
+            )
+            
+            await emitter.step_done("step6", response.summary)
+            await emitter.emit_result(response.summary, len(recommendations), response.filtered_count)
+            await emitter.emit_done()
+            
+            self._record_response(response)
+            
+        except Exception as e:
+            logger.exception("流式搜索失败")
+            await emitter.emit_error(str(e))
+    
+    async def _stream_poi_enrich(
+        self,
+        recommendations: list,
+        emitter: "SearchEventEmitter",
+    ):
+        """流式 POI 补充."""
+        from xhs_food.agents import get_poi_enricher
+        
+        await emitter.step_start("step5", f"补充 {len(recommendations)} 家店铺信息...")
+        
+        enricher = get_poi_enricher()
+        city = ""
+        if recommendations and recommendations[0].location:
+            city = self._extract_city_from_location(recommendations[0].location)
+        
+        count = 0
+        async for enriched in enricher.enrich_stream(recommendations, city):
+            count += 1
+            await emitter.emit_restaurant(enriched.to_dict())
+        
+        await emitter.step_done("step5", f"完成 {count} 家店铺信息补充")
+    
+    def _extract_city_from_location(self, location: str) -> str:
+        """从位置提取城市."""
+        if not location:
+            return ""
+        cities = ["成都", "重庆", "达州", "自贡", "泸州", "绵阳", "德阳", "南充"]
+        for city in cities:
+            if city in location:
+                return city
+        return ""
     
     async def process(
         self,
@@ -139,9 +318,20 @@ class XHSFoodOrchestrator:
         """
         await self._ensure_initialized()
         
+        # 记录用户消息到对话历史
+        self._context.add_user_message(user_input)
+        
         try:
-            # Step 1: 意图解析（带上下文）
-            logger.info(f"[Step 1] 解析用户意图: {user_input[:50]}...")
+            # 有上下文 → LLM 直接处理追问
+            if self._context.last_recommendations:
+                logger.info(f"[多轮对话] LLM 处理: {user_input[:50]}...")
+                result = await self._process_follow_up_with_llm(user_input)
+                if result is not None:
+                    return result
+                # result=None 表示需要重新搜索，继续到意图解析
+            
+            # 无上下文 → 首次搜索，解析意图
+            logger.info(f"[首次搜索] 解析用户意图: {user_input[:50]}...")
             parse_result = await self._intent_parser.parse(user_input, self._context)
             
             if not parse_result.success:
@@ -156,31 +346,119 @@ class XHSFoodOrchestrator:
                     error_message=parse_result.error or "意图解析失败",
                 )
             
-            follow_up_type = parse_result.follow_up_type
-            logger.info(f"  追问类型: {follow_up_type.value}")
-            
-            # Step 2: 根据追问类型分发处理
-            if follow_up_type == FollowUpType.FILTER:
-                return await self._handle_filter(parse_result)
-            
-            elif follow_up_type == FollowUpType.EXPAND:
-                return await self._handle_expand(parse_result)
-            
-            elif follow_up_type == FollowUpType.DETAIL:
-                return await self._handle_detail(parse_result)
-            
-            elif follow_up_type == FollowUpType.CONFIRM:
-                return await self._handle_confirm()
-            
-            else:
-                # NEW_SEARCH 或 REFINE: 执行完整搜索
-                return await self._handle_new_search(parse_result)
+            # 执行搜索
+            return await self._handle_new_search(parse_result)
             
         except Exception as e:
             logger.exception("处理请求时发生错误")
             return XHSFoodResponse(
                 status="error",
                 error_message=str(e),
+            )
+    
+    async def _process_follow_up_with_llm(self, user_input: str) -> Optional[XHSFoodResponse]:
+        """
+        用 LLM 直接处理追问，不做意图分类.
+        
+        LLM 根据对话历史和店铺列表，直接输出处理结果。
+        """
+        try:
+            from xhs_food.prompts.prompts import FOLLOW_UP_PROCESSING_PROMPT
+            from langchain_core.messages import HumanMessage
+            
+            # 获取对话历史
+            conversation_history = self._context.get_history_for_llm(max_turns=5)
+            if not conversation_history:
+                conversation_history = "(无历史对话)"
+            
+            # 构建店铺列表（包含完整信息）
+            shop_list = []
+            for i, (name, rec_dict) in enumerate(self._context.last_recommendations.items(), 1):
+                features = rec_dict.get("features", [])[:3]
+                location = rec_dict.get("location", "未知")
+                features_str = ", ".join(features) if features else "无"
+                shop_list.append(f"{i}. {name}\n   位置: {location}\n   特点: {features_str}")
+            
+            shop_list_str = "\n".join(shop_list[:20]) if shop_list else "(无店铺列表)"
+            
+            # 构建 prompt
+            prompt = FOLLOW_UP_PROCESSING_PROMPT.format(
+                conversation_history=conversation_history,
+                shop_list=shop_list_str,
+                user_input=user_input,
+            )
+            
+            llm = self._llm_service
+            if llm is None:
+                from xhs_food.services.llm_service import LLMService
+                llm = LLMService()
+            
+            response = await llm.call([HumanMessage(content=prompt)])
+            raw_output = response.content if hasattr(response, 'content') else str(response)
+            
+            # 解析 JSON
+            import json
+            import re
+            json_match = re.search(r'\{[\s\S]*\}', raw_output)
+            if not json_match:
+                logger.warning(f"LLM 输出无法解析为 JSON: {raw_output[:200]}")
+                # 解析失败时返回原始列表
+                return XHSFoodResponse(
+                    status="ok",
+                    recommendations=[
+                        self._dict_to_recommendation(r) 
+                        for r in self._context.last_recommendations.values()
+                    ],
+                    summary="无法理解您的请求，以下是当前推荐列表",
+                )
+            
+            parsed = json.loads(json_match.group())
+            
+            # 检查是否需要重新搜索
+            if parsed.get("new_search", False):
+                logger.info("  用户要求重新搜索，触发新搜索流程")
+                return None  # 返回 None 触发新搜索
+            
+            # 获取 LLM 返回的店铺列表和回复
+            shops = parsed.get("shops", [])
+            response_text = parsed.get("response", "")
+            
+            logger.info(f"  LLM 回复: {response_text[:50]}...")
+            
+            # 从上下文中匹配店铺
+            matched_recommendations = []
+            for shop_name in shops:
+                for name, rec_dict in self._context.last_recommendations.items():
+                    if shop_name in name or name in shop_name:
+                        if rec_dict not in matched_recommendations:
+                            matched_recommendations.append(rec_dict)
+                        break
+            
+            # 不更新 last_recommendations，保留原始列表
+            # 这样用户可以在不同类型之间切换（如"吃米线" -> "还是吃烧烤"）
+            original_count = len(self._context.last_recommendations)
+            
+            self._context.turn_count += 1
+            
+            return XHSFoodResponse(
+                status="ok",
+                recommendations=[
+                    self._dict_to_recommendation(r) for r in matched_recommendations
+                ] if matched_recommendations else [],
+                filtered_count=original_count - len(matched_recommendations) if matched_recommendations else 0,
+                summary=response_text,
+            )
+                
+        except Exception as e:
+            logger.warning(f"LLM 追问处理失败: {e}")
+            # 出错时返回当前列表
+            return XHSFoodResponse(
+                status="ok",
+                recommendations=[
+                    self._dict_to_recommendation(r) 
+                    for r in self._context.last_recommendations.values()
+                ],
+                summary=f"处理失败: {str(e)}，以下是当前推荐列表",
             )
     
     async def _handle_filter(self, parse_result: IntentParseResult) -> XHSFoodResponse:
@@ -211,6 +489,127 @@ class XHSFoodOrchestrator:
             ],
             filtered_count=len(self._context.last_recommendations) - len(filtered_recommendations),
             summary=f"已排除 {target}，剩余 {len(filtered_recommendations)} 家推荐",
+        )
+    
+    async def _handle_category_filter(self, parse_result: IntentParseResult) -> XHSFoodResponse:
+        """处理品类过滤类追问（在现有结果中筛选某类型）."""
+        target_category = parse_result.category_target or ""
+        logger.info(f"  品类过滤: {target_category}")
+        
+        # 品类关键词映射表
+        category_mapping = {
+            "炒菜": ["炒菜", "川菜", "家常菜", "江湖菜", "小炒", "中餐", "粤菜", "湘菜"],
+            "川菜": ["川菜", "炒菜", "家常菜", "江湖菜"],
+            "火锅": ["火锅", "串串", "冒菜", "麻辣烫"],
+            "烧烤": ["烧烤", "烤肉", "撸串", "烤鱼"],
+            "面食": ["面", "抄手", "馄饨", "饺子", "面条", "粉"],
+            "小吃": ["小吃", "小吃店", "路边摊", "点心"],
+            "甜品": ["甜品", "甜点", "蛋糕", "奶茶"],
+            "鱼": ["鱼", "鱼庄", "烤鱼", "冷锅鱼", "花椒鱼"],
+        }
+        
+        # 获取匹配关键词列表
+        match_keywords = [target_category]
+        for category, keywords in category_mapping.items():
+            if target_category in category or category in target_category:
+                match_keywords.extend(keywords)
+        match_keywords = list(set(match_keywords))
+        
+        logger.debug(f"  匹配关键词: {match_keywords}")
+        
+        # 在现有结果中过滤
+        matched_recommendations = []
+        for name, rec_dict in self._context.last_recommendations.items():
+            features = rec_dict.get("features", [])
+            shop_name = rec_dict.get("name", "")
+            
+            # 检查店名或特点是否包含目标品类
+            is_match = False
+            for keyword in match_keywords:
+                # 检查店名
+                if keyword in shop_name:
+                    is_match = True
+                    break
+                # 检查特点列表
+                for feature in features:
+                    if keyword in feature or feature in keyword:
+                        is_match = True
+                        break
+                if is_match:
+                    break
+            
+            if is_match:
+                matched_recommendations.append(rec_dict)
+        
+        self._context.turn_count += 1
+        
+        if not matched_recommendations:
+            return XHSFoodResponse(
+                status="ok",
+                recommendations=[],
+                summary=f"在现有 {len(self._context.last_recommendations)} 家店铺中未找到{target_category}类，可以尝试重新搜索",
+            )
+        
+        # 更新上下文，后续操作将基于筛选后的结果
+        original_count = len(self._context.last_recommendations)
+        self._context.last_recommendations = {
+            rec_dict.get("name", ""): rec_dict for rec_dict in matched_recommendations
+        }
+        
+        return XHSFoodResponse(
+            status="ok",
+            recommendations=[
+                self._dict_to_recommendation(r) for r in matched_recommendations
+            ],
+            filtered_count=original_count - len(matched_recommendations),
+            summary=f"从现有结果中筛选出 {len(matched_recommendations)} 家{target_category}类店铺",
+        )
+    
+    async def _handle_location_filter(self, parse_result: IntentParseResult) -> XHSFoodResponse:
+        """处理位置过滤类追问（在现有结果中筛选某区域）."""
+        target_location = parse_result.location_target or ""
+        logger.info(f"  位置过滤: {target_location}")
+        
+        # 在现有结果中过滤
+        matched_recommendations = []
+        for name, rec_dict in self._context.last_recommendations.items():
+            location = rec_dict.get("location", "")
+            shop_name = rec_dict.get("name", "")
+            
+            # 检查位置是否包含目标区域
+            is_match = False
+            if location and target_location:
+                if target_location in location or location in target_location:
+                    is_match = True
+            # 也检查店名（有些店名包含区域）
+            if target_location in shop_name:
+                is_match = True
+            
+            if is_match:
+                matched_recommendations.append(rec_dict)
+        
+        self._context.turn_count += 1
+        
+        if not matched_recommendations:
+            return XHSFoodResponse(
+                status="ok",
+                recommendations=[],
+                summary=f"在现有 {len(self._context.last_recommendations)} 家店铺中未找到{target_location}区域的店铺，可以尝试重新搜索",
+            )
+        
+        # 更新上下文
+        original_count = len(self._context.last_recommendations)
+        self._context.last_recommendations = {
+            rec_dict.get("name", ""): rec_dict for rec_dict in matched_recommendations
+        }
+        
+        return XHSFoodResponse(
+            status="ok",
+            recommendations=[
+                self._dict_to_recommendation(r) for r in matched_recommendations
+            ],
+            filtered_count=original_count - len(matched_recommendations),
+            summary=f"从现有结果中筛选出 {len(matched_recommendations)} 家位于{target_location}的店铺",
         )
     
     async def _handle_expand(self, parse_result: IntentParseResult) -> XHSFoodResponse:
@@ -376,13 +775,13 @@ class XHSFoodOrchestrator:
                 error_message="无法解析搜索意图",
             )
         
-        # 重置缓存
+        # 重置缓存（搜索过程中的临时缓存）
         self._shop_mentions = {}
         self._analyzed_shops = {}
         
-        # 如果是新搜索，重置上下文（但保留排除列表用于细化）
-        if parse_result.follow_up_type == FollowUpType.NEW_SEARCH:
-            self._context = ConversationContext()
+        # 注意：不重置 _context.last_recommendations
+        # 用户可以随时在新搜索结果和旧结果之间切换
+        # 只在用户明确说"重新开始"时才调用 reset_context()
         
         logger.info(f"  解析结果: {intent.location} / {intent.food_type}")
         
@@ -510,35 +909,60 @@ class XHSFoodOrchestrator:
         self,
         intent: FoodSearchIntent,
     ) -> List[Dict[str, Any]]:
-        """执行4阶段搜索策略."""
+        """执行4阶段搜索策略.
+        
+        如果 deep_search=False（快速模式），达到 fast_mode_limit 篇笔记后提前返回。
+        """
         all_notes = []
         seen_ids: Set[str] = set()
         
         search_tool = self._xhs_registry.get_required("xhs_search")
         
+        def _should_stop() -> bool:
+            """快速模式下检查是否应该停止."""
+            if not self._deep_search and len(all_notes) >= self._fast_mode_limit:
+                logger.info(f"  [快速模式] 已达到 {len(all_notes)} 篇笔记，跳过后续阶段")
+                return True
+            return False
+        
         # 阶段1: 广撒网
         logger.info("  [Phase 1] 广撒网 - 建立候选池")
         phase1_keywords = self._generate_phase1_keywords(intent)
         for kw in phase1_keywords[:3]:
+            if _should_stop():
+                break
             notes = await self._search_with_keyword(search_tool, kw, seen_ids)
             all_notes.extend(notes)
+        
+        if _should_stop():
+            return all_notes
         
         # 阶段2: 挖隐藏
         logger.info("  [Phase 2] 挖隐藏 - 发现宝藏店铺")
         phase2_keywords = self._generate_phase2_keywords(intent)
         for kw in phase2_keywords[:3]:
+            if _should_stop():
+                break
             notes = await self._search_with_keyword(search_tool, kw, seen_ids)
             all_notes.extend(notes)
+        
+        if _should_stop():
+            return all_notes
         
         # 阶段3: 定向验证
         shop_names = self._extract_shop_names(all_notes)
         if shop_names:
             logger.info(f"  [Phase 3] 定向验证 - 验证 {len(shop_names)} 家店铺")
             for i in range(0, min(len(shop_names), 4), 2):
+                if _should_stop():
+                    break
                 names = shop_names[i:i+2]
                 kw = f"{intent.location} {' '.join(names)}"
                 notes = await self._search_with_keyword(search_tool, kw, seen_ids)
                 all_notes.extend(notes)
+        
+        if _should_stop():
+            return all_notes
         
         # 阶段4: 细分搜索
         if intent.food_type and intent.food_type != "美食":
@@ -548,6 +972,8 @@ class XHSFoodOrchestrator:
                 f"{intent.location} {intent.food_type} 本地人",
             ]
             for kw in phase4_keywords:
+                if _should_stop():
+                    break
                 notes = await self._search_with_keyword(search_tool, kw, seen_ids)
                 all_notes.extend(notes)
         

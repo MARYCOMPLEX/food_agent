@@ -28,9 +28,14 @@ FOLLOW_UP_PATTERNS = {
         r"排除(.+)",
         r"不要(.+)了",
         r"去掉(.+)",
-        r"只要(.+)",
-        r"只看(.+)",
-        r"换成(.+)",
+    ],
+    FollowUpType.CATEGORY_FILTER: [
+        r"(只要|只看|想吃|换成|来点|想要)(.+)(类|的)",
+        r"有没有(.+)(类|的)?",
+        r"(.+)(类|的)有吗",
+        r"我想吃(.+)",
+        r"想吃点(.+)",
+        r"换(.+)的",
     ],
     FollowUpType.EXPAND: [
         r"还有(吗|其他|更多)",
@@ -54,10 +59,20 @@ FOLLOW_UP_PATTERNS = {
     ],
     FollowUpType.REFINE: [
         r"换个(地方|区域|城市)",
-        r"(火锅|川菜|烧烤)的",
         r"便宜(一点|点)的",
         r"(老店|新店)的",
     ],
+}
+
+# 品类关键词映射表
+CATEGORY_MAPPING = {
+    "炒菜": ["炒菜", "川菜", "家常菜", "江湖菜", "小炒", "中餐"],
+    "川菜": ["川菜", "炒菜", "家常菜", "江湖菜"],
+    "火锅": ["火锅", "串串", "冒菜", "麻辣烫"],
+    "烧烤": ["烧烤", "烤肉", "撸串"],
+    "面食": ["面", "抄手", "馄饨", "饺子", "面条"],
+    "小吃": ["小吃", "小吃店", "路边摊"],
+    "甜品": ["甜品", "甜点", "蛋糕", "奶茶"],
 }
 
 
@@ -75,6 +90,8 @@ class IntentParseResult:
         # 追问相关
         filter_target: Optional[str] = None,  # 过滤目标（如"排除XX店"中的XX店）
         detail_target: Optional[str] = None,  # 详情目标（如"XX店怎么样"中的XX店）
+        category_target: Optional[str] = None,  # 品类过滤目标（如"炒菜类"）
+        location_target: Optional[str] = None,  # 位置过滤目标（如"渝中区"）
     ):
         self.success = success
         self.intent = intent
@@ -85,6 +102,8 @@ class IntentParseResult:
         self.error = error
         self.filter_target = filter_target
         self.detail_target = detail_target
+        self.category_target = category_target
+        self.location_target = location_target
 
 
 class IntentParserAgent:
@@ -137,8 +156,8 @@ class IntentParserAgent:
                 if shop_name in user_input:
                     return FollowUpType.DETAIL, shop_name
         
-        # 默认为新搜索
-        return FollowUpType.NEW_SEARCH, None
+        # 返回 None 表示需要 LLM 理解
+        return None, None
     
     async def parse(
         self,
@@ -148,6 +167,9 @@ class IntentParserAgent:
         """
         解析用户输入为搜索意图.
         
+        注意：追问处理现在由 orchestrator._process_follow_up_with_llm 直接处理。
+        这个方法只负责解析新的搜索意图。
+        
         Args:
             user_input: 用户自然语言输入
             context: 对话上下文（可选）
@@ -155,50 +177,7 @@ class IntentParserAgent:
         Returns:
             IntentParseResult: 解析结果
         """
-        # 先检测追问类型
-        follow_up_type, target = self.detect_follow_up_type(user_input, context)
-        
-        # 如果是过滤类追问
-        if follow_up_type == FollowUpType.FILTER and context and context.last_intent:
-            # 复用上一轮意图，添加过滤条件
-            intent = FoodSearchIntent.from_dict(context.last_intent)
-            if target:
-                intent.exclude_keywords.append(target)
-            return IntentParseResult(
-                success=True,
-                intent=intent,
-                follow_up_type=follow_up_type,
-                filter_target=target,
-            )
-        
-        # 如果是详情类追问
-        if follow_up_type == FollowUpType.DETAIL and target:
-            return IntentParseResult(
-                success=True,
-                intent=None,  # 不需要新搜索
-                follow_up_type=follow_up_type,
-                detail_target=target,
-            )
-        
-        # 如果是扩展类追问
-        if follow_up_type == FollowUpType.EXPAND and context and context.last_intent:
-            # 复用上一轮意图
-            intent = FoodSearchIntent.from_dict(context.last_intent)
-            return IntentParseResult(
-                success=True,
-                intent=intent,
-                follow_up_type=follow_up_type,
-            )
-        
-        # 如果是确认类追问
-        if follow_up_type == FollowUpType.CONFIRM:
-            return IntentParseResult(
-                success=True,
-                intent=None,
-                follow_up_type=follow_up_type,
-            )
-        
-        # 新搜索或细化搜索：使用LLM解析
+        # 使用 LLM 解析搜索意图
         try:
             llm = await self._get_llm_service()
             
@@ -233,16 +212,10 @@ class IntentParserAgent:
             # Build intent
             intent = FoodSearchIntent.from_dict(parsed)
             
-            # 如果是细化搜索，合并上一轮的排除条件
-            if follow_up_type == FollowUpType.REFINE and context and context.excluded_shops:
-                for shop in context.excluded_shops:
-                    if shop not in intent.exclude_keywords:
-                        intent.exclude_keywords.append(shop)
-            
             return IntentParseResult(
                 success=True,
                 intent=intent,
-                follow_up_type=follow_up_type,
+                follow_up_type=FollowUpType.NEW_SEARCH,
                 raw_output=raw_output,
             )
             
@@ -277,3 +250,32 @@ class IntentParserAgent:
                     continue
         
         return None
+    
+    def _extract_category(self, user_input: str, regex_target: Optional[str]) -> str:
+        """
+        从用户输入中提取品类关键词.
+        
+        Args:
+            user_input: 用户输入
+            regex_target: 正则匹配的目标
+            
+        Returns:
+            标准化的品类关键词
+        """
+        # 先尝试使用正则匹配的目标
+        if regex_target:
+            # 清理多余的字符
+            category = regex_target.strip()
+            category = re.sub(r"[类的点]$", "", category)  # 去除尾部的"类"、"的"、"点"
+            return category
+        
+        # 否则从用户输入中提取
+        for known_category in CATEGORY_MAPPING.keys():
+            if known_category in user_input:
+                return known_category
+        
+        # 兜底：使用完整输入（去除常见词汇）
+        cleaned = user_input
+        for word in ["我想吃", "想吃点", "来点", "换成", "只要", "只看", "有没有", "类", "的"]:
+            cleaned = cleaned.replace(word, "")
+        return cleaned.strip() or user_input
