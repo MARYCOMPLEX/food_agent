@@ -119,7 +119,9 @@ class CrossValidationResult:
 class FollowUpType(Enum):
     """追问类型."""
     NEW_SEARCH = "new_search"  # 新搜索（无上下文）
-    FILTER = "filter"  # 过滤类：排除某店、只要某类型
+    FILTER = "filter"  # 过滤类：排除某店
+    CATEGORY_FILTER = "category_filter"  # 品类过滤：在现有结果中筛选某类型
+    LOCATION_FILTER = "location_filter"  # 位置过滤：在现有结果中筛选某区域
     REFINE = "refine"  # 细化类：多找几家火锅、换个区域
     EXPAND = "expand"  # 扩展类：还有吗、多找几家
     DETAIL = "detail"  # 详情类：XX店怎么样、具体位置
@@ -130,8 +132,11 @@ class FollowUpType(Enum):
 class ConversationContext:
     """多轮对话上下文.
     
-    用于缓存上一轮搜索结果，支持追问处理。
+    用于缓存对话历史和搜索结果，支持追问处理。
     """
+    # 对话历史 [{"role": "user"/"assistant", "content": "..."}]
+    conversation_history: List[Dict[str, str]] = field(default_factory=list)
+    
     # 上一轮的搜索意图
     last_intent: Optional[Dict[str, Any]] = None
     
@@ -149,6 +154,24 @@ class ConversationContext:
     
     # 上一轮的原始笔记（用于扩展搜索）
     last_notes: List[Dict[str, Any]] = field(default_factory=list)
+    
+    def add_user_message(self, content: str) -> None:
+        """添加用户消息到对话历史."""
+        self.conversation_history.append({"role": "user", "content": content})
+    
+    def add_assistant_message(self, content: str) -> None:
+        """添加助手消息到对话历史."""
+        self.conversation_history.append({"role": "assistant", "content": content})
+    
+    def get_history_for_llm(self, max_turns: int = 10) -> str:
+        """获取格式化的对话历史（用于 LLM）."""
+        recent = self.conversation_history[-(max_turns * 2):]
+        lines = []
+        for msg in recent:
+            role = "用户" if msg["role"] == "user" else "助手"
+            content = msg["content"][:200] + "..." if len(msg["content"]) > 200 else msg["content"]
+            lines.append(f"{role}: {content}")
+        return "\n".join(lines)
     
     def add_recommendations(self, recommendations: List[Any]) -> None:
         """添加推荐结果到缓存."""
@@ -183,10 +206,12 @@ class ConversationContext:
             "excluded_shops": self.excluded_shops,
             "accumulated_preferences": self.accumulated_preferences,
             "turn_count": self.turn_count,
+            "history_length": len(self.conversation_history),
         }
     
     def reset(self) -> None:
         """重置上下文（开始新搜索）."""
+        self.conversation_history = []
         self.last_intent = None
         self.last_recommendations = {}
         self.excluded_shops = []
@@ -319,6 +344,45 @@ class WanghongAnalysis:
 
 
 @dataclass
+class MustTryItem:
+    """必点推荐项."""
+    name: str
+    reason: str = ""
+    img: str = ""  # 图片URL（可选，通常为空）
+    
+    def to_dict(self) -> Dict[str, str]:
+        return {"name": self.name, "reason": self.reason, "img": self.img}
+
+
+@dataclass
+class BlackListItem:
+    """避雷菜品项."""
+    name: str
+    reason: str = ""
+    
+    def to_dict(self) -> Dict[str, str]:
+        return {"name": self.name, "reason": self.reason}
+
+
+@dataclass
+class ShopStats:
+    """店铺综合评级."""
+    flavor: str = ""  # 口味评级: A/B/C 或空
+    cost: str = ""    # 人均: $/$$/$$$  
+    wait: str = ""    # 等位时间: 5min/15min/30min+
+    env: str = ""     # 环境: Quiet/Casual/Noisy
+    
+    def to_dict(self) -> Dict[str, str]:
+        return {
+            "flavor": self.flavor,
+            "cost": self.cost,
+            "wait": self.wait,
+            "env": self.env,
+        }
+
+
+
+@dataclass
 class RestaurantRecommendation:
     """最终餐厅推荐."""
     name: str
@@ -332,6 +396,17 @@ class RestaurantRecommendation:
     is_recommended: bool = True
     filter_reason: Optional[str] = None  # 如果被过滤，原因
     
+    # POI 详情（高德地图补充）
+    poi_details: Optional[Dict[str, Any]] = None
+    
+    # 新增: 详细评价字段
+    pros: List[str] = field(default_factory=list)  # 正向评价
+    cons: List[str] = field(default_factory=list)  # 负向评价
+    must_try: List[MustTryItem] = field(default_factory=list)  # 必点推荐
+    black_list: List[BlackListItem] = field(default_factory=list)  # 避雷菜品
+    stats: Optional[ShopStats] = None  # 综合评级
+    tags: List[str] = field(default_factory=list)  # 标签汇总
+    
     def to_dict(self) -> Dict[str, Any]:
         return {
             "name": self.name,
@@ -342,6 +417,14 @@ class RestaurantRecommendation:
             "is_recommended": self.is_recommended,
             "filter_reason": self.filter_reason,
             "wanghong_analysis": self.wanghong_analysis.to_dict() if self.wanghong_analysis else None,
+            "poi_details": self.poi_details,
+            # 新增字段
+            "pros": self.pros,
+            "cons": self.cons,
+            "mustTry": [item.to_dict() for item in self.must_try] if self.must_try else [],
+            "blackList": [item.to_dict() for item in self.black_list] if self.black_list else [],
+            "stats": self.stats.to_dict() if self.stats else {"flavor": "", "cost": "", "wait": "", "env": ""},
+            "tags": self.tags,
         }
     
     def to_table_row(self) -> Dict[str, str]:
@@ -363,6 +446,7 @@ class RestaurantRecommendation:
             "类型判断": wanghong_status,
             "来源数": str(len(self.source_notes)),
         }
+
 
 
 @dataclass  
