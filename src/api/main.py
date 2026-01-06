@@ -1,10 +1,14 @@
 """
 XHS Food Agent API - FastAPI 服务入口.
 
-提供:
-- /health - 健康检查
-- /api/v1/search - 普通搜索
-- /api/v1/search/stream - SSE流式搜索
+Endpoints (API.md):
+- /v1/search/* - 搜索 API (含 SSE)
+- /v1/favorites/* - 收藏 API
+- /v1/user/* - 用户 API
+- /v1/help/* - 帮助 API
+
+Legacy:
+- /api/v1/* - 旧版 API (兼容)
 """
 
 import os
@@ -19,8 +23,13 @@ from fastapi.middleware.cors import CORSMiddleware
 load_dotenv()
 
 # Import after loading env
-from api.routes import router
+from api.routes import router as legacy_router
 from api.openai_compat import router as openai_router
+from api.search import router as search_router
+from api.favorites import router as favorites_router
+from api.user import router as user_router
+from api.help import router as help_router
+from api.history import router as history_router
 
 
 @asynccontextmanager
@@ -44,7 +53,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="XHS Food Agent API",
-    description="小红书美食智能推荐Agent API服务 (OpenAI Compatible)",
+    description="小红书美食智能推荐Agent API服务",
     version="1.0.0",
     lifespan=lifespan,
 )
@@ -58,9 +67,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routes
-app.include_router(router)
-app.include_router(openai_router)  # OpenAI-compatible endpoints
+# New API routes (API.md spec)
+app.include_router(search_router)
+app.include_router(favorites_router)
+app.include_router(user_router)
+app.include_router(help_router)
+app.include_router(history_router)
+
+
+# Legacy routes (backward compatibility)
+app.include_router(legacy_router)
+app.include_router(openai_router)
 
 
 @app.get("/health")

@@ -1,59 +1,180 @@
 """
 API Schemas - Pydantic 请求/响应模型.
+
+按照 API.md 规范定义。
 """
 
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
-class SearchRequest(BaseModel):
-    """搜索请求."""
-    query: str = Field(..., description="搜索查询，如 '成都本地人常去的老店'")
-    session_id: Optional[str] = Field(None, description="会话ID，不提供则自动创建")
-    reset_context: bool = Field(False, description="是否重置对话上下文")
+# =============================================================================
+# Loading Steps
+# =============================================================================
+
+class LoadingStep(BaseModel):
+    """加载步骤."""
+    id: str = Field(..., description="步骤ID")
+    label: str = Field(..., description="步骤描述")
+    status: str = Field("pending", description="状态: pending, loading, done, error")
 
 
-class RecommendationItem(BaseModel):
-    """推荐店铺."""
-    name: str = Field(..., description="店铺名称")
-    location: Optional[str] = Field(None, description="位置描述")
-    features: List[str] = Field(default_factory=list, description="店铺特点")
-    source_notes: List[str] = Field(default_factory=list, description="来源笔记ID")
-    confidence: float = Field(0.5, description="推荐置信度 0-1")
-    is_recommended: bool = Field(True, description="是否推荐")
-    filter_reason: Optional[str] = Field(None, description="被过滤的原因")
-    wanghong_analysis: Optional[Dict[str, Any]] = Field(None, description="网红店分析")
+# =============================================================================
+# Search API
+# =============================================================================
+
+class SearchStartRequest(BaseModel):
+    """POST /v1/search/start 请求体."""
+    query: str = Field(..., description="搜索查询")
+    location: Optional[Dict[str, float]] = Field(None, description="位置坐标 {lat, lng}")
 
 
-class SearchResponse(BaseModel):
-    """搜索响应."""
-    status: str = Field("ok", description="状态: ok, clarify, error")
-    session_id: Optional[str] = Field(None, description="会话ID")
-    recommendations: List[Dict[str, Any]] = Field(default_factory=list, description="推荐列表")
-    filtered_count: int = Field(0, description="被过滤的店铺数")
-    summary: str = Field("", description="结果摘要")
-    clarify_questions: List[str] = Field(default_factory=list, description="需要澄清的问题")
-    error_message: Optional[str] = Field(None, description="错误信息")
-    
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "status": "ok",
-                "recommendations": [
-                    {
-                        "name": "老字号米粉店",
-                        "location": "XX路XX号",
-                        "features": ["本地人推荐", "开了20年"],
-                        "confidence": 0.85,
-                    }
-                ],
-                "filtered_count": 2,
-                "summary": "在成都找到 5 家推荐店铺，过滤了 2 家网红店",
-            }
-        }
+class SearchStartResponse(BaseModel):
+    """POST /v1/search/start 响应体."""
+    success: bool = True
+    data: Dict[str, Any] = Field(default_factory=dict)
 
+
+class SearchStatusResponse(BaseModel):
+    """GET /v1/search/status/{sessionId} 响应体."""
+    success: bool = True
+    data: Dict[str, Any] = Field(default_factory=dict)
+
+
+class RefineRequest(BaseModel):
+    """POST /v1/search/refine 请求体."""
+    sessionId: str = Field(..., description="会话ID")
+    query: str = Field(..., description="追问查询")
+
+
+# =============================================================================
+# Restaurant (完整格式)
+# =============================================================================
+
+class MustTryItem(BaseModel):
+    """必点菜品."""
+    name: str
+    reason: Optional[str] = None
+    img: Optional[str] = None
+
+
+class BlackListItem(BaseModel):
+    """避雷菜品."""
+    name: str
+    reason: Optional[str] = None
+
+
+class RestaurantStats(BaseModel):
+    """店铺评分."""
+    flavor: str = "B"
+    cost: str = "$$"
+    wait: str = "15min"
+    env: str = "Normal"
+
+
+class Restaurant(BaseModel):
+    """店铺详情 (API.md 格式)."""
+    id: int
+    name: str
+    chnName: Optional[str] = None
+    distance: Optional[str] = None
+    price: str = "$$"
+    trustScore: float = 7.0
+    oneLiner: str = ""
+    isNegativeOneLiner: bool = False
+    tags: List[str] = Field(default_factory=list)
+    coverImage: Optional[str] = None
+    pros: List[str] = Field(default_factory=list)
+    cons: List[str] = Field(default_factory=list)
+    warning: Optional[str] = None
+    mustTry: List[MustTryItem] = Field(default_factory=list)
+    blackList: List[BlackListItem] = Field(default_factory=list)
+    stats: Optional[RestaurantStats] = None
+
+
+class SearchResultsResponse(BaseModel):
+    """GET /v1/search/results/{sessionId} 响应体."""
+    success: bool = True
+    data: Dict[str, Any] = Field(default_factory=dict)
+
+
+# =============================================================================
+# Favorites API
+# =============================================================================
+
+class FavoriteAddRequest(BaseModel):
+    """POST /v1/favorites 请求体."""
+    restaurantId: int
+    restaurant: Optional[Restaurant] = None  # 完整店铺对象（用于存储）
+
+
+class FavoriteResponse(BaseModel):
+    """收藏操作响应."""
+    success: bool = True
+    message: str = ""
+    isFavorite: bool = False
+
+
+# =============================================================================
+# User API
+# =============================================================================
+
+class UserProfileUpdateRequest(BaseModel):
+    """PUT /v1/user/profile 请求体."""
+    name: Optional[str] = None
+    email: Optional[str] = None
+    location: Optional[str] = None
+
+
+# =============================================================================
+# Help API
+# =============================================================================
+
+class FeedbackRequest(BaseModel):
+    """POST /v1/help/feedback 请求体."""
+    type: str = Field(..., description="类型: bug, feature, other")
+    content: str = Field(..., description="反馈内容")
+    contact: Optional[str] = None  # 联系方式（邮箱/手机）
+
+
+# =============================================================================
+# Error Response
+# =============================================================================
+
+class ErrorResponse(BaseModel):
+    """错误响应."""
+    success: bool = False
+    error: str = ""
+    message: str = ""
+
+
+# =============================================================================
+# SSE Event (保留兼容)
+# =============================================================================
 
 class StreamEvent(BaseModel):
     """SSE事件."""
     event: str = Field(..., description="事件类型: status, progress, result, error, done")
     data: Dict[str, Any] = Field(..., description="事件数据")
+
+
+# =============================================================================
+# Legacy (保留向后兼容)
+# =============================================================================
+
+class SearchRequest(BaseModel):
+    """搜索请求 (旧版)."""
+    query: str = Field(..., description="搜索查询")
+    session_id: Optional[str] = Field(None, description="会话ID")
+    reset_context: bool = Field(False, description="是否重置对话上下文")
+
+
+class SearchResponse(BaseModel):
+    """搜索响应 (旧版)."""
+    status: str = Field("ok", description="状态: ok, clarify, error")
+    session_id: Optional[str] = Field(None, description="会话ID")
+    recommendations: List[Dict[str, Any]] = Field(default_factory=list)
+    filtered_count: int = Field(0)
+    summary: str = Field("")
+    clarify_questions: List[str] = Field(default_factory=list)
+    error_message: Optional[str] = None
