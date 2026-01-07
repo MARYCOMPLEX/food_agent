@@ -128,7 +128,7 @@ session.json
 secrets/
 credentials/
 
-# in-docs
+# Internal Development Docs (not for public)
 docs/
-cache_design.md
+internal-docs/
 

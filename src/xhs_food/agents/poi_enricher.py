@@ -4,6 +4,10 @@ POI 信息补充 Agent (流式输出版).
 
 使用高德地图 API 补充店铺的详细 POI 信息，并格式化输出。
 支持流式输出，方便 SSE 端点调用。
+
+优化：
+- 先查数据库缓存，避免重复调用高德 API
+- 如果数据库有完整 POI 信息，直接使用
 """
 
 import asyncio
@@ -14,6 +18,7 @@ from loguru import logger
 
 from xhs_food.spider.apis.amap_api import get_amap_api, AmapAPI
 from xhs_food.schemas import RestaurantRecommendation
+from xhs_food.services.user_storage import generate_restaurant_hash
 
 
 @dataclass
@@ -21,7 +26,7 @@ class EnrichedRestaurant:
     """格式化后的店铺信息（用于前端展示）."""
     
     # 基本信息
-    id: int
+    index: int  # 显示顺序（非数据库 ID）
     name: str
     alias: Optional[str] = None
     
@@ -70,9 +75,12 @@ class EnrichedRestaurant:
         self.stats = self.stats or {"flavor": "", "cost": "", "wait": "", "env": ""}
     
     def to_dict(self) -> Dict[str, Any]:
-        """转换为 API 响应格式."""
+        """转换为 API 响应格式.
+        
+        注意：不包含 id 字段，由数据库层根据 name+tel 生成 hash ID。
+        """
         return {
-            "id": self.id,
+            # 不输出 id，由 user_storage.upsert_restaurant 生成 hash ID
             "name": self.name,
             "chnName": self.alias or self.name,
             "address": self.address,
@@ -84,7 +92,7 @@ class EnrichedRestaurant:
             "rating": self.rating,
             "cost": self.cost,
             "openTime": self.open_time,
-            "trustScore": self.trust_score,
+            "trustScore": round(self.trust_score, 1),
             "oneLiner": self.one_liner,
             "tags": self.tags,
             "pros": self.pros,
@@ -169,13 +177,105 @@ class POIEnricherAgent:
         idx: int,
         city: str = "",
     ) -> EnrichedRestaurant:
-        """补充并格式化单个店铺."""
-        # 搜索 POI
+        """补充并格式化单个店铺.
+        
+        优先检查数据库缓存，存在则直接使用，节省高德 API 调用。
+        """
+        # 1. 先查数据库缓存
+        cached = await self._get_cached_poi(rec.name)
+        if cached:
+            logger.debug(f"[POIEnricher] 命中数据库缓存: {rec.name}")
+            return self._build_from_cached(rec, idx, cached)
+        
+        # 2. 数据库无缓存，调用高德 API
         search_city = city or self._extract_city(rec.location)
         poi = await self._search_poi(rec.name, search_city)
         
         # 构建格式化结果
         return self._build_enriched(rec, idx, poi)
+    
+    async def _get_cached_poi(self, name: str) -> Optional[Dict[str, Any]]:
+        """从数据库查询已缓存的餐厅 POI 信息.
+        
+        只有当地址、电话等核心 POI 字段不为空时才视为有效缓存。
+        """
+        try:
+            from xhs_food.services import get_user_storage_service
+            
+            # 生成可能的 hash ID（使用 name 作为匹配）
+            storage = await get_user_storage_service()
+            if not storage._initialized or not storage._pool:
+                return None
+            
+            async with storage._pool.acquire() as conn:
+                # 通过名称查询（模糊匹配）
+                row = await conn.fetchrow(
+                    """
+                    SELECT * FROM restaurants 
+                    WHERE name = $1 AND address IS NOT NULL AND address != ''
+                    LIMIT 1
+                    """,
+                    name,
+                )
+                if row:
+                    return dict(row)
+            return None
+        except Exception as e:
+            logger.debug(f"[POIEnricher] 查询缓存失败: {e}")
+            return None
+    
+    def _build_from_cached(
+        self,
+        rec: RestaurantRecommendation,
+        idx: int,
+        cached: Dict[str, Any],
+    ) -> EnrichedRestaurant:
+        """从数据库缓存构建结果."""
+        import json
+        
+        # 从 rec 获取新字段
+        must_try = [item.to_dict() for item in rec.must_try] if rec.must_try else []
+        black_list = [item.to_dict() for item in rec.black_list] if rec.black_list else []
+        stats = rec.stats.to_dict() if rec.stats else {"flavor": "", "cost": "", "wait": "", "env": ""}
+        
+        # 使用 LLM 提取的 pros/cons/tags，如果为空则 fallback
+        pros = rec.pros if rec.pros else rec.features[:5] if rec.features else []
+        cons = rec.cons if rec.cons else []
+        tags = rec.tags if rec.tags else rec.features[:5] if rec.features else []
+        
+        # 解析 JSONB 字段
+        photos = cached.get("photos", [])
+        if isinstance(photos, str):
+            try:
+                photos = json.loads(photos)
+            except:
+                photos = []
+        
+        return EnrichedRestaurant(
+            index=idx,
+            name=rec.name,
+            alias=cached.get("alias"),
+            address=cached.get("address", rec.location or ""),
+            location=cached.get("location"),
+            city=cached.get("city", ""),
+            district=cached.get("district", ""),
+            business_area=cached.get("business_area", ""),
+            tel=cached.get("tel"),
+            rating=cached.get("rating"),
+            cost=cached.get("cost"),
+            open_time=cached.get("open_time"),
+            trust_score=rec.confidence * 10,
+            one_liner=", ".join(rec.features[:2]) if rec.features else "",
+            tags=tags,
+            pros=pros,
+            cons=cons,
+            warning=rec.filter_reason,
+            photos=photos[:5] if photos else [],
+            source_notes=rec.source_notes,
+            must_try=must_try,
+            black_list=black_list,
+            stats=stats,
+        )
     
     async def _search_poi(self, name: str, city: str = "") -> Optional[Dict[str, Any]]:
         """
@@ -226,7 +326,7 @@ class POIEnricherAgent:
         
         # 基础信息
         enriched = EnrichedRestaurant(
-            id=idx,
+            index=idx,
             name=rec.name,
             trust_score=rec.confidence * 10,
             one_liner=", ".join(rec.features[:2]) if rec.features else "",
@@ -296,7 +396,7 @@ class POIEnricherAgent:
         tags = rec.tags if rec.tags else rec.features[:5] if rec.features else []
         
         return EnrichedRestaurant(
-            id=idx,
+            index=idx,
             name=rec.name,
             address=rec.location or "",
             trust_score=rec.confidence * 10,

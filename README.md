@@ -20,7 +20,40 @@
 *一个基于 LLM 的智能美食推荐系统，通过分析小红书社区真实用户评论，*  
 *识别本地人推荐的隐藏美食，过滤网红流量店，帮你找到真正值得打卡的美食。*
 
+<br/>
+
+**[🚀 快速开始](#-快速开始) · [📖 文档](#-文档) · [💡 特性](#-核心特性) · [🤝 贡献](#-贡献)**
+
 </div>
+
+---
+
+## 🎯 为什么选择 XHS Food Agent？
+
+<table>
+<tr>
+<td width="50%">
+
+### 😤 传统方式的痛点
+
+- ❌ 搜"成都火锅"返回千篇一律的网红店
+- ❌ 分不清哪些是真实推荐，哪些是广告软文
+- ❌ 本地人私藏的宝藏店铺难以发现
+- ❌ 需要翻阅大量笔记和评论
+
+</td>
+<td width="50%">
+
+### 😊 我们的解决方案
+
+- ✅ AI 智能分析评论，识别本地人口碑店
+- ✅ 多维度信任评分，自动过滤营销内容
+- ✅ 4 阶段搜索策略，挖掘隐藏美食
+- ✅ 一句话搜索，秒出靠谱推荐
+
+</td>
+</tr>
+</table>
 
 ---
 
@@ -38,7 +71,7 @@
 </td>
 <td width="50%">
 
-### � 混合记忆系统
+### 💾 混合记忆系统
 - **Redis (L1)** — 短期上下文，滑动窗口
 - **PostgreSQL (L2)** — 长期持久化 + pgvector 向量检索
 - **智能缓存预热** — 自动恢复历史对话
@@ -48,10 +81,10 @@
 <tr>
 <td width="50%">
 
-### �🚀 生产就绪
+### 🚀 生产就绪
 - **SSE 流式输出** — 实时获取搜索进度
-- **会话管理 API** — 完整的多用户支持
-- **FastAPI 服务** — 简洁 RESTful API
+- **断线恢复** — 无感重连，数据不丢失
+- **多用户支持** — 完整的会话管理 API
 
 </td>
 <td width="50%">
@@ -64,6 +97,46 @@
 </td>
 </tr>
 </table>
+
+---
+
+## 🎬 Demo 演示
+
+<details>
+<summary>📱 <strong>点击展开使用示例</strong></summary>
+
+### 示例查询
+
+```bash
+# 1. 基础搜索
+"成都本地人常去的老火锅"
+
+# 2. 带偏好的搜索
+"上海浦东机场附近，适合商务宴请的餐厅，预算 500 以内"
+
+# 3. 追问对话
+"还有便宜点的吗？" / "有没有排队少的？"
+```
+
+### 返回结果示例
+
+```json
+{
+  "name": "蜀大侠火锅",
+  "trustScore": 8.5,
+  "oneLiner": "本地人推荐的老火锅，锅底正宗不踩雷",
+  "pros": ["锅底正宗", "服务热情", "性价比高"],
+  "cons": ["高峰期需排队"],
+  "mustTry": [{"name": "毛肚", "reason": "招牌必点"}],
+  "stats": {
+    "flavor": "A",
+    "cost": "$$",
+    "wait": "15min"
+  }
+}
+```
+
+</details>
 
 ---
 
@@ -90,6 +163,17 @@
 │  │          (Search · Note Content · Comments Scraping)           │  │
 │  └───────────────────────────────────────────────────────────────┘  │
 └──────────────────────────────────────────────────────────────────────┘
+```
+
+### 多 Agent 协作流程
+
+```mermaid
+flowchart LR
+    A[用户查询] --> B[IntentParser<br/>意图解析]
+    B --> C[XHS Spider<br/>数据采集]
+    C --> D[Analyzer<br/>评论分析]
+    D --> E[POIEnricher<br/>信息补充]
+    E --> F[推荐结果]
 ```
 
 ---
@@ -148,12 +232,12 @@ uvicorn src.api.main:app --reload --port 8000
 
 ```bash
 # 普通搜索
-curl -X POST http://localhost:8000/api/v1/search \
+curl -X POST http://localhost:8000/v1/search/start \
   -H "Content-Type: application/json" \
   -d '{"query": "成都本地人常去的老火锅"}'
 
 # SSE 流式搜索 (推荐)
-curl -N "http://localhost:8000/api/v1/search/stream?query=成都春熙路附近早餐推荐"
+curl -N "http://localhost:8000/v1/search/stream/{sessionId}"
 ```
 
 ### 会话管理
@@ -162,14 +246,8 @@ curl -N "http://localhost:8000/api/v1/search/stream?query=成都春熙路附近�
 # 创建新会话
 curl -X POST http://localhost:8000/api/v1/session/create
 
-# 获取会话信息
-curl http://localhost:8000/api/v1/session/{session_id}
-
-# 获取完整历史
-curl http://localhost:8000/api/v1/session/{session_id}/history
-
-# 重置会话
-curl -X POST "http://localhost:8000/api/v1/reset?session_id={session_id}"
+# 断线恢复
+curl http://localhost:8000/v1/search/recover/{sessionId}
 ```
 
 <details>
@@ -178,12 +256,14 @@ curl -X POST "http://localhost:8000/api/v1/reset?session_id={session_id}"
 | 方法 | 端点 | 说明 |
 |------|------|------|
 | `GET` | `/health` | 健康检查 |
-| `POST` | `/api/v1/search` | 同步搜索（支持 session_id） |
-| `GET` | `/api/v1/search/stream` | SSE 流式搜索 |
-| `POST` | `/api/v1/session/create` | 创建新会话 |
-| `GET` | `/api/v1/session/{id}` | 获取会话信息 |
-| `GET` | `/api/v1/session/{id}/history` | 获取完整历史 |
-| `POST` | `/api/v1/reset` | 重置会话上下文 |
+| `POST` | `/v1/search/start` | 启动搜索 |
+| `GET` | `/v1/search/stream/{id}` | SSE 流式搜索 |
+| `GET` | `/v1/search/recover/{id}` | 断线恢复 |
+| `POST` | `/v1/search/refine` | 多轮追问 |
+| `GET` | `/v1/favorites` | 收藏列表 |
+| `POST` | `/v1/favorites` | 添加收藏 |
+| `GET` | `/v1/history` | 搜索历史 |
+| `GET` | `/v1/user/profile` | 用户资料 |
 
 </details>
 
@@ -196,28 +276,29 @@ xhs_food_agent/
 ├── 📁 src/
 │   ├── 📁 api/                    # FastAPI 服务层
 │   │   ├── main.py               # 应用入口
-│   │   ├── routes.py             # API 路由（含会话管理）
-│   │   └── schemas.py            # 请求/响应模型
+│   │   ├── search.py             # 搜索 API (SSE)
+│   │   ├── favorites.py          # 收藏功能
+│   │   └── README.md             # 📖 模块文档
 │   │
 │   └── 📁 xhs_food/              # 核心 Agent 模块
 │       ├── orchestrator.py       # 🎯 主编排器
-│       ├── schemas.py            # 数据模型定义
-│       ├── state.py              # Agent 状态管理
+│       ├── schemas.py            # 数据模型
 │       │
 │       ├── 📁 agents/            # 子 Agent
-│       │   ├── intent_parser.py  # 意图解析 Agent
-│       │   └── analyzer.py       # 结果分析 Agent
+│       │   ├── intent_parser.py  # 意图解析
+│       │   ├── analyzer.py       # 结果分析
+│       │   ├── poi_enricher.py   # POI 补充
+│       │   └── README.md         # 📖 模块文档
 │       │
 │       ├── 📁 services/          # 💾 核心服务
-│       │   ├── llm_service.py    # LLM 服务封装
-│       │   ├── redis_memory.py   # Redis L1 缓存
-│       │   ├── postgres_storage.py  # PostgreSQL L2 存储
-│       │   └── session_manager.py   # 会话统一管理
+│       │   ├── llm_service.py    # LLM 封装
+│       │   ├── redis_memory.py   # Redis L1
+│       │   ├── postgres_storage.py # PostgreSQL L2
+│       │   ├── session_manager.py  # 会话管理
+│       │   └── README.md         # 📖 模块文档
 │       │
-│       ├── 📁 spider/            # XHS 爬虫组件
-│       ├── 📁 prompts/           # Prompt 模板
-│       ├── 📁 providers/         # 工具提供者
-│       └── 📁 protocols/         # 协议定义
+│       └── 📁 spider/            # XHS 爬虫
+│           └── README.md         # 📖 模块文档
 │
 ├── 📁 tests/                     # 测试用例
 ├── .env.example                  # 环境变量模板
@@ -227,31 +308,14 @@ xhs_food_agent/
 
 ---
 
-## 💾 会话管理架构
+## � 文档
 
-系统采用 **Redis + PostgreSQL** 混合记忆架构：
-
-```mermaid
-flowchart LR
-    subgraph Write["写入流程"]
-        W1["用户消息"] --> W2["Redis (同步)"]
-        W1 -.->|异步| W3["PostgreSQL + Embedding"]
-    end
-    
-    subgraph Read["读取流程"]
-        R1["get_context()"] --> R2{"Redis\n命中?"}
-        R2 -->|是| R3["返回缓存"]
-        R2 -->|否| R4["查询 PostgreSQL"]
-        R4 --> R5["缓存预热"]
-        R5 --> R3
-    end
-```
-
-| 组件 | 用途 | 特点 |
-|------|------|------|
-| **Redis** | L1 缓存 | 滑动窗口、24h TTL、毫秒级响应 |
-| **PostgreSQL** | L2 存储 | 永久保存、pgvector 向量搜索 |
-| **SessionManager** | 编排层 | 双写策略、缓存预热、优雅降级 |
+| 文档 | 说明 |
+|------|------|
+| [agents/README.md](src/xhs_food/agents/README.md) | Agent 模块架构与扩展 |
+| [services/README.md](src/xhs_food/services/README.md) | 服务层配置与使用 |
+| [spider/README.md](src/xhs_food/spider/README.md) | 爬虫模块与注意事项 |
+| [api/README.md](src/api/README.md) | API 端点与 SSE 规范 |
 
 ---
 
@@ -302,10 +366,47 @@ EMBEDDING_MODEL="text-embedding-3-small"
 - [x] Redis 会话缓存
 - [x] PostgreSQL 持久化存储
 - [x] pgvector 向量搜索
-- [ ] 地理位置感知 (GPS 推荐)
-- [ ] 用户偏好学习
-- [ ] Web UI 界面
-- [ ] Docker 部署支持
+- [x] 断线恢复机制
+- [ ] 🚧 地理位置感知 (GPS 推荐)
+- [ ] 🚧 用户偏好学习
+- [ ] 📱 移动端 App
+- [ ] 🐳 Docker 部署支持
+
+---
+
+## ❓ 常见问题
+
+<details>
+<summary><strong>Q: Cookie 过期了怎么办？</strong></summary>
+
+小红书 Cookie 有效期约 7-30 天，需要定期更新：
+
+1. 打开浏览器登录小红书
+2. F12 → Network → 复制 Cookie
+3. 更新 `.env` 中的 `XHS_COOKIES`
+
+</details>
+
+<details>
+<summary><strong>Q: 为什么搜索结果不准确？</strong></summary>
+
+可能原因：
+1. 搜索关键词过于宽泛 → 尝试添加地点/菜系限定
+2. 该地区笔记较少 → 热门城市效果更好
+3. LLM 模型能力 → 尝试切换更强的模型
+
+</details>
+
+<details>
+<summary><strong>Q: Redis/PostgreSQL 必须配置吗？</strong></summary>
+
+不是必须的：
+- **Redis**: 不配置会降级为内存存储（重启丢失）
+- **PostgreSQL**: 不配置则仅有短期记忆，无法持久化
+
+推荐生产环境完整配置。
+
+</details>
 
 ---
 
@@ -329,7 +430,7 @@ EMBEDDING_MODEL="text-embedding-3-small"
 - 相关法律法规
 - 合理的请求频率限制
 
-请勿将本项目用于商业用途或任何可能损害小红书平台利益的行为。
+**请勿将本项目用于商业用途或任何可能损害小红书平台利益的行为。**
 
 ---
 
@@ -364,6 +465,6 @@ EMBEDDING_MODEL="text-embedding-3-small"
 
 **如果这个项目对你有帮助，请给一个 ⭐ Star 支持一下！**
 
-Made with ❤️
+Made with ❤️ by <a href="https://github.com/MARYCOMPLEX">@MARYCOMPLEX</a>
 
 </div>

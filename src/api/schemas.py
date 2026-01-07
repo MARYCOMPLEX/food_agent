@@ -74,7 +74,7 @@ class RestaurantStats(BaseModel):
 
 class Restaurant(BaseModel):
     """店铺详情 (API.md 格式)."""
-    id: int
+    id: str  # Hash ID (32 chars)
     name: str
     chnName: Optional[str] = None
     distance: Optional[str] = None
@@ -104,8 +104,7 @@ class SearchResultsResponse(BaseModel):
 
 class FavoriteAddRequest(BaseModel):
     """POST /v1/favorites 请求体."""
-    restaurantId: int
-    restaurant: Optional[Restaurant] = None  # 完整店铺对象（用于存储）
+    restaurantId: str = Field(..., description="餐厅Hash ID (32字符)")
 
 
 class FavoriteResponse(BaseModel):

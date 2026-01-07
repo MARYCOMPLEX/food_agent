@@ -8,12 +8,13 @@ Endpoints:
 - DELETE /v1/history (clear all)
 """
 
-import time
-import uuid
-from typing import Dict, List, Any, Optional
-from fastapi import APIRouter, Path, Query
+from typing import Optional
 
+from fastapi import APIRouter, Path, Query, Depends
 from pydantic import BaseModel, Field
+
+from api.deps import get_current_user_id, get_storage
+from xhs_food.services.user_storage import UserStorageService
 
 router = APIRouter(prefix="/v1/history", tags=["history"])
 
@@ -29,30 +30,6 @@ class HistoryAddRequest(BaseModel):
     location: Optional[str] = Field(None, description="搜索位置")
 
 
-class HistoryItem(BaseModel):
-    """历史记录项."""
-    id: str
-    query: str
-    timestamp: float
-    resultsCount: int = 0
-    location: Optional[str] = None
-
-
-# =============================================================================
-# In-Memory Storage
-# =============================================================================
-
-# Structure: { user_id: [ HistoryItem, ... ] }
-_user_history: Dict[str, List[Dict[str, Any]]] = {}
-
-
-def _get_user_history(user_id: str = "default") -> List[Dict[str, Any]]:
-    """Get user's history list."""
-    if user_id not in _user_history:
-        _user_history[user_id] = []
-    return _user_history[user_id]
-
-
 # =============================================================================
 # Routes
 # =============================================================================
@@ -61,21 +38,18 @@ def _get_user_history(user_id: str = "default") -> List[Dict[str, Any]]:
 async def get_history(
     limit: int = Query(20, ge=1, le=100, description="返回数量限制"),
     offset: int = Query(0, ge=0, description="偏移量"),
+    user_id: str = Depends(get_current_user_id),
+    storage: UserStorageService = Depends(get_storage),
 ):
     """Get search history list."""
-    history = _get_user_history()
-    
-    # Sort by timestamp descending (newest first)
-    sorted_history = sorted(history, key=lambda x: x.get("timestamp", 0), reverse=True)
-    
-    # Pagination
-    paginated = sorted_history[offset:offset + limit]
+    items = await storage.get_history(user_id, limit=limit, offset=offset)
+    total = await storage.get_history_count(user_id)
     
     return {
         "success": True,
         "data": {
-            "items": paginated,
-            "total": len(history),
+            "items": [item.to_dict() for item in items],
+            "total": total,
             "limit": limit,
             "offset": offset,
         }
@@ -83,58 +57,58 @@ async def get_history(
 
 
 @router.post("")
-async def add_history(request: HistoryAddRequest):
+async def add_history(
+    request: HistoryAddRequest,
+    user_id: str = Depends(get_current_user_id),
+    storage: UserStorageService = Depends(get_storage),
+):
     """Add a search to history."""
-    history = _get_user_history()
-    
-    # Create history item
-    item = {
-        "id": f"hist_{uuid.uuid4().hex[:8]}",
-        "query": request.query,
-        "timestamp": time.time(),
-        "resultsCount": request.resultsCount,
-        "location": request.location,
-    }
-    
-    # Add to beginning (newest first in storage)
-    history.insert(0, item)
-    
-    # Keep only last 100 items
-    if len(history) > 100:
-        history[:] = history[:100]
+    item = await storage.add_history(
+        user_id=user_id,
+        query=request.query,
+        results_count=request.resultsCount,
+        location=request.location,
+    )
     
     return {
         "success": True,
-        "data": item,
+        "data": item.to_dict() if item else None,
     }
 
 
 @router.delete("/{historyId}")
-async def delete_history_item(historyId: str = Path(..., description="历史记录ID")):
+async def delete_history_item(
+    historyId: str = Path(..., description="历史记录ID"),
+    user_id: str = Depends(get_current_user_id),
+    storage: UserStorageService = Depends(get_storage),
+):
     """Delete a single history item."""
-    history = _get_user_history()
+    # Parse ID (format: hist_123 -> 123)
+    try:
+        int_id = int(historyId.replace("hist_", ""))
+    except ValueError:
+        return {
+            "success": False,
+            "message": "无效的历史记录ID",
+        }
     
-    for i, item in enumerate(history):
-        if item.get("id") == historyId:
-            history.pop(i)
-            return {
-                "success": True,
-                "message": "已删除",
-            }
+    await storage.delete_history(user_id, int_id)
     
     return {
         "success": True,
-        "message": "记录不存在",
+        "message": "已删除",
     }
 
 
 @router.delete("")
-async def clear_history():
+async def clear_history(
+    user_id: str = Depends(get_current_user_id),
+    storage: UserStorageService = Depends(get_storage),
+):
     """Clear all history."""
-    history = _get_user_history()
-    history.clear()
+    count = await storage.clear_history(user_id)
     
     return {
         "success": True,
-        "message": "已清空所有历史记录",
+        "message": f"已清空 {count} 条历史记录",
     }

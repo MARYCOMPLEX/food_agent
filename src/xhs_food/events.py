@@ -65,19 +65,28 @@ class SearchEvent:
 
 
 class SearchEventEmitter:
-    """搜索事件发射器."""
+    """搜索事件发射器.
+    
+    支持事件缓存，用于断线重连时的事件重放。
+    """
     
     def __init__(self):
         self._queue: asyncio.Queue[SearchEvent] = asyncio.Queue()
         self._steps: List[Dict[str, str]] = []
         self._current_step: int = 0
         self._total_steps: int = 6
+        
+        # 事件缓存（用于断线重连重放）
+        self._sent_events: List[SearchEvent] = []
+        self._completed: bool = False
     
     def reset(self):
         """重置事件队列."""
         self._queue = asyncio.Queue()
         self._steps = []
         self._current_step = 0
+        self._sent_events = []
+        self._completed = False
     
     def init_steps(self, query: str):
         """初始化步骤列表."""
@@ -92,8 +101,26 @@ class SearchEventEmitter:
         self._current_step = 0
     
     async def emit(self, event: SearchEvent):
-        """发射事件."""
+        """发射事件并缓存."""
+        self._sent_events.append(event)  # 缓存
         await self._queue.put(event)
+        
+        # 标记完成状态
+        if event.type in (SearchEventType.DONE, SearchEventType.ERROR):
+            self._completed = True
+    
+    def get_sent_events(self) -> List[SearchEvent]:
+        """获取已发送的事件列表（用于重放）."""
+        return self._sent_events.copy()
+    
+    def get_sent_count(self) -> int:
+        """获取已发送事件数量."""
+        return len(self._sent_events)
+    
+    @property
+    def is_completed(self) -> bool:
+        """是否已完成."""
+        return self._completed
     
     async def step_start(self, step_id: str, message: str = ""):
         """步骤开始."""
@@ -180,7 +207,7 @@ class SearchEventEmitter:
             data={"message": "搜索完成"}
         ))
     
-    async def events(self, timeout: float = 60.0) -> AsyncGenerator[SearchEvent, None]:
+    async def events(self, timeout: float = None) -> AsyncGenerator[SearchEvent, None]:
         """
         事件流生成器.
         
@@ -192,6 +219,10 @@ class SearchEventEmitter:
         Yields:
             SearchEvent
         """
+        import os
+        if timeout is None:
+            timeout = float(os.getenv("SSE_TIMEOUT", "900"))  # 默认15分钟
+        
         start_time = time.time()
         
         while True:

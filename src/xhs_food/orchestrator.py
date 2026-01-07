@@ -72,15 +72,33 @@ class XHSFoodOrchestrator:
         intent_parser: Optional[IntentParserAgent] = None,
         analyzer: Optional[AnalyzerAgent] = None,
         llm_service=None,
-        deep_search: bool = True,  # True=深度研究模式, False=快速模式
-        fast_mode_limit: int = 10,  # 快速模式下的笔记数上限
+        deep_search: Optional[bool] = None,  # None = read from env
+        fast_mode_limit: Optional[int] = None,  # None = read from env
     ):
+        import os
+        
         self._xhs_registry = xhs_registry
         self._intent_parser = intent_parser
         self._analyzer = analyzer
         self._llm_service = llm_service
-        self._deep_search = deep_search
-        self._fast_mode_limit = fast_mode_limit
+        
+        # 从环境变量读取搜索配置
+        if deep_search is None:
+            env_deep = os.getenv("SEARCH_DEEP_MODE", "false").lower()
+            self._deep_search = env_deep in ("true", "1", "yes")
+        else:
+            self._deep_search = deep_search
+        
+        if fast_mode_limit is None:
+            self._fast_mode_limit = int(os.getenv("SEARCH_NOTE_LIMIT", "15"))
+        else:
+            self._fast_mode_limit = fast_mode_limit
+        
+        # 每个关键词搜索的笔记数
+        self._notes_per_keyword = int(os.getenv("SEARCH_NOTES_PER_KEYWORD", "4"))
+        
+        # 最终推荐的店铺数量上限
+        self._max_restaurants = int(os.getenv("SEARCH_MAX_RESTAURANTS", "10"))
         
         # 多轮对话上下文
         self._context = ConversationContext()
@@ -204,19 +222,17 @@ class XHSFoodOrchestrator:
                 "intent": parse_result.intent.to_dict() if parse_result.intent else None,
             })
             
-            # ========== Step 2: 搜索笔记 ==========
+            # ========== Step 2: 搜索笔记 (使用4阶段搜索) ==========
             await emitter.step_start("step2", "搜索小红书笔记...")
             
             intent = parse_result.intent
-            search_queries = intent.to_search_queries()
-            all_notes = []
             
-            for query in search_queries[:3]:
-                try:
-                    notes = await self._search_xhs_notes(query)
-                    all_notes.extend(notes)
-                except Exception as e:
-                    logger.warning(f"搜索 '{query}' 失败: {e}")
+            # 重置缓存
+            self._shop_mentions = {}
+            self._analyzed_shops = {}
+            
+            # 使用已验证的 4 阶段搜索方法
+            all_notes = await self._execute_4_stage_search(intent)
             
             if not all_notes:
                 await emitter.step_error("step2", "未找到相关笔记")
@@ -228,20 +244,36 @@ class XHSFoodOrchestrator:
             # ========== Step 3: 分析评论 ==========
             await emitter.step_start("step3", "分析评论内容...")
             
-            all_shops = []
-            for note in all_notes[:15]:
+            all_restaurants: List[RestaurantRecommendation] = []
+            for note in all_notes:
                 try:
-                    shops = await self._analyze_note(note)
-                    all_shops.extend(shops)
+                    analyze_result = await self._analyze_note(note, intent)
+                    if analyze_result.success:
+                        all_restaurants.extend(analyze_result.restaurants)
                 except Exception as e:
                     logger.warning(f"分析笔记失败: {e}")
             
-            await emitter.step_done("step3", f"识别到 {len(all_shops)} 家店铺")
+            await emitter.step_done("step3", f"识别到 {len(all_restaurants)} 家店铺")
             
             # ========== Step 4: 交叉验证 ==========
             await emitter.step_start("step4", "交叉验证筛选...")
             
-            recommendations = self._cross_validate_and_filter(all_shops, intent)
+            # 合并验证
+            merged = self._merge_and_validate(all_restaurants)
+            
+            # 过滤网红店
+            recommendations = []
+            filtered_count = 0
+            for rec in merged:
+                if rec.is_recommended:
+                    recommendations.append(rec)
+                else:
+                    filtered_count += 1
+            
+            # 应用店铺数量上限
+            if len(recommendations) > self._max_restaurants:
+                logger.info(f"  店铺数量 {len(recommendations)} 超过上限 {self._max_restaurants}，截取")
+                recommendations = recommendations[:self._max_restaurants]
             
             await emitter.step_done("step4", f"筛选出 {len(recommendations)} 家推荐")
             
@@ -249,16 +281,22 @@ class XHSFoodOrchestrator:
             for rec in recommendations:
                 self._context.last_recommendations[rec.name] = rec.to_dict()
             
-            # ========== Step 5: POI 补充（流式） ==========
-            await self._stream_poi_enrich(recommendations, emitter)
+            # ========== Step 5: POI 补充（静默处理，不输出） ==========
+            await emitter.step_start("step5", f"补充 {len(recommendations)} 家店铺信息...")
+            enriched_restaurants = await self._enrich_poi_batch(recommendations)
+            await emitter.step_done("step5", f"完成 {len(enriched_restaurants)} 家店铺信息补充")
             
-            # ========== Step 6: 生成结果 ==========
+            # ========== Step 6: 流式输出结果 ==========
             await emitter.step_start("step6", "生成推荐结果...")
+            
+            # 逐个流式输出餐厅
+            for enriched in enriched_restaurants:
+                await emitter.emit_restaurant(enriched)
             
             response = XHSFoodResponse(
                 status="ok",
                 recommendations=recommendations,
-                filtered_count=len(all_shops) - len(recommendations),
+                filtered_count=filtered_count,
                 summary=f"在{intent.location}找到 {len(recommendations)} 家推荐店铺",
             )
             
@@ -272,12 +310,27 @@ class XHSFoodOrchestrator:
             logger.exception("流式搜索失败")
             await emitter.emit_error(str(e))
     
+    async def _enrich_poi_batch(self, recommendations: list) -> list:
+        """批量 POI 补充（不流式输出）."""
+        from xhs_food.agents import get_poi_enricher
+        
+        enricher = get_poi_enricher()
+        city = ""
+        if recommendations and recommendations[0].location:
+            city = self._extract_city_from_location(recommendations[0].location)
+        
+        enriched_list = []
+        async for enriched in enricher.enrich_stream(recommendations, city):
+            enriched_list.append(enriched.to_dict())
+        
+        return enriched_list
+    
     async def _stream_poi_enrich(
         self,
         recommendations: list,
         emitter: "SearchEventEmitter",
     ):
-        """流式 POI 补充."""
+        """流式 POI 补充（已弃用，保留兼容）."""
         from xhs_food.agents import get_poi_enricher
         
         await emitter.step_start("step5", f"补充 {len(recommendations)} 家店铺信息...")
@@ -989,7 +1042,7 @@ class XHSFoodOrchestrator:
         try:
             result = await search_tool.execute(
                 keyword=keyword,
-                count=4,
+                count=self._notes_per_keyword,
                 sort_type="most_comments",
                 include_details=True,
                 include_comments=True,
