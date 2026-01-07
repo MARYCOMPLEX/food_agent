@@ -207,13 +207,14 @@ cp .env.example .env
 ### 3️⃣ 安装依赖
 
 ```bash
-# 创建虚拟环境
-python -m venv .venv
-.\.venv\Scripts\activate  # Windows
-source .venv/bin/activate  # Linux/Mac
+# 安装 uv (如果尚未安装)
+# Windows (PowerShell)
+irm https://astral.sh/uv/install.ps1 | iex
+# Linux/Mac
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# 安装依赖
-pip install -e .
+# 同步依赖 (自动创建虚拟环境)
+uv sync
 ```
 
 ### 4️⃣ 启动服务
