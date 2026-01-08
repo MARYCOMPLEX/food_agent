@@ -970,6 +970,8 @@ class UserStorageService:
         restaurants: List[Dict[str, Any]],
         summary: str = "",
         filtered_count: int = 0,
+        query: str = "",
+        turn_id: Optional[int] = None,
     ) -> bool:
         """Save search results for SSE recovery.
         
@@ -978,53 +980,98 @@ class UserStorageService:
             restaurants: List of restaurant data
             summary: Search summary
             filtered_count: Number of filtered restaurants
+            query: Original query for this turn
+            turn_id: Turn number (auto-increment if None)
         """
         if not self._initialized or not self._pool:
             return False
 
         try:
             async with self._pool.acquire() as conn:
+                # 如果没有指定 turn_id，自动计算下一个
+                if turn_id is None:
+                    row = await conn.fetchrow(
+                        """
+                        SELECT COALESCE(MAX(turn_id), 0) + 1 as next_turn
+                        FROM search_results WHERE session_id = $1
+                        """,
+                        uuid.UUID(session_id),
+                    )
+                    turn_id = row["next_turn"] if row else 1
+                
                 await conn.execute(
                     """
-                    INSERT INTO search_results (session_id, restaurants, summary, filtered_count)
-                    VALUES ($1, $2, $3, $4)
-                    ON CONFLICT (session_id) DO UPDATE SET
-                        restaurants = $2,
-                        summary = $3,
-                        filtered_count = $4
+                    INSERT INTO search_results (session_id, turn_id, restaurants, summary, filtered_count, query)
+                    VALUES ($1, $2, $3, $4, $5, $6)
+                    ON CONFLICT (session_id, turn_id) DO UPDATE SET
+                        restaurants = $3,
+                        summary = $4,
+                        filtered_count = $5,
+                        query = $6
                     """,
                     uuid.UUID(session_id),
+                    turn_id,
                     json.dumps(restaurants, ensure_ascii=False),
                     summary,
                     filtered_count,
+                    query,
                 )
+                logger.debug(f"Saved search result: session={session_id}, turn={turn_id}, count={len(restaurants)}")
                 return True
 
         except Exception as e:
             logger.error(f"save_search_result failed: {e}")
             return False
 
-    async def get_search_result(self, session_id: str) -> Optional[Dict[str, Any]]:
+    async def get_search_result(
+        self, 
+        session_id: str, 
+        turn_id: Optional[int] = None,
+    ) -> Optional[Dict[str, Any]]:
         """Get saved search results by session_id.
         
+        Args:
+            session_id: Session ID
+            turn_id: Specific turn (None = latest turn)
+        
         Returns:
-            Dict with restaurants, summary, filtered_count or None
+            Dict with restaurants, summary, filtered_count, turn_id or None
         """
         if not self._initialized or not self._pool:
             return None
 
         try:
             async with self._pool.acquire() as conn:
-                row = await conn.fetchrow(
-                    "SELECT * FROM search_results WHERE session_id = $1",
-                    uuid.UUID(session_id),
-                )
+                if turn_id is not None:
+                    # 获取指定轮次
+                    row = await conn.fetchrow(
+                        """
+                        SELECT * FROM search_results 
+                        WHERE session_id = $1 AND turn_id = $2
+                        """,
+                        uuid.UUID(session_id),
+                        turn_id,
+                    )
+                else:
+                    # 获取最新轮次（turn_id = 1 是首次搜索）
+                    row = await conn.fetchrow(
+                        """
+                        SELECT * FROM search_results 
+                        WHERE session_id = $1
+                        ORDER BY turn_id DESC
+                        LIMIT 1
+                        """,
+                        uuid.UUID(session_id),
+                    )
+                
                 if row:
                     restaurants = row["restaurants"]
                     if isinstance(restaurants, str):
                         restaurants = json.loads(restaurants)
                     return {
                         "session_id": str(row["session_id"]),
+                        "turn_id": row.get("turn_id", 1),
+                        "query": row.get("query", ""),
                         "restaurants": restaurants,
                         "summary": row["summary"],
                         "filtered_count": row["filtered_count"],
@@ -1035,6 +1082,49 @@ class UserStorageService:
         except Exception as e:
             logger.error(f"get_search_result failed: {e}")
             return None
+    
+    async def get_first_search_result(self, session_id: str) -> Optional[Dict[str, Any]]:
+        """Get the first (original) search result for a session.
+        
+        This is useful for refine to restore the original recommendations.
+        """
+        return await self.get_search_result(session_id, turn_id=1)
+    
+    async def get_all_search_results(self, session_id: str) -> List[Dict[str, Any]]:
+        """Get all search results (all turns) for a session."""
+        if not self._initialized or not self._pool:
+            return []
+
+        try:
+            async with self._pool.acquire() as conn:
+                rows = await conn.fetch(
+                    """
+                    SELECT * FROM search_results 
+                    WHERE session_id = $1
+                    ORDER BY turn_id ASC
+                    """,
+                    uuid.UUID(session_id),
+                )
+                
+                results = []
+                for row in rows:
+                    restaurants = row["restaurants"]
+                    if isinstance(restaurants, str):
+                        restaurants = json.loads(restaurants)
+                    results.append({
+                        "session_id": str(row["session_id"]),
+                        "turn_id": row.get("turn_id", 1),
+                        "query": row.get("query", ""),
+                        "restaurants": restaurants,
+                        "summary": row["summary"],
+                        "filtered_count": row["filtered_count"],
+                        "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                    })
+                return results
+
+        except Exception as e:
+            logger.error(f"get_all_search_results failed: {e}")
+            return []
 
     # =========================================================================
     # Helper Methods

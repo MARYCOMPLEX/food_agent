@@ -132,3 +132,7 @@ credentials/
 docs/
 internal-docs/
 
+bug-records/
+*.md
+*.tex
+*.db

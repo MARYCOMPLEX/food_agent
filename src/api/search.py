@@ -134,20 +134,14 @@ async def _run_stream_search(session_id: str, query: str):
         manager = await get_session_manager()
         context = await manager.get_context(session_id)
         
-        # 将历史上下文传递给 orchestrator
+        # 将历史上下文传递给 orchestrator（使用正确的方法）
         if context and len(context) > 1:
             # 有历史记录，设置到 orchestrator 的上下文中
             for msg in context[:-1]:  # 最后一条是当前 query，已经传入
                 if msg["role"] == "user":
-                    orchestrator._context.history.append({
-                        "role": "user",
-                        "query": msg["content"],
-                    })
+                    orchestrator._context.add_user_message(msg["content"])
                 elif msg["role"] == "assistant":
-                    orchestrator._context.history.append({
-                        "role": "assistant",
-                        "summary": msg["content"],
-                    })
+                    orchestrator._context.add_assistant_message(msg["content"])
         
         await orchestrator.search_stream(query, emitter)
         session["status"] = "completed"
@@ -189,12 +183,13 @@ async def _run_stream_search(session_id: str, query: str):
                     result_summary = event.data.get("summary", "")
                     break
             
-            # 保存结果
+            # 保存结果（自动计算 turn_id）
             await storage.save_search_result(
                 session_id=session_id,
                 restaurants=restaurants,
                 summary=result_summary,
                 filtered_count=session.get("filtered_count", 0),
+                query=query,  # 传递本轮的查询
             )
             
             # 更新历史状态
@@ -317,32 +312,47 @@ async def search_recover(sessionId: str = Path(..., description="会话ID")):
         如果 completed: 包含 restaurants 和 summary
         如果 loading: 包含 streamUrl 和 lastEventIndex
     """
+    logger.info(f"=== [RECOVER DEBUG] 开始处理 sessionId: {sessionId} ===")
+    
     # 1. 检查内存中的 session
     session = _sessions.get(sessionId)
     emitter = get_emitter(sessionId) if sessionId in _sessions else None
     
+    logger.info(f"[RECOVER DEBUG] 第1层-内存查找: session存在={session is not None}, emitter存在={emitter is not None}")
+    if session:
+        logger.info(f"[RECOVER DEBUG] 第1层-session内容: status={session.get('status')}, keys={list(session.keys())}")
+    
     if session:
         if session.get("status") == "completed":
             # 任务已完成，返回结果
+            logger.info(f"[RECOVER DEBUG] 第1层-状态completed, emitter存在={emitter is not None}")
             if emitter:
                 restaurants = []
                 summary = ""
-                for event in emitter.get_sent_events():
+                sent_events = emitter.get_sent_events()
+                logger.info(f"[RECOVER DEBUG] 第1层-事件数量: {len(sent_events)}")
+                for event in sent_events:
                     if event.type == SearchEventType.RESTAURANT:
                         restaurants.append(event.data.get("restaurant", {}))
                     elif event.type == SearchEventType.RESULT:
                         summary = event.data.get("summary", "")
                 
-                return {
-                    "success": True,
-                    "data": {
-                        "sessionId": sessionId,
-                        "status": "completed",
-                        "restaurants": restaurants,
-                        "summary": summary,
-                        "total": len(restaurants),
+                logger.info(f"[RECOVER DEBUG] 第1层-提取结果: restaurants={len(restaurants)}, summary长度={len(summary)}")
+                
+                # BUG FIX: 如果 emitter 没有餐厅数据，fallback 到数据库查询
+                if restaurants:
+                    return {
+                        "success": True,
+                        "data": {
+                            "sessionId": sessionId,
+                            "status": "completed",
+                            "restaurants": restaurants,
+                            "summary": summary,
+                            "total": len(restaurants),
+                        }
                     }
-                }
+                else:
+                    logger.warning(f"[RECOVER DEBUG] 第1层-emitter无数据，fallback到数据库查询")
         
         elif session.get("status") == "loading":
             # 任务进行中，返回流信息
@@ -369,12 +379,16 @@ async def search_recover(sessionId: str = Path(..., description="会话ID")):
             }
     
     # 2. 内存中没有，从数据库查询
+    logger.info(f"[RECOVER DEBUG] 第2层-开始查询数据库...")
     try:
         storage = await get_user_storage_service()
+        logger.info(f"[RECOVER DEBUG] 第2层-storage初始化成功: initialized={storage._initialized}")
         
         # 查询搜索结果
         result = await storage.get_search_result(sessionId)
+        logger.info(f"[RECOVER DEBUG] 第2层-search_results查询结果: {result is not None}")
         if result:
+            logger.info(f"[RECOVER DEBUG] 第2层-search_results内容: restaurants数量={len(result.get('restaurants', []))}, summary长度={len(result.get('summary', ''))}")
             return {
                 "success": True,
                 "data": {
@@ -389,7 +403,9 @@ async def search_recover(sessionId: str = Path(..., description="会话ID")):
         
         # 查询历史状态
         history = await storage.get_history_by_session(sessionId)
+        logger.info(f"[RECOVER DEBUG] 第3层-search_history查询结果: {history is not None}")
         if history:
+            logger.info(f"[RECOVER DEBUG] 第3层-search_history内容: status={history.status}, query={history.query[:50] if history.query else None}")
             if history.status == "loading":
                 # 搜索中断了（可能服务重启）
                 return {
@@ -412,9 +428,10 @@ async def search_recover(sessionId: str = Path(..., description="会话ID")):
                     }
                 }
     except Exception as e:
-        logger.warning(f"Failed to query database: {e}")
+        logger.warning(f"[RECOVER DEBUG] 数据库查询异常: {e}")
     
     # 3. 完全找不到
+    logger.info(f"[RECOVER DEBUG] 最终结果: not_found")
     return {
         "success": False,
         "data": {
@@ -480,11 +497,58 @@ async def search_refine(request: RefineRequest):
     多轮对话追问.
     
     返回 SSE 流式结果。对话历史会自动从 SessionManager 加载。
+    支持服务重启后从数据库恢复 session。
     """
     session_id = request.sessionId
     
+    # 如果内存中没有 session，尝试从数据库恢复
     if session_id not in _sessions:
-        raise HTTPException(status_code=404, detail="Session not found")
+        logger.info(f"[REFINE DEBUG] Session {session_id} not in memory, trying to restore from database")
+        try:
+            storage = await get_user_storage_service()
+            
+            # 使用首次搜索结果来恢复 last_recommendations（不是最新轮次）
+            # 这样用户可以在不同过滤条件之间切换
+            first_result = await storage.get_first_search_result(session_id)
+            if first_result:
+                logger.info(f"[REFINE DEBUG] Found session in database, restoring...")
+                # 恢复 session 到内存
+                session = _get_session(session_id)  # 这会创建新的 session 条目
+                session["status"] = "completed"
+                session["query"] = first_result.get("query", "")
+                session["restaurants"] = first_result.get("restaurants", [])
+                session["summary"] = first_result.get("summary", "")
+                
+                # 恢复 orchestrator 的上下文（从 SessionManager 加载历史）
+                orchestrator = _get_orchestrator(session_id)
+                manager = await get_session_manager()
+                context = await manager.get_context(session_id)
+                
+                if context:
+                    for msg in context:
+                        if msg["role"] == "user":
+                            orchestrator._context.add_user_message(msg["content"])
+                        elif msg["role"] == "assistant":
+                            orchestrator._context.add_assistant_message(msg["content"])
+                
+                # 恢复首次搜索的推荐到 orchestrator 上下文
+                # 这是完整列表，refine 可以从中过滤
+                for restaurant in first_result.get("restaurants", []):
+                    name = restaurant.get("name", "")
+                    if name:
+                        orchestrator._context.last_recommendations[name] = restaurant
+                
+                logger.info(f"[REFINE DEBUG] Session restored from turn 1: {len(first_result.get('restaurants', []))} restaurants")
+            else:
+                # 数据库中也没有
+                logger.warning(f"[REFINE DEBUG] Session not found in database either")
+                raise HTTPException(status_code=404, detail="Session not found")
+                
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.warning(f"[REFINE DEBUG] Failed to restore session: {e}")
+            raise HTTPException(status_code=404, detail="Session not found")
     
     session = _get_session(session_id)
     session["status"] = "loading"

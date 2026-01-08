@@ -197,26 +197,39 @@ class POIEnricherAgent:
     async def _get_cached_poi(self, name: str) -> Optional[Dict[str, Any]]:
         """从数据库查询已缓存的餐厅 POI 信息.
         
-        只有当地址、电话等核心 POI 字段不为空时才视为有效缓存。
+        使用名称模糊匹配，不依赖地址字段（因为地址可能为空或无效值如"未明确"）。
         """
         try:
             from xhs_food.services import get_user_storage_service
             
-            # 生成可能的 hash ID（使用 name 作为匹配）
             storage = await get_user_storage_service()
             if not storage._initialized or not storage._pool:
                 return None
             
             async with storage._pool.acquire() as conn:
-                # 通过名称查询（模糊匹配）
+                # 优先精确匹配
                 row = await conn.fetchrow(
                     """
                     SELECT * FROM restaurants 
-                    WHERE name = $1 AND address IS NOT NULL AND address != ''
+                    WHERE name = $1
                     LIMIT 1
                     """,
                     name,
                 )
+                
+                # 如果精确匹配失败，尝试模糊匹配
+                if not row:
+                    row = await conn.fetchrow(
+                        """
+                        SELECT * FROM restaurants 
+                        WHERE name ILIKE $1 OR name ILIKE $2
+                        ORDER BY updated_at DESC NULLS LAST
+                        LIMIT 1
+                        """,
+                        f"{name}%",  # 前缀匹配: "贡井清香园" → "贡井清香园(泰丰店)"
+                        f"%{name}",  # 后缀匹配: "清香园" → "贡井清香园"
+                    )
+                
                 if row:
                     return dict(row)
             return None
