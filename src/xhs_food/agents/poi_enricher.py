@@ -292,25 +292,103 @@ class POIEnricherAgent:
     
     async def _search_poi(self, name: str, city: str = "") -> Optional[Dict[str, Any]]:
         """
-        搜索店铺 POI 信息.
+        搜索店铺 POI 信息（多策略广撒网模式）.
         
-        每个地名只查1次 API，只取第1个最匹配的结果。
+        尝试多种搜索策略，直到找到结果：
+        1. 精确店名 + 城市限制
+        2. 去掉城市前缀后的店名
+        3. 去掉常见后缀（分店名）
+        4. 不限城市广搜
         """
+        # 生成多种搜索关键词
+        search_variants = self._generate_search_variants(name, city)
+        
+        for variant_name, variant_city, strategy in search_variants:
+            poi = await self._do_poi_search(variant_name, variant_city)
+            if poi:
+                logger.debug(f"[POI] 策略 '{strategy}' 成功: {variant_name}")
+                return poi
+        
+        logger.debug(f"[POI] 所有策略都未找到: {name}")
+        return None
+    
+    def _generate_search_variants(self, name: str, city: str) -> List[tuple]:
+        """
+        生成多种搜索变体.
+        
+        Returns:
+            List of (keyword, city, strategy_name)
+        """
+        variants = []
+        
+        # 策略1: 原始店名 + 指定城市
+        variants.append((name, city, "exact_with_city"))
+        
+        # 策略2: 去掉城市前缀（如 "成都贡井清香园" → "贡井清香园"）
+        name_no_city = self._remove_city_prefix(name, city)
+        if name_no_city != name:
+            variants.append((name_no_city, city, "no_city_prefix"))
+        
+        # 策略3: 去掉分店后缀（如 "清香园(泰丰店)" → "清香园"）
+        name_no_suffix = self._remove_branch_suffix(name)
+        if name_no_suffix != name:
+            variants.append((name_no_suffix, city, "no_branch_suffix"))
+        
+        # 策略4: 去掉城市前缀和分店后缀
+        clean_name = self._remove_branch_suffix(name_no_city)
+        if clean_name != name and clean_name not in [v[0] for v in variants]:
+            variants.append((clean_name, city, "clean_name"))
+        
+        # 策略5: 不限城市广搜（最后的兜底）
+        if city:
+            variants.append((name, "", "no_city_limit"))
+        
+        return variants
+    
+    def _remove_city_prefix(self, name: str, city: str) -> str:
+        """去掉店名中的城市前缀."""
+        if not city:
+            return name
+        
+        # 常见城市名
+        cities = [
+            city,
+            "北京", "上海", "广州", "深圳", "成都", "重庆", "杭州", "武汉",
+            "西安", "南京", "天津", "苏州", "郑州", "长沙", "东莞", "沈阳",
+            "达州", "自贡", "泸州", "绵阳", "德阳", "宜宾", "南充", "乐山",
+            "蒙自", "昆明", "大理", "丽江",
+        ]
+        
+        for c in cities:
+            if name.startswith(c):
+                return name[len(c):]
+        
+        return name
+    
+    def _remove_branch_suffix(self, name: str) -> str:
+        """去掉分店后缀，如 (泰丰店)、（总店）."""
+        import re
+        # 匹配括号内的分店名
+        clean = re.sub(r'[\(（][^)）]*[店分部号馆][\)）]$', '', name)
+        # 也处理不带括号的情况，如 "xx总店"
+        clean = re.sub(r'[总分新老][店]$', '', clean)
+        return clean.strip()
+    
+    async def _do_poi_search(self, keywords: str, city: str) -> Optional[Dict[str, Any]]:
+        """执行单次 POI 搜索."""
         try:
             result = await asyncio.to_thread(
                 self._amap.search_poi,
-                keywords=name,
+                keywords=keywords,
                 city=city,
                 types="050000",  # 餐饮服务
             )
             
             if "error" in result:
-                logger.debug(f"POI search error: {result['error']}")
                 return None
             
             pois = result.get("pois", [])
             if not pois:
-                logger.debug(f"No POI found for: {name}")
                 return None
             
             # 只取第一个（最匹配的）

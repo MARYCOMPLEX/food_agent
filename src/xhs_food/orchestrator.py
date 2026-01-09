@@ -218,6 +218,9 @@ class XHSFoodOrchestrator:
                 await emitter.emit_error(parse_result.error or "意图解析失败")
                 return
             
+            # 保存目标城市到上下文
+            self._context.target_city = parse_result.intent.location
+            
             await emitter.step_done("step1", f"意图: {parse_result.intent.location} {parse_result.intent.food_type or ''}", {
                 "intent": parse_result.intent.to_dict() if parse_result.intent else None,
             })
@@ -315,8 +318,9 @@ class XHSFoodOrchestrator:
         from xhs_food.agents import get_poi_enricher
         
         enricher = get_poi_enricher()
-        city = ""
-        if recommendations and recommendations[0].location:
+        # 优先使用用户指定的搜索城市，fallback 到从推荐结果推断
+        city = self._context.target_city
+        if not city and recommendations and recommendations[0].location:
             city = self._extract_city_from_location(recommendations[0].location)
         
         enriched_list = []
@@ -336,8 +340,9 @@ class XHSFoodOrchestrator:
         await emitter.step_start("step5", f"补充 {len(recommendations)} 家店铺信息...")
         
         enricher = get_poi_enricher()
-        city = ""
-        if recommendations and recommendations[0].location:
+        # 优先使用用户指定的搜索城市
+        city = self._context.target_city
+        if not city and recommendations and recommendations[0].location:
             city = self._extract_city_from_location(recommendations[0].location)
         
         count = 0
