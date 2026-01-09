@@ -206,6 +206,10 @@ cp .env.example .env
 
 ### 3️⃣ 安装依赖
 
+**前置要求：**
+- **Python 3.10+**
+- **Node.js** (用于 XHS 签名加密，请确保 `node` 在 PATH 中)
+
 ```bash
 # 安装 uv (如果尚未安装)
 # Windows (PowerShell)
