@@ -303,13 +303,16 @@ async def search_recover(sessionId: str = Path(..., description="会话ID")):
     断线恢复端点.
     
     用于用户断线后恢复搜索：
-    - 已完成: 返回完整结果
+    - 已完成: 返回所有轮次的完整结果
     - 进行中: 返回 SSE 流信息，支持继续接收
     - 不存在: 从数据库查询历史结果
     
     Returns:
         status: loading | completed | error | not_found
-        如果 completed: 包含 restaurants 和 summary
+        如果 completed: 
+            - restaurants/summary/total: 最新轮次的结果（向后兼容）
+            - turns: 所有轮次的完整历史数组
+            - turnCount: 总轮次数
         如果 loading: 包含 streamUrl 和 lastEventIndex
     """
     logger.info(f"=== [RECOVER DEBUG] 开始处理 sessionId: {sessionId} ===")
@@ -384,19 +387,40 @@ async def search_recover(sessionId: str = Path(..., description="会话ID")):
         storage = await get_user_storage_service()
         logger.info(f"[RECOVER DEBUG] 第2层-storage初始化成功: initialized={storage._initialized}")
         
-        # 查询搜索结果
-        result = await storage.get_search_result(sessionId)
-        logger.info(f"[RECOVER DEBUG] 第2层-search_results查询结果: {result is not None}")
-        if result:
-            logger.info(f"[RECOVER DEBUG] 第2层-search_results内容: restaurants数量={len(result.get('restaurants', []))}, summary长度={len(result.get('summary', ''))}")
+        # 查询所有轮次的搜索结果
+        all_results = await storage.get_all_search_results(sessionId)
+        logger.info(f"[RECOVER DEBUG] 第2层-search_results查询结果: 共 {len(all_results)} 轮")
+        if all_results:
+            # 构建所有轮次数据
+            turns = []
+            for result in all_results:
+                turns.append({
+                    "turnId": result.get("turn_id", 1),
+                    "query": result.get("query", ""),
+                    "restaurants": result.get("restaurants", []),
+                    "summary": result.get("summary", ""),
+                    "total": len(result.get("restaurants", [])),
+                    "createdAt": result.get("created_at"),
+                })
+            
+            # 最新一轮作为主要结果
+            latest = all_results[-1]
+            logger.info(f"[RECOVER DEBUG] 第2层-返回 {len(turns)} 轮数据, 最新轮: turn_id={latest.get('turn_id')}")
+            
             return {
                 "success": True,
                 "data": {
                     "sessionId": sessionId,
                     "status": "completed",
-                    "restaurants": result["restaurants"],
-                    "summary": result["summary"],
-                    "total": len(result["restaurants"]),
+                    # 最新轮次的结果（向后兼容）
+                    "turnId": latest.get("turn_id", 1),
+                    "query": latest.get("query", ""),
+                    "restaurants": latest.get("restaurants", []),
+                    "summary": latest.get("summary", ""),
+                    "total": len(latest.get("restaurants", [])),
+                    # 所有轮次的完整历史
+                    "turns": turns,
+                    "turnCount": len(turns),
                     "fromDatabase": True,
                 }
             }

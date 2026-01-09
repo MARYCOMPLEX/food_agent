@@ -135,6 +135,87 @@ Client                          Server
   |                               |
 ```
 
+### 断线恢复接口 `/v1/search/recover/{sessionId}`
+
+用于从历史记录恢复完整的多轮对话，返回所有轮次的搜索结果。
+
+**请求示例**:
+```bash
+curl http://localhost:8000/v1/search/recover/{sessionId}
+```
+
+**响应示例** (status: completed):
+```json
+{
+  "success": true,
+  "data": {
+    "sessionId": "abc-123-def",
+    "status": "completed",
+    "turnId": 2,
+    "query": "便宜点的",
+    "restaurants": [...],
+    "summary": "根据您的要求...",
+    "total": 3,
+    "turns": [
+      {
+        "turnId": 1,
+        "query": "成都火锅推荐",
+        "restaurants": [...],
+        "summary": "为您找到以下火锅店...",
+        "total": 8,
+        "createdAt": "2026-01-09T15:30:00"
+      },
+      {
+        "turnId": 2,
+        "query": "便宜点的",
+        "restaurants": [...],
+        "summary": "根据您的要求...",
+        "total": 3,
+        "createdAt": "2026-01-09T15:31:00"
+      }
+    ],
+    "turnCount": 2,
+    "fromDatabase": true
+  }
+}
+```
+
+**响应示例** (status: loading):
+```json
+{
+  "success": true,
+  "data": {
+    "sessionId": "abc-123-def",
+    "status": "loading",
+    "streamUrl": "/v1/search/stream/abc-123-def?lastEventIndex=5",
+    "lastEventIndex": 5,
+    "message": "搜索进行中，请连接 SSE 流继续接收"
+  }
+}
+```
+
+**响应示例** (status: not_found):
+```json
+{
+  "success": false,
+  "data": {
+    "sessionId": "abc-123-def",
+    "status": "not_found",
+    "message": "会话不存在或已过期"
+  }
+}
+```
+
+**状态说明**:
+
+| status | 说明 | 处理方式 |
+|--------|------|----------|
+| `completed` | 搜索已完成 | 直接使用 `turns` 渲染历史 |
+| `loading` | 搜索进行中 | 连接 `streamUrl` 继续接收 |
+| `interrupted` | 搜索中断（服务重启） | 提示用户重新搜索 |
+| `error` | 搜索失败 | 显示错误信息 |
+| `not_found` | 会话不存在 | 返回首页 |
+
 ---
 
 ## ❌ 错误处理
