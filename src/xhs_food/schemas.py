@@ -155,6 +155,9 @@ class ConversationContext:
     # 上一轮的原始笔记（用于扩展搜索）
     last_notes: List[Dict[str, Any]] = field(default_factory=list)
     
+    # 目标搜索城市（从意图解析获取，传递给 POI enricher）
+    target_city: str = ""
+    
     def add_user_message(self, content: str) -> None:
         """添加用户消息到对话历史."""
         self.conversation_history.append({"role": "user", "content": content})
@@ -218,6 +221,7 @@ class ConversationContext:
         self.accumulated_preferences = []
         self.turn_count = 0
         self.last_notes = []
+        self.target_city = ""
 
 
 @dataclass
