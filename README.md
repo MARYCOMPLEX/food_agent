@@ -227,6 +227,52 @@ uvicorn src.api.main:app --reload --port 8000
 
 ---
 
+## 🧪 本地测试（无需前端）
+
+如果你只想快速体验核心功能，**无需启动服务器**，可以直接使用测试脚本：
+
+### 交互式对话（推荐）
+
+```bash
+# 深度搜索模式（默认，更全面）
+uv run python tests/test_dialogue.py
+
+# 快速模式（搜索更快，笔记数量较少）
+uv run python tests/test_dialogue.py --fast
+```
+
+启动后进入交互式对话，支持多轮追问：
+```
+你: 成都本地人常去的老火锅
+[状态: success]
+推荐店铺 (5 家):
+  1. 蜀大侠火锅
+     判定: authentic (置信度: 85%)
+     特点: 锅底正宗, 服务热情, 性价比高
+     ...
+
+你: 排除蜀大侠，还有其他推荐吗？
+你: 有没有不用排队的？
+你: reset   # 重置对话
+你: quit    # 退出
+```
+
+### 单次查询
+
+```bash
+uv run python tests/test_dialogue.py --mode single --query "上海浦东机场附近的川菜"
+```
+
+### 预设对话流程
+
+```bash
+uv run python tests/test_dialogue.py --mode preset
+```
+
+> 💡 **提示**: 本地测试脚本直接调用 `XHSFoodOrchestrator` 核心模块，非常适合开发调试和快速验证功能。
+
+---
+
 ## 📡 API 接口
 
 ### 搜索接口
