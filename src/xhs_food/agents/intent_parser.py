@@ -212,6 +212,15 @@ class IntentParserAgent:
             # Build intent
             intent = FoodSearchIntent.from_dict(parsed)
             
+            # Validate location - it's required for search
+            if not intent.location or intent.location.strip() in ["", "未指定", "不明确", "未知"]:
+                return IntentParseResult(
+                    success=False,
+                    need_clarify=True,
+                    questions=["请问您想在哪个城市或区域搜索美食？（如：成都、重庆渝中区、北京三里屯等）"],
+                    raw_output=raw_output,
+                )
+            
             return IntentParseResult(
                 success=True,
                 intent=intent,
