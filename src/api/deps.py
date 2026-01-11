@@ -95,5 +95,5 @@ async def get_current_user(
     if x_device_id:
         return await storage.get_or_create_user(x_device_id)
     
-    # Anonymous user
-    return storage._anonymous_user()
+    # Anonymous user (fetch from DB to get settings)
+    return await storage.get_anonymous_user()

@@ -2,11 +2,15 @@
 Search Routes - 搜索 API 路由 (流式 SSE 输出).
 
 Endpoints:
-- POST /v1/search/start
-- GET /v1/search/stream/{sessionId} (SSE 实时推送)
-- GET /v1/search/status/{sessionId}
-- GET /v1/search/results/{sessionId}
-- POST /v1/search/refine
+- POST /v1/search                   (推荐) 统一接口：新查询/追问/恢复
+- GET  /v1/search/stream/{sessionId} (SSE 实时推送)
+
+Legacy Endpoints (保留兼容):
+- POST /v1/search/start             → 用 POST /v1/search { query }
+- POST /v1/search/refine            → 用 POST /v1/search { sessionId, query }
+- GET  /v1/search/recover/{id}      → 用 POST /v1/search { sessionId }
+- GET  /v1/search/status/{sessionId}
+- GET  /v1/search/results/{sessionId}
 
 使用 SessionManager 进行对话上下文的 Redis 缓存 + PostgreSQL 持久化。
 """
@@ -25,6 +29,7 @@ from api.schemas import (
     SearchStartRequest, SearchStartResponse,
     SearchStatusResponse, SearchResultsResponse,
     RefineRequest, ErrorResponse,
+    UnifiedSearchRequest,
 )
 from xhs_food import XHSFoodOrchestrator
 from xhs_food.di import get_xhs_tool_registry
@@ -65,13 +70,163 @@ def _get_orchestrator(session_id: str) -> XHSFoodOrchestrator:
 
 
 # =============================================================================
-# POST /v1/search/start
+# POST /v1/search (推荐使用的统一接口)
+# =============================================================================
+
+@router.post("")
+async def unified_search(request: UnifiedSearchRequest):
+    """
+    统一搜索接口 - 智能判断操作类型.
+    
+    根据参数自动执行对应操作：
+    - 无 sessionId → 新查询（必须有 query）
+    - 有 sessionId + query → 追问/继续对话
+    - 有 sessionId + 无 query → 恢复历史会话
+    
+    Returns:
+        - 新查询/追问: { sessionId, streamUrl } → 前端连接 SSE 流
+        - 恢复: 根据状态返回完整结果或流信息
+    """
+    # Case 1: 新查询（无 sessionId）
+    if not request.sessionId:
+        if not request.query:
+            raise HTTPException(400, "新查询必须提供 query 参数")
+        
+        session_id = str(uuid.uuid4())
+        session = _get_session(session_id)
+        session["status"] = "loading"
+        session["query"] = request.query
+        
+        # 初始化事件发射器
+        emitter = get_emitter(session_id)
+        emitter.init_steps(request.query)
+        
+        # 保存用户消息到 SessionManager
+        try:
+            manager = await get_session_manager()
+            await manager.add_user_message(session_id, request.query)
+        except Exception as e:
+            logger.warning(f"Failed to save user message: {e}")
+        
+        # 保存到数据库
+        try:
+            storage = await get_user_storage_service()
+            await storage.create_search_history(
+                session_id=session_id,
+                query=request.query,
+                status="loading",
+            )
+        except Exception as e:
+            logger.warning(f"Failed to save search history: {e}")
+        
+        # 启动后台搜索任务
+        asyncio.create_task(_run_stream_search(session_id, request.query))
+        
+        return {
+            "success": True,
+            "data": {
+                "sessionId": session_id,
+                "streamUrl": f"/v1/search/stream/{session_id}",
+                "action": "new_search",
+            }
+        }
+    
+    # Case 2: 有 sessionId
+    session_id = request.sessionId
+    
+    # Case 2a: 追问（有 sessionId + query）
+    if request.query:
+        # 如果内存中没有 session，尝试从数据库恢复完整上下文
+        if session_id not in _sessions:
+            try:
+                storage = await get_user_storage_service()
+                
+                # 1. 恢复首次搜索的 restaurants（完整列表，用于后续筛选）
+                first_result = await storage.get_first_search_result(session_id)
+                if not first_result:
+                    raise HTTPException(404, "Session not found")
+                
+                session = _get_session(session_id)
+                session["status"] = "completed"
+                session["query"] = first_result.get("query", "")
+                session["restaurants"] = first_result.get("restaurants", [])
+                
+                # 2. 获取所有轮次数据，计算 turn_id
+                all_results = await storage.get_all_search_results(session_id)
+                session["turn_id"] = len(all_results) if all_results else 1
+                
+                # 3. 恢复 orchestrator 的对话上下文（从 SessionManager）
+                orchestrator = _get_orchestrator(session_id)
+                manager = await get_session_manager()
+                context = await manager.get_context(session_id)
+                
+                if context:
+                    for msg in context:
+                        if msg["role"] == "user":
+                            orchestrator._context.add_user_message(msg["content"])
+                        elif msg["role"] == "assistant":
+                            orchestrator._context.add_assistant_message(msg["content"])
+                
+                # 4. 恢复首次搜索的推荐到 orchestrator（完整列表）
+                for restaurant in first_result.get("restaurants", []):
+                    name = restaurant.get("name", "")
+                    if name:
+                        orchestrator._context.last_recommendations[name] = restaurant
+                
+                logger.info(f"[UNIFIED] Session restored: {len(first_result.get('restaurants', []))} restaurants, {len(context or [])} messages, turn_id={session['turn_id']}")
+                
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Failed to restore session: {e}")
+                raise HTTPException(404, f"Session not found: {e}")
+        
+        session = _get_session(session_id)
+        turn_id = session.get("turn_id", 1) + 1
+        session["status"] = "loading"
+        session["query"] = request.query
+        session["turn_id"] = turn_id
+        
+        # 保存用户追问到 SessionManager
+        try:
+            manager = await get_session_manager()
+            await manager.add_user_message(session_id, request.query)
+        except Exception as e:
+            logger.warning(f"Failed to save refine context: {e}")
+        
+        # 重置 emitter
+        emitter = get_emitter(session_id)
+        emitter.reset()
+        emitter.init_steps(request.query)
+        
+        # 启动后台追问任务
+        asyncio.create_task(_run_stream_search(session_id, request.query))
+        
+        return {
+            "success": True,
+            "data": {
+                "sessionId": session_id,
+                "streamUrl": f"/v1/search/stream/{session_id}",
+                "turnId": turn_id,
+                "action": "refine",
+            }
+        }
+    
+    # Case 2b: 恢复历史（有 sessionId，无 query）
+    # 复用现有的 recover 逻辑
+    return await search_recover(session_id)
+
+
+# =============================================================================
+# POST /v1/search/start [LEGACY - 建议使用 POST /v1/search]
 # =============================================================================
 
 @router.post("/start", response_model=SearchStartResponse)
 async def search_start(request: SearchStartRequest):
     """
-    启动新的搜索会话.
+    [LEGACY] 启动新的搜索会话.
+    
+    ⚠️ 建议使用 POST /v1/search { query } 代替此接口。
     
     返回 sessionId，前端应立即连接 SSE 流接收更新。
     对话历史会通过 SessionManager 持久化到 Redis + PostgreSQL。
@@ -294,13 +449,15 @@ async def search_stream(
 
 
 # =============================================================================
-# GET /v1/search/recover/{sessionId} (断线恢复)
+# GET /v1/search/recover/{sessionId} [LEGACY - 建议使用 POST /v1/search]
 # =============================================================================
 
 @router.get("/recover/{sessionId}")
 async def search_recover(sessionId: str = Path(..., description="会话ID")):
     """
-    断线恢复端点.
+    [LEGACY] 断线恢复端点.
+    
+    ⚠️ 建议使用 POST /v1/search { sessionId } 代替此接口。
     
     用于用户断线后恢复搜索：
     - 已完成: 返回所有轮次的完整结果
@@ -512,13 +669,15 @@ async def search_results(sessionId: str = Path(..., description="会话ID")):
 
 
 # =============================================================================
-# POST /v1/search/refine
+# POST /v1/search/refine [LEGACY - 建议使用 POST /v1/search]
 # =============================================================================
 
 @router.post("/refine")
 async def search_refine(request: RefineRequest):
     """
-    多轮对话追问.
+    [LEGACY] 多轮对话追问.
+    
+    ⚠️ 建议使用 POST /v1/search { sessionId, query } 代替此接口。
     
     返回 SSE 流式结果。对话历史会自动从 SessionManager 加载。
     支持服务重启后从数据库恢复 session。

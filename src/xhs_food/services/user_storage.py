@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     device_id VARCHAR(255) UNIQUE,
     name VARCHAR(100) DEFAULT 'Guest',
+    username VARCHAR(50) UNIQUE,
     email VARCHAR(255),
     avatar TEXT,
     location VARCHAR(100),
@@ -170,6 +171,9 @@ class User:
     id: str
     device_id: Optional[str] = None
     name: str = "Guest"
+    device_id: Optional[str] = None
+    name: str = "Guest"
+    username: Optional[str] = None
     email: Optional[str] = None
     avatar: Optional[str] = None
     location: Optional[str] = None
@@ -181,7 +185,9 @@ class User:
         return {
             "id": self.id,
             "deviceId": self.device_id,
+            "deviceId": self.device_id,
             "name": self.name,
+            "username": self.username,
             "email": self.email,
             "avatar": self.avatar,
             "location": self.location,
@@ -363,6 +369,12 @@ class UserStorageService:
                     logger.warning(f"Could not enable extensions: {ext_err}")
                 
                 await conn.execute(CREATE_USERS_TABLE)
+                # Migration: Add username if missing
+                try:
+                   await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS username VARCHAR(50) UNIQUE")
+                except Exception:
+                   pass # Column might exist or error is benign in dev
+
                 await conn.execute(CREATE_RESTAURANTS_TABLE)
                 await conn.execute(CREATE_FAVORITES_TABLE)
                 await conn.execute(CREATE_HISTORY_TABLE)
@@ -453,6 +465,7 @@ class UserStorageService:
         self,
         user_id: str,
         name: Optional[str] = None,
+        username: Optional[str] = None,
         email: Optional[str] = None,
         location: Optional[str] = None,
         settings: Optional[Dict[str, Any]] = None,
@@ -471,6 +484,10 @@ class UserStorageService:
                 if name is not None:
                     updates.append(f"name = ${param_idx}")
                     params.append(name)
+                    param_idx += 1
+                if username is not None:
+                    updates.append(f"username = ${param_idx}")
+                    params.append(username)
                     param_idx += 1
                 if email is not None:
                     updates.append(f"email = ${param_idx}")
@@ -674,6 +691,9 @@ class UserStorageService:
 
         # Generate or use provided ID
         tel = restaurant_data.get("tel")
+        # 高德 API 有时返回数组格式的电话，转换为字符串
+        if isinstance(tel, list):
+            tel = "; ".join(tel) if tel else None
         restaurant_id = restaurant_data.get("id") or generate_restaurant_hash(name, tel)
         
         # Round trust_score to 1 decimal
@@ -1130,8 +1150,18 @@ class UserStorageService:
     # Helper Methods
     # =========================================================================
 
+    async def get_anonymous_user(self) -> User:
+        """Get anonymous user from database (or create if missing)."""
+        # Try to get from DB first to get persisted settings
+        user = await self.get_user(self.ANONYMOUS_USER_ID)
+        if user:
+             return user
+        
+        # Fallback if DB fails or empty (should be initialized though)
+        return self._anonymous_user()
+
     def _anonymous_user(self) -> User:
-        """Create anonymous user for fallback."""
+        """Create static anonymous user for fallback."""
         return User(
             id=self.ANONYMOUS_USER_ID,
             device_id=self.ANONYMOUS_DEVICE_ID,
@@ -1140,14 +1170,22 @@ class UserStorageService:
 
     def _row_to_user(self, row) -> User:
         """Convert database row to User."""
+        settings = row["settings"] or {}
+        if isinstance(settings, str):
+            try:
+                settings = json.loads(settings)
+            except Exception:
+                settings = {}
+
         return User(
             id=str(row["id"]),
             device_id=row["device_id"],
             name=row["name"] or "Guest",
+            username=row.get("username"),
             email=row["email"],
             avatar=row["avatar"],
             location=row["location"],
-            settings=row["settings"] or {},
+            settings=settings,
             created_at=row["created_at"],
             updated_at=row["updated_at"],
         )

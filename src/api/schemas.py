@@ -24,8 +24,24 @@ class LoadingStep(BaseModel):
 # =============================================================================
 
 class SearchStartRequest(BaseModel):
-    """POST /v1/search/start 请求体."""
+    """POST /v1/search/start 请求体.
+    
+    [DEPRECATED] 建议使用 POST /v1/search 统一接口。
+    """
     query: str = Field(..., description="搜索查询")
+    location: Optional[Dict[str, float]] = Field(None, description="位置坐标 {lat, lng}")
+
+
+class UnifiedSearchRequest(BaseModel):
+    """POST /v1/search 统一请求体.
+    
+    智能判断操作类型：
+    - 无 sessionId → 新查询（必须有 query）
+    - 有 sessionId + query → 追问/继续对话
+    - 有 sessionId + 无 query → 恢复历史会话
+    """
+    query: Optional[str] = Field(None, description="搜索查询（新查询/追问时必填）")
+    sessionId: Optional[str] = Field(None, description="会话ID（复用现有会话时填写）")
     location: Optional[Dict[str, float]] = Field(None, description="位置坐标 {lat, lng}")
 
 
