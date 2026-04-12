@@ -11,7 +11,7 @@ import json
 import re
 from typing import Any, Dict, List, Optional
 
-from xhs_food.prompts.prompts import (
+from xhs_food.prompts import (
     INTENT_PARSER_SYSTEM_PROMPT_ZH,
     INTENT_PARSER_INSTRUCTION_ZH,
 )
