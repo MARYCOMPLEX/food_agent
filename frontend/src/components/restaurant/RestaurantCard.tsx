@@ -1,189 +1,187 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import type { Restaurant } from '../../types/restaurant'
+import {
+  MapPin, Phone, Clock as ClockIcon, Star, ChevronDown,
+  ThumbsUp, ThumbsDown, Sparkles, Ban, ExternalLink,
+} from 'lucide-react'
+import type { Restaurant } from '@/types/restaurant'
+import { Card } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Progress } from '@/components/ui/progress'
 import { WanghongBadge } from './WanghongBadge'
 import { StatsBar } from './StatsBar'
-import { cn } from '../../utils/cn'
 
-interface RestaurantCardProps {
-  restaurant: Restaurant
-  index?: number
-}
-
-export function RestaurantCard({ restaurant: r, index = 0 }: RestaurantCardProps) {
-  const [expanded, setExpanded] = useState(false)
+export function RestaurantCard({ restaurant: r, index = 0 }: { restaurant: Restaurant; index?: number }) {
+  const [open, setOpen] = useState(false)
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 24 }}
+      initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.08, duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
-      className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden"
+      transition={{ delay: index * 0.07, duration: 0.35, ease: 'easeOut' }}
     >
-      {/* Header */}
-      <div
-        className="px-4 pt-4 pb-3 cursor-pointer active:bg-stone-50 transition-colors"
-        onClick={() => setExpanded(!expanded)}
-      >
-        <div className="flex items-start justify-between gap-2 mb-2">
-          <div className="flex-1 min-w-0">
-            <h3 className="font-display text-base font-bold text-ink leading-tight truncate">
-              {r.name}
-            </h3>
-            {r.location && (
-              <p className="text-xs text-muted mt-0.5 truncate">📍 {r.location}</p>
-            )}
-          </div>
-          {r.wanghong_analysis && (
-            <WanghongBadge score={r.wanghong_analysis.score} />
-          )}
-        </div>
-
-        {/* Confidence bar */}
-        <div className="flex items-center gap-2 mb-2">
-          <div className="flex-1 h-1.5 bg-stone-100 rounded-full overflow-hidden">
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: `${r.confidence * 100}%` }}
-              transition={{ delay: index * 0.08 + 0.3, duration: 0.6 }}
-              className={cn(
-                'h-full rounded-full',
-                r.confidence > 0.7 ? 'bg-emerald-400' : r.confidence > 0.4 ? 'bg-amber-400' : 'bg-stone-300'
-              )}
-            />
-          </div>
-          <span className="text-[10px] font-mono text-muted">{Math.round(r.confidence * 100)}%</span>
-        </div>
-
-        {/* Tags */}
-        {r.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-2">
-            {r.tags.slice(0, 4).map((tag) => (
-              <span key={tag} className="px-1.5 py-0.5 text-[10px] bg-cream-dark text-muted rounded">
-                {tag}
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/* Collapsed preview */}
-        {r.features.length > 0 && (
-          <p className="text-xs text-ink-light leading-relaxed line-clamp-2">
-            {r.features.join(' · ')}
-          </p>
-        )}
-        {!expanded && r.pros.length > 0 && (
-          <div className="flex items-center gap-1.5 mt-1.5">
-            <span className="text-[10px] text-emerald-600">👍</span>
-            <p className="text-[11px] text-emerald-700 truncate">{r.pros.slice(0, 2).join('，')}</p>
-          </div>
-        )}
-
-        {/* Expand indicator */}
-        <div className="flex justify-center mt-2">
-          <motion.span
-            animate={{ rotate: expanded ? 180 : 0 }}
-            className="text-xs text-muted/50"
-          >
-            ▼
-          </motion.span>
-        </div>
-      </div>
-
-      {/* Expanded content */}
-      <AnimatePresence>
-        {expanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.3 }}
-            className="overflow-hidden"
-          >
-            <div className="px-4 pb-4 space-y-3 border-t border-border pt-3">
-              {/* Pros & Cons */}
-              {(r.pros.length > 0 || r.cons.length > 0) && (
-                <div className="grid grid-cols-2 gap-2">
-                  {r.pros.length > 0 && (
-                    <div>
-                      <p className="text-[10px] font-medium text-emerald-600 mb-1">优点</p>
-                      {r.pros.map((p, i) => (
-                        <p key={i} className="text-[11px] text-ink-light leading-relaxed">✓ {p}</p>
-                      ))}
-                    </div>
-                  )}
-                  {r.cons.length > 0 && (
-                    <div>
-                      <p className="text-[10px] font-medium text-red-500 mb-1">不足</p>
-                      {r.cons.map((c, i) => (
-                        <p key={i} className="text-[11px] text-ink-light leading-relaxed">✗ {c}</p>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Must try */}
-              {r.mustTry.length > 0 && (
-                <div>
-                  <p className="text-[10px] font-medium text-emerald-600 mb-1.5">必点推荐</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {r.mustTry.map((item) => (
-                      <span key={item.name} className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-700 text-[11px] rounded-lg border border-emerald-100">
-                        🌟 {item.name}
-                        {item.reason && <span className="text-emerald-500">· {item.reason}</span>}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Blacklist */}
-              {r.blackList.length > 0 && (
-                <div>
-                  <p className="text-[10px] font-medium text-red-500 mb-1.5">避雷菜品</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {r.blackList.map((item) => (
-                      <span key={item.name} className="inline-flex items-center gap-1 px-2 py-1 bg-red-50 text-red-600 text-[11px] rounded-lg border border-red-100">
-                        ⚠ {item.name}
-                        {item.reason && <span className="text-red-400">· {item.reason}</span>}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Stats */}
-              <StatsBar stats={r.stats} />
-
-              {/* POI Details */}
-              {r.poi_details && (
-                <div className="bg-cream/60 rounded-xl p-3 space-y-1.5">
-                  {r.poi_details.address && (
-                    <p className="text-[11px] text-ink-light">📍 {r.poi_details.address}</p>
-                  )}
-                  {r.poi_details.tel && (
-                    <p className="text-[11px] text-ink-light">📞 {r.poi_details.tel}</p>
-                  )}
-                  {r.poi_details.opentime && (
-                    <p className="text-[11px] text-ink-light">🕐 {r.poi_details.opentime}</p>
-                  )}
-                  {r.poi_details.rating && (
-                    <p className="text-[11px] text-ink-light">⭐ 评分 {r.poi_details.rating}</p>
-                  )}
-                </div>
-              )}
-
-              {/* Source notes */}
-              {r.source_notes.length > 0 && (
-                <p className="text-[10px] text-muted">
-                  来源: {r.source_notes.length} 篇小红书笔记
+      <Card className="overflow-hidden hover:shadow-md transition-shadow">
+        <button className="w-full text-left p-4 pb-3" onClick={() => setOpen(!open)}>
+          {/* Title row */}
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <div className="min-w-0">
+              <h3 className="font-display text-base font-semibold text-foreground leading-snug truncate">{r.name}</h3>
+              {r.location && (
+                <p className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
+                  <MapPin size={12} /> {r.location}
                 </p>
               )}
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            {r.wanghong_analysis && <WanghongBadge score={r.wanghong_analysis.score} />}
+          </div>
+
+          {/* Confidence */}
+          <div className="flex items-center gap-2 mb-2.5">
+            <Progress
+              value={r.confidence * 100}
+              className="h-1.5 flex-1"
+              indicatorClassName={r.confidence > 0.7 ? 'bg-emerald-500' : r.confidence > 0.4 ? 'bg-amber-500' : 'bg-stone-400'}
+            />
+            <span className="text-[11px] font-mono text-muted-foreground w-8 text-right">
+              {Math.round(r.confidence * 100)}%
+            </span>
+          </div>
+
+          {/* Tags */}
+          {r.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1 mb-2">
+              {r.tags.slice(0, 5).map(t => (
+                <Badge key={t} variant="secondary" className="text-[10px] font-normal px-1.5 py-0">{t}</Badge>
+              ))}
+            </div>
+          )}
+
+          {/* Features preview */}
+          {r.features.length > 0 && (
+            <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{r.features.join(' · ')}</p>
+          )}
+
+          {/* Quick pros preview when collapsed */}
+          {!open && r.pros.length > 0 && (
+            <div className="flex items-center gap-1.5 mt-2 text-xs text-emerald-700">
+              <ThumbsUp size={12} />
+              <span className="truncate">{r.pros.slice(0, 2).join('，')}</span>
+            </div>
+          )}
+
+          <div className="flex justify-center pt-2">
+            <ChevronDown size={16} className={`text-muted-foreground/40 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+          </div>
+        </button>
+
+        {/* Expanded details */}
+        <AnimatePresence>
+          {open && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.25 }}
+              className="overflow-hidden"
+            >
+              <div className="px-4 pb-4 pt-1 space-y-4 border-t">
+                <ProsConsSection pros={r.pros} cons={r.cons} />
+                <MustTrySection items={r.mustTry} />
+                <BlackListSection items={r.blackList} />
+                <StatsBar stats={r.stats} />
+                <POISection poi={r.poi_details} />
+                {r.source_notes.length > 0 && (
+                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground pt-1">
+                    <ExternalLink size={11} />
+                    <span>来源: {r.source_notes.length} 篇小红书笔记</span>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </Card>
     </motion.div>
+  )
+}
+
+function ProsConsSection({ pros, cons }: { pros: string[]; cons: string[] }) {
+  if (!pros.length && !cons.length) return null
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      {pros.length > 0 && (
+        <div>
+          <div className="flex items-center gap-1 text-xs font-medium text-emerald-700 mb-1.5">
+            <ThumbsUp size={12} /> 优点
+          </div>
+          {pros.map((p, i) => <p key={i} className="text-[11px] text-muted-foreground leading-relaxed">· {p}</p>)}
+        </div>
+      )}
+      {cons.length > 0 && (
+        <div>
+          <div className="flex items-center gap-1 text-xs font-medium text-destructive mb-1.5">
+            <ThumbsDown size={12} /> 不足
+          </div>
+          {cons.map((c, i) => <p key={i} className="text-[11px] text-muted-foreground leading-relaxed">· {c}</p>)}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MustTrySection({ items }: { items: Restaurant['mustTry'] }) {
+  if (!items.length) return null
+  return (
+    <div>
+      <div className="flex items-center gap-1 text-xs font-medium text-emerald-700 mb-1.5">
+        <Sparkles size={12} /> 必点推荐
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {items.map(m => (
+          <Badge key={m.name} variant="local" className="font-normal gap-1">
+            {m.name}{m.reason && <span className="text-emerald-600/70">· {m.reason}</span>}
+          </Badge>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function BlackListSection({ items }: { items: Restaurant['blackList'] }) {
+  if (!items.length) return null
+  return (
+    <div>
+      <div className="flex items-center gap-1 text-xs font-medium text-destructive mb-1.5">
+        <Ban size={12} /> 避雷菜品
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {items.map(b => (
+          <Badge key={b.name} variant="wanghong" className="font-normal gap-1">
+            {b.name}{b.reason && <span className="text-red-500/70">· {b.reason}</span>}
+          </Badge>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function POISection({ poi }: { poi: Restaurant['poi_details'] }) {
+  if (!poi) return null
+  const items = [
+    { icon: MapPin, text: poi.address },
+    { icon: Phone, text: poi.tel },
+    { icon: ClockIcon, text: poi.opentime },
+    { icon: Star, text: poi.rating ? `评分 ${poi.rating}` : undefined },
+  ].filter(i => i.text)
+
+  if (!items.length) return null
+  return (
+    <div className="rounded-lg bg-muted/50 p-3 space-y-1.5">
+      {items.map(({ icon: Icon, text }, i) => (
+        <p key={i} className="flex items-center gap-2 text-[11px] text-muted-foreground">
+          <Icon size={12} className="shrink-0" /> {text}
+        </p>
+      ))}
+    </div>
   )
 }

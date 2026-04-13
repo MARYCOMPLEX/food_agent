@@ -1,0 +1,97 @@
+import { useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Clock, Search, Trash2 } from 'lucide-react'
+import { useHistoryStore } from '@/stores/historyStore'
+import { useSearchStore } from '@/stores/searchStore'
+import { Card } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { EmptyState } from '@/components/shared/EmptyState'
+import { MobilePage } from '@/components/mobile/MobilePage'
+import { formatDate } from '@/utils/format'
+
+export function MobileHistoryView() {
+  const { items, fetchHistory, deleteItem, clearAll } = useHistoryStore()
+  const { search } = useSearchStore()
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    fetchHistory()
+  }, [fetchHistory])
+
+  const handleReSearch = (query: string) => {
+    search(query)
+    navigate('/')
+  }
+
+  const clearAction =
+    items.length > 0 ? (
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={clearAll}
+        className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
+      >
+        清空
+      </Button>
+    ) : undefined
+
+  return (
+    <MobilePage subtitle={`${items.length} 条记录`} action={clearAction}>
+      {items.length === 0 ? (
+        <EmptyState
+          icon={<Search size={24} />}
+          title="暂无搜索记录"
+          description="你的每次搜索都会保存在这里"
+        />
+      ) : (
+        <div className="px-4 pb-6 space-y-2">
+          <AnimatePresence mode="popLayout">
+            {items.map((item) => (
+              <motion.div
+                key={item.id}
+                layout
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, x: -24 }}
+              >
+                <Card className="group">
+                  <div className="flex items-center gap-3 p-3.5">
+                    <button onClick={() => handleReSearch(item.query)} className="flex-1 min-w-0 text-left">
+                      <p className="text-sm font-medium text-foreground truncate">
+                        {item.query}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                          <Clock size={10} />
+                          {formatDate(item.createdAt)}
+                        </span>
+                        {item.resultsCount > 0 && (
+                          <Badge variant="secondary" className="text-[10px] py-0 h-4 font-normal">
+                            {item.resultsCount} 家
+                          </Badge>
+                        )}
+                      </div>
+                    </button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        deleteItem(item.id)
+                      }}
+                      className="shrink-0 h-7 w-7 text-muted-foreground hover:text-destructive"
+                    >
+                      <Trash2 size={14} />
+                    </Button>
+                  </div>
+                </Card>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
+      )}
+    </MobilePage>
+  )
+}

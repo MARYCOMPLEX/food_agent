@@ -25,12 +25,14 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
       const res = await getHistory(page)
       if (res.success && res.data) {
         set({
-          items: res.data.history as HistoryItem[],
-          total: res.data.total,
+          items: (res.data.history ?? []) as HistoryItem[],
+          total: res.data.total ?? 0,
           page,
         })
       }
-    } catch { /* ignore */ }
+    } catch {
+      set({ items: [], total: 0 })
+    }
     set({ loading: false })
   },
 

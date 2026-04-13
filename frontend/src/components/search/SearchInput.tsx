@@ -1,5 +1,7 @@
-import { useState, useRef, useEffect } from 'react'
-import { cn } from '../../utils/cn'
+import { useState, useRef } from 'react'
+import { ArrowUp, Loader2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { cn } from '@/utils/cn'
 
 interface SearchInputProps {
   onSubmit: (query: string) => void
@@ -18,25 +20,11 @@ export function SearchInput({ onSubmit, disabled, placeholder }: SearchInputProp
     setValue('')
   }
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === '/' && !e.metaKey && !e.ctrlKey) {
-        const active = document.activeElement
-        if (active?.tagName !== 'INPUT' && active?.tagName !== 'TEXTAREA') {
-          e.preventDefault()
-          inputRef.current?.focus()
-        }
-      }
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [])
-
   return (
-    <div className="sticky bottom-16 z-30 px-3 pb-3 pt-2 bg-gradient-to-t from-cream via-cream to-cream/0">
+    <div className="sticky bottom-[72px] z-30 px-3 pb-3 pt-2 bg-gradient-to-t from-background via-background to-background/0">
       <div className={cn(
-        'flex items-center gap-2 bg-white rounded-2xl border shadow-lg px-4 py-2.5 transition-all',
-        disabled ? 'border-stone-200 opacity-70' : 'border-border hover:border-ember/30 focus-within:border-ember focus-within:shadow-ember/10'
+        'flex items-center gap-2 bg-card rounded-xl border px-3 py-2 shadow-lg transition-all',
+        !disabled && 'focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-1',
       )}>
         <input
           ref={inputRef}
@@ -45,25 +33,17 @@ export function SearchInput({ onSubmit, disabled, placeholder }: SearchInputProp
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
           disabled={disabled}
-          placeholder={placeholder || '想吃什么？比如：杭州本地人爱去的面馆'}
-          className="flex-1 bg-transparent text-sm text-ink placeholder:text-muted/60 outline-none"
+          placeholder={placeholder ?? '想吃什么？比如：杭州本地人爱去的面馆'}
+          className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none disabled:opacity-50"
         />
-        <button
+        <Button
+          size="icon"
           onClick={handleSubmit}
           disabled={disabled || !value.trim()}
-          className={cn(
-            'shrink-0 w-8 h-8 rounded-xl flex items-center justify-center transition-all text-white text-sm',
-            value.trim() && !disabled
-              ? 'bg-ember hover:bg-ember-light active:scale-95'
-              : 'bg-stone-200 cursor-not-allowed'
-          )}
+          className="shrink-0 h-8 w-8 rounded-lg"
         >
-          {disabled ? (
-            <span className="w-4 h-4 border-2 border-white/60 border-t-transparent rounded-full animate-spin" />
-          ) : (
-            '↑'
-          )}
-        </button>
+          {disabled ? <Loader2 size={16} className="animate-spin" /> : <ArrowUp size={16} />}
+        </Button>
       </div>
     </div>
   )
