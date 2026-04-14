@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { Heart } from 'lucide-react'
 import { useUserStore } from '@/stores/userStore'
-import { RestaurantCard } from '@/components/restaurant/RestaurantCard'
+import { MobileRestaurantCard } from '@/components/mobile/search/MobileRestaurantCard'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { MobilePage } from '@/components/mobile/MobilePage'
 
@@ -25,7 +25,7 @@ export function MobileFavoritesView() {
       ) : (
         <div className="px-4 pb-6 space-y-3">
           {list.map((r, i) => (
-            <RestaurantCard key={`${r.name}-${i}`} restaurant={r} index={i} />
+            <MobileRestaurantCard key={`${r.name}-${i}`} restaurant={r} index={i} />
           ))}
         </div>
       )}

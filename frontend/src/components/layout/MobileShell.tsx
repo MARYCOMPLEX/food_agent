@@ -1,11 +1,25 @@
 import { type ReactNode, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Menu, PenSquare, Search, Heart, Clock, Settings, X } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { Menu, PenSquare, Search, Heart, Clock, Settings } from 'lucide-react'
 import { useSearchStore } from '@/stores/searchStore'
-import { cn } from '@/utils/cn'
+import { Button } from '@/components/ui/button'
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Separator } from '@/components/ui/separator'
+import { cn } from '@/lib/utils'
 
-const SIDEBAR_ITEMS = [
+interface NavItem {
+  path: string
+  label: string
+  icon: typeof Search
+}
+
+const NAV_ITEMS: readonly NavItem[] = [
   { path: '/', label: '搜索', icon: Search },
   { path: '/favorites', label: '收藏', icon: Heart },
   { path: '/history', label: '历史', icon: Clock },
@@ -19,19 +33,11 @@ const TITLES: Record<string, string> = {
   '/profile': '关于',
 }
 
-function IconButton({ onClick, ariaLabel, children }: { onClick?: () => void; ariaLabel: string; children: ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      aria-label={ariaLabel}
-      className="w-10 h-10 grid place-items-center rounded-xl text-foreground active:bg-bg-elev transition-colors"
-    >
-      {children}
-    </button>
-  )
+interface MobileShellProps {
+  children: ReactNode
 }
 
-export function MobileShell({ children }: { children: ReactNode }) {
+export function MobileShell({ children }: MobileShellProps) {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
@@ -47,96 +53,86 @@ export function MobileShell({ children }: { children: ReactNode }) {
     setDrawerOpen(false)
   }
 
+  const title = TITLES[location.pathname] ?? '食探'
+
   return (
     <div className="h-dvh flex flex-col max-w-lg mx-auto bg-background overflow-hidden relative">
-      <header className="shrink-0 h-14 flex items-center justify-between px-2 relative z-10">
-        <IconButton ariaLabel="菜单" onClick={() => setDrawerOpen(true)}>
-          <Menu size={22} strokeWidth={2} />
-        </IconButton>
-        <h1 className="font-semibold text-[17px] text-foreground tracking-tight">
-          {TITLES[location.pathname] ?? '食探'}
-        </h1>
-        <IconButton ariaLabel="新对话" onClick={handleNewChat}>
-          <PenSquare size={20} strokeWidth={1.8} />
-        </IconButton>
+      <header
+        className="shrink-0 flex items-center justify-between px-2 h-14 border-b border-border/60 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/70"
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      >
+        <Button variant="ghost" size="icon" aria-label="菜单" onClick={() => setDrawerOpen(true)}>
+          <Menu className="size-5" />
+        </Button>
+        <h1 className="font-semibold text-base text-foreground tracking-tight">{title}</h1>
+        <Button variant="ghost" size="icon" aria-label="新对话" onClick={handleNewChat}>
+          <PenSquare className="size-5" />
+        </Button>
       </header>
 
       <main className="flex-1 min-h-0 overflow-hidden">{children}</main>
 
-      {/* Sidebar drawer */}
-      <AnimatePresence>
-        {drawerOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setDrawerOpen(false)}
-              className="absolute inset-0 z-40 bg-black/40"
-            />
-            <motion.aside
-              initial={{ x: '-100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '-100%' }}
-              transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
-              className="absolute top-0 bottom-0 left-0 z-50 w-[84%] max-w-[320px] bg-bg-elev border-r border-border flex flex-col"
+      <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
+        <SheetContent
+          side="left"
+          hideClose
+          className="w-[84%] max-w-[320px] flex flex-col p-0 bg-bg-elev"
+        >
+          <SheetHeader className="px-4 pt-5 pb-3" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 1.25rem)' }}>
+            <SheetTitle className="text-left">食探</SheetTitle>
+          </SheetHeader>
+
+          <div className="px-3 pb-2">
+            <Button
+              variant="outline"
+              className="w-full justify-start gap-2 rounded-xl"
+              onClick={handleNewChat}
             >
-              <div className="flex items-center gap-2 px-3 pt-3 pb-2">
-                <IconButton ariaLabel="关闭" onClick={() => setDrawerOpen(false)}>
-                  <X size={20} strokeWidth={2} />
-                </IconButton>
-                <div className="flex-1 h-9 flex items-center px-3 rounded-xl bg-background border border-border text-[13px] text-muted-foreground">
-                  搜索对话
-                </div>
-              </div>
+              <PenSquare className="size-4" />
+              新对话
+            </Button>
+          </div>
 
-              <div className="px-2 py-1.5">
+          <Separator className="bg-border/60" />
+
+          <nav className="flex-1 overflow-y-auto px-2 py-2">
+            <p className="px-3 pb-1.5 text-[11px] uppercase tracking-wider text-muted-foreground">导航</p>
+            {NAV_ITEMS.map(({ path, label, icon: Icon }) => {
+              const active = location.pathname === path
+              return (
                 <button
-                  onClick={() => { handleNewChat(); setDrawerOpen(false) }}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[14px] text-foreground active:bg-background transition-colors"
+                  key={path}
+                  onClick={() => handleNavigate(path)}
+                  className={cn(
+                    'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors',
+                    active
+                      ? 'bg-background text-foreground font-medium shadow-sm'
+                      : 'text-foreground hover:bg-background/60 active:bg-background'
+                  )}
                 >
-                  <PenSquare size={16} strokeWidth={1.8} />
-                  新对话
+                  <Icon className="size-4 text-muted-foreground" />
+                  <span className="flex-1 text-left">{label}</span>
                 </button>
-              </div>
+              )
+            })}
+          </nav>
 
-              <nav className="flex-1 overflow-y-auto px-2 pt-2">
-                <div className="px-3 pb-1.5 text-[11px] uppercase tracking-wider text-muted-foreground">
-                  导航
-                </div>
-                {SIDEBAR_ITEMS.map(({ path, label, icon: Icon }) => {
-                  const active = location.pathname === path
-                  return (
-                    <button
-                      key={path}
-                      onClick={() => handleNavigate(path)}
-                      className={cn(
-                        'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[14px] transition-colors',
-                        active
-                          ? 'bg-background text-foreground font-medium'
-                          : 'text-foreground active:bg-background'
-                      )}
-                    >
-                      <Icon size={16} strokeWidth={1.8} className="text-muted-foreground" />
-                      <span className="flex-1 text-left">{label}</span>
-                    </button>
-                  )
-                })}
-              </nav>
+          <Separator className="bg-border/60" />
 
-              <div className="shrink-0 border-t border-border px-3 py-3 flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-full bg-foreground text-background grid place-items-center text-xs font-bold">
-                  食
-                </div>
-                <div className="flex-1 text-[13px] text-foreground">食探用户</div>
-                <IconButton ariaLabel="设置">
-                  <Settings size={16} strokeWidth={1.8} />
-                </IconButton>
-              </div>
-            </motion.aside>
-          </>
-        )}
-      </AnimatePresence>
+          <div
+            className="shrink-0 px-3 py-3 flex items-center gap-2.5"
+            style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.75rem)' }}
+          >
+            <Avatar className="size-8">
+              <AvatarFallback>食</AvatarFallback>
+            </Avatar>
+            <div className="flex-1 text-sm text-foreground truncate">食探用户</div>
+            <Button variant="ghost" size="icon" aria-label="设置" onClick={() => handleNavigate('/profile')}>
+              <Settings className="size-4" />
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }
