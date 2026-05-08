@@ -1,14 +1,47 @@
 import os
 from loguru import logger
 
+
+_PLACEHOLDER_PATTERNS = (
+    "your_", "xxx", "<your", "<replace", "todo",
+    "example", "placeholder",
+)
+
+
+def _looks_like_real_cookie(s: str) -> bool:
+    """过滤 .env 里的占位字符串，比如 'your_xhs_cookies_here'."""
+    s_low = s.strip().lower()
+    if not s_low:
+        return False
+    if any(p in s_low for p in _PLACEHOLDER_PATTERNS):
+        return False
+    # 真 cookie 至少包含 = 和 ;，或者至少一个 = 加常见字段名
+    if "=" not in s:
+        return False
+    return True
+
+
 def load_env():
-    """Load XHS cookies from environment or meet settings."""
-    # Try to load from environment variable first
+    """Load XHS cookies, in order:
+    1. XHS_COOKIES env var (legacy)
+    2. xhs_food.auth profile (recommended; run `python -m xhs_food.auth qr` to log in)
+    3. Spider_XHS .env (legacy fallback)
+    """
     cookies_str = os.getenv('XHS_COOKIES')
-    if cookies_str:
+    if cookies_str and _looks_like_real_cookie(cookies_str):
+        logger.debug("XHS cookies loaded from XHS_COOKIES env var")
         return cookies_str
-    
-    # Fallback: try to load from Spider_XHS .env
+
+    try:
+        from xhs_food.auth import get_cookies
+        profile_name = os.getenv('XHS_PROFILE', 'default')
+        cookies_str = get_cookies(profile_name)
+        if cookies_str:
+            logger.debug(f"XHS cookies loaded from auth profile '{profile_name}'")
+            return cookies_str
+    except Exception as e:
+        logger.debug(f"auth profile lookup failed: {e}")
+
     try:
         from dotenv import load_dotenv
         env_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../../../../Spider_XHS/.env'))
@@ -19,8 +52,11 @@ def load_env():
                 return cookies_str
     except Exception as e:
         logger.warning(f"Failed to load from Spider_XHS .env: {e}")
-    
-    logger.warning("No XHS cookies found. Set XHS_COOKIES environment variable.")
+
+    logger.warning(
+        "No XHS cookies found. Either set XHS_COOKIES env var or run "
+        "`python -m xhs_food.auth qr` to log in."
+    )
     return None
 
 def init():

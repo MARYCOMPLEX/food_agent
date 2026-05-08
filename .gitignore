@@ -122,6 +122,14 @@ cookies.txt
 session.json
 *.pickle
 
+# ----- XHS Auth Module -----
+.xhs_profiles/
+src/xhs_food/auth/_node/node_modules/
+src/xhs_food/auth/_node/package-lock.json
+src/xhs_food/auth/_node/ds.js
+src/xhs_food/auth/_node/sign.js
+qr-*.png
+
 # ----- Security -----
 *.pem
 *.key
