@@ -1,299 +1,257 @@
-"""
-Main search endpoints.
+"""Search endpoints (unified search + SSE stream).
 
-- POST /v1/search          (unified_search)
-- GET  /v1/search/stream   (search_stream / SSE)
-- GET  /v1/search/status   (search_status)
-- GET  /v1/search/results  (search_results)
+Endpoints:
+- ``POST /v1/search`` — new search / refine / recover (auto-dispatched by params)
+- ``GET  /v1/search/stream/{sessionId}`` — SSE event stream backed by the
+  EventBus. The ``Last-Event-ID`` header (sent automatically by browser
+  EventSource on reconnect) is used for replay; no client-side bookkeeping
+  required.
+- ``GET  /v1/search/status/{sessionId}``
+- ``GET  /v1/search/results/{sessionId}``
 """
+from __future__ import annotations
 
 import asyncio
-import json
 import uuid
 from typing import AsyncGenerator
 
-from fastapi import APIRouter, Query, Path, HTTPException
-from sse_starlette.sse import EventSourceResponse
+from fastapi import APIRouter, Header, HTTPException, Path
 from loguru import logger
+from sse_starlette.sse import EventSourceResponse
 
 from api.schemas import (
-    SearchStatusResponse, SearchResultsResponse,
+    SearchResultsResponse,
+    SearchStatusResponse,
     UnifiedSearchRequest,
 )
-from xhs_food.events import get_emitter, remove_emitter, SearchEventType
+from xhs_food.events import get_emitter
+from xhs_food.events.bus import STREAM_START, get_event_bus
 from xhs_food.services import get_session_manager, get_user_storage_service
 
-from .state import _sessions, _get_session, _get_orchestrator
-from .tasks import _run_stream_search
+from .state import (
+    get_orchestrator,
+    get_or_init_state,
+    load_state,
+    update_state,
+)
+from .tasks import run_stream_search, build_recovery_payload
 
 router = APIRouter()
 
 
-# =============================================================================
-# POST /v1/search (推荐使用的统一接口)
-# =============================================================================
+def _stream_url(session_id: str) -> str:
+    return f"/v1/search/stream/{session_id}"
+
+
+def _truncate(text: str | None, n: int = 30) -> str:
+    if not text:
+        return ""
+    return text[:n] + ("…" if len(text) > n else "")
+
+
+# ---------------------------------------------------------------------------
+# POST /v1/search (unified)
+# ---------------------------------------------------------------------------
+
 
 @router.post("/")
 async def unified_search(request: UnifiedSearchRequest):
-    """
-    统一搜索接口 - 智能判断操作类型.
-
-    根据参数自动执行对应操作：
-    - 无 sessionId → 新查询（必须有 query）
-    - 有 sessionId + query → 追问/继续对话
-    - 有 sessionId + 无 query → 恢复历史会话
-
-    Returns:
-        - 新查询/追问: { sessionId, streamUrl } → 前端连接 SSE 流
-        - 恢复: 根据状态返回完整结果或流信息
-    """
-    # Case 1: 新查询（无 sessionId）
+    """Single entry point — branches on ``(sessionId, query)`` presence."""
+    # Case 1: new search
     if not request.sessionId:
         if not request.query:
             raise HTTPException(400, "新查询必须提供 query 参数")
-
         session_id = str(uuid.uuid4())
-        session = _get_session(session_id)
-        session["status"] = "loading"
-        session["query"] = request.query
-
-        # 初始化事件发射器
-        emitter = get_emitter(session_id)
-        emitter.init_steps(request.query)
-
-        # 保存用户消息到 SessionManager
-        try:
-            manager = await get_session_manager()
-            await manager.add_user_message(session_id, request.query)
-        except Exception as e:
-            logger.warning(f"Failed to save user message: {e}")
-
-        # 保存到数据库
-        try:
-            storage = await get_user_storage_service()
-            await storage.create_search_history(
-                session_id=session_id,
-                query=request.query,
-                status="loading",
-            )
-        except Exception as e:
-            logger.warning(f"Failed to save search history: {e}")
-
-        # 启动后台搜索任务
-        asyncio.create_task(_run_stream_search(session_id, request.query))
-
+        await _kick_off_new_search(session_id, request.query)
         return {
             "success": True,
             "data": {
                 "sessionId": session_id,
-                "streamUrl": f"/v1/search/stream/{session_id}",
+                "streamUrl": _stream_url(session_id),
                 "action": "new_search",
-            }
+            },
         }
 
-    # Case 2: 有 sessionId
     session_id = request.sessionId
 
-    # Case 2a: 追问（有 sessionId + query）
+    # Case 2: refine (sessionId + query)
     if request.query:
-        # 如果内存中没有 session，尝试从数据库恢复完整上下文
-        if session_id not in _sessions:
-            try:
-                storage = await get_user_storage_service()
-
-                # 1. 恢复首次搜索的 restaurants（完整列表，用于后续筛选）
-                first_result = await storage.get_first_search_result(session_id)
-                if not first_result:
-                    raise HTTPException(404, "Session not found")
-
-                session = _get_session(session_id)
-                session["status"] = "completed"
-                session["query"] = first_result.get("query", "")
-                session["restaurants"] = first_result.get("restaurants", [])
-
-                # 2. 获取所有轮次数据，计算 turn_id
-                all_results = await storage.get_all_search_results(session_id)
-                session["turn_id"] = len(all_results) if all_results else 1
-
-                # 3. 恢复 orchestrator 的对话上下文（从 SessionManager）
-                orchestrator = _get_orchestrator(session_id)
-                manager = await get_session_manager()
-                context = await manager.get_context(session_id)
-
-                if context:
-                    for msg in context:
-                        if msg["role"] == "user":
-                            orchestrator._context.add_user_message(msg["content"])
-                        elif msg["role"] == "assistant":
-                            orchestrator._context.add_assistant_message(msg["content"])
-
-                # 4. 恢复首次搜索的推荐到 orchestrator（完整列表）
-                for restaurant in first_result.get("restaurants", []):
-                    name = restaurant.get("name", "")
-                    if name:
-                        orchestrator._context.last_recommendations[name] = restaurant
-
-                logger.info(f"[UNIFIED] Session restored: {len(first_result.get('restaurants', []))} restaurants, {len(context or [])} messages, turn_id={session['turn_id']}")
-
-            except HTTPException:
-                raise
-            except Exception as e:
-                logger.warning(f"Failed to restore session: {e}")
-                raise HTTPException(404, f"Session not found: {e}")
-
-        session = _get_session(session_id)
-        turn_id = session.get("turn_id", 1) + 1
-        session["status"] = "loading"
-        session["query"] = request.query
-        session["turn_id"] = turn_id
-
-        # 保存用户追问到 SessionManager
-        try:
-            manager = await get_session_manager()
-            await manager.add_user_message(session_id, request.query)
-        except Exception as e:
-            logger.warning(f"Failed to save refine context: {e}")
-
-        # 重置 emitter
-        emitter = get_emitter(session_id)
-        emitter.reset()
-        emitter.init_steps(request.query)
-
-        # 启动后台追问任务
-        asyncio.create_task(_run_stream_search(session_id, request.query))
-
+        turn_id = await _kick_off_refine(session_id, request.query)
         return {
             "success": True,
             "data": {
                 "sessionId": session_id,
-                "streamUrl": f"/v1/search/stream/{session_id}",
+                "streamUrl": _stream_url(session_id),
                 "turnId": turn_id,
                 "action": "refine",
-            }
+            },
         }
 
-    # Case 2b: 恢复历史（有 sessionId，无 query）
-    # 复用现有的 recover 逻辑
-    from .tasks import search_recover
-    return await search_recover(session_id)
+    # Case 3: recover (sessionId only)
+    return await build_recovery_payload(session_id)
 
 
-# =============================================================================
+async def _kick_off_new_search(session_id: str, query: str) -> None:
+    await update_state(
+        session_id,
+        status="loading",
+        query=query,
+        turn_id=1,
+    )
+
+    emitter = await get_emitter(session_id)
+    emitter.reset()
+    emitter.init_steps(query)
+
+    try:
+        manager = await get_session_manager()
+        await manager.add_user_message(session_id, query)
+    except Exception as exc:
+        logger.warning(f"add_user_message failed: {exc}")
+
+    try:
+        storage = await get_user_storage_service()
+        await storage.create_search_history(
+            session_id=session_id,
+            query=query,
+            status="loading",
+        )
+    except Exception as exc:
+        logger.warning(f"create_search_history failed: {exc}")
+
+    asyncio.create_task(run_stream_search(session_id, query))
+
+
+async def _kick_off_refine(session_id: str, query: str) -> int:
+    # Restore orchestrator context lazily if memory cache evicted.
+    state = await load_state(session_id)
+    if state is None:
+        state = await _restore_state_from_storage(session_id)
+
+    turn_id = (state.get("turn_id") or 1) + 1
+    await update_state(
+        session_id,
+        status="loading",
+        query=query,
+        turn_id=turn_id,
+    )
+
+    try:
+        manager = await get_session_manager()
+        await manager.add_user_message(session_id, query)
+    except Exception as exc:
+        logger.warning(f"add_user_message failed: {exc}")
+
+    emitter = await get_emitter(session_id)
+    emitter.reset()
+    emitter.init_steps(query)
+
+    asyncio.create_task(run_stream_search(session_id, query))
+    return turn_id
+
+
+async def _restore_state_from_storage(session_id: str) -> dict:
+    """Repopulate orchestrator + state from persistent storage."""
+    storage = await get_user_storage_service()
+    first_result = await storage.get_first_search_result(session_id)
+    if not first_result:
+        raise HTTPException(404, "Session not found")
+
+    all_results = await storage.get_all_search_results(session_id)
+    state = await update_state(
+        session_id,
+        status="completed",
+        query=first_result.get("query", ""),
+        turn_id=len(all_results) if all_results else 1,
+        restaurants=first_result.get("restaurants", []),
+    )
+
+    orchestrator = get_orchestrator(session_id)
+    manager = await get_session_manager()
+    history = await manager.get_context(session_id)
+    if history:
+        for msg in history:
+            if msg["role"] == "user":
+                orchestrator._context.add_user_message(msg["content"])
+            elif msg["role"] == "assistant":
+                orchestrator._context.add_assistant_message(msg["content"])
+
+    for restaurant in first_result.get("restaurants", []):
+        name = restaurant.get("name")
+        if name:
+            orchestrator._context.last_recommendations[name] = restaurant
+
+    logger.info(
+        f"session restored: {len(first_result.get('restaurants', []))} restaurants, "
+        f"turn_id={state['turn_id']}"
+    )
+    return state
+
+
+# ---------------------------------------------------------------------------
 # GET /v1/search/stream/{sessionId} (SSE)
-# =============================================================================
+# ---------------------------------------------------------------------------
+
 
 @router.get("/stream/{sessionId}")
 async def search_stream(
     sessionId: str = Path(..., description="会话ID"),
-    lastEventIndex: int = Query(0, description="上次收到的事件索引，用于重放"),
+    last_event_id: str | None = Header(None, alias="Last-Event-ID"),
 ):
+    """Server-sent events with Redis-Stream-backed replay.
+
+    The browser's ``EventSource`` records ``id:`` on every event and sends
+    it back as ``Last-Event-ID`` on reconnect. The EventBus replays from
+    that id, so the client needs no special reconnection logic.
     """
-    SSE 流式搜索端点.
+    bus = await get_event_bus()
+    start_from = last_event_id or STREAM_START
 
-    支持断线重连：用户断开后可重新连接继续接收事件。
+    async def generate() -> AsyncGenerator[dict, None]:
+        async for entry_id, event in bus.subscribe(sessionId, start_from):
+            sse = event.to_sse()
+            sse["id"] = entry_id
+            yield sse
 
-    Args:
-        sessionId: 会话ID
-        lastEventIndex: 断线前收到的最后一个事件索引，0 表示从头开始
-
-    Events:
-    - step_start: 步骤开始
-    - step_done: 步骤完成
-    - step_error: 步骤失败
-    - restaurant: 单个店铺结果（流式）
-    - result: 最终汇总
-    - error: 错误
-    - done: 完成
-    """
-    # 检查 session 状态
-    session = _sessions.get(sessionId)
-    if session and session.get("status") == "completed":
-        # 任务已完成，返回提示使用 /recover 获取结果
-        return {
-            "success": True,
-            "data": {
-                "sessionId": sessionId,
-                "status": "completed",
-                "message": "搜索已完成，请使用 /recover/{sessionId} 获取结果"
-            }
-        }
-
-    emitter = get_emitter(sessionId)
-
-    async def generate_events() -> AsyncGenerator[dict, None]:
-        completed = False
-        try:
-            # 重放断线期间错过的事件
-            sent_events = emitter.get_sent_events()
-            if lastEventIndex > 0 and lastEventIndex < len(sent_events):
-                logger.debug(f"Replaying events from index {lastEventIndex}, total {len(sent_events)}")
-                for event in sent_events[lastEventIndex:]:
-                    # 添加 replayed 标记
-                    sse_data = event.to_sse()
-                    event_data = json.loads(sse_data["data"])
-                    event_data["replayed"] = True
-                    sse_data["data"] = json.dumps(event_data, ensure_ascii=False)
-                    yield sse_data
-
-                    if event.type in (SearchEventType.DONE, SearchEventType.ERROR):
-                        completed = True
-                        return
-
-            # 继续接收新事件
-            async for event in emitter.events():
-                yield event.to_sse()
-
-                if event.type in (SearchEventType.DONE, SearchEventType.ERROR):
-                    completed = True
-                    break
-        finally:
-            # 只在任务完成后清理，断线不清理（支持重连）
-            if completed:
-                remove_emitter(sessionId)
-
-    return EventSourceResponse(generate_events())
+    return EventSourceResponse(generate())
 
 
-# =============================================================================
+# ---------------------------------------------------------------------------
 # GET /v1/search/status/{sessionId}
-# =============================================================================
+# ---------------------------------------------------------------------------
+
 
 @router.get("/status/{sessionId}", response_model=SearchStatusResponse)
 async def search_status(sessionId: str = Path(..., description="会话ID")):
-    """获取搜索状态."""
-    if sessionId not in _sessions:
-        raise HTTPException(status_code=404, detail="Session not found")
-
-    session = _get_session(sessionId)
-    emitter = get_emitter(sessionId)
-
+    state = await load_state(sessionId)
+    if state is None:
+        raise HTTPException(404, "Session not found")
+    emitter = await get_emitter(sessionId)
     return SearchStatusResponse(
         success=True,
         data={
             "sessionId": sessionId,
-            "status": session["status"],
-            "loadingSteps": emitter._steps,
-        }
+            "status": state["status"],
+            "loadingSteps": emitter.steps,
+        },
     )
 
 
-# =============================================================================
+# ---------------------------------------------------------------------------
 # GET /v1/search/results/{sessionId}
-# =============================================================================
+# ---------------------------------------------------------------------------
+
 
 @router.get("/results/{sessionId}", response_model=SearchResultsResponse)
 async def search_results(sessionId: str = Path(..., description="会话ID")):
-    """获取搜索结果."""
-    if sessionId not in _sessions:
-        raise HTTPException(status_code=404, detail="Session not found")
-
-    session = _get_session(sessionId)
-
+    state = await load_state(sessionId)
+    if state is None:
+        raise HTTPException(404, "Session not found")
     return SearchResultsResponse(
         success=True,
         data={
             "sessionId": sessionId,
-            "restaurants": session.get("restaurants", []),
-            "summary": session.get("summary", ""),
-        }
+            "restaurants": state.get("restaurants", []),
+            "summary": state.get("summary", ""),
+        },
     )

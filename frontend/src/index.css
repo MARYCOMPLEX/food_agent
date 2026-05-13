@@ -4,25 +4,33 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  /* Neutral */
-  --color-background: #ffffff;
-  --color-bg-elev: #f9f9f9;
-  --color-bubble-user: #f4f4f4;
-  --color-foreground: #0d0d0d;
-  --color-card: #ffffff;
-  --color-card-foreground: #0d0d0d;
-  --color-secondary: #f4f4f4;
-  --color-secondary-foreground: #0d0d0d;
-  --color-muted: #f9f9f9;
-  --color-muted-foreground: #8e8ea0;
-  --color-accent: #f4f4f4;
-  --color-accent-foreground: #0d0d0d;
-  --color-primary: #0d0d0d;
-  --color-primary-foreground: #ffffff;
-  --color-destructive: #ef4444;
-  --color-border: rgba(0, 0, 0, 0.08);
-  --color-ring: #0d0d0d;
+  /* Warm neutrals */
+  --color-background: #FEFCF9;
+  --color-bg-elev: #FBF8F4;
+  --color-bubble-user: #F5F1EB;
+  --color-foreground: #1C1917;
+  --color-card: #FFFDF9;
+  --color-card-foreground: #1C1917;
+  --color-secondary: #F5F1EB;
+  --color-secondary-foreground: #1C1917;
+  --color-muted: #FBF8F4;
+  --color-muted-foreground: #9C8E82;
+  --color-accent: #F5F1EB;
+  --color-accent-foreground: #1C1917;
+  --color-primary: #1C1917;
+  --color-primary-foreground: #FEFCF9;
+  --color-destructive: #dc2626;
+  --color-border: rgba(28, 25, 23, 0.08);
+  --color-ring: #1C1917;
   --color-brand: #c2410c;
+  --color-brand-light: #fed7aa;
+
+  /* Sidebar */
+  --color-sidebar: #F7F3EE;
+  --color-sidebar-foreground: #1C1917;
+
+  /* Tab */
+  --color-tab-active: #c2410c;
 
   /* Radii */
   --radius: 14px;

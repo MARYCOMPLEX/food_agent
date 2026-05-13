@@ -1,4 +1,4 @@
-import { ShieldCheck, ShieldAlert, ShieldQuestion, AlertTriangle, XCircle } from 'lucide-react'
+import { ShieldCheck, ShieldQuestion, AlertTriangle, XCircle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 
 const CONFIG: Record<string, { text: string; variant: 'local' | 'wanghong' | 'warning' | 'muted'; icon: typeof ShieldCheck }> = {

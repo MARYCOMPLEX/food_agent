@@ -6,13 +6,14 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from typing import Any, Dict, List, Optional
 
 from xhs_food.agents.intent_parser import IntentParseResult
+from xhs_food.common import expand_category_keywords, extract_json
+from xhs_food.exceptions import LLMError, LLMResponseParseError
 from xhs_food.schemas import (
-    XHSFoodResponse,
     ConversationContext,
+    XHSFoodResponse,
 )
 from xhs_food.orchestrator.converters import dict_to_recommendation
 
@@ -54,19 +55,11 @@ class FollowUpHandler:
                 llm = LLMService()
             response = await llm.call([HumanMessage(content=prompt)])
             raw_output = response.content if hasattr(response, 'content') else str(response)
-            json_match = re.search(r'\{[\s\S]*\}', raw_output)
-            if not json_match:
+            parsed = extract_json(raw_output)
+            if not isinstance(parsed, dict):
                 logger.warning(f"LLM 输出无法解析为 JSON: {raw_output[:200]}")
-                return XHSFoodResponse(
-                    status="ok",
-                    recommendations=[
-                        dict_to_recommendation(r)
-                        for r in self._context.last_recommendations.values()
-                    ],
-                    summary="无法理解您的请求，以下是当前推荐列表",
-                )
+                return self._fallback_response("无法理解您的请求，以下是当前推荐列表")
 
-            parsed = json.loads(json_match.group())
             if parsed.get("new_search", False):
                 logger.info("  用户要求重新搜索，触发新搜索流程")
                 return None
@@ -91,16 +84,23 @@ class FollowUpHandler:
                 summary=response_text,
             )
 
-        except Exception as e:
-            logger.warning(f"LLM 追问处理失败: {e}")
-            return XHSFoodResponse(
-                status="ok",
-                recommendations=[
-                    dict_to_recommendation(r)
-                    for r in self._context.last_recommendations.values()
-                ],
-                summary=f"处理失败: {str(e)}，以下是当前推荐列表",
-            )
+        except LLMError as exc:
+            logger.warning(f"LLM 追问处理 LLM 失败: {exc}")
+            return self._fallback_response("LLM 服务暂时不可用，以下是当前推荐列表")
+        except (json.JSONDecodeError, KeyError, TypeError) as exc:
+            logger.warning(f"LLM 追问处理数据解析失败: {exc}")
+            return self._fallback_response("回复格式异常，以下是当前推荐列表")
+
+    def _fallback_response(self, summary: str) -> XHSFoodResponse:
+        """Return current recommendations unchanged with a status message."""
+        return XHSFoodResponse(
+            status="ok",
+            recommendations=[
+                dict_to_recommendation(rec)
+                for rec in self._context.last_recommendations.values()
+            ],
+            summary=summary,
+        )
 
     async def handle_filter(self, parse_result: IntentParseResult) -> XHSFoodResponse:
         """处理过滤类追问."""
@@ -135,21 +135,7 @@ class FollowUpHandler:
         """处理品类过滤类追问（在现有结果中筛选某类型）."""
         target_category = parse_result.category_target or ""
         logger.info(f"  品类过滤: {target_category}")
-        category_mapping = {
-            "炒菜": ["炒菜", "川菜", "家常菜", "江湖菜", "小炒", "中餐", "粤菜", "湘菜"],
-            "川菜": ["川菜", "炒菜", "家常菜", "江湖菜"],
-            "火锅": ["火锅", "串串", "冒菜", "麻辣烫"],
-            "烧烤": ["烧烤", "烤肉", "撸串", "烤鱼"],
-            "面食": ["面", "抄手", "馄饨", "饺子", "面条", "粉"],
-            "小吃": ["小吃", "小吃店", "路边摊", "点心"],
-            "甜品": ["甜品", "甜点", "蛋糕", "奶茶"],
-            "鱼": ["鱼", "鱼庄", "烤鱼", "冷锅鱼", "花椒鱼"],
-        }
-        match_keywords = [target_category]
-        for category, keywords in category_mapping.items():
-            if target_category in category or category in target_category:
-                match_keywords.extend(keywords)
-        match_keywords = list(set(match_keywords))
+        match_keywords = expand_category_keywords(target_category)
         logger.debug(f"  匹配关键词: {match_keywords}")
         matched_recommendations = []
         for name, rec_dict in self._context.last_recommendations.items():

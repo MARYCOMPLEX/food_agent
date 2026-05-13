@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Optional
 
+from xhs_food.common import extract_json
 from xhs_food.prompts import (
     COMMENT_ANALYSIS_SYSTEM_PROMPT,
     COMMENT_ANALYSIS_USER_PROMPT,
@@ -24,18 +25,14 @@ from xhs_food.schemas import (
     WanghongScore,
 )
 from xhs_food.services.preprocessing import (
-    ProcessedComment,
     preprocess_comments,
     format_comments_for_llm,
 )
 from xhs_food.services.scoring import (
-    CommentAnalysis,
     ShopScore,
     calculate_scores,
     get_top_shops,
 )
-
-from .analyzer_legacy import LegacyAnalyzerMixin
 
 logger = logging.getLogger(__name__)
 
@@ -57,9 +54,9 @@ class AnalyzeResult:
         self.error = error
 
 
-class AnalyzerAgent(LegacyAnalyzerMixin):
+class AnalyzerAgent:
     """
-    内容分析代理 - 重构版 (三阶段流水线).
+    内容分析代理 - 三阶段流水线.
 
     Pipeline:
     1. preprocess_comments() -> ProcessedComment[] (含 interaction_score)
@@ -67,18 +64,10 @@ class AnalyzerAgent(LegacyAnalyzerMixin):
     3. calculate_scores()   -> ShopScore[] (精确计算)
     """
 
-    def __init__(self, llm_service=None, use_legacy_mode: bool = False):
-        """
-        初始化分析器.
-
-        Args:
-            llm_service: LLM 服务实例
-            use_legacy_mode: 是否使用旧版模式（向后兼容）
-        """
+    def __init__(self, llm_service: Optional[Any] = None) -> None:
         self._llm_service = llm_service
-        self._use_legacy_mode = use_legacy_mode
 
-    async def _get_llm_service(self):
+    async def _get_llm_service(self) -> Any:
         """懒加载 LLM 服务."""
         if self._llm_service is None:
             from xhs_food.services.llm_service import LLMService
@@ -93,24 +82,7 @@ class AnalyzerAgent(LegacyAnalyzerMixin):
         exclude_keywords: List[str],
         note_id: str = "",
     ) -> AnalyzeResult:
-        """
-        分析笔记内容和评论 (入口方法).
-
-        Args:
-            title: 笔记标题
-            content: 笔记内容
-            comments: 评论列表 (支持 str 或 Dict 格式)
-            exclude_keywords: 用户排除关键词
-            note_id: 笔记ID
-
-        Returns:
-            AnalyzeResult: 分析结果
-        """
-        if self._use_legacy_mode:
-            return await self._analyze_legacy(
-                title, content, comments, exclude_keywords, note_id
-            )
-
+        """分析笔记内容和评论 (入口方法)."""
         return await self._analyze_pipeline(
             title, content, comments, exclude_keywords, note_id
         )
@@ -166,12 +138,13 @@ class AnalyzerAgent(LegacyAnalyzerMixin):
             response = await llm.call(messages)
             raw_output = response.content if hasattr(response, 'content') else str(response)
 
-            # 解析 LLM 输出
-            parsed = self._extract_json(raw_output)
+            parsed = extract_json(raw_output)
             if parsed is None:
-                logger.warning("LLM 输出 JSON 解析失败，降级到旧模式")
-                return await self._analyze_legacy(
-                    title, content, comments, exclude_keywords, note_id
+                logger.warning("LLM 输出 JSON 解析失败")
+                return AnalyzeResult(
+                    success=False,
+                    raw_output=raw_output,
+                    error="Failed to parse JSON from LLM output",
                 )
 
             llm_results = parsed.get("results", [])

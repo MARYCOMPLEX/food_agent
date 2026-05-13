@@ -16,6 +16,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from xhs_food import XHSFoodOrchestrator
+from xhs_food.auth import ensure_logged_in
+from xhs_food.exceptions import XHSAuthError
 
 # 设置日志级别
 logging.basicConfig(
@@ -23,6 +25,23 @@ logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(message)s",
     datefmt="%H:%M:%S",
 )
+
+
+def bootstrap_session(
+    profile: str = "default",
+    force_scan: bool = False,
+    fresh_device: bool = False,
+) -> None:
+    """Block until we have a validated XHS login session."""
+    try:
+        ensure_logged_in(
+            profile_name=profile,
+            force_scan=force_scan,
+            fresh_device=fresh_device,
+        )
+    except XHSAuthError as exc:
+        sys.exit(f"\n[!] 登录失败: {exc}")
+    print("[OK] XHS session validated\n")
 
 
 async def run_single_query(query: str):
@@ -186,10 +205,32 @@ if __name__ == "__main__":
         action="store_true",
         help="快速模式（最多搜索10篇笔记，默认为深度研究模式）"
     )
-    
+    parser.add_argument(
+        "--force-scan",
+        action="store_true",
+        help="强制扫码登录，不复用已有 session（默认会先 validate）",
+    )
+    parser.add_argument(
+        "--fresh-device",
+        action="store_true",
+        help="每次扫码前重置 a1/webId 设备指纹（QR 老是失效时用）",
+    )
+    parser.add_argument(
+        "--profile",
+        default="default",
+        help="auth profile 名（默认 default）",
+    )
+
     args = parser.parse_args()
     deep_search = not args.fast
-    
+
+    # Always ensure a valid XHS session before any business call
+    bootstrap_session(
+        profile=args.profile,
+        force_scan=args.force_scan,
+        fresh_device=args.fresh_device,
+    )
+
     if args.mode == "interactive":
         asyncio.run(run_multi_turn_dialogue(deep_search=deep_search))
     elif args.mode == "preset":

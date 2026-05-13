@@ -1,7 +1,5 @@
-import { useIsMobile } from '@/hooks/useMediaQuery'
-import { MobileProfileView } from '@/components/mobile/profile/MobileProfileView'
-import { DesktopProfileView } from '@/components/desktop/profile/DesktopProfileView'
+import { ProfileView } from '@/components/views/ProfileView'
 
 export function ProfilePage() {
-  return useIsMobile() ? <MobileProfileView /> : <DesktopProfileView />
+  return <ProfileView />
 }

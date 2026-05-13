@@ -1,0 +1,129 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+# Cancel superseded runs on the same ref to save minutes
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-test:
+    name: Backend lint & test
+    runs-on: ubuntu-latest
+
+    # GH Actions service containers — bound to localhost in the job
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 3s
+          --health-retries 5
+
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: xhs_food_agent
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d xhs_food_agent"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      REDIS_HOST: localhost
+      REDIS_PORT: "6379"
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: xhs_food_agent
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      # Dummy values so settings validation passes in CI
+      OPENAI_API_KEY: "ci-dummy-key"
+      OPENAI_API_BASE: "https://api.openai.com/v1/"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install dependencies (incl. dev extras)
+        run: uv sync --extra dev
+
+      - name: Enable pgvector extension
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -d xhs_food_agent \
+            -c "CREATE EXTENSION IF NOT EXISTS vector;"
+
+      - name: Ruff lint
+        run: uv run ruff check src/ tests/
+
+      - name: Pyright type-check
+        # Not gating CI yet — type errors are tracked but allowed to land
+        continue-on-error: true
+        run: uv run pyright src/
+
+      - name: Pytest (unit + integration)
+        # Integration tests rely on redis/postgres + env vars set above.
+        # Use `|| true`-free soft fail by limiting to marked tests only;
+        # if no tests match a marker, pytest exits 5 which we tolerate.
+        run: |
+          set +e
+          uv run pytest --cov=src --cov-report=xml -m "unit or integration"
+          code=$?
+          # 0 = pass, 5 = no tests collected for the marker selection
+          if [ "$code" -ne 0 ] && [ "$code" -ne 5 ]; then exit $code; fi
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+          if-no-files-found: ignore
+
+  frontend:
+    name: Frontend lint & build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build

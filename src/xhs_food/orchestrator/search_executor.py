@@ -1,13 +1,13 @@
-"""
-搜索执行器 - 封装4阶段搜索策略和笔记分析.
-"""
+"""搜索执行器 - 封装 4 阶段搜索策略和笔记分析."""
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any, Dict, List, Set
 
 from xhs_food.agents.analyzer import AnalyzerAgent, AnalyzeResult
+from xhs_food.observability.metrics import xhs_notes_fetched_total
 from xhs_food.schemas import (
     FoodSearchIntent,
     RestaurantRecommendation,
@@ -33,6 +33,7 @@ class SearchExecutor:
         fast_mode_limit: int = 15,
         notes_per_keyword: int = 4,
         max_restaurants: int = 10,
+        analyze_concurrency: int = 5,
     ):
         self._xhs_registry = xhs_registry
         self._analyzer = analyzer
@@ -41,6 +42,7 @@ class SearchExecutor:
         self._fast_mode_limit = fast_mode_limit
         self._notes_per_keyword = notes_per_keyword
         self._max_restaurants = max_restaurants
+        self._analyze_concurrency = max(1, analyze_concurrency)
 
         # 搜索过程中的临时缓存
         self._shop_mentions: Dict[str, List[str]] = {}
@@ -65,11 +67,7 @@ class SearchExecutor:
                 summary=f"未找到关于 {intent.location} 的相关笔记",
             )
         logger.info(f"  共获取 {len(all_notes)} 篇笔记")
-        all_restaurants: List[RestaurantRecommendation] = []
-        for note in all_notes:
-            analyze_result = await self.analyze_note(note, intent)
-            if analyze_result.success:
-                all_restaurants.extend(analyze_result.restaurants)
+        all_restaurants = await self.analyze_notes_concurrent(all_notes, intent)
         logger.info(f"  识别出 {len(all_restaurants)} 家店铺")
         merged_restaurants = self.merge_and_validate(all_restaurants)
         recommended = []
@@ -194,6 +192,8 @@ class SearchExecutor:
                     new_notes.append(note)
 
             logger.info(f"    搜索 '{keyword}': 新增 {len(new_notes)} 篇")
+            if new_notes:
+                xhs_notes_fetched_total.labels(keyword_phase="search").inc(len(new_notes))
             return new_notes
         except Exception as e:
             logger.warning(f"搜索异常: {keyword} - {e}")
@@ -236,6 +236,38 @@ class SearchExecutor:
                         if w not in names:
                             names.append(w)
         return names[:6]
+
+    async def analyze_notes_concurrent(
+        self,
+        notes: List[Dict[str, Any]],
+        intent: FoodSearchIntent,
+    ) -> List[RestaurantRecommendation]:
+        """Concurrently analyze ``notes`` under a semaphore.
+
+        Errors in individual notes are logged and skipped — partial results
+        are preferable to failing the whole pipeline.
+        """
+        if not notes:
+            return []
+        xhs_notes_fetched_total.labels(keyword_phase="analyzed").inc(len(notes))
+        semaphore = asyncio.Semaphore(self._analyze_concurrency)
+
+        async def _one(note: Dict[str, Any]) -> List[RestaurantRecommendation]:
+            async with semaphore:
+                try:
+                    result = await self.analyze_note(note, intent)
+                except Exception as exc:
+                    logger.warning(f"分析笔记失败: {exc}")
+                    return []
+                if not result.success:
+                    return []
+                return list(result.restaurants)
+
+        gathered = await asyncio.gather(*(_one(note) for note in notes))
+        restaurants: List[RestaurantRecommendation] = []
+        for batch in gathered:
+            restaurants.extend(batch)
+        return restaurants
 
     async def analyze_note(self, note: Dict[str, Any], intent: FoodSearchIntent) -> AnalyzeResult:
         """分析单篇笔记."""

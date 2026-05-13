@@ -45,8 +45,8 @@ def handle_user_info(data, user_id):
     for tag in tags_temp:
         try:
             tags.append(tag['name'])
-        except:
-            pass
+        except (KeyError, TypeError):
+            continue
     return {
         'user_id': user_id,
         'home_url': home_url,
@@ -87,10 +87,8 @@ def handle_note_info(data):
     for image in image_list_temp:
         try:
             image_list.append(image['info_list'][1]['url'])
-            # success, msg, img_url = XHS_Apis.get_note_no_water_img(image['info_list'][1]['url'])
-            # image_list.append(img_url)
-        except:
-            pass
+        except (KeyError, IndexError, TypeError):
+            continue
     if note_type == '视频':
         video_cover = image_list[0]
         video_addr = 'https://sns-video-bd.xhscdn.com/' + data['note_card']['video']['consumer']['origin_video_key']
@@ -103,8 +101,8 @@ def handle_note_info(data):
     for tag in tags_temp:
         try:
             tags.append(tag['name'])
-        except:
-            pass
+        except (KeyError, TypeError):
+            continue
     upload_time = timestamp_to_str(data['note_card']['time'])
     if 'ip_location' in data['note_card']:
         ip_location = data['note_card']['ip_location']
@@ -144,22 +142,13 @@ def handle_comment_info(data):
     show_tags = data['show_tags']
     like_count = data['like_count']
     upload_time = timestamp_to_str(data['create_time'])
-    try:
-        ip_location = data['ip_location']
-    except:
-        ip_location = '未知'
-    pictures = []
-    try:
-        pictures_temp = data['pictures']
-        for picture in pictures_temp:
-            try:
-                pictures.append(picture['info_list'][1]['url'])
-                # success, msg, img_url = XHS_Apis.get_note_no_water_img(picture['info_list'][1]['url'])
-                # pictures.append(img_url)
-            except:
-                pass
-    except:
-        pass
+    ip_location = data.get('ip_location', '未知')
+    pictures: list[str] = []
+    for picture in data.get('pictures', []) or []:
+        try:
+            pictures.append(picture['info_list'][1]['url'])
+        except (KeyError, IndexError, TypeError):
+            continue
     return {
         'note_id': note_id,
         'note_url': note_url,

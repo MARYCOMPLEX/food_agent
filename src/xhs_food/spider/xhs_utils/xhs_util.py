@@ -34,10 +34,10 @@ if '%PATH%' in current_path or not current_path:
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r'Environment') as key:
             try:
                 user_path, _ = winreg.QueryValueEx(key, 'Path')
-            except:
+            except FileNotFoundError:
                 user_path = ''
         os.environ['PATH'] = system_path + os.pathsep + user_path
-    except:
+    except (ImportError, FileNotFoundError, OSError):
         pass
 
 # Add Node.js paths
@@ -124,7 +124,7 @@ try {{
         finally:
             try:
                 os.unlink(temp_path)
-            except:
+            except OSError:
                 pass
 
 # ========== Load JS Files ==========

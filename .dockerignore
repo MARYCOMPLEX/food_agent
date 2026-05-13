@@ -1,0 +1,52 @@
+# ---- Version control / IDE ----
+.git
+.gitignore
+.gitattributes
+.idea
+.vscode
+.claude
+
+# ---- Python ----
+**/__pycache__
+**/*.pyc
+**/*.pyo
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+coverage.xml
+htmlcov
+.venv
+venv
+env
+
+# ---- Node / Frontend ----
+# Frontend is not shipped inside the API image
+frontend/node_modules
+frontend/dist
+frontend/.vite
+
+# Node modules under the auth signer are rebuilt inside the image
+src/xhs_food/auth/_node/node_modules
+
+# ---- Local state / runtime artifacts ----
+logs/
+.xhs_profiles
+*.db
+*.sqlite
+*.sqlite3
+
+# ---- Secrets ----
+.env
+.env.*
+!.env.example
+
+# ---- Tests / docs / build noise ----
+tests/
+docs/
+*.md
+!README.md
+Dockerfile
+.dockerignore
+docker-compose.yml
+docker-compose.*.yml

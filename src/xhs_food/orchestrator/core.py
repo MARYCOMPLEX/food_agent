@@ -1,22 +1,41 @@
-"""XHSFoodOrchestrator - 主编排器, 4阶段搜索 + 多轮对话."""
+"""XHSFoodOrchestrator - 主编排器, 4阶段搜索 + 多轮对话.
+
+All collaborators are eagerly constructed in ``__init__`` (no lazy
+``_ensure_initialized``); pass overrides for testing.
+"""
 
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any, Dict, List, Optional
 
-from xhs_food.agents.intent_parser import IntentParserAgent
 from xhs_food.agents.analyzer import AnalyzerAgent
-from xhs_food.schemas import (
-    RestaurantRecommendation,
-    XHSFoodResponse,
-    ConversationContext,
+from xhs_food.agents.intent_parser import IntentParserAgent
+from xhs_food.common.location import extract_city_from_location
+from xhs_food.config import settings
+from xhs_food.exceptions import IntentError, LLMError
+from xhs_food.observability.metrics import (
+    search_duration_seconds,
+    search_finished_total,
+    search_started_total,
 )
-from xhs_food.protocols.mcp import MCPToolRegistry
 from xhs_food.orchestrator.follow_up import FollowUpHandler
 from xhs_food.orchestrator.search_executor import SearchExecutor
+from xhs_food.protocols.mcp import MCPToolRegistry
+from xhs_food.schemas import (
+    ConversationContext,
+    RestaurantRecommendation,
+    XHSFoodResponse,
+)
 
 logger = logging.getLogger(__name__)
+
+
+def _build_default_xhs_registry() -> MCPToolRegistry:
+    """Lazy import to avoid pulling the di package into module-load order."""
+    from xhs_food.di.factories import get_xhs_tool_registry
+    return get_xhs_tool_registry()
 
 
 class XHSFoodOrchestrator:
@@ -26,49 +45,48 @@ class XHSFoodOrchestrator:
         self,
         *,
         xhs_registry: Optional[MCPToolRegistry] = None,
+        llm_service: Any = None,
         intent_parser: Optional[IntentParserAgent] = None,
         analyzer: Optional[AnalyzerAgent] = None,
-        llm_service=None,
+        follow_up_handler: Optional[FollowUpHandler] = None,
+        search_executor: Optional[SearchExecutor] = None,
         deep_search: Optional[bool] = None,
         fast_mode_limit: Optional[int] = None,
-    ):
-        import os
-
-        self._xhs_registry = xhs_registry
-        self._intent_parser = intent_parser
-        self._analyzer = analyzer
+    ) -> None:
         self._llm_service = llm_service
-        if deep_search is None:
-            env_deep = os.getenv("SEARCH_DEEP_MODE", "false").lower()
-            self._deep_search = env_deep in ("true", "1", "yes")
-        else:
-            self._deep_search = deep_search
-        if fast_mode_limit is None:
-            self._fast_mode_limit = int(os.getenv("SEARCH_NOTE_LIMIT", "15"))
-        else:
-            self._fast_mode_limit = fast_mode_limit
-        self._notes_per_keyword = int(os.getenv("SEARCH_NOTES_PER_KEYWORD", "4"))
-        self._max_restaurants = int(os.getenv("SEARCH_MAX_RESTAURANTS", "10"))
+        self._deep_search = settings.search_deep_mode if deep_search is None else deep_search
+        self._fast_mode_limit = (
+            settings.search_note_limit if fast_mode_limit is None else fast_mode_limit
+        )
+        self._notes_per_keyword = settings.search_notes_per_keyword
+        self._max_restaurants = settings.search_max_restaurants
+        self._analyze_concurrency = settings.analyze_concurrency
+        self._poi_concurrency = settings.poi_concurrency
         self._context = ConversationContext()
-        self._follow_up_handler: Optional[FollowUpHandler] = None
-        self._search_executor: Optional[SearchExecutor] = None
 
-    async def _ensure_initialized(self) -> None:
-        """确保所有组件初始化."""
-        if self._intent_parser is None:
-            self._intent_parser = IntentParserAgent(llm_service=self._llm_service)
-        if self._analyzer is None:
-            self._analyzer = AnalyzerAgent(llm_service=self._llm_service, use_legacy_mode=True)
-        if self._xhs_registry is None:
-            from xhs_food.di.factories import get_xhs_tool_registry
-            self._xhs_registry = get_xhs_tool_registry()
-        if self._follow_up_handler is None:
-            self._follow_up_handler = FollowUpHandler(
-                context=self._context,
-                llm_service=self._llm_service,
-            )
-        if self._search_executor is None:
-            self._search_executor = SearchExecutor(
+        # Eager dependency wiring with caller overrides.
+        self._xhs_registry: MCPToolRegistry = (
+            xhs_registry if xhs_registry is not None else _build_default_xhs_registry()
+        )
+        self._intent_parser: IntentParserAgent = (
+            intent_parser
+            if intent_parser is not None
+            else IntentParserAgent(llm_service=self._llm_service)
+        )
+        self._analyzer: AnalyzerAgent = (
+            analyzer
+            if analyzer is not None
+            else AnalyzerAgent(llm_service=self._llm_service)
+        )
+        self._follow_up_handler: FollowUpHandler = (
+            follow_up_handler
+            if follow_up_handler is not None
+            else FollowUpHandler(context=self._context, llm_service=self._llm_service)
+        )
+        self._search_executor: SearchExecutor = (
+            search_executor
+            if search_executor is not None
+            else SearchExecutor(
                 xhs_registry=self._xhs_registry,
                 analyzer=self._analyzer,
                 context=self._context,
@@ -76,13 +94,14 @@ class XHSFoodOrchestrator:
                 fast_mode_limit=self._fast_mode_limit,
                 notes_per_keyword=self._notes_per_keyword,
                 max_restaurants=self._max_restaurants,
+                analyze_concurrency=self._analyze_concurrency,
             )
+        )
 
     def reset_context(self) -> None:
         """重置对话上下文（开始新会话）."""
         self._context.reset()
-        if self._search_executor:
-            self._search_executor.reset_cache()
+        self._search_executor.reset_cache()
 
     @property
     def context(self) -> ConversationContext:
@@ -110,11 +129,14 @@ class XHSFoodOrchestrator:
         response = await self.process(user_input)
         return self._record_response(response)
 
-    async def search_stream(self, user_input: str, emitter: "SearchEventEmitter"):
+    async def search_stream(self, user_input: str, emitter: "SearchEventEmitter") -> None:
         """流式搜索（支持 SSE 推送），通过 emitter 发射中间步骤和结果。"""
-        await self._ensure_initialized()
         self._context.add_user_message(user_input)
         emitter.init_steps(user_input)
+
+        search_started_total.inc()
+        _start_perf = time.perf_counter()
+        _outcome = "error"  # default; flipped to "ok" on the success path
 
         try:
             await emitter.step_start("step1", f"解析: {user_input[:30]}...")
@@ -127,6 +149,7 @@ class XHSFoodOrchestrator:
                     await emitter.emit_result(result.summary, len(result.recommendations))
                     await emitter.emit_done()
                     self._record_response(result)
+                    _outcome = "ok"
                     return
             parse_result = await self._intent_parser.parse(user_input, self._context)
             if not parse_result.success:
@@ -150,16 +173,14 @@ class XHSFoodOrchestrator:
 
             await emitter.step_done("step2", f"找到 {len(all_notes)} 篇笔记")
 
-            await emitter.step_start("step3", "分析评论内容...")
+            await emitter.step_start(
+                "step3",
+                f"分析评论内容（{len(all_notes)} 篇，并发 {self._analyze_concurrency}）...",
+            )
 
-            all_restaurants: List[RestaurantRecommendation] = []
-            for note in all_notes:
-                try:
-                    analyze_result = await self._search_executor.analyze_note(note, intent)
-                    if analyze_result.success:
-                        all_restaurants.extend(analyze_result.restaurants)
-                except Exception as e:
-                    logger.warning(f"分析笔记失败: {e}")
+            all_restaurants: List[RestaurantRecommendation] = (
+                await self._search_executor.analyze_notes_concurrent(all_notes, intent)
+            )
 
             await emitter.step_done("step3", f"识别到 {len(all_restaurants)} 家店铺")
 
@@ -205,10 +226,17 @@ class XHSFoodOrchestrator:
             await emitter.emit_done()
 
             self._record_response(response)
+            _outcome = "ok"
 
-        except Exception as e:
+        except (IntentError, LLMError) as e:
+            logger.warning("流式搜索领域错误: %s", e)
+            await emitter.emit_error(str(e))
+        except Exception as e:  # noqa: BLE001 - system boundary
             logger.exception("流式搜索失败")
             await emitter.emit_error(str(e))
+        finally:
+            search_finished_total.labels(status=_outcome).inc()
+            search_duration_seconds.observe(time.perf_counter() - _start_perf)
 
     async def _enrich_poi_batch(self, recommendations: list) -> list:
         """批量 POI 补充（不流式输出）."""
@@ -229,7 +257,7 @@ class XHSFoodOrchestrator:
         self,
         recommendations: list,
         emitter: "SearchEventEmitter",
-    ):
+    ) -> None:
         """流式 POI 补充（已弃用，保留兼容）."""
         from xhs_food.agents import get_poi_enricher
 
@@ -248,14 +276,8 @@ class XHSFoodOrchestrator:
         await emitter.step_done("step5", f"完成 {count} 家店铺信息补充")
 
     def _extract_city_from_location(self, location: str) -> str:
-        """从位置提取城市."""
-        if not location:
-            return ""
-        cities = ["成都", "重庆", "达州", "自贡", "泸州", "绵阳", "德阳", "南充"]
-        for city in cities:
-            if city in location:
-                return city
-        return ""
+        """Delegate to common location helper (kept for backwards compat)."""
+        return extract_city_from_location(location)
 
     async def process(
         self,
@@ -264,8 +286,6 @@ class XHSFoodOrchestrator:
         conversation_history: Optional[List[Dict[str, Any]]] = None,
     ) -> XHSFoodResponse:
         """处理用户请求，返回美食推荐（主入口方法）."""
-        await self._ensure_initialized()
-
         self._context.add_user_message(user_input)
 
         try:
@@ -292,7 +312,13 @@ class XHSFoodOrchestrator:
 
             return await self._search_executor.handle_new_search(parse_result)
 
-        except Exception as e:
+        except IntentError as e:
+            logger.warning("意图解析失败: %s", e)
+            return XHSFoodResponse(status="error", error_message=str(e))
+        except LLMError as e:
+            logger.warning("LLM 调用失败: %s", e)
+            return XHSFoodResponse(status="error", error_message=str(e))
+        except Exception as e:  # noqa: BLE001 - system boundary
             logger.exception("处理请求时发生错误")
             return XHSFoodResponse(
                 status="error",

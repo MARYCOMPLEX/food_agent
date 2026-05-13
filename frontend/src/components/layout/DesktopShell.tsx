@@ -1,61 +1,54 @@
 import { type ReactNode } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
-import { Layout, Menu, ConfigProvider } from 'antd'
-import { SearchOutlined, HeartOutlined, HistoryOutlined, InfoCircleOutlined } from '@ant-design/icons'
+import { NavLink } from 'react-router-dom'
+import { Search, Heart, Clock, Info } from 'lucide-react'
+import { cn } from '@/utils/cn'
 
-const { Sider, Content } = Layout
-
-const menuItems = [
-  { key: '/', icon: <SearchOutlined />, label: '探索' },
-  { key: '/favorites', icon: <HeartOutlined />, label: '收藏' },
-  { key: '/history', icon: <HistoryOutlined />, label: '历史' },
-  { key: '/profile', icon: <InfoCircleOutlined />, label: '关于' },
-]
-
-const theme = {
-  token: {
-    colorPrimary: '#c2410c',
-    borderRadius: 10,
-    fontFamily: '"DM Sans", "Noto Sans SC", "PingFang SC", sans-serif',
-    colorBgContainer: '#ffffff',
-    colorBgLayout: '#faf9f7',
-    colorBorder: '#e7e5e4',
-    colorText: '#18181b',
-    colorTextSecondary: '#78716c',
-  },
-  components: {
-    Menu: { itemBg: 'transparent', itemSelectedBg: '#f5f3f0', itemSelectedColor: '#c2410c' },
-    Table: { headerBg: '#faf9f7', rowHoverBg: '#faf9f7' },
-  },
+interface NavItem {
+  to: string
+  label: string
+  icon: typeof Search
 }
 
-export function DesktopShell({ children }: { children: ReactNode }) {
-  const navigate = useNavigate()
-  const location = useLocation()
+const NAV_ITEMS: readonly NavItem[] = [
+  { to: '/', label: '探索', icon: Search },
+  { to: '/favorites', label: '收藏', icon: Heart },
+  { to: '/history', label: '历史', icon: Clock },
+  { to: '/profile', label: '关于', icon: Info },
+] as const
 
+interface DesktopShellProps {
+  children: ReactNode
+}
+
+export function DesktopShell({ children }: DesktopShellProps) {
   return (
-    <ConfigProvider theme={theme}>
-      <Layout style={{ minHeight: '100vh' }}>
-        <Sider
-          width={200}
-          theme="light"
-          style={{ borderRight: '1px solid #e7e5e4', background: '#faf9f7' }}
-        >
-          <div style={{ padding: '20px 16px 24px', fontWeight: 700, fontSize: 18, color: '#c2410c', fontFamily: '"Playfair Display", serif' }}>
-            食探
-          </div>
-          <Menu
-            mode="inline"
-            selectedKeys={[location.pathname]}
-            items={menuItems}
-            onClick={({ key }) => navigate(key)}
-            style={{ border: 'none', background: 'transparent' }}
-          />
-        </Sider>
-        <Content style={{ padding: 24, background: '#faf9f7', overflow: 'auto' }}>
-          <div style={{ maxWidth: 960, margin: '0 auto' }}>{children}</div>
-        </Content>
-      </Layout>
-    </ConfigProvider>
+    <div className="flex min-h-dvh bg-[#faf9f7]">
+      <aside className="w-[200px] shrink-0 border-r border-[#e7e5e4] bg-[#faf9f7]">
+        <div className="px-4 pt-5 pb-6 font-serif text-lg font-bold text-[#c2410c]">食探</div>
+        <nav className="flex flex-col gap-1 px-2">
+          {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
+            <NavLink
+              key={to}
+              to={to}
+              end={to === '/'}
+              className={({ isActive }) =>
+                cn(
+                  'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
+                  isActive
+                    ? 'bg-[#f5f3f0] font-semibold text-[#c2410c]'
+                    : 'text-[#57534e] hover:bg-[#f5f3f0]/60'
+                )
+              }
+            >
+              <Icon size={16} strokeWidth={1.8} />
+              <span>{label}</span>
+            </NavLink>
+          ))}
+        </nav>
+      </aside>
+      <main className="flex-1 overflow-auto p-6">
+        <div className="mx-auto max-w-[960px]">{children}</div>
+      </main>
+    </div>
   )
 }

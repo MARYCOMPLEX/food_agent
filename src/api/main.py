@@ -1,180 +1,248 @@
-"""
-XHS Food Agent API - FastAPI 服务入口.
+"""XHS Food Agent — FastAPI application entry point."""
+from __future__ import annotations
 
-Endpoints (API.md):
-- /v1/search/* - 搜索 API (含 SSE)
-- /v1/favorites/* - 收藏 API
-- /v1/user/* - 用户 API
-- /v1/help/* - 帮助 API
-
-Legacy:
-- /api/v1/* - 旧版 API (兼容)
-"""
-
-import os
+import logging
+import sys
+import time
 from contextlib import asynccontextmanager
-from typing import Optional
+from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, Response
+from loguru import logger
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi.util import get_remote_address
 
-# Load environment variables
 load_dotenv()
 
-# ========== Loguru 日志配置 ==========
-import sys
-import logging
-from pathlib import Path
-from loguru import logger
+from xhs_food.config import settings  # noqa: E402 — must come after load_dotenv
 
-# 获取项目根目录（src 的上级目录）
-PROJECT_ROOT = Path(__file__).parent.parent.parent
-LOGS_DIR = PROJECT_ROOT / "logs"
-LOGS_DIR.mkdir(exist_ok=True)
 
-# 移除默认 handler
-logger.remove()
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
 
-# 控制台输出（INFO 级别，简洁摘要）
-logger.add(
-    sys.stderr,
-    level=os.getenv("LOG_LEVEL", "INFO"),
-    format="<green>{time:HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
-    colorize=True,
+_PROJECT_ROOT = Path(__file__).parent.parent.parent
+_LOGS_DIR = _PROJECT_ROOT / "logs"
+_LOGS_DIR.mkdir(exist_ok=True)
+
+
+def _configure_logging() -> None:
+    logger.remove()
+    logger.add(
+        sys.stderr,
+        level=settings.log_level,
+        format=(
+            "<green>{time:HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | "
+            "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
+            "<level>{message}</level>"
+        ),
+        colorize=True,
+    )
+    logger.add(
+        str(_LOGS_DIR / "xhs_food_{time:YYYY-MM-DD}.log"),
+        level="DEBUG",
+        format=(
+            "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | "
+            "{name}:{function}:{line} - {message}"
+        ),
+        rotation="00:00",
+        retention="7 days",
+        encoding="utf-8",
+    )
+
+    class _InterceptHandler(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            try:
+                level = logger.level(record.levelname).name
+            except ValueError:
+                level = record.levelno
+            frame, depth = logging.currentframe(), 2
+            while frame and frame.f_code.co_filename == logging.__file__:
+                frame = frame.f_back
+                depth += 1
+            logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
+
+    logging.basicConfig(handlers=[_InterceptHandler()], level=logging.DEBUG, force=True)
+    for name in ("xhs_food", "api", "uvicorn.access"):
+        logging.getLogger(name).setLevel(logging.DEBUG)
+
+
+_configure_logging()
+
+
+# ---------------------------------------------------------------------------
+# Rate limiter
+# ---------------------------------------------------------------------------
+
+limiter = Limiter(key_func=get_remote_address)
+
+
+# ---------------------------------------------------------------------------
+# Routers (post-logging so module-level loguru calls are formatted)
+# ---------------------------------------------------------------------------
+
+from api.search import router as search_router  # noqa: E402
+from api.favorites import router as favorites_router  # noqa: E402
+from api.user import router as user_router  # noqa: E402
+from api.help import router as help_router  # noqa: E402
+from api.history import router as history_router  # noqa: E402
+from xhs_food.observability import (  # noqa: E402
+    http_request_duration_seconds,
+    http_requests_total,
+    metrics_router,
 )
 
-# 文件输出（DEBUG 级别，按天轮换）
-logger.add(
-    str(LOGS_DIR / "xhs_food_{time:YYYY-MM-DD}.log"),
-    level="DEBUG",
-    format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} - {message}",
-    rotation="00:00",  # 每天凌晨轮换
-    retention="7 days",  # 保留 7 天
-    encoding="utf-8",
-)
 
-
-# 拦截标准 logging 模块，路由到 loguru
-class InterceptHandler(logging.Handler):
-    """拦截标准 logging 日志，转发到 loguru."""
-    
-    def emit(self, record: logging.LogRecord) -> None:
-        # 获取对应的 loguru level
-        try:
-            level = logger.level(record.levelname).name
-        except ValueError:
-            level = record.levelno
-
-        # 找到调用者
-        frame, depth = logging.currentframe(), 2
-        while frame and frame.f_code.co_filename == logging.__file__:
-            frame = frame.f_back
-            depth += 1
-
-        logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
-
-
-# 配置标准 logging 拦截
-logging.basicConfig(handlers=[InterceptHandler()], level=logging.DEBUG, force=True)
-
-# 设置各模块日志级别
-for name in ["xhs_food", "api", "uvicorn.access"]:
-    logging.getLogger(name).setLevel(logging.DEBUG)
-
-logger.info(f"Loguru configured: console=DEBUG, file={LOGS_DIR / 'xhs_food_*.log'}")
-# ========== End Loguru 配置 ==========
-
-# Import after loading env
-from api.routes import router as legacy_router
-from api.openai_compat import router as openai_router
-from api.search import router as search_router
-from api.favorites import router as favorites_router
-from api.user import router as user_router
-from api.help import router as help_router
-from api.history import router as history_router
+# ---------------------------------------------------------------------------
+# Lifespan
+# ---------------------------------------------------------------------------
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Application lifespan events."""
-    # Startup
-    from loguru import logger
-    logger.info("XHS Food Agent API starting up...")
-    
-    # Verify environment
-    if not os.getenv("XHS_COOKIES"):
-        logger.warning("XHS_COOKIES not set - XHS searches will fail")
-    if not os.getenv("OPENAI_API_KEY"):
-        logger.warning("OPENAI_API_KEY not set - LLM calls will fail")
-    
-    # Initialize user storage service
+async def lifespan(_: FastAPI):
+    logger.info("XHS Food Agent API starting…")
+
+    if not settings.openai_api_key:
+        logger.warning("OPENAI_API_KEY not set — LLM calls will fail")
+    if not settings.xhs_cookies and not settings.xhs_profile_dir:
+        logger.warning("XHS auth not configured — spider requests will fail")
+
     from xhs_food.services.user_storage import get_user_storage_service
+    from xhs_food.services import get_session_manager
+    from xhs_food.events.bus import get_event_bus, shutdown_event_bus
+
     storage = await get_user_storage_service()
     if storage._initialized:
-        logger.info("UserStorageService initialized - multi-user support enabled")
+        logger.info("UserStorageService ready (multi-user)")
     else:
-        logger.warning("UserStorageService not available - using anonymous mode")
-    
-    # Initialize session manager (Redis + PostgreSQL for conversation context)
-    from xhs_food.services import get_session_manager
+        logger.warning("UserStorageService unavailable — anonymous mode")
+
     session_manager = await get_session_manager()
     if session_manager._initialized:
-        logger.info("SessionManager initialized - context caching enabled (Redis + PostgreSQL)")
+        logger.info("SessionManager ready (Redis + PostgreSQL)")
     else:
-        logger.warning("SessionManager not fully initialized - using fallback mode")
-    
-    yield
-    
-    # Shutdown
-    logger.info("XHS Food Agent API shutting down...")
-    if storage._initialized:
-        await storage.close()
-    await session_manager.close()
+        logger.warning("SessionManager degraded")
 
+    bus = await get_event_bus()
+    logger.info(f"EventBus backend: {type(bus).__name__}")
+
+    try:
+        yield
+    finally:
+        logger.info("XHS Food Agent API shutting down…")
+        if storage._initialized:
+            await storage.close()
+        await session_manager.close()
+        await shutdown_event_bus()
+
+
+# ---------------------------------------------------------------------------
+# FastAPI app
+# ---------------------------------------------------------------------------
 
 
 app = FastAPI(
     title="XHS Food Agent API",
-    description="小红书美食智能推荐Agent API服务",
+    description="小红书美食智能推荐 Agent — Production API",
     version="1.0.0",
     lifespan=lifespan,
 )
 
-# CORS
+app.state.limiter = limiter
+app.add_middleware(SlowAPIMiddleware)
+
+
+@app.exception_handler(RateLimitExceeded)
+async def _rate_limit_handler(_: Request, exc: RateLimitExceeded) -> JSONResponse:
+    return JSONResponse(
+        status_code=429,
+        content={"success": False, "error": "rate_limited", "detail": str(exc)},
+    )
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
-# New API routes (API.md spec)
 app.include_router(search_router)
 app.include_router(favorites_router)
 app.include_router(user_router)
 app.include_router(help_router)
 app.include_router(history_router)
+app.include_router(metrics_router)
 
 
-# Legacy routes (backward compatibility)
-app.include_router(legacy_router)
-app.include_router(openai_router)
+# ---------------------------------------------------------------------------
+# Prometheus HTTP metrics middleware
+# ---------------------------------------------------------------------------
+
+
+def _route_template(request: Request) -> str | None:
+    """Return the matched route template (low cardinality) if available."""
+    route = request.scope.get("route")
+    path = getattr(route, "path", None)
+    if isinstance(path, str):
+        return path
+    return None
+
+
+@app.middleware("http")
+async def _prometheus_http_metrics(request: Request, call_next) -> Response:
+    """Time every request, record counters/histograms keyed by route template.
+
+    We deliberately skip /metrics itself to avoid self-monitoring noise, and
+    use the matched route template (not request.url.path) so dynamic ids
+    (e.g. /users/{user_id}) collapse into a single label.
+    """
+    start = time.perf_counter()
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+    except Exception:
+        # Record as 500 then re-raise so FastAPI's exception handlers run.
+        elapsed = time.perf_counter() - start
+        template = _route_template(request) or "__unmatched__"
+        if template != "/metrics":
+            http_requests_total.labels(
+                method=request.method, path=template, status="500"
+            ).inc()
+            http_request_duration_seconds.labels(
+                method=request.method, path=template
+            ).observe(elapsed)
+        raise
+
+    elapsed = time.perf_counter() - start
+    template = _route_template(request) or "__unmatched__"
+    if template != "/metrics":
+        http_requests_total.labels(
+            method=request.method, path=template, status=str(status_code)
+        ).inc()
+        http_request_duration_seconds.labels(
+            method=request.method, path=template
+        ).observe(elapsed)
+    return response
 
 
 @app.get("/health")
 async def health_check():
-    """健康检查端点."""
-    return {
-        "status": "ok",
-        "service": "xhs-food-agent",
-        "version": "1.0.0",
-    }
+    return {"status": "ok", "service": "xhs-food-agent", "version": "1.0.0"}
 
 
 if __name__ == "__main__":
     import uvicorn
-    host = os.getenv("API_HOST", "0.0.0.0")
-    port = int(os.getenv("API_PORT", "8000"))
-    uvicorn.run("main:app", host=host, port=port, reload=True)
+
+    uvicorn.run(
+        "api.main:app",
+        host=settings.api_host,
+        port=settings.api_port,
+        reload=True,
+    )

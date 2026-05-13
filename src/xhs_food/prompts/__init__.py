@@ -1,29 +1,32 @@
-"""Prompts module exports."""
+"""Prompts module exports.
+
+Public surface is preserved across the per-agent split:
+    from xhs_food.prompts import INTENT_PARSER_SYSTEM_PROMPT_ZH, ...
+all still resolve via re-exports below.
+"""
+from __future__ import annotations
+
+from .analyzer import (
+    ANALYZER_INSTRUCTION_ZH,
+    ANALYZER_SYSTEM_PROMPT_ZH,
+    ANALYZER_USER_PROMPT_TEMPLATE,
+    COMMENT_ANALYSIS_SYSTEM_PROMPT,
+    COMMENT_ANALYSIS_USER_PROMPT,
+)
+from .follow_up import FOLLOW_UP_PROCESSING_PROMPT
+from .intent import INTENT_PARSER_INSTRUCTION_ZH, INTENT_PARSER_SYSTEM_PROMPT_ZH
 from .methodology import (
     CORE_METHODOLOGY,
     EXECUTION_CHECKLIST,
-    SPECIAL_SCENARIOS,
     LOCAL_SIGNAL_PATTERNS,
+    SPECIAL_SCENARIOS,
     WANGHONG_SIGNAL_PATTERNS,
 )
+from .orchestrator import ORCHESTRATOR_SYSTEM_PROMPT, REPORT_GENERATION_PROMPT
 from .strategy import (
     COMMENT_WEIGHT_SYSTEM,
     CROSS_VALIDATION_STANDARDS,
     SEARCH_STRATEGY_4_STAGES,
-)
-from .agent_prompts import (
-    ORCHESTRATOR_SYSTEM_PROMPT,
-    INTENT_PARSER_SYSTEM_PROMPT_ZH,
-    INTENT_PARSER_INSTRUCTION_ZH,
-    ANALYZER_SYSTEM_PROMPT_ZH,
-    ANALYZER_INSTRUCTION_ZH,
-    ANALYZER_USER_PROMPT_TEMPLATE,
-    REPORT_GENERATION_PROMPT,
-)
-from .dialogue_prompts import (
-    COMMENT_ANALYSIS_SYSTEM_PROMPT,
-    COMMENT_ANALYSIS_USER_PROMPT,
-    FOLLOW_UP_PROCESSING_PROMPT,
 )
 
 __all__ = [

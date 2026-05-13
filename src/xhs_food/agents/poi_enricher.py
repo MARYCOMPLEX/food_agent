@@ -1,20 +1,18 @@
 # -*- coding: utf-8 -*-
-"""
-POI 信息补充 Agent (流式输出版).
+"""POI 信息补充 Agent (流式输出版).
 
 使用高德地图 API 补充店铺的详细 POI 信息，并格式化输出。
-支持流式输出，方便 SSE 端点调用。
-
-优化：
 - 先查数据库缓存，避免重复调用高德 API
-- 如果数据库有完整 POI 信息，直接使用
+- 数据库未命中时调用高德 API，并发受 ``settings.poi_concurrency`` 限制
 """
 
+import asyncio
 from dataclasses import dataclass
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from loguru import logger
 
+from xhs_food.config import settings
 from xhs_food.spider.apis.amap_api import get_amap_api, AmapAPI
 from xhs_food.schemas import RestaurantRecommendation
 from xhs_food.services.user_storage import generate_restaurant_hash
@@ -124,20 +122,38 @@ class POIEnricherAgent(POISearchMixin):
         recommendations: List[RestaurantRecommendation],
         city: str = "",
     ) -> AsyncGenerator[EnrichedRestaurant, None]:
-        """流式补充并格式化店铺信息，每处理完一个店铺立即 yield。"""
-        logger.info(f"[POIEnricher] 开始流式处理 {len(recommendations)} 家店铺...")
+        """Concurrently enrich each recommendation and yield as they finish.
 
-        for idx, rec in enumerate(recommendations):
-            try:
-                enriched = await self._enrich_and_format(rec, idx + 1, city)
-                logger.debug(f"[POIEnricher] 完成 {idx + 1}/{len(recommendations)}: {rec.name}")
-                yield enriched
-            except Exception as e:
-                logger.warning(f"[POIEnricher] 处理 {rec.name} 失败: {e}")
-                # 失败时返回基础格式化结果
-                yield self._format_basic(rec, idx + 1)
+        Concurrency is capped by ``settings.poi_concurrency``; results are
+        yielded in completion order, with original index preserved on the
+        :class:`EnrichedRestaurant` payload.
+        """
+        total = len(recommendations)
+        if total == 0:
+            return
 
-        logger.info(f"[POIEnricher] 流式处理完成")
+        semaphore = asyncio.Semaphore(max(1, settings.poi_concurrency))
+        logger.info(
+            f"[POIEnricher] processing {total} restaurants "
+            f"(concurrency={settings.poi_concurrency})"
+        )
+
+        async def _one(idx: int, rec: RestaurantRecommendation) -> EnrichedRestaurant:
+            async with semaphore:
+                try:
+                    return await self._enrich_and_format(rec, idx + 1, city)
+                except Exception as exc:
+                    logger.warning(f"[POIEnricher] {rec.name} failed: {exc}")
+                    return self._format_basic(rec, idx + 1)
+
+        tasks = [asyncio.create_task(_one(i, r)) for i, r in enumerate(recommendations)]
+        try:
+            for coro in asyncio.as_completed(tasks):
+                yield await coro
+        finally:
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
 
     async def enrich(
         self,
@@ -145,9 +161,10 @@ class POIEnricherAgent(POISearchMixin):
         city: str = "",
     ) -> List[EnrichedRestaurant]:
         """批量补充并格式化店铺信息（非流式）."""
-        results = []
+        results: List[EnrichedRestaurant] = []
         async for enriched in self.enrich_stream(recommendations, city):
             results.append(enriched)
+        results.sort(key=lambda r: r.index)
         return results
 
     async def _enrich_and_format(
@@ -240,7 +257,7 @@ class POIEnricherAgent(POISearchMixin):
         if isinstance(photos, str):
             try:
                 photos = json.loads(photos)
-            except:
+            except json.JSONDecodeError:
                 photos = []
 
         return EnrichedRestaurant(

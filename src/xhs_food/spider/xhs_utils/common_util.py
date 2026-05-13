@@ -22,25 +22,32 @@ def _looks_like_real_cookie(s: str) -> bool:
 
 
 def load_env():
-    """Load XHS cookies, in order:
-    1. XHS_COOKIES env var (legacy)
-    2. xhs_food.auth profile (recommended; run `python -m xhs_food.auth qr` to log in)
-    3. Spider_XHS .env (legacy fallback)
-    """
-    cookies_str = os.getenv('XHS_COOKIES')
-    if cookies_str and _looks_like_real_cookie(cookies_str):
-        logger.debug("XHS cookies loaded from XHS_COOKIES env var")
-        return cookies_str
+    """Load XHS cookies, in order of precedence:
 
+    1. xhs_food.auth profile (recommended; refreshed by `python -m xhs_food.auth qr`)
+    2. XHS_COOKIES env var (legacy / manual override)
+    3. Spider_XHS .env (legacy fallback)
+
+    Profile wins over the env var because the env var is frequently stale
+    (cookies expire weekly) while the profile is updated by every login.
+    """
     try:
         from xhs_food.auth import get_cookies
         profile_name = os.getenv('XHS_PROFILE', 'default')
         cookies_str = get_cookies(profile_name)
-        if cookies_str:
+        if cookies_str and 'web_session=' in cookies_str:
             logger.debug(f"XHS cookies loaded from auth profile '{profile_name}'")
             return cookies_str
     except Exception as e:
         logger.debug(f"auth profile lookup failed: {e}")
+
+    cookies_str = os.getenv('XHS_COOKIES')
+    if cookies_str and _looks_like_real_cookie(cookies_str):
+        logger.warning(
+            "Falling back to XHS_COOKIES env var — profile not found or has no "
+            "web_session. Run `uv run python -m xhs_food.auth qr` to refresh."
+        )
+        return cookies_str
 
     try:
         from dotenv import load_dotenv
