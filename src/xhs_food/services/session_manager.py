@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 SessionManager - Unified session and context management.
 
@@ -21,12 +20,12 @@ from __future__ import annotations
 import asyncio
 import os
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from loguru import logger
 
-from xhs_food.services.redis_memory import RedisMemory, ChatMessage
-from xhs_food.services.postgres_storage import PostgresStorage, ChatHistoryRecord
+from xhs_food.services.postgres_storage import ChatHistoryRecord, PostgresStorage
+from xhs_food.services.redis_memory import RedisMemory
 
 
 class SessionManager:
@@ -49,8 +48,8 @@ class SessionManager:
     
     def __init__(
         self,
-        redis_url: Optional[str] = None,
-        database_url: Optional[str] = None,
+        redis_url: str | None = None,
+        database_url: str | None = None,
         context_window: int = DEFAULT_CONTEXT_WINDOW,
     ):
         self._redis_url = redis_url or os.getenv("REDIS_URL")
@@ -67,7 +66,7 @@ class SessionManager:
         )
         
         # Background task queue
-        self._pending_saves: List[asyncio.Task] = []
+        self._pending_saves: list[asyncio.Task] = []
         self._initialized = False
     
     async def initialize(self) -> bool:
@@ -99,8 +98,8 @@ class SessionManager:
         self,
         session_id: str,
         content: str,
-        user_id: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        user_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> None:
         """Add a user message to the session."""
         await self._add_message(session_id, "user", content, user_id, metadata)
@@ -109,8 +108,8 @@ class SessionManager:
         self,
         session_id: str,
         content: str,
-        user_id: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        user_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> None:
         """Add an assistant message to the session."""
         await self._add_message(session_id, "assistant", content, user_id, metadata)
@@ -120,8 +119,8 @@ class SessionManager:
         session_id: str,
         role: str,
         content: str,
-        user_id: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        user_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> None:
         """
         Add a message to both Redis and PostgreSQL.
@@ -130,7 +129,13 @@ class SessionManager:
         - PostgreSQL: Asynchronous (background)
         """
         # 1. Sync write to Redis (fast)
-        self._redis.add_message(session_id, role, content, metadata)
+        await asyncio.to_thread(
+            self._redis.add_message,
+            session_id,
+            role,
+            content,
+            metadata,
+        )
         
         # 2. Async write to PostgreSQL (background)
         task = asyncio.create_task(
@@ -151,8 +156,8 @@ class SessionManager:
     async def get_context(
         self,
         session_id: str,
-        count: Optional[int] = None,
-    ) -> List[Dict[str, str]]:
+        count: int | None = None,
+    ) -> list[dict[str, str]]:
         """
         Get conversation context for LLM.
         
@@ -168,7 +173,11 @@ class SessionManager:
         count = count or self._context_window
         
         # Try Redis first
-        messages = self._redis.get_recent_messages(session_id, count)
+        messages = await asyncio.to_thread(
+            self._redis.get_recent_messages,
+            session_id,
+            count,
+        )
         
         if messages:
             return [{"role": m.role, "content": m.content} for m in messages]
@@ -180,7 +189,8 @@ class SessionManager:
         if history:
             # Populate Redis cache
             for record in history:
-                self._redis.add_message(
+                await asyncio.to_thread(
+                    self._redis.add_message,
                     session_id,
                     record.role,
                     record.content,
@@ -195,17 +205,17 @@ class SessionManager:
         self,
         session_id: str,
         limit: int = 100,
-    ) -> List[ChatHistoryRecord]:
+    ) -> list[ChatHistoryRecord]:
         """Get full chat history from PostgreSQL."""
         return await self._postgres.get_session_history(session_id, limit=limit)
     
     async def search_similar_context(
         self,
         query: str,
-        session_id: Optional[str] = None,
-        user_id: Optional[str] = None,
+        session_id: str | None = None,
+        user_id: str | None = None,
         limit: int = 5,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Search for similar messages in history (RAG support).
         
@@ -229,7 +239,7 @@ class SessionManager:
     
     async def clear_session(self, session_id: str) -> None:
         """Clear session from both Redis and PostgreSQL."""
-        self._redis.clear_session(session_id)
+        await asyncio.to_thread(self._redis.clear_session, session_id)
         await self._postgres.delete_session(session_id)
         logger.info(f"Session {session_id} cleared")
     
@@ -243,7 +253,7 @@ class SessionManager:
 
 
 # Singleton instance
-_session_manager: Optional[SessionManager] = None
+_session_manager: SessionManager | None = None
 
 
 async def get_session_manager() -> SessionManager:

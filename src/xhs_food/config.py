@@ -26,8 +26,8 @@ class Settings(BaseSettings):
 
     # ---------- LLM ----------
     openai_api_key: Optional[str] = None
-    openai_api_base: str = "https://api.siliconflow.cn/v1/"
-    default_llm_model: str = "Qwen/Qwen3-8B"
+    openai_api_base: str = "https://tokenrhythm.studio/v1"
+    default_llm_model: str = "deepseek-v4-flash-0731"
     llm_temperature: float = 0.2
     llm_max_tokens: int = 1024
 
@@ -45,6 +45,15 @@ class Settings(BaseSettings):
     # ---------- Concurrency ----------
     analyze_concurrency: int = 5
     poi_concurrency: int = 5
+    search_task_concurrency: int = 20
+
+    # ---------- Agent Loop ----------
+    agent_model_planner_enabled: bool = False
+    agent_loop_max_iterations: int = 8
+    agent_loop_max_replans: int = 3
+    agent_loop_timeout_seconds: float = 180.0
+    agent_loop_max_steps: int = 64
+    agent_capability_concurrency: int = 8
 
     # ---------- HTTP / SSE ----------
     api_host: str = "0.0.0.0"

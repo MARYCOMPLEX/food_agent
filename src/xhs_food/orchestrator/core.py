@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 from xhs_food.agents.analyzer import AnalyzerAgent
 from xhs_food.agents.intent_parser import IntentParserAgent
@@ -29,12 +29,16 @@ from xhs_food.schemas import (
     XHSFoodResponse,
 )
 
+if TYPE_CHECKING:
+    from xhs_food.events import SearchEventEmitter
+
 logger = logging.getLogger(__name__)
 
 
 def _build_default_xhs_registry() -> MCPToolRegistry:
     """Lazy import to avoid pulling the di package into module-load order."""
     from xhs_food.di.factories import get_xhs_tool_registry
+
     return get_xhs_tool_registry()
 
 
@@ -44,14 +48,19 @@ class XHSFoodOrchestrator:
     def __init__(
         self,
         *,
-        xhs_registry: Optional[MCPToolRegistry] = None,
+        xhs_registry: MCPToolRegistry | None = None,
         llm_service: Any = None,
-        intent_parser: Optional[IntentParserAgent] = None,
-        analyzer: Optional[AnalyzerAgent] = None,
-        follow_up_handler: Optional[FollowUpHandler] = None,
-        search_executor: Optional[SearchExecutor] = None,
-        deep_search: Optional[bool] = None,
-        fast_mode_limit: Optional[int] = None,
+        intent_parser: IntentParserAgent | None = None,
+        analyzer: AnalyzerAgent | None = None,
+        follow_up_handler: FollowUpHandler | None = None,
+        search_executor: SearchExecutor | None = None,
+        deep_search: bool | None = None,
+        fast_mode_limit: int | None = None,
+        memory: Any = None,
+        planner: Any = None,
+        reviewer: Any = None,
+        model_runtime: Any = None,
+        use_agent_loop: bool = True,
     ) -> None:
         self._llm_service = llm_service
         self._deep_search = settings.search_deep_mode if deep_search is None else deep_search
@@ -63,6 +72,8 @@ class XHSFoodOrchestrator:
         self._analyze_concurrency = settings.analyze_concurrency
         self._poi_concurrency = settings.poi_concurrency
         self._context = ConversationContext()
+        self._use_agent_loop = use_agent_loop
+        self._last_response: XHSFoodResponse | None = None
 
         # Eager dependency wiring with caller overrides.
         self._xhs_registry: MCPToolRegistry = (
@@ -74,9 +85,7 @@ class XHSFoodOrchestrator:
             else IntentParserAgent(llm_service=self._llm_service)
         )
         self._analyzer: AnalyzerAgent = (
-            analyzer
-            if analyzer is not None
-            else AnalyzerAgent(llm_service=self._llm_service)
+            analyzer if analyzer is not None else AnalyzerAgent(llm_service=self._llm_service)
         )
         self._follow_up_handler: FollowUpHandler = (
             follow_up_handler
@@ -98,15 +107,54 @@ class XHSFoodOrchestrator:
             )
         )
 
+        # The public orchestrator remains a compatibility façade, while all
+        # new turns go through the provider-neutral Agent Loop.  Legacy
+        # collaborators stay injectable so existing deployments can roll back
+        # by passing ``use_agent_loop=False``.
+        from xhs_food.agentic.search import AgenticSearchOrchestrator
+
+        if memory is None:
+            from xhs_food.memory import LayeredMemoryProvider
+
+            memory = LayeredMemoryProvider()
+
+        self._agentic = AgenticSearchOrchestrator(
+            xhs_registry=self._xhs_registry,
+            llm_service=self._llm_service,
+            intent_parser=self._intent_parser,
+            analyzer=self._analyzer,
+            follow_up_handler=self._follow_up_handler,
+            search_executor=self._search_executor,
+            context=self._context,
+            deep_search=self._deep_search,
+            max_restaurants=self._max_restaurants,
+            memory=memory,
+            planner=planner,
+            reviewer=reviewer,
+            model_runtime=model_runtime,
+        )
+
     def reset_context(self) -> None:
         """重置对话上下文（开始新会话）."""
         self._context.reset()
         self._search_executor.reset_cache()
+        self._agentic.reset_context()
+        self._last_response = None
 
     @property
     def context(self) -> ConversationContext:
         """获取当前对话上下文."""
         return self._context
+
+    @property
+    def last_response(self) -> XHSFoodResponse | None:
+        """Most recent response, exposed to task persistence adapters."""
+        return self._last_response
+
+    @property
+    def last_run(self) -> Any:
+        """Most recent Agent Loop result, if the loop adapter is enabled."""
+        return self._agentic.last_run
 
     def _record_response(self, response: XHSFoodResponse) -> XHSFoodResponse:
         """记录响应到对话历史并返回."""
@@ -122,6 +170,8 @@ class XHSFoodOrchestrator:
             summary = response.summary or response.error_message or "处理完成"
 
         self._context.add_assistant_message(summary)
+        self._context.last_summary = response.summary
+        self._last_response = response
         return response
 
     async def search(self, user_input: str) -> XHSFoodResponse:
@@ -129,8 +179,32 @@ class XHSFoodOrchestrator:
         response = await self.process(user_input)
         return self._record_response(response)
 
-    async def search_stream(self, user_input: str, emitter: "SearchEventEmitter") -> None:
+    async def search_stream(self, user_input: str, emitter: SearchEventEmitter) -> None:
         """流式搜索（支持 SSE 推送），通过 emitter 发射中间步骤和结果。"""
+        self._last_response = None
+        if self._use_agent_loop:
+            self._context.add_user_message(user_input)
+            search_started_total.inc()
+            _start_perf = time.perf_counter()
+            _outcome = "error"
+            try:
+                run = await self._agentic.stream(
+                    user_input,
+                    emitter,
+                    session_id=emitter.session_id,
+                    turn_id=max(1, self._context.turn_count + 1),
+                )
+                if isinstance(run.answer, XHSFoodResponse):
+                    self._record_response(run.answer)
+                _outcome = "ok" if run.status == "completed" else "error"
+            except Exception as exc:  # noqa: BLE001 - system boundary
+                logger.exception("Agent Loop 流式搜索失败")
+                await emitter.emit_error(str(exc))
+            finally:
+                search_finished_total.labels(status=_outcome).inc()
+                search_duration_seconds.observe(time.perf_counter() - _start_perf)
+            return
+
         self._context.add_user_message(user_input)
         emitter.init_steps(user_input)
 
@@ -157,9 +231,13 @@ class XHSFoodOrchestrator:
                 await emitter.emit_error(parse_result.error or "意图解析失败")
                 return
             self._context.target_city = parse_result.intent.location
-            await emitter.step_done("step1", f"意图: {parse_result.intent.location} {parse_result.intent.food_type or ''}", {
-                "intent": parse_result.intent.to_dict() if parse_result.intent else None,
-            })
+            await emitter.step_done(
+                "step1",
+                f"意图: {parse_result.intent.location} {parse_result.intent.food_type or ''}",
+                {
+                    "intent": parse_result.intent.to_dict() if parse_result.intent else None,
+                },
+            )
             await emitter.step_start("step2", "搜索小红书笔记...")
             intent = parse_result.intent
             self._search_executor.reset_cache()
@@ -178,9 +256,9 @@ class XHSFoodOrchestrator:
                 f"分析评论内容（{len(all_notes)} 篇，并发 {self._analyze_concurrency}）...",
             )
 
-            all_restaurants: List[RestaurantRecommendation] = (
-                await self._search_executor.analyze_notes_concurrent(all_notes, intent)
-            )
+            all_restaurants: list[
+                RestaurantRecommendation
+            ] = await self._search_executor.analyze_notes_concurrent(all_notes, intent)
 
             await emitter.step_done("step3", f"识别到 {len(all_restaurants)} 家店铺")
 
@@ -197,8 +275,10 @@ class XHSFoodOrchestrator:
                     filtered_count += 1
 
             if len(recommendations) > self._max_restaurants:
-                logger.info(f"  店铺数量 {len(recommendations)} 超过上限 {self._max_restaurants}，截取")
-                recommendations = recommendations[:self._max_restaurants]
+                logger.info(
+                    f"  店铺数量 {len(recommendations)} 超过上限 {self._max_restaurants}，截取"
+                )
+                recommendations = recommendations[: self._max_restaurants]
 
             await emitter.step_done("step4", f"筛选出 {len(recommendations)} 家推荐")
 
@@ -222,7 +302,9 @@ class XHSFoodOrchestrator:
             )
 
             await emitter.step_done("step6", response.summary)
-            await emitter.emit_result(response.summary, len(recommendations), response.filtered_count)
+            await emitter.emit_result(
+                response.summary, len(recommendations), response.filtered_count
+            )
             await emitter.emit_done()
 
             self._record_response(response)
@@ -256,7 +338,7 @@ class XHSFoodOrchestrator:
     async def _stream_poi_enrich(
         self,
         recommendations: list,
-        emitter: "SearchEventEmitter",
+        emitter: SearchEventEmitter,
     ) -> None:
         """流式 POI 补充（已弃用，保留兼容）."""
         from xhs_food.agents import get_poi_enricher
@@ -283,9 +365,18 @@ class XHSFoodOrchestrator:
         self,
         user_input: str,
         *,
-        conversation_history: Optional[List[Dict[str, Any]]] = None,
+        conversation_history: list[dict[str, Any]] | None = None,
     ) -> XHSFoodResponse:
         """处理用户请求，返回美食推荐（主入口方法）."""
+        if self._use_agent_loop:
+            self._context.add_user_message(user_input)
+            return await self._agentic.process(
+                user_input,
+                session_id="local",
+                turn_id=max(1, self._context.turn_count + 1),
+                conversation_history=conversation_history,
+            )
+
         self._context.add_user_message(user_input)
 
         try:

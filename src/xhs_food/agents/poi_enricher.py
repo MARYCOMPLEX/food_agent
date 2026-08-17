@@ -199,36 +199,7 @@ class POIEnricherAgent(POISearchMixin):
             from xhs_food.services import get_user_storage_service
 
             storage = await get_user_storage_service()
-            if not storage._initialized or not storage._pool:
-                return None
-
-            async with storage._pool.acquire() as conn:
-                # 优先精确匹配
-                row = await conn.fetchrow(
-                    """
-                    SELECT * FROM restaurants
-                    WHERE name = $1
-                    LIMIT 1
-                    """,
-                    name,
-                )
-
-                # 如果精确匹配失败，尝试模糊匹配
-                if not row:
-                    row = await conn.fetchrow(
-                        """
-                        SELECT * FROM restaurants
-                        WHERE name ILIKE $1 OR name ILIKE $2
-                        ORDER BY updated_at DESC NULLS LAST
-                        LIMIT 1
-                        """,
-                        f"{name}%",  # 前缀匹配: "贡井清香园" → "贡井清香园(泰丰店)"
-                        f"%{name}",  # 后缀匹配: "清香园" → "贡井清香园"
-                    )
-
-                if row:
-                    return dict(row)
-            return None
+            return await storage.find_restaurant_record_by_name(name)
         except Exception as e:
             logger.debug(f"[POIEnricher] 查询缓存失败: {e}")
             return None

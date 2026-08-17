@@ -9,11 +9,11 @@ Endpoints:
 - ``GET  /v1/search/status/{sessionId}``
 - ``GET  /v1/search/results/{sessionId}``
 """
+
 from __future__ import annotations
 
-import asyncio
 import uuid
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 from fastapi import APIRouter, Header, HTTPException, Path
 from loguru import logger
@@ -30,11 +30,16 @@ from xhs_food.services import get_session_manager, get_user_storage_service
 
 from .state import (
     get_orchestrator,
-    get_or_init_state,
     load_state,
     update_state,
 )
-from .tasks import run_stream_search, build_recovery_payload
+from .tasks import (
+    build_recovery_payload,
+    release_stream_search,
+    reserve_stream_search,
+    run_stream_search,
+    start_reserved_stream_search,
+)
 
 router = APIRouter()
 
@@ -92,62 +97,86 @@ async def unified_search(request: UnifiedSearchRequest):
 
 
 async def _kick_off_new_search(session_id: str, query: str) -> None:
-    await update_state(
-        session_id,
-        status="loading",
-        query=query,
-        turn_id=1,
-    )
-
-    emitter = await get_emitter(session_id)
-    emitter.reset()
-    emitter.init_steps(query)
-
+    if not await reserve_stream_search(session_id):
+        raise HTTPException(409, "Session already has an active search")
     try:
-        manager = await get_session_manager()
-        await manager.add_user_message(session_id, query)
-    except Exception as exc:
-        logger.warning(f"add_user_message failed: {exc}")
-
-    try:
-        storage = await get_user_storage_service()
-        await storage.create_search_history(
-            session_id=session_id,
-            query=query,
+        await update_state(
+            session_id,
             status="loading",
+            query=query,
+            turn_id=1,
         )
-    except Exception as exc:
-        logger.warning(f"create_search_history failed: {exc}")
 
-    asyncio.create_task(run_stream_search(session_id, query))
+        emitter = await get_emitter(session_id)
+        await emitter.reset_stream()
+        emitter.init_steps(query)
+
+        try:
+            manager = await get_session_manager()
+            await manager.add_user_message(session_id, query)
+        except Exception as exc:
+            logger.warning(f"add_user_message failed: {exc}")
+
+        try:
+            storage = await get_user_storage_service()
+            await storage.create_search_history(
+                session_id=session_id,
+                query=query,
+                status="loading",
+            )
+        except Exception as exc:
+            logger.warning(f"create_search_history failed: {exc}")
+
+        started = await start_reserved_stream_search(
+            session_id,
+            query,
+            run_stream_search,
+        )
+        if not started:
+            raise RuntimeError("search reservation was lost before task start")
+    except BaseException:
+        await release_stream_search(session_id)
+        raise
 
 
 async def _kick_off_refine(session_id: str, query: str) -> int:
-    # Restore orchestrator context lazily if memory cache evicted.
-    state = await load_state(session_id)
-    if state is None:
-        state = await _restore_state_from_storage(session_id)
-
-    turn_id = (state.get("turn_id") or 1) + 1
-    await update_state(
-        session_id,
-        status="loading",
-        query=query,
-        turn_id=turn_id,
-    )
-
+    if not await reserve_stream_search(session_id):
+        raise HTTPException(409, "Session already has an active search")
     try:
-        manager = await get_session_manager()
-        await manager.add_user_message(session_id, query)
-    except Exception as exc:
-        logger.warning(f"add_user_message failed: {exc}")
+        # Restore orchestrator context lazily if memory cache evicted.
+        state = await load_state(session_id)
+        if state is None:
+            state = await _restore_state_from_storage(session_id)
 
-    emitter = await get_emitter(session_id)
-    emitter.reset()
-    emitter.init_steps(query)
+        turn_id = (state.get("turn_id") or 1) + 1
+        await update_state(
+            session_id,
+            status="loading",
+            query=query,
+            turn_id=turn_id,
+        )
 
-    asyncio.create_task(run_stream_search(session_id, query))
-    return turn_id
+        try:
+            manager = await get_session_manager()
+            await manager.add_user_message(session_id, query)
+        except Exception as exc:
+            logger.warning(f"add_user_message failed: {exc}")
+
+        emitter = await get_emitter(session_id)
+        await emitter.reset_stream()
+        emitter.init_steps(query)
+
+        started = await start_reserved_stream_search(
+            session_id,
+            query,
+            run_stream_search,
+        )
+        if not started:
+            raise RuntimeError("search reservation was lost before task start")
+        return turn_id
+    except BaseException:
+        await release_stream_search(session_id)
+        raise
 
 
 async def _restore_state_from_storage(session_id: str) -> dict:
@@ -170,16 +199,17 @@ async def _restore_state_from_storage(session_id: str) -> dict:
     manager = await get_session_manager()
     history = await manager.get_context(session_id)
     if history:
+        context = orchestrator.context
         for msg in history:
             if msg["role"] == "user":
-                orchestrator._context.add_user_message(msg["content"])
+                context.add_user_message(msg["content"])
             elif msg["role"] == "assistant":
-                orchestrator._context.add_assistant_message(msg["content"])
+                context.add_assistant_message(msg["content"])
 
     for restaurant in first_result.get("restaurants", []):
         name = restaurant.get("name")
         if name:
-            orchestrator._context.last_recommendations[name] = restaurant
+            orchestrator.context.last_recommendations[name] = restaurant
 
     logger.info(
         f"session restored: {len(first_result.get('restaurants', []))} restaurants, "

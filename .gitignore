@@ -142,5 +142,13 @@ internal-docs/
 
 bug-records/
 *.md
+!AGENT.MD
+!AGENTS.md
+!CLAUDE.md
+!docs/
+docs/*
+!docs/ai/
+docs/ai/*
+!docs/ai/*.md
 *.tex
 *.db

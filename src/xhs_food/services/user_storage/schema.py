@@ -60,13 +60,22 @@ CREATE INDEX IF NOT EXISTS idx_history_deleted ON search_history(deleted_at) WHE
 CREATE_SEARCH_RESULTS_TABLE = """
 CREATE TABLE IF NOT EXISTS search_results (
     id BIGSERIAL PRIMARY KEY,
-    session_id UUID UNIQUE NOT NULL,
+    session_id UUID NOT NULL,
+    turn_id INTEGER NOT NULL DEFAULT 1,
+    query TEXT NOT NULL DEFAULT '',
     restaurants JSONB NOT NULL DEFAULT '[]',
     summary TEXT,
     filtered_count INTEGER DEFAULT 0,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(session_id, turn_id)
 );
 CREATE INDEX IF NOT EXISTS idx_results_session ON search_results(session_id);
+ALTER TABLE search_results ADD COLUMN IF NOT EXISTS turn_id INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE search_results ADD COLUMN IF NOT EXISTS query TEXT NOT NULL DEFAULT '';
+ALTER TABLE search_results ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE search_results DROP CONSTRAINT IF EXISTS search_results_session_id_key;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_results_session_turn ON search_results(session_id, turn_id);
 """
 
 CREATE_RESTAURANTS_TABLE = """

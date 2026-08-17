@@ -2,14 +2,9 @@
 
 from __future__ import annotations
 
-from typing import List, Tuple
-
-import pytest
-
 from xhs_food.events.bus import InMemoryEventBus
 from xhs_food.events.emitter import SearchEventEmitter
 from xhs_food.events.types import SearchEvent, SearchEventType
-
 
 # ---------------------------------------------------------------------------
 # init_steps
@@ -38,7 +33,7 @@ async def test_init_steps_creates_six_pending_steps(event_bus: InMemoryEventBus)
 
 async def _drain_recent(
     bus: InMemoryEventBus, sid: str
-) -> List[Tuple[str, SearchEvent]]:
+) -> list[tuple[str, SearchEvent]]:
     """Return a snapshot of currently buffered events for ``sid``."""
     channel = await bus._get_channel(sid)  # noqa: SLF001 - white-box for asserts
     return list(channel.events)
@@ -169,3 +164,18 @@ async def test_reset_clears_steps_and_completion_flag(
     # Assert
     assert emitter.steps == []
     assert emitter.is_completed is False
+
+
+async def test_reset_stream_discards_previous_terminal_event(
+    event_bus: InMemoryEventBus,
+) -> None:
+    emitter = SearchEventEmitter("s1", event_bus)
+    emitter.init_steps("first")
+    await emitter.emit_done()
+
+    await emitter.reset_stream()
+    emitter.init_steps("second")
+    await emitter.emit_progress("new turn")
+
+    events = await _drain_recent(event_bus, "s1")
+    assert [event.type for _, event in events] == [SearchEventType.PROGRESS]

@@ -96,10 +96,42 @@ class RepositoryMixin:
             return None
         try:
             async with self._pool.acquire() as conn:
-                row = await conn.fetchrow("SELECT * FROM restaurants WHERE id = $1", restaurant_id)
+                row = await conn.fetchrow(
+                    "SELECT * FROM restaurants WHERE id = $1",
+                    restaurant_id,
+                )
                 return self._row_to_restaurant(row) if row else None
         except Exception as e:
             logger.error(f"get_restaurant failed: {e}")
+            return None
+
+    async def find_restaurant_record_by_name(
+        self,
+        name: str,
+    ) -> Optional[Dict[str, Any]]:
+        """Return the latest exact/prefix/suffix POI cache record by name."""
+        if not self._initialized or not self._pool:
+            return None
+        try:
+            async with self._pool.acquire() as conn:
+                row = await conn.fetchrow(
+                    "SELECT * FROM restaurants WHERE name = $1 LIMIT 1",
+                    name,
+                )
+                if row is None:
+                    row = await conn.fetchrow(
+                        """
+                        SELECT * FROM restaurants
+                        WHERE name ILIKE $1 OR name ILIKE $2
+                        ORDER BY updated_at DESC NULLS LAST
+                        LIMIT 1
+                        """,
+                        f"{name}%",
+                        f"%{name}",
+                    )
+                return dict(row) if row else None
+        except Exception as exc:
+            logger.debug(f"find_restaurant_record_by_name failed: {exc}")
             return None
 
     async def get_favorites(self, user_id: str) -> List[Favorite]:

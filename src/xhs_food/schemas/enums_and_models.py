@@ -140,6 +140,7 @@ class ConversationContext:
     turn_count: int = 0
     last_notes: List[Dict[str, Any]] = field(default_factory=list)
     target_city: str = ""
+    last_summary: str = ""
 
     def add_user_message(self, content: str) -> None:
         self.conversation_history.append({"role": "user", "content": content})
@@ -185,6 +186,7 @@ class ConversationContext:
             "accumulated_preferences": self.accumulated_preferences,
             "turn_count": self.turn_count,
             "history_length": len(self.conversation_history),
+            "last_summary": self.last_summary,
         }
 
     def reset(self) -> None:
@@ -196,6 +198,7 @@ class ConversationContext:
         self.turn_count = 0
         self.last_notes = []
         self.target_city = ""
+        self.last_summary = ""
 
 
 @dataclass

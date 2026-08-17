@@ -33,7 +33,7 @@ class EventBus(Protocol):
     async def publish(self, session_id: str, event: SearchEvent) -> str:
         """Append ``event`` to the session stream. Returns the entry id."""
 
-    async def subscribe(
+    def subscribe(
         self,
         session_id: str,
         last_id: str = STREAM_START,

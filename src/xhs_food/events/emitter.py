@@ -52,6 +52,17 @@ class SearchEventEmitter:
         self._current_step = 0
         self._completed = False
 
+    async def reset_stream(self) -> None:
+        """Reset local state and discard the previous turn's event stream.
+
+        A session can contain many turns.  Reusing one stream without clearing
+        its terminal event makes a reconnect stop before the new turn starts.
+        Routes call this async variant before scheduling a new turn; ``reset``
+        remains synchronous for backwards-compatible unit callers.
+        """
+        self.reset()
+        await self._bus.reset(self._session_id)
+
     def init_steps(self, query: str) -> None:
         _ = query  # reserved for future per-query labels
         self._steps = [
@@ -132,6 +143,17 @@ class SearchEventEmitter:
         await self.emit(
             SearchEvent(type=SearchEventType.RESTAURANT, data={"restaurant": restaurant})
         )
+
+    async def emit_progress(
+        self,
+        message: str,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Emit an agent-loop lifecycle update without exposing provider data."""
+        data: Dict[str, Any] = {"message": message, "steps": self._steps}
+        if extra:
+            data.update(extra)
+        await self.emit(SearchEvent(type=SearchEventType.PROGRESS, data=data))
 
     async def emit_result(self, summary: str, total: int, filtered: int = 0) -> None:
         await self.emit(

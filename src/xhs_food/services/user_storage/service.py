@@ -18,7 +18,7 @@ except ImportError:
     logger.warning("asyncpg not installed, UserStorageService will be disabled")
 
 from .converters import ConverterMixin
-from .models import Favorite, User
+from .models import Favorite, SearchHistory, User
 from .repository import RepositoryMixin
 from .search_results import SearchResultsMixin
 from .schema import (
@@ -275,6 +275,28 @@ class UserStorageService(ConverterMixin, RepositoryMixin, SearchResultsMixin):
         except Exception as e:
             logger.error(f"get_user_stats failed: {e}")
             return {"saved": 0, "reviews": 0, "visited": 0}
+
+    async def create_search_history(
+        self,
+        *,
+        session_id: str,
+        query: str,
+        status: str = "loading",
+        user_id: Optional[str] = None,
+        location: Optional[str] = None,
+    ) -> Optional[SearchHistory]:
+        """Compatibility façade used by the unified search API.
+
+        The repository's canonical method is ``add_history``; keeping this
+        adapter avoids coupling routes to the storage mixin implementation.
+        """
+        return await self.add_history(
+            user_id=user_id or self.ANONYMOUS_USER_ID,
+            query=query,
+            session_id=session_id,
+            status=status,
+            location=location,
+        )
 
 
 # =============================================================================
