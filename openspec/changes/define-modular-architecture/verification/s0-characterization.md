@@ -70,3 +70,11 @@ do not hide failed assertions.
    hashes deterministic. Characterization suites must not gain live I/O.
 7. Require reviewer approval for any fixture diff and record whether it is a
    compatibility change, an intentional defect fix, or fixture-only correction.
+
+## Revert Drill
+
+Commit `4686b6c` was checked out in a temporary detached worktree and reverted
+as commit `f4f4847`. The revert removed all 30 S0 test, fixture, and verification
+assets. The tree comparison from the S0 parent to the reverted worktree was
+empty for `src/`, `frontend/`, `pyproject.toml`, `uv.lock`, `Dockerfile`, and
+`docker-compose.yml`; no production behavior or deployment asset was changed.

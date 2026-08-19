@@ -40,7 +40,7 @@
 - [x] 2.12 为环境变量名称/默认值/优先级、多 LLM、Node signer、容器入口/端口/UID/卷/healthcheck 添加 configuration/deployment characterization。
 - [x] 2.13 建立前端和服务端双方的 consumer fixture，记录 search/history/favorites/FAQ/SSE/CORS 当前不一致，测试不得通过隐式改一侧来消除差异。
 - [x] 2.14 运行 S0 在无外部网络的 CI 基线，归档测试数量、未覆盖项和 fixture 更新规则。
-- [ ] 2.15 演练 revert S0 提交并确认仅移除测试/tooling 资产；将 S0 作为不含生产行为变化的独立提交。
+- [x] 2.15 演练 revert S0 提交并确认仅移除测试/tooling 资产；将 S0 作为不含生产行为变化的独立提交。
 
 ## 3. S1 Contract SDK And Architecture Rules
 
