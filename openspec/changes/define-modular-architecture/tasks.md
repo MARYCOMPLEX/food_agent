@@ -55,7 +55,7 @@
 - [x] 3.9 添加允许依赖边的静态架构测试，默认拒绝跨层具体实现导入和新增下划线私有属性访问。
 - [x] 3.10 添加合同序列化、向后兼容可选字段和破坏性枚举/字段变化检测。
 - [x] 3.11 运行 S0+S1 tests，证明旧 imports、HTTP/SSE 和结果 golden 不变，并归档架构图生成结果。
-- [ ] 3.12 演练移除 contract/registry 绑定的 revert；将 S1 作为不依赖 S2 的独立提交。
+- [x] 3.12 演练移除 contract/registry 绑定的 revert；将 S1 作为不依赖 S2 的独立提交。
 
 ## 4. S2 Experience And Task Facades
 

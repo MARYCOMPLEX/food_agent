@@ -135,9 +135,52 @@ default bindings.
 
 ## Revert Drill
 
-Pending the S1 implementation commit. The drill will revert every implementation
-commit after the S0 base in newest-first order inside a detached worktree, compare
-the resulting tree with the S0 base, and rerun the S0 non-live suite.
+The drill ran in a detached temporary worktree from implementation tip
+`5fe25c08923f26ccd386c0b5f0ea9e304ccc50d0`. Git confirmed that S0 base
+`90930af40c92faaa1a9de33ea090b129dec1a134` is its ancestor and that the range
+contains no merge commit. Every S1 commit was reverted newest-first without a
+conflict:
+
+| Original S1 commit | Detached-worktree revert commit |
+|---|---|
+| `5fe25c08923f26ccd386c0b5f0ea9e304ccc50d0` | `4cebc3730197e4cc2e6d67ca7412188d885e0e8a` |
+| `cfb11141ae860538da972d667fb5eb616d82546c` | `d63d11b61e53d687ca02f873a835266edd091905` |
+| `6b0e8ad32c1d65516c0778b79b6b73563585f4a8` | `f0ed2d644e6c6860341b79f927aae412da182c46` |
+| `c005a0bfbe4a2fc16bd0d22a4c4dc1cf7eded4c2` | `2b7e1affdf359103b4c9f69422a517d72e437562` |
+| `cda82f17da81e9cc9df503c66cf7b5c81d950803` | `49d06932058c9f78ed07bbeed93cac7f6f3986f9` |
+
+The final revert tip is `49d06932058c9f78ed07bbeed93cac7f6f3986f9`.
+Its tree and the S0 base tree are both:
+
+```text
+826bd8c4e689c89804c3493df85790db6331363d
+```
+
+`git diff --exit-code --no-ext-diff 90930af HEAD --` returned zero, and the
+detached worktree was clean before and after the test run. A clean worktree was
+bootstrapped using the blocking-runtime command from ADR-0003:
+
+```text
+uv sync --frozen --extra dev --python 3.12
+uv run --frozen pytest -q -m "unit or integration"
+```
+
+The reverted S0 suite produced:
+
+```text
+196 passed, 5 deselected, 2 warnings in 22.21s
+```
+
+The warnings are the two known `PytestReturnNotNoneWarning` cases recorded by
+S0. An initial preflight before installing the locked `dev` extra resolved a
+global `pytest.exe` and stopped during collection; no project test ran in that
+attempt. Installing the required locked test environment removed the runner
+contamination and the exact S0 command passed as shown above.
+
+The registered temporary worktree and its isolated environment were removed,
+`git worktree prune` completed, and the temporary path no longer exists. The
+main branch and remote implementation tip remained unchanged throughout the
+drill.
 
 ## Deferred Release Gates
 
