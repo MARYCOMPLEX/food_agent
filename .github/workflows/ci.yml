@@ -57,42 +57,43 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
+      - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
 
       - name: Install uv
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.14"
+
+      - name: Verify dependency lock
+        run: uv lock --check
 
       - name: Install dependencies (incl. dev extras)
-        run: uv sync --extra dev
+        run: uv sync --frozen --extra dev --python 3.12
 
       - name: Enable pgvector extension
         run: |
           PGPASSWORD=postgres psql -h localhost -U postgres -d xhs_food_agent \
             -c "CREATE EXTENSION IF NOT EXISTS vector;"
 
-      - name: Ruff lint
-        run: uv run ruff check src/ tests/
+      - name: Ruff critical gate
+        run: uv run --frozen ruff check src/ tests/ --select E9,F63,F7,F82
+
+      - name: Ruff full baseline report
+        continue-on-error: true
+        run: uv run --frozen ruff check src/ tests/
 
       - name: Pyright type-check
         # Not gating CI yet — type errors are tracked but allowed to land
         continue-on-error: true
-        run: uv run pyright src/
+        run: uv run --frozen pyright src/
 
       - name: Pytest (unit + integration)
         # Integration tests rely on redis/postgres + env vars set above.
-        # Use `|| true`-free soft fail by limiting to marked tests only;
-        # if no tests match a marker, pytest exits 5 which we tolerate.
-        run: |
-          set +e
-          uv run pytest --cov=src --cov-report=xml -m "unit or integration"
-          code=$?
-          # 0 = pass, 5 = no tests collected for the marker selection
-          if [ "$code" -ne 0 ] && [ "$code" -ne 5 ]; then exit $code; fi
+        # Live and browser suites run in their dedicated, credentialed jobs.
+        run: uv run --frozen pytest --cov=src --cov-report=xml -m "unit or integration"
 
       - name: Upload coverage artifact
         if: always()

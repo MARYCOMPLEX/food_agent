@@ -1,0 +1,854 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Food Evidence Agent · 通用证据推荐骨架</title>
+  <style>
+    :root {
+      --ink: #172126;
+      --muted: #66737a;
+      --paper: #f6f2e9;
+      --paper-deep: #ece6d9;
+      --panel: #fffdf8;
+      --line: #d9d0c1;
+      --teal: #0e6670;
+      --teal-soft: #d9eff0;
+      --coral: #c95b49;
+      --coral-soft: #f8ddd5;
+      --gold: #b27c27;
+      --gold-soft: #f5e7c7;
+      --violet: #63547d;
+      --violet-soft: #e7e0ef;
+      --green: #2b8053;
+      --green-soft: #d9f0df;
+      --blue: #315f8e;
+      --blue-soft: #dce8f4;
+      --shadow: 0 20px 55px rgba(34, 38, 34, .12);
+      --shadow-small: 0 8px 22px rgba(34, 38, 34, .08);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: "Trebuchet MS", "Microsoft YaHei", sans-serif;
+      letter-spacing: 0;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: .16;
+      background-image: radial-gradient(#a99f90 0.65px, transparent 0.65px);
+      background-size: 12px 12px;
+      mask-image: linear-gradient(to bottom, rgba(0,0,0,.45), transparent 70%);
+    }
+
+    button { font: inherit; }
+    .app-shell { position: relative; max-width: 1540px; margin: 0 auto; padding: 26px 28px 34px; }
+    .topbar {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 22px;
+    }
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--teal);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .09em;
+      text-transform: uppercase;
+    }
+    .eyebrow::before { content: ""; width: 22px; height: 2px; background: var(--coral); }
+    h1 {
+      margin: 9px 0 8px;
+      max-width: 840px;
+      font-family: Georgia, "Songti SC", serif;
+      font-size: clamp(30px, 4vw, 52px);
+      font-weight: 700;
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+    .lead { max-width: 900px; margin: 0; color: var(--muted); font-size: 15px; line-height: 1.7; }
+    .top-metrics { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 9px; padding-top: 6px; }
+    .metric {
+      min-width: 126px;
+      padding: 11px 13px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255,253,248,.78);
+      box-shadow: var(--shadow-small);
+    }
+    .metric strong { display: block; font-family: Georgia, serif; font-size: 22px; }
+    .metric span { color: var(--muted); font-size: 11px; }
+
+    .workspace { display: grid; grid-template-columns: minmax(0, 1fr) 344px; gap: 18px; align-items: stretch; }
+    .canvas-panel, .inspector {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(255,253,248,.93);
+      box-shadow: var(--shadow);
+    }
+    .canvas-panel { min-width: 0; overflow: hidden; }
+    .canvas-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      background: #fffaf1;
+    }
+    .crumb { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--muted); font-size: 12px; }
+    .crumb b { color: var(--ink); font-size: 13px; white-space: nowrap; }
+    .crumb .slash { color: #b3a99b; }
+    .toolbar-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+    .toolbar-actions button, .zoom-button {
+      border: 1px solid #cfc4b3;
+      border-radius: 6px;
+      background: #fffdf8;
+      color: var(--ink);
+      cursor: pointer;
+      transition: background .18s ease, border-color .18s ease, transform .18s ease;
+    }
+    .toolbar-actions button { padding: 7px 9px; font-size: 12px; }
+    .toolbar-actions button:hover, .zoom-button:hover { border-color: var(--teal); background: var(--teal-soft); }
+    .toolbar-actions button.active { border-color: var(--teal); background: var(--teal); color: white; }
+    .toolbar-actions button:active, .zoom-button:active { transform: translateY(1px); }
+    .zoom-group { display: inline-flex; align-items: center; gap: 4px; margin-left: 3px; padding-left: 7px; border-left: 1px solid var(--line); }
+    .zoom-button { width: 30px; height: 30px; padding: 0; font-size: 17px; line-height: 1; }
+    .zoom-readout { min-width: 46px; color: var(--muted); font-size: 11px; text-align: center; }
+
+    .svg-wrap {
+      position: relative;
+      min-height: 690px;
+      height: min(70vh, 760px);
+      overflow: hidden;
+      cursor: grab;
+      background-color: #fbf8f1;
+      background-image: linear-gradient(rgba(23,33,38,.045) 1px, transparent 1px), linear-gradient(90deg, rgba(23,33,38,.045) 1px, transparent 1px);
+      background-size: 26px 26px;
+    }
+    .svg-wrap.dragging { cursor: grabbing; }
+    #architecture { display: block; width: 100%; height: 100%; user-select: none; }
+    .svg-note { position: absolute; left: 16px; bottom: 13px; color: #7d7468; font-size: 11px; pointer-events: none; }
+
+    .inspector { display: flex; min-height: 690px; flex-direction: column; overflow: hidden; }
+    .inspector-head { padding: 20px 20px 17px; border-bottom: 1px solid var(--line); background: #fffaf1; }
+    .inspector-kicker { color: var(--teal); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .inspector h2 { margin: 8px 0 7px; font-family: Georgia, serif; font-size: 24px; line-height: 1.15; }
+    .inspector-lead { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+    .inspector-body { padding: 18px 20px; overflow: auto; }
+    .detail-section { margin-bottom: 20px; }
+    .detail-section h3 { margin: 0 0 8px; color: var(--teal); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+    .detail-section p { margin: 0; color: #3f4c50; font-size: 13px; line-height: 1.7; }
+    .detail-list { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
+    .detail-list li { position: relative; padding-left: 15px; color: #3f4c50; font-size: 13px; line-height: 1.55; }
+    .detail-list li::before { content: ""; position: absolute; left: 0; top: .66em; width: 6px; height: 6px; border-radius: 50%; background: var(--coral); }
+    .boundary {
+      margin-top: 12px;
+      padding: 11px 12px;
+      border-left: 3px solid var(--gold);
+      background: var(--gold-soft);
+      color: #6d501e;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+    .expand-button {
+      width: 100%;
+      margin-top: 15px;
+      padding: 10px 12px;
+      border: 1px solid var(--teal);
+      border-radius: 6px;
+      background: var(--teal);
+      color: #fff;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .expand-button[disabled] { border-color: #d7cec1; background: #eee9df; color: #978d7e; cursor: default; }
+    .inspector-footer { margin-top: auto; padding: 14px 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; line-height: 1.55; }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 13px 19px;
+      padding: 11px 16px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 11px;
+    }
+    .legend-item { display: inline-flex; align-items: center; gap: 7px; }
+    .swatch { width: 13px; height: 13px; border-radius: 3px; border: 1.5px solid; }
+    .swatch.core { border-color: var(--teal); background: var(--teal-soft); }
+    .swatch.policy { border-color: var(--gold); background: var(--gold-soft); }
+    .swatch.memory { border-color: var(--violet); background: var(--violet-soft); }
+    .swatch.extension { border: 2px solid var(--green); background: var(--green-soft); }
+    .swatch.foundation { border-color: var(--blue); background: var(--blue-soft); }
+
+    .node { cursor: pointer; outline: none; }
+    .node rect, .node .node-border { transition: filter .18s ease, stroke-width .18s ease, fill .18s ease; }
+    .node:hover rect, .node:focus rect { filter: drop-shadow(0 7px 9px rgba(30,38,35,.15)); stroke-width: 2.6; }
+    .node.selected rect { filter: drop-shadow(0 8px 11px rgba(30,38,35,.2)); stroke-width: 3; }
+    .node.dimmed { opacity: .22; }
+    .node.highlight rect { filter: drop-shadow(0 8px 13px rgba(43,128,83,.28)); stroke-width: 3; }
+    .node-title { fill: var(--ink); font-size: 15px; font-weight: 700; }
+    .node-kicker { fill: var(--muted); font-size: 10px; letter-spacing: .05em; text-transform: uppercase; }
+    .node-line { fill: #435156; font-size: 11px; }
+    .node.core rect { fill: var(--teal-soft); stroke: var(--teal); }
+    .node.policy rect { fill: var(--gold-soft); stroke: var(--gold); }
+    .node.memory rect { fill: var(--violet-soft); stroke: var(--violet); }
+    .node.extension rect { fill: var(--green-soft); stroke: var(--green); stroke-width: 2.6; stroke-dasharray: 7 4; }
+    .node.foundation rect { fill: var(--blue-soft); stroke: var(--blue); }
+    .node.output rect { fill: var(--coral-soft); stroke: var(--coral); }
+    .node.neutral rect { fill: #f1ede4; stroke: #8d8274; }
+    .edge { fill: none; stroke: #869195; stroke-width: 1.6; marker-end: url(#arrow); }
+    .edge.dashed { stroke-dasharray: 7 6; }
+    .edge.highlight { stroke: var(--coral); stroke-width: 2.8; marker-end: url(#arrow-highlight); }
+    .edge.extension { stroke: var(--green); stroke-width: 2.3; marker-end: url(#arrow-green); }
+    .edge-label { fill: #69767b; font-size: 10px; paint-order: stroke; stroke: #fbf8f1; stroke-width: 4px; stroke-linejoin: round; }
+    .edge-label.highlight { fill: var(--coral); font-weight: 700; }
+    .group-label { fill: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .12em; }
+    .band { fill: rgba(255,253,248,.68); stroke: #cfc5b7; stroke-width: 1.2; stroke-dasharray: 6 5; }
+    .band.extension { fill: rgba(217,240,223,.55); stroke: var(--green); }
+    .pill { fill: #fffaf1; stroke: #cfc4b3; stroke-width: 1; }
+    .pill-text { fill: var(--muted); font-size: 10px; font-weight: 700; }
+    .callout { fill: #fff7e8; stroke: #d7ae58; stroke-width: 1.2; }
+    .callout-title { fill: #7c5a22; font-size: 12px; font-weight: 700; }
+    .callout-text { fill: #6f5b37; font-size: 11px; }
+
+    @media (max-width: 1120px) {
+      .topbar { flex-direction: column; }
+      .top-metrics { justify-content: flex-start; }
+      .workspace { grid-template-columns: 1fr; }
+      .inspector { min-height: auto; }
+      .svg-wrap { height: 720px; }
+    }
+    @media (max-width: 700px) {
+      .app-shell { padding: 18px 12px 24px; }
+      h1 { font-size: 32px; }
+      .canvas-toolbar { align-items: flex-start; flex-direction: column; }
+      .toolbar-actions { justify-content: flex-start; }
+      .svg-wrap { min-height: 570px; height: 620px; }
+      .metric { min-width: 112px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">Architecture Decision · v1</div>
+        <h1>通用证据推荐骨架</h1>
+        <p class="lead">共享证据负责“收集与更新”，用户记忆负责“理解这个人”，领域包负责“解释什么是好结果”。美食和旅游不复制两套系统，只装配不同的领域规则与来源。</p>
+      </div>
+      <div class="top-metrics" aria-label="架构摘要">
+        <div class="metric"><strong>6</strong><span>核心边界</span></div>
+        <div class="metric"><strong>1</strong><span>公共证据库</span></div>
+        <div class="metric"><strong>2</strong><span>个领域包示例</span></div>
+      </div>
+    </header>
+
+    <div class="workspace">
+      <section class="canvas-panel" aria-label="交互式架构图">
+        <div class="canvas-toolbar">
+          <div class="crumb"><span>视图</span><span class="slash">/</span><b id="crumb-title">系统总览</b></div>
+          <div class="toolbar-actions">
+            <button type="button" data-mode="overview" class="active">总览</button>
+            <button type="button" data-mode="reuse">相似查询</button>
+            <button type="button" data-mode="memory">用户记忆</button>
+            <button type="button" data-mode="domain">领域复用</button>
+            <span class="zoom-group">
+              <button type="button" class="zoom-button" id="zoom-out" aria-label="缩小">−</button>
+              <span class="zoom-readout" id="zoom-readout">100%</span>
+              <button type="button" class="zoom-button" id="zoom-in" aria-label="放大">＋</button>
+              <button type="button" class="zoom-button" id="zoom-fit" aria-label="重置缩放">↺</button>
+            </span>
+          </div>
+        </div>
+        <div class="svg-wrap" id="svg-wrap">
+          <svg id="architecture" viewBox="0 0 1200 760" role="img" aria-label="通用证据推荐骨架架构图">
+            <defs>
+              <marker id="arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L9,4.5 L0,9 z" fill="#869195" /></marker>
+              <marker id="arrow-highlight" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L9,4.5 L0,9 z" fill="#c95b49" /></marker>
+              <marker id="arrow-green" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L9,4.5 L0,9 z" fill="#2b8053" /></marker>
+            </defs>
+            <g id="viewport"></g>
+          </svg>
+          <div class="svg-note">拖动画布 · 滚轮缩放 · 双击节点进入内部子图</div>
+        </div>
+        <div class="legend" aria-label="图例">
+          <span class="legend-item"><i class="swatch core"></i>核心边界</span>
+          <span class="legend-item"><i class="swatch policy"></i>策略 / 刷新控制</span>
+          <span class="legend-item"><i class="swatch memory"></i>用户记忆</span>
+          <span class="legend-item"><i class="swatch extension"></i>新增扩展挂载点</span>
+          <span class="legend-item"><i class="swatch foundation"></i>事实与运行基础设施</span>
+        </div>
+      </section>
+
+      <aside class="inspector" aria-live="polite">
+        <div class="inspector-head">
+          <div class="inspector-kicker" id="inspector-kicker">Core Spine</div>
+          <h2 id="inspector-title">系统总览</h2>
+          <p class="inspector-lead" id="inspector-lead">一个公共证据平面，连接研究规划、领域决策和用户个性化。</p>
+          <button type="button" class="expand-button" id="expand-button">展开内部</button>
+        </div>
+        <div class="inspector-body">
+          <section class="detail-section">
+            <h3>职责</h3>
+            <p id="inspector-responsibility"></p>
+          </section>
+          <section class="detail-section">
+            <h3>主要交互</h3>
+            <ul class="detail-list" id="inspector-interactions"></ul>
+          </section>
+          <section class="detail-section">
+            <h3>边界</h3>
+            <div class="boundary" id="inspector-boundary"></div>
+          </section>
+        </div>
+        <div class="inspector-footer">图中的绿色虚线框是未来新增实例；它们只能实现对应契约并注册，不得穿透到 Agent、数据库或其他平台的内部。</div>
+      </aside>
+    </div>
+  </main>
+
+  <script>
+    const catalog = {
+      overview: {
+        kicker: "Core Spine",
+        title: "系统总览",
+        lead: "一个公共证据平面，连接研究规划、领域决策和用户个性化。",
+        responsibility: "把一次用户问题拆成可复用的研究请求、证据更新和个性化决策；公共事实与个人偏好始终分开。",
+        interactions: ["请求进入 Research Orchestrator，先解析目标、地点、约束和新鲜度要求。", "Evidence Intelligence 负责查询族复用、证据采集、规范化和持续刷新。", "Knowledge & Decision 用领域包计算特征、排序和解释；Personalization 只改变策略和排序。"],
+        boundary: "系统骨架不携带美食或旅游的业务词汇；这些词汇只能出现在 Domain Pack。",
+        detail: null
+      },
+      experience: {
+        kicker: "01 · Experience",
+        title: "体验与任务边界",
+        lead: "对外提供统一的研究任务、进度和结果协议。",
+        responsibility: "接收新查询、追问、刷新和恢复请求，创建任务身份并输出稳定的阶段事件。",
+        interactions: ["把用户输入和身份上下文交给 Research Orchestrator。", "订阅任务状态，不直接读取平台数据或修改证据。", "将相似查询命中、刷新中、部分结果等状态展示给用户。"],
+        boundary: "不放 Agent prompt、平台签名、推荐权重或数据库查询。",
+        detail: "experience"
+      },
+      orchestration: {
+        kicker: "02 · Research",
+        title: "Research Orchestrator",
+        lead: "唯一的研究编排边界；Agent 负责规划，确定性调度器负责执行。",
+        responsibility: "形成 ResearchPlan，选择复用或刷新路径，调用高层工具，管理预算、并发、取消、重试和完成条件。",
+        interactions: ["向 Query Family Index 请求可复用的公共证据。", "向 Domain Pack 请求允许的工具、证据类型和停止条件。", "把用户记忆转换为研究策略，而不是把用户偏好写进公共证据。"],
+        boundary: "不直接访问任何平台 Connector；不让模型创建任务、改变并发上限或绕过权限。",
+        detail: "orchestration"
+      },
+      evidence: {
+        kicker: "03 · Shared Evidence",
+        title: "Evidence Intelligence",
+        lead: "面向所有用户共享的公共证据平面。",
+        responsibility: "把语义相近的查询归入 Query Family，基于新鲜度和覆盖度复用、增量刷新或启动新采集，并保留完整来源链。",
+        interactions: ["Canonical Query 生成稳定的查询签名，不把用户私有偏好放进共享键。", "Freshness Policy 判断是否复用、等待正在进行的刷新，或只补采集缺口。", "Evidence Library 版本化保存证据、来源、时间、质量和派生特征。"],
+        boundary: "公共证据不保存某个用户的口味；原始媒体不进入 Agent 上下文，媒体只通过派生证据参与计算。",
+        detail: "evidence"
+      },
+      decision: {
+        kicker: "04 · Decision",
+        title: "Knowledge & Decision",
+        lead: "把证据转成可复现、可解释的候选和推荐。",
+        responsibility: "完成实体消歧、特征计算、领域评分、候选排序和证据解释；同一份证据可以服务多个业务。",
+        interactions: ["读取 Evidence Library 和 Domain Pack 的特征、评分、输出规则。", "接收 Personalization 的策略约束，对候选重新排序而不重采集。", "将每个推荐项绑定到 evidence_id 和 provenance。"],
+        boundary: "核心评分可以使用模型提取特征，但最终权重、过滤和解释必须可追溯、可复算。",
+        detail: "decision"
+      },
+      personalization: {
+        kicker: "05 · User Context",
+        title: "Personalization",
+        lead: "用户记忆只影响当前用户的策略和排序，不污染共享事实。",
+        responsibility: "管理会话上下文、显式偏好、稳定偏好、短期意图和策略反馈，并按优先级组装个人策略。",
+        interactions: ["显式约束优先于推断偏好；当前会话优先于长期偏好。", "策略层可以调整搜索深度、来源优先级、过滤条件和排序权重。", "用户反馈只回写个人记忆或匿名统计，不直接改公共证据。"],
+        boundary: "需要同意、来源和置信度；不能把一个用户的偏好变成所有人的推荐规则。",
+        detail: "personalization"
+      },
+      domain: {
+        kicker: "06 · Domain Pack",
+        title: "领域包与扩展边界",
+        lead: "同一骨架承载美食、旅游景点以及后续领域。",
+        responsibility: "声明实体、关系、证据类型、特征、评分、来源集合、工具和结果结构。",
+        interactions: ["Food Pack 解释餐厅、菜品、口味、价格和本地性。", "Travel Pack 解释景点、路线、季节、门票和游玩偏好。", "新领域只新增一个 Domain Pack，不复制 Agent、证据库、刷新系统和记忆系统。"],
+        boundary: "只切换数据源不够；必须同时提供领域本体、特征计算和评价规则。",
+        detail: "domain"
+      },
+      platform: {
+        kicker: "Foundation",
+        title: "事实与运行基础设施",
+        lead: "基础设施被压缩为三类职责，避免多个缓存和多个事实源。",
+        responsibility: "保存权威事实、运行态任务和大媒体对象，并提供刷新任务、并发限制和可观测性。",
+        interactions: ["PostgreSQL 保存 Query Family、Evidence、Provenance、用户记忆和版本。", "Redis/队列只保存可重建的运行态、锁、去重和任务状态。", "对象存储保存原始媒体和派生资产；所有访问都通过 Media Asset 元数据。"],
+        boundary: "不把 Redis 当证据库，不把对象存储当查询索引，不让模块直接跨层写库。",
+        detail: "platform"
+      },
+      answer: {
+        kicker: "Output",
+        title: "解释型推荐结果",
+        lead: "输出不是模型自由生成的文本，而是证据绑定的决策结果。",
+        responsibility: "返回推荐项、理由、适用人群、时间和来源，并允许后续追问复用同一研究上下文。",
+        interactions: ["读取 Knowledge & Decision 的排序和解释。", "携带 Evidence 引用、来源链接和更新时间。", "支持用户反馈，进入 Personalization 和刷新优先级。"],
+        boundary: "没有 evidence_id 的事实不能成为最终推荐的依据。",
+        detail: null
+      },
+      reuse: {
+        kicker: "Reuse Loop",
+        title: "相似查询复用",
+        lead: "把用户问题归一到公共 Query Family，再把个性化差异放到最后一公里。",
+        responsibility: "避免两个语义相近的问题重复请求平台；只在证据过期、覆盖不足或新约束需要时触发增量搜索。",
+        interactions: ["Q1 与 Q2 生成相同或相近的查询签名。", "Family Index 返回共享 Evidence Bundle 和 freshness 状态。", "用户差异进入策略和排序层，不重复采集相同公共事实。"],
+        boundary: "相似查询命中的是公共证据，不是另一位用户的完整回答或私有记忆。",
+        detail: null
+      }
+    };
+
+    const graphs = {
+      overview: {
+        title: "系统总览",
+        nodes: [
+          {id:"experience", x:38, y:105, w:202, h:125, kind:"core", kicker:"01 / EXPERIENCE", title:"体验与任务", lines:["统一任务、进度与结果", "新查询 · 追问 · 刷新 · 恢复"]},
+          {id:"orchestration", x:267, y:105, w:202, h:125, kind:"core", kicker:"02 / RESEARCH", title:"研究编排", lines:["Agent 规划 + 任务调度", "预算 · 并发 · 取消 · 停止条件"]},
+          {id:"evidence", x:496, y:105, w:202, h:125, kind:"core", kicker:"03 / SHARED", title:"证据智能平面", lines:["查询族 · 新鲜度 · 增量刷新", "规范化 · 来源链 · 公共证据库"]},
+          {id:"decision", x:725, y:105, w:202, h:125, kind:"core", kicker:"04 / DECISION", title:"知识与决策", lines:["实体 · 特征 · 评分 · 排序", "证据绑定的解释型推荐"]},
+          {id:"answer", x:954, y:105, w:202, h:125, kind:"output", kicker:"OUTPUT", title:"推荐与追问", lines:["推荐项 + 证据引用", "反馈回到个人策略"]},
+          {id:"personalization", x:267, y:315, w:202, h:125, kind:"memory", kicker:"05 / USER CONTEXT", title:"用户记忆", lines:["会话 · 偏好 · 策略反馈", "只影响当前用户"]},
+          {id:"domain", x:725, y:315, w:202, h:125, kind:"policy", kicker:"06 / DOMAIN PACK", title:"领域包", lines:["Food / Travel / 后续领域", "本体 · 特征 · 评分 · 来源"]},
+          {id:"platform", x:38, y:535, w:1118, h:120, kind:"foundation", kicker:"FOUNDATION", title:"事实与运行基础设施", lines:["PostgreSQL：权威事实与版本", "Redis / Queue：可重建运行态", "Object Storage：原始与派生媒体", "Observability：任务、来源、质量"]}
+        ],
+        edges: [
+          {from:"experience", to:"orchestration", label:"研究请求"},
+          {from:"orchestration", to:"evidence", label:"复用 / 采集 / 刷新"},
+          {from:"evidence", to:"decision", label:"Evidence + Provenance"},
+          {from:"decision", to:"answer", label:"排序 + 解释"},
+          {from:"personalization", to:"orchestration", label:"策略上下文", kind:"dashed", points:[[368,315],[368,278],[368,230]]},
+          {from:"personalization", to:"decision", label:"个性化排序", kind:"highlight", points:[[469,377],[690,377],[690,230],[725,230]]},
+          {from:"domain", to:"evidence", label:"来源与证据类型", kind:"extension", points:[[825,315],[825,273],[597,273],[597,230]]},
+          {from:"domain", to:"decision", label:"特征与评分", kind:"extension"},
+          {from:"evidence", to:"orchestration", label:"新鲜度 / delta refresh", kind:"dashed", points:[[597,105],[597,70],[368,70],[368,105]]},
+          {from:"platform", to:"evidence", label:"事实 / 任务 / 对象", kind:"dashed", points:[[597,535],[597,470],[597,230]]}
+        ],
+        selected: "overview"
+      },
+      reuse: {
+        title: "相似查询复用",
+        nodes: [
+          {id:"q1", x:38, y:122, w:232, h:94, kind:"core", kicker:"QUERY A", title:"自贡哪些本地人吃的美食？", lines:["本地人 · 美食 · 自贡"]},
+          {id:"q2", x:38, y:278, w:232, h:94, kind:"core", kicker:"QUERY B", title:"刚到自贡旅游应该吃什么？", lines:["游客 · 美食 · 自贡"]},
+          {id:"signature", x:330, y:182, w:230, h:128, kind:"policy", kicker:"CANONICAL QUERY", title:"查询签名", lines:["domain · geo · intent", "audience · constraints", "time range · freshness"]},
+          {id:"family", x:620, y:182, w:230, h:128, kind:"core", kicker:"SHARED INDEX", title:"Query Family", lines:["自贡 · 地方美食 · 推荐", "相似问题合并为一族", "in-flight 请求可合并"]},
+          {id:"freshness", x:910, y:182, w:230, h:128, kind:"policy", kicker:"FRESHNESS GATE", title:"新鲜度决策", lines:["新鲜 → 直接复用", "过期 → 增量刷新", "无覆盖 → 新研究"]},
+          {id:"bundle", x:620, y:410, w:230, h:128, kind:"core", kicker:"PUBLIC LIBRARY", title:"共享 Evidence Bundle", lines:["笔记 · 评论 · POI · 媒体派生", "带版本、时间、来源链", "所有用户可复用"]},
+          {id:"delta", x:910, y:410, w:230, h:128, kind:"extension", kicker:"BACKGROUND LOOP", title:"增量刷新", lines:["只补 stale / 缺口证据", "按热门度和更新时间排队", "合并后重算派生特征"]},
+          {id:"rerank", x:330, y:590, w:230, h:100, kind:"memory", kicker:"LAST MILE", title:"用户策略重排", lines:["Q1 偏本地性 · Q2 偏游客友好", "不重新采集公共事实"]},
+          {id:"results", x:620, y:590, w:520, h:100, kind:"output", kicker:"OUTPUT", title:"两个用户得到不同答案，但共享同一组新鲜证据", lines:["公共证据复用 + 用户记忆重排 + 来源可追溯"]}
+        ],
+        edges: [
+          {from:"q1", to:"signature", label:"canonicalize", kind:"highlight"},
+          {from:"q2", to:"signature", label:"canonicalize", kind:"highlight"},
+          {from:"signature", to:"family", label:"semantic family"},
+          {from:"family", to:"freshness", label:"lookup"},
+          {from:"freshness", to:"bundle", label:"reuse", kind:"highlight", points:[[1025,310],[1025,365],[735,365],[735,410]]},
+          {from:"freshness", to:"delta", label:"stale / gap", kind:"extension"},
+          {from:"delta", to:"bundle", label:"merge new version", kind:"extension", points:[[910,474],[870,474],[850,474]]},
+          {from:"bundle", to:"rerank", label:"shared evidence", kind:"highlight", points:[[620,474],[450,474],[450,590]]},
+          {from:"rerank", to:"results", label:"personalized rank"},
+          {from:"bundle", to:"results", label:"provenance", kind:"dashed"}
+        ],
+        selected: "reuse"
+      },
+      memory: {
+        title: "用户记忆与策略",
+        nodes: [
+          {id:"session_memory", x:44, y:145, w:218, h:110, kind:"memory", kicker:"EPHEMERAL", title:"会话记忆", lines:["当前对话、已确认约束", "本轮地点与时间"]},
+          {id:"explicit", x:44, y:320, w:218, h:110, kind:"memory", kicker:"HIGH TRUST", title:"显式偏好", lines:["用户明确说过的喜欢 / 避免", "优先级最高"]},
+          {id:"profile", x:350, y:145, w:218, h:110, kind:"memory", kicker:"DURABLE", title:"用户偏好档案", lines:["稳定口味、预算、出行风格", "来源 + 置信度 + 更新时间"]},
+          {id:"inferred", x:350, y:320, w:218, h:110, kind:"memory", kicker:"LEARNED", title:"推断偏好", lines:["从点击、收藏、反馈形成", "可衰减、可撤销"]},
+          {id:"resolver", x:655, y:220, w:218, h:130, kind:"policy", kicker:"POLICY", title:"Preference Resolver", lines:["显式 > 当前会话 > 稳定偏好", "冲突时保守处理", "输出可解释策略"]},
+          {id:"strategy", x:960, y:220, w:196, h:130, kind:"core", kicker:"TO RESEARCH", title:"研究与排序策略", lines:["来源优先级", "搜索深度、过滤、排序"]},
+          {id:"shared", x:655, y:500, w:218, h:110, kind:"core", kicker:"PUBLIC FACTS", title:"共享 Evidence", lines:["不存个人口味", "所有用户可复用"]},
+          {id:"privacy", x:960, y:500, w:196, h:110, kind:"neutral", kicker:"BOUNDARY", title:"隐私边界", lines:["个人记忆只影响个人", "匿名统计才可回流公共策略"]}
+        ],
+        edges: [
+          {from:"session_memory", to:"resolver", label:"当前上下文"},
+          {from:"explicit", to:"resolver", label:"explicit"},
+          {from:"profile", to:"resolver", label:"stable profile"},
+          {from:"inferred", to:"resolver", label:"inferred"},
+          {from:"resolver", to:"strategy", label:"policy context", kind:"highlight"},
+          {from:"strategy", to:"shared", label:"read only", kind:"dashed", points:[[1058,350],[1058,445],[764,445],[764,500]]},
+          {from:"shared", to:"strategy", label:"evidence", kind:"dashed", points:[[873,555],[900,555],[900,350],[960,350]]},
+          {from:"resolver", to:"privacy", label:"consent / audit", kind:"dashed", points:[[764,350],[764,465],[1058,465],[1058,500]]}
+        ],
+        selected: "personalization"
+      },
+      domain: {
+        title: "领域复用",
+        nodes: [
+          {id:"kernel", x:385, y:105, w:430, h:120, kind:"core", kicker:"ONE SKELETON", title:"通用证据推荐骨架", lines:["Research · Evidence · Memory · Decision", "队列、事实库、来源链、刷新全部共享"]},
+          {id:"contract", x:385, y:300, w:430, h:105, kind:"policy", kicker:"DOMAIN CONTRACT", title:"领域契约", lines:["Entity · Relation · EvidenceType", "FeatureSet · ScoringPolicy · OutputSchema"]},
+          {id:"food", x:95, y:505, w:260, h:125, kind:"core", kicker:"CURRENT PACK", title:"Food Pack", lines:["餐厅 · 菜品 · 口味 · 价格", "本地性 · 广告嫌疑 · 评论可信度"]},
+          {id:"travel", x:470, y:505, w:260, h:125, kind:"extension", kicker:"NEXT PACK", title:"Travel Pack", lines:["景点 · 路线 · 季节 · 门票", "拥挤度 · 适合人群 · 游玩时长"]},
+          {id:"new_domain", x:845, y:505, w:260, h:125, kind:"extension", kicker:"FUTURE", title:"New Domain Pack", lines:["只实现领域契约", "不复制 Agent / Evidence / Memory"]},
+          {id:"switch", x:95, y:685, w:1010, h:45, kind:"neutral", kicker:"KEY DECISION", title:"切换数据源 ≠ 切换领域：来源 Connector 解决“去哪取”，Domain Pack 解决“如何理解与评价”。", lines:[]}
+        ],
+        edges: [
+          {from:"kernel", to:"contract", label:"mount contract"},
+          {from:"contract", to:"food", label:"install", kind:"highlight", points:[[500,405],[225,405],[225,505]]},
+          {from:"contract", to:"travel", label:"install", kind:"extension", points:[[600,405],[600,505]]},
+          {from:"contract", to:"new_domain", label:"install", kind:"extension", points:[[700,405],[975,405],[975,505]]}
+        ],
+        selected: "domain"
+      }
+    };
+
+    const details = {
+      orchestration: {
+        title: "Research Orchestrator · 内部交互",
+        nodes: [
+          {id:"o_request", x:50, y:120, w:210, h:105, kind:"core", kicker:"INPUT", title:"Research Request", lines:["query · user context", "freshness · budget"]},
+          {id:"o_plan", x:330, y:120, w:210, h:105, kind:"policy", kicker:"PLAN", title:"ResearchPlan", lines:["goal · steps · dependencies", "reuse / refresh path"]},
+          {id:"o_agent", x:610, y:120, w:210, h:105, kind:"memory", kicker:"REASONING", title:"Food / Travel Agent", lines:["OpenAI Agents SDK", "typed tool calls"]},
+          {id:"o_gateway", x:890, y:120, w:210, h:105, kind:"core", kicker:"POLICY", title:"Tool Gateway", lines:["schema · auth · budget", "capability allow-list"]},
+          {id:"o_scheduler", x:330, y:365, w:210, h:105, kind:"core", kicker:"EXECUTION", title:"Step Scheduler", lines:["parallel read-only steps", "retry · timeout · cancel"]},
+          {id:"o_review", x:610, y:365, w:210, h:105, kind:"policy", kicker:"REVIEW", title:"Evidence Review", lines:["coverage · contradiction", "stop / replan"]},
+          {id:"o_events", x:890, y:365, w:210, h:105, kind:"output", kicker:"OBSERVATION", title:"Task Events", lines:["stable progress", "checkpoint · recovery"]},
+          {id:"o_new_tool", x:890, y:535, w:210, h:100, kind:"extension", kicker:"EXTENSION", title:"New Agent Tool", lines:["实现 Tool Contract", "注册到 Tool Gateway"]}
+        ],
+        edges: [
+          {from:"o_request", to:"o_plan", label:"normalize"},
+          {from:"o_plan", to:"o_agent", label:"reason"},
+          {from:"o_agent", to:"o_gateway", label:"typed tools"},
+          {from:"o_gateway", to:"o_scheduler", label:"validated steps", points:[[995,225],[995,310],[435,310],[435,365]]},
+          {from:"o_scheduler", to:"o_review", label:"evidence"},
+          {from:"o_review", to:"o_agent", label:"replan", kind:"highlight", points:[[715,365],[715,280],[715,225]]},
+          {from:"o_scheduler", to:"o_events", label:"state"},
+          {from:"o_events", to:"o_request", label:"recover", kind:"dashed", points:[[995,470],[995,530],[155,530],[155,225]]},
+          {from:"o_new_tool", to:"o_gateway", label:"register", kind:"extension", points:[[995,535],[1135,535],[1135,280],[995,280],[995,225]]}
+        ]
+      },
+      evidence: {
+        title: "Evidence Intelligence · 内部交互",
+        nodes: [
+          {id:"e_query", x:40, y:115, w:210, h:110, kind:"policy", kicker:"CANONICAL", title:"Canonical Query", lines:["domain · geo · intent", "audience 不含私有偏好"]},
+          {id:"e_family", x:300, y:115, w:210, h:110, kind:"core", kicker:"REUSE", title:"Query Family Index", lines:["语义聚类 + 精确键", "合并 in-flight 请求"]},
+          {id:"e_gate", x:560, y:115, w:210, h:110, kind:"policy", kicker:"FRESHNESS", title:"Freshness Policy", lines:["fresh / stale / missing", "按领域配置更新窗口"]},
+          {id:"e_refresh", x:820, y:115, w:210, h:110, kind:"extension", kicker:"LOOP", title:"Refresh Coordinator", lines:["热门族优先", "delta evidence only"]},
+          {id:"e_sources", x:170, y:365, w:220, h:110, kind:"core", kicker:"ADAPTERS", title:"SourceGateway", lines:["XHS / Amap / future", "平台限速与游标"]},
+          {id:"e_new_source", x:460, y:365, w:220, h:110, kind:"extension", kicker:"EXTENSION", title:"New SourceConnector", lines:["实现统一 Source 契约", "平台差异止于 adapter"]},
+          {id:"e_normalize", x:750, y:365, w:220, h:110, kind:"core", kicker:"TRUST", title:"Normalize + Provenance", lines:["document / comment / media", "source locator + version"]},
+          {id:"e_media", x:40, y:590, w:190, h:100, kind:"extension", kicker:"EXTENSION", title:"New Media Processor", lines:["image / audio / video", "输出 DerivedArtifact"]},
+          {id:"e_extractor", x:260, y:590, w:190, h:100, kind:"extension", kicker:"EXTENSION", title:"Evidence Extractor", lines:["DerivedArtifact → claim", "版本化 schema"]},
+          {id:"e_library", x:470, y:590, w:260, h:100, kind:"core", kicker:"AUTHORITY", title:"Evidence Library", lines:["版本、时间、覆盖度、质量", "可供多个用户和业务复用"]},
+          {id:"e_features", x:800, y:590, w:220, h:100, kind:"policy", kicker:"DERIVATION", title:"Feature Recompute", lines:["新证据 → 特征 → 评分索引"]}
+        ],
+        edges: [
+          {from:"e_query", to:"e_family", label:"signature"},
+          {from:"e_family", to:"e_gate", label:"bundle lookup"},
+          {from:"e_gate", to:"e_refresh", label:"stale / gap", kind:"extension"},
+          {from:"e_gate", to:"e_library", label:"reuse", kind:"highlight", points:[[665,225],[665,300],[600,300],[600,590]]},
+          {from:"e_refresh", to:"e_sources", label:"delta collect", kind:"extension", points:[[925,225],[925,290],[280,290],[280,365]]},
+          {from:"e_sources", to:"e_normalize", label:"canonical batch", points:[[390,420],[750,420]]},
+          {from:"e_new_source", to:"e_sources", label:"register", kind:"extension", points:[[570,365],[570,320],[280,320],[280,365]]},
+          {from:"e_normalize", to:"e_library", label:"EvidenceItem", points:[[860,475],[860,540],[600,540],[600,590]]},
+          {from:"e_media", to:"e_normalize", label:"media refs / derived", kind:"extension", points:[[135,590],[135,520],[860,520],[860,475]]},
+          {from:"e_extractor", to:"e_library", label:"claim + provenance", kind:"extension"},
+          {from:"e_library", to:"e_features", label:"recompute"},
+          {from:"e_features", to:"e_gate", label:"coverage / quality", kind:"dashed", points:[[910,590],[1060,590],[1060,80],[665,80],[665,115]]}
+        ]
+      },
+      decision: {
+        title: "Knowledge & Decision · 内部交互",
+        nodes: [
+          {id:"d_entities", x:50, y:145, w:220, h:110, kind:"core", kicker:"KNOWLEDGE", title:"Entity Resolution", lines:["餐厅 / 景点 / 菜品消歧", "跨来源合并同一实体"]},
+          {id:"d_features", x:340, y:145, w:220, h:110, kind:"policy", kicker:"DERIVATION", title:"Feature Calculators", lines:["距离、价格、时效、口碑", "领域包提供特征定义"]},
+          {id:"d_policy", x:630, y:145, w:220, h:110, kind:"extension", kicker:"DOMAIN RULES", title:"Scoring Policy", lines:["Food / Travel 可替换", "版本化权重和阈值"]},
+          {id:"d_personal", x:920, y:145, w:220, h:110, kind:"memory", kicker:"USER LAYER", title:"Personalized Rerank", lines:["偏好、预算、同行人", "只调整当前用户顺序"]},
+          {id:"d_candidates", x:340, y:400, w:220, h:110, kind:"core", kicker:"DECISION", title:"Candidate Set", lines:["过滤、去重、排序", "保留 evidence refs"]},
+          {id:"d_explain", x:630, y:400, w:220, h:110, kind:"output", kicker:"OUTPUT", title:"Explanation Composer", lines:["为什么推荐", "来源、更新时间、适用人群"]},
+          {id:"d_feedback", x:920, y:400, w:220, h:110, kind:"memory", kicker:"FEEDBACK", title:"Feedback Signal", lines:["收藏、忽略、纠正", "回写用户策略"]}
+        ],
+        edges: [
+          {from:"d_entities", to:"d_features", label:"canonical entities"},
+          {from:"d_features", to:"d_policy", label:"feature vector"},
+          {from:"d_policy", to:"d_personal", label:"base score"},
+          {from:"d_personal", to:"d_candidates", label:"user strategy", points:[[1030,255],[1030,345],[450,345],[450,400]], kind:"highlight"},
+          {from:"d_features", to:"d_candidates", label:"candidate facts", points:[[450,255],[450,400]]},
+          {from:"d_candidates", to:"d_explain", label:"ranked + refs"},
+          {from:"d_explain", to:"d_feedback", label:"feedback"},
+          {from:"d_feedback", to:"d_personal", label:"update strategy", kind:"dashed", points:[[1030,400],[1030,320],[1030,255]]}
+        ]
+      },
+      personalization: {
+        title: "Personalization · 内部交互",
+        nodes: [
+          {id:"m_session", x:45, y:150, w:220, h:110, kind:"memory", kicker:"SHORT TERM", title:"Session Memory", lines:["当前问题、澄清、临时限制", "本轮优先级最高"]},
+          {id:"m_explicit", x:330, y:80, w:220, h:110, kind:"memory", kicker:"HIGH TRUST", title:"Explicit Preference", lines:["用户明确确认", "可编辑、可撤回"]},
+          {id:"m_inferred", x:330, y:235, w:220, h:110, kind:"memory", kicker:"DECAYABLE", title:"Inferred Preference", lines:["行为推断", "带置信度和衰减"]},
+          {id:"m_profile", x:615, y:150, w:220, h:110, kind:"memory", kicker:"DURABLE", title:"Preference Profile", lines:["口味、预算、节奏", "来源、更新时间、同意"]},
+          {id:"m_resolver", x:900, y:150, w:220, h:110, kind:"policy", kicker:"POLICY", title:"Preference Resolver", lines:["显式 > 会话 > 稳定 > 推断", "冲突时保守处理"]},
+          {id:"m_strategy", x:330, y:500, w:220, h:110, kind:"core", kicker:"TO AGENT", title:"Research Strategy", lines:["搜索深度、来源优先级", "过滤与排序策略"]},
+          {id:"m_shared", x:615, y:500, w:220, h:110, kind:"core", kicker:"SEPARATE", title:"Shared Evidence", lines:["公共事实库", "不写入个人口味"]},
+          {id:"m_privacy", x:900, y:500, w:220, h:110, kind:"neutral", kicker:"GUARDRAIL", title:"Privacy Boundary", lines:["个人记忆不外泄", "只允许匿名聚合反馈"]}
+        ],
+        edges: [
+          {from:"m_session", to:"m_resolver", label:"context", points:[[155,260],[155,380],[1010,380],[1010,260]]},
+          {from:"m_explicit", to:"m_profile", label:"confirmed"},
+          {from:"m_inferred", to:"m_profile", label:"learned"},
+          {from:"m_profile", to:"m_resolver", label:"profile"},
+          {from:"m_resolver", to:"m_strategy", label:"resolved policy", kind:"highlight", points:[[1010,260],[1010,430],[440,430],[440,500]]},
+          {from:"m_shared", to:"m_strategy", label:"read evidence", kind:"dashed", points:[[615,555],[580,555],[550,555]]},
+          {from:"m_strategy", to:"m_shared", label:"never mutate facts", kind:"dashed"},
+          {from:"m_resolver", to:"m_privacy", label:"consent + audit", kind:"dashed", points:[[1010,260],[1155,260],[1155,555],[1120,555]]}
+        ]
+      },
+      domain: {
+        title: "Domain Pack · 内部交互",
+        nodes: [
+          {id:"dp_contract", x:390, y:85, w:420, h:105, kind:"policy", kicker:"CONTRACT", title:"Domain Contract", lines:["Entity · Relation · EvidenceType", "FeatureSet · Scoring · Output"]},
+          {id:"dp_food", x:65, y:295, w:230, h:115, kind:"core", kicker:"CURRENT", title:"Food Pack", lines:["餐厅、菜品、口味、价格", "本地性、可信度、广告"]},
+          {id:"dp_travel", x:350, y:295, w:230, h:115, kind:"extension", kicker:"NEXT", title:"Travel Pack", lines:["景点、路线、季节、门票", "人群、拥挤度、时长"]},
+          {id:"dp_new", x:635, y:295, w:230, h:115, kind:"extension", kicker:"FUTURE", title:"New Domain Pack", lines:["复用骨架", "只新增领域语义"]},
+          {id:"dp_source", x:920, y:295, w:230, h:115, kind:"extension", kicker:"SOURCES", title:"Domain Sources", lines:["选择 Connector 集合", "定义证据覆盖要求"]},
+          {id:"dp_ontology", x:205, y:535, w:230, h:105, kind:"core", kicker:"SEMANTICS", title:"Ontology + Features", lines:["实体、关系、派生指标"]},
+          {id:"dp_scoring", x:495, y:535, w:230, h:105, kind:"policy", kicker:"DECISION", title:"Scoring + Output", lines:["权重、阈值、解释结构"]},
+          {id:"dp_tools", x:785, y:535, w:230, h:105, kind:"core", kicker:"CAPABILITIES", title:"Allowed Tools", lines:["领域允许的采集与计算"]}
+        ],
+        edges: [
+          {from:"dp_contract", to:"dp_food", label:"install", kind:"highlight", points:[[500,190],[180,190],[180,295]]},
+          {from:"dp_contract", to:"dp_travel", label:"install", kind:"extension", points:[[560,190],[465,190],[465,295]]},
+          {from:"dp_contract", to:"dp_new", label:"install", kind:"extension", points:[[650,190],[750,190],[750,295]]},
+          {from:"dp_contract", to:"dp_source", label:"bind sources", kind:"extension", points:[[720,190],[1035,190],[1035,295]]},
+          {from:"dp_food", to:"dp_ontology", label:"food semantics"},
+          {from:"dp_travel", to:"dp_ontology", label:"travel semantics", kind:"extension"},
+          {from:"dp_ontology", to:"dp_scoring", label:"feature set"},
+          {from:"dp_scoring", to:"dp_tools", label:"tool policy"}
+        ]
+      },
+      platform: {
+        title: "Foundation · 内部交互",
+        nodes: [
+          {id:"p_pg", x:70, y:145, w:240, h:115, kind:"foundation", kicker:"AUTHORITY", title:"PostgreSQL + pgvector", lines:["Query Family · Evidence", "Memory · Versions · Provenance"]},
+          {id:"p_redis", x:360, y:145, w:240, h:115, kind:"foundation", kicker:"RUNTIME", title:"Redis + Queue", lines:["in-flight lock · job state", "rate limit · retry"]},
+          {id:"p_object", x:650, y:145, w:240, h:115, kind:"foundation", kicker:"BINARY", title:"Object Storage", lines:["image · video · audio", "derived assets"]},
+          {id:"p_observe", x:940, y:145, w:200, h:115, kind:"foundation", kicker:"QUALITY", title:"Observability", lines:["freshness · coverage", "source health · cost"]},
+          {id:"p_refresh", x:215, y:420, w:240, h:110, kind:"extension", kicker:"BACKGROUND", title:"Refresh Jobs", lines:["popular / stale families", "incremental recompute"]},
+          {id:"p_recovery", x:505, y:420, w:240, h:110, kind:"policy", kicker:"RECOVERY", title:"Task Recovery", lines:["checkpoint · resume", "idempotent effects"]},
+          {id:"p_conformance", x:795, y:420, w:240, h:110, kind:"core", kicker:"CONTRACT TEST", title:"Conformance Gates", lines:["connector · processor", "domain pack compatibility"]}
+        ],
+        edges: [
+          {from:"p_pg", to:"p_refresh", label:"stale query families", kind:"extension", points:[[190,260],[190,350],[335,350],[335,420]]},
+          {from:"p_redis", to:"p_recovery", label:"runtime state"},
+          {from:"p_object", to:"p_conformance", label:"asset metadata", kind:"dashed", points:[[770,260],[770,350],[915,350],[915,420]]},
+          {from:"p_observe", to:"p_refresh", label:"priority", kind:"dashed", points:[[1040,260],[1040,330],[335,330],[335,420]]},
+          {from:"p_refresh", to:"p_recovery", label:"jobs"},
+          {from:"p_recovery", to:"p_conformance", label:"verified state"}
+        ]
+      },
+      reuse: null
+    };
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+    }
+
+    const state = { mode: "overview", detail: null, selected: "overview", scale: 1, panX: 0, panY: 0 };
+    const svg = document.getElementById("architecture");
+    const viewport = document.getElementById("viewport");
+    const svgWrap = document.getElementById("svg-wrap");
+
+    function activeGraph() {
+      if (state.detail) return details[state.detail];
+      return graphs[state.mode];
+    }
+
+    function nodeMap(graph) {
+      return Object.fromEntries(graph.nodes.map(node => [node.id, node]));
+    }
+
+    function anchors(a, b) {
+      const dx = (b.x + b.w / 2) - (a.x + a.w / 2);
+      const dy = (b.y + b.h / 2) - (a.y + a.h / 2);
+      if (Math.abs(dx) >= Math.abs(dy)) {
+        return {s:[dx >= 0 ? a.x + a.w : a.x, a.y + a.h / 2], t:[dx >= 0 ? b.x : b.x + b.w, b.y + b.h / 2]};
+      }
+      return {s:[a.x + a.w / 2, dy >= 0 ? a.y + a.h : a.y], t:[b.x + b.w / 2, dy >= 0 ? b.y : b.y + b.h]};
+    }
+
+    function edgeGeometry(edge, map) {
+      const from = map[edge.from];
+      const to = map[edge.to];
+      if (!from || !to) return null;
+      const points = edge.points || [anchors(from, to).s, anchors(from, to).t];
+      const d = points.map((point, index) => `${index === 0 ? "M" : "L"}${point[0]} ${point[1]}`).join(" ");
+      const middle = points[Math.floor(points.length / 2)];
+      return {d, labelX: middle[0] + 5, labelY: middle[1] - 7};
+    }
+
+    function nodeMarkup(node) {
+      const lines = node.lines || [];
+      const titleY = node.y + 37;
+      const lineStart = node.y + 61;
+      const selected = node.id === state.selected ? " selected" : "";
+      const highlighted = state.mode !== "overview" && !state.detail && [
+        ...(state.mode === "reuse" ? ["q1","q2","signature","family","freshness","bundle","delta","rerank","results"] : []),
+        ...(state.mode === "memory" ? ["session_memory","explicit","profile","inferred","resolver","strategy","shared","privacy"] : []),
+        ...(state.mode === "domain" ? ["kernel","contract","food","travel","new_domain","switch"] : [])
+      ].includes(node.id) ? " highlight" : "";
+      const lineMarkup = lines.map((line, index) => `<text class="node-line" x="${node.x + 14}" y="${lineStart + index * 17}">${escapeHtml(line)}</text>`).join("");
+      return `<g class="node ${node.kind || "neutral"}${selected}${highlighted}" data-id="${escapeHtml(node.id)}" tabindex="0" role="button" aria-label="${escapeHtml(node.title)}">
+        <title>${escapeHtml(node.title)}</title>
+        <rect x="${node.x}" y="${node.y}" width="${node.w}" height="${node.h}" rx="8" />
+        <text class="node-kicker" x="${node.x + 14}" y="${node.y + 20}">${escapeHtml(node.kicker || "")}</text>
+        <text class="node-title" x="${node.x + 14}" y="${titleY}">${escapeHtml(node.title)}</text>
+        ${lineMarkup}
+      </g>`;
+    }
+
+    function renderGraph(graph) {
+      if (!graph) return;
+      const map = nodeMap(graph);
+      const edgeMarkup = (graph.edges || []).map(edge => {
+        const geo = edgeGeometry(edge, map);
+        if (!geo) return "";
+        const kind = edge.kind || "";
+        const labelClass = kind === "highlight" ? "edge-label highlight" : "edge-label";
+        return `<g class="edge-group"><path class="edge ${kind}" d="${geo.d}" /><text class="${labelClass}" x="${geo.labelX}" y="${geo.labelY}">${escapeHtml(edge.label || "")}</text></g>`;
+      }).join("");
+      const labels = graph.title ? `<text class="group-label" x="38" y="44">${escapeHtml(graph.title.toUpperCase())}</text>` : "";
+      viewport.innerHTML = `<g class="graph-content">${labels}${edgeMarkup}${graph.nodes.map(nodeMarkup).join("")}</g>`;
+      updateTransform();
+      bindNodes();
+    }
+
+    function bindNodes() {
+      viewport.querySelectorAll(".node").forEach(node => {
+        node.addEventListener("click", event => { event.stopPropagation(); selectNode(node.dataset.id); });
+        node.addEventListener("dblclick", event => { event.stopPropagation(); openDetail(node.dataset.id); });
+        node.addEventListener("keydown", event => {
+          if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectNode(node.dataset.id); }
+          if (event.key === "ArrowRight") openDetail(node.dataset.id);
+        });
+      });
+    }
+
+    function selectedInfo(id) {
+      if (catalog[id]) return catalog[id];
+      const graph = activeGraph();
+      const node = graph && graph.nodes ? graph.nodes.find(item => item.id === id) : null;
+      if (node) {
+        return {
+          kicker: node.kicker || "Submodule",
+          title: node.title,
+          lead: "当前子图中的职责节点。",
+          responsibility: (node.lines || []).join("；") || "承接相邻节点的明确职责。",
+          interactions: ["通过当前子图中的箭头与相邻节点交换类型化结果。", "保持本节点的边界，不跨层访问其他子系统内部。"],
+          boundary: "详细约束由所属子系统的契约决定；新增能力应挂在绿色扩展点。",
+          detail: null
+        };
+      }
+      return catalog[state.mode] || catalog.overview;
+    }
+
+    function renderInspector() {
+      const info = selectedInfo(state.selected);
+      document.getElementById("inspector-kicker").textContent = info.kicker || "Architecture";
+      document.getElementById("inspector-title").textContent = info.title;
+      document.getElementById("inspector-lead").textContent = info.lead;
+      document.getElementById("inspector-responsibility").textContent = info.responsibility;
+      document.getElementById("inspector-boundary").textContent = info.boundary;
+      document.getElementById("inspector-interactions").innerHTML = info.interactions.map(item => `<li>${escapeHtml(item)}</li>`).join("");
+      const button = document.getElementById("expand-button");
+      const canExpand = Boolean(info.detail && details[info.detail]);
+      button.disabled = !canExpand;
+      button.textContent = canExpand ? "展开内部" : "当前层级已是内部图";
+    }
+
+    function selectNode(id) {
+      state.selected = id;
+      renderInspector();
+      viewport.querySelectorAll(".node").forEach(node => node.classList.toggle("selected", node.dataset.id === id));
+    }
+
+    function setMode(mode) {
+      state.mode = mode;
+      state.detail = null;
+      state.selected = graphs[mode].selected || mode;
+      state.scale = 1;
+      state.panX = 0;
+      state.panY = 0;
+      document.querySelectorAll("[data-mode]").forEach(button => button.classList.toggle("active", button.dataset.mode === mode));
+      document.getElementById("crumb-title").textContent = graphs[mode].title;
+      renderGraph(graphs[mode]);
+      renderInspector();
+    }
+
+    function openDetail(id) {
+      const info = catalog[id];
+      if (!info || !info.detail || !details[info.detail]) return;
+      state.detail = info.detail;
+      state.selected = id;
+      state.scale = 1;
+      state.panX = 0;
+      state.panY = 0;
+      document.querySelectorAll("[data-mode]").forEach(button => button.classList.remove("active"));
+      document.getElementById("crumb-title").textContent = details[info.detail].title;
+      renderGraph(details[info.detail]);
+      renderInspector();
+    }
+
+    function goOverview() { setMode("overview"); }
+    function updateTransform() {
+      viewport.setAttribute("transform", `translate(${state.panX} ${state.panY}) scale(${state.scale})`);
+      document.getElementById("zoom-readout").textContent = `${Math.round(state.scale * 100)}%`;
+    }
+    function zoom(factor) {
+      state.scale = Math.max(.72, Math.min(2.25, state.scale * factor));
+      updateTransform();
+    }
+
+    document.querySelectorAll("[data-mode]").forEach(button => button.addEventListener("click", () => setMode(button.dataset.mode)));
+    document.getElementById("expand-button").addEventListener("click", () => openDetail(state.selected));
+    document.getElementById("zoom-in").addEventListener("click", () => zoom(1.16));
+    document.getElementById("zoom-out").addEventListener("click", () => zoom(.86));
+    document.getElementById("zoom-fit").addEventListener("click", () => { state.scale = 1; state.panX = 0; state.panY = 0; updateTransform(); });
+
+    let drag = null;
+    svgWrap.addEventListener("pointerdown", event => {
+      if (event.target.closest(".node")) return;
+      drag = {x:event.clientX, y:event.clientY, panX:state.panX, panY:state.panY};
+      svgWrap.classList.add("dragging");
+      svgWrap.setPointerCapture(event.pointerId);
+    });
+    svgWrap.addEventListener("pointermove", event => {
+      if (!drag) return;
+      state.panX = drag.panX + (event.clientX - drag.x) * .9;
+      state.panY = drag.panY + (event.clientY - drag.y) * .9;
+      updateTransform();
+    });
+    svgWrap.addEventListener("pointerup", () => { drag = null; svgWrap.classList.remove("dragging"); });
+    svgWrap.addEventListener("pointercancel", () => { drag = null; svgWrap.classList.remove("dragging"); });
+    svg.addEventListener("wheel", event => { event.preventDefault(); zoom(event.deltaY < 0 ? 1.08 : .92); }, {passive:false});
+
+    const initialHash = window.location.hash.replace(/^#/, "");
+    if (initialHash === "reuse" || initialHash === "memory" || initialHash === "domain") {
+      setMode(initialHash);
+    } else if (initialHash && catalog[initialHash] && catalog[initialHash].detail && details[catalog[initialHash].detail]) {
+      openDetail(initialHash);
+    } else {
+      renderGraph(graphs.overview);
+      renderInspector();
+    }
+  </script>
+</body>
+</html>

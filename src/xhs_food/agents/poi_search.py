@@ -7,11 +7,14 @@ POI 搜索 Mixin - 高德地图 POI 搜索相关功能.
 
 import asyncio
 import re
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from loguru import logger
 
 from xhs_food.schemas import RestaurantRecommendation
+
+if TYPE_CHECKING:
+    from .poi_enricher import EnrichedRestaurant
 
 
 class POISearchMixin:

@@ -26,7 +26,7 @@ if str(_SRC) not in sys.path:
 
 
 # ---------------------------------------------------------------------------
-# Auto-marking by filename prefix
+# Test category assignment
 # ---------------------------------------------------------------------------
 
 _FILENAME_MARKERS = (
@@ -35,16 +35,40 @@ _FILENAME_MARKERS = (
     ("test_e2e_", "e2e"),
 )
 
+_LEGACY_FILE_MARKERS = {
+    "test_basic.py": "unit",
+    "test_calculation_standalone.py": "unit",
+    "test_comment_processing.py": "unit",
+    "test_config.py": "live",
+    "test_session.py": "integration",
+}
+
+_CATEGORY_MARKERS = ("unit", "integration", "e2e", "live")
+
 
 def pytest_collection_modifyitems(config: pytest.Config, items: List[pytest.Item]) -> None:
-    """Apply the matching pytest mark for files using a ``test_<kind>_`` prefix."""
-    _ = config  # unused, kept for signature compatibility
+    """Assign every test exactly one execution category."""
+    uncategorized: List[str] = []
     for item in items:
         filename = Path(item.fspath).name
-        for prefix, marker in _FILENAME_MARKERS:
-            if filename.startswith(prefix):
-                item.add_marker(getattr(pytest.mark, marker))
-                break
+        marker = next(
+            (name for prefix, name in _FILENAME_MARKERS if filename.startswith(prefix)),
+            _LEGACY_FILE_MARKERS.get(filename),
+        )
+
+        existing = [name for name in _CATEGORY_MARKERS if item.get_closest_marker(name)]
+        if marker and not existing:
+            item.add_marker(getattr(pytest.mark, marker))
+            existing = [marker]
+
+        if len(existing) != 1:
+            uncategorized.append(item.nodeid)
+
+    if uncategorized:
+        joined = "\n".join(f"- {nodeid}" for nodeid in uncategorized)
+        raise pytest.UsageError(
+            "Each test must have exactly one unit/integration/e2e/live marker:\n" + joined
+        )
 
 
 # ---------------------------------------------------------------------------

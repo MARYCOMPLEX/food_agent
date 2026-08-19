@@ -7,16 +7,14 @@
 | 输入 | 用途 | 状态 |
 |---|---|---|
 | 目标描述 | 七个模块、Query Family、持续刷新、四层记忆、Domain Pack 和六个绿色扩展点的规范来源 | 本 change 的主要输入 |
-| `food-agent-unified-architecture.html` | 总览与各模块内部交互的详细模型 | 文件存在，可交互 |
-| `food-agent-extensible-evidence-architecture.drawio` | 可编辑对照图、端口和媒体管线细节 | 实际文件与 HTML 同目录；目标描述中的 Draw.io 链接路径不完整 |
+| [food-agent-unified-architecture.html](./references/food-agent-unified-architecture.html) | 总览与各模块内部交互的详细模型 | 已复制到 change 并纳入版本控制 |
+| [food-agent-extensible-evidence-architecture.drawio](./references/food-agent-extensible-evidence-architecture.drawio) | 可编辑对照图、端口和媒体管线细节 | 已复制到 change 并纳入版本控制 |
 | 当前代码与测试 | 迁移前 characterization 和兼容性事实来源 | 不是目标边界的模板 |
 | README 和前端类型 | 已声明或被客户端假定的合同来源 | 与当前后端存在多处不一致，需先判定权威性 |
 
-实际图文件位于：
+规范、设计、代码事实和图示之间的权威顺序，以及两份引用文件的 SHA-256，记录在 [ADR-0001](./decisions/ADR-0001-specification-authority.md)。外部 visualization 路径不再是评审依赖。
 
-`C:\Users\14158\.antigravity_cockpit\instances\codex\08a4415e9d594ff9\visualizations\2026\08\16\01a00b98-63f6-70b0-8fd2-fac3ac75df74\`
-
-依赖复用调研和最终裁决记录在 [dependency-research.md](./dependency-research.md)。本文 `Decisions` 是实现选型的规范权威；调研文件负责保存候选比较、官方资料和被拒方案，不得覆盖本文裁决。
+依赖复用调研和最终裁决记录在 [dependency-research.md](./dependency-research.md) 与 [ADR-0002](./decisions/ADR-0002-infrastructure-baseline.md)。本文 `Decisions` 是实现选型的规范权威；调研文件负责保存候选比较、官方资料和被拒方案，不得覆盖本文裁决。
 
 ### 当前状态与约束
 
@@ -543,13 +541,13 @@ Coordinator 负责总预算、超时、取消、重试和幂等；Gateway 负责
 
 | Dimension | Blocking baseline | Extended probe | Notes |
 |---|---|---|---|
-| OS | Ubuntu current LTS、Windows current supported | macOS current supported | README 提供 Windows/Linux/macOS 安装路径；arm64 支持待确认 |
+| OS/CPU | Ubuntu current LTS x86_64、Windows current supported x86_64 | macOS current supported arm64 | probe 通过只记录兼容性，不扩大生产支持矩阵 |
 | Python | 3.12 | 3.13 compatibility probe | 主运行时统一 3.12；`uv.lock` 精确锁定且 CI 执行 locked install/check |
 | Node/signing | Node 20 present | Node absent、signer child exit、Playwright browser absent | 缺失时错误/降级需稳定 |
 | Backend mode | PostgreSQL 16 + Redis 7.4 + Temporal + S3-compatible ObjectStore + pgvector/pg_trgm | 单依赖故障、恢复和滚动升级 | no-infra、Redis-only、PostgreSQL-only 只作 legacy characterization 或单进程 dev/test，不是生产支持矩阵 |
 | Event backend | Redis Streams | Redis restart/cluster-like reconnect、InMemory dev/test adapter | 同一 contract suite；InMemory 不进入生产支持模式 |
 | Database | PostgreSQL 16 + pgvector current schema、pre-turn schema | migration interruption/retry | N-1 fixtures 不依赖现网数据 |
-| Browser | Chromium desktop/mobile | Firefox、WebKit | 搜索、SSE reconnect、favorites/history/profile |
+| Browser | Chromium desktop/mobile | Firefox desktop、WebKit desktop/mobile | 搜索、SSE reconnect、favorites/history/profile；probe 非生产支持声明 |
 | Container | Linux image/Compose smoke：PostgreSQL、Redis、Temporal、MinIO、Alembic upgrade | non-root volume ownership、restart/rolling worker | 端口 8000、health、profiles/logs；应用启动不自动建表 |
 | Locale/time | UTF-8 中文、UTC、Asia/Shanghai | DST locale | canonicalization、JSON、timestamps、freshness |
 

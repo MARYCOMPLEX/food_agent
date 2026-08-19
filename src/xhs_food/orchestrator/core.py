@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from xhs_food.agents.analyzer import AnalyzerAgent
 from xhs_food.agents.intent_parser import IntentParserAgent
@@ -28,6 +28,9 @@ from xhs_food.schemas import (
     RestaurantRecommendation,
     XHSFoodResponse,
 )
+
+if TYPE_CHECKING:
+    from xhs_food.events.emitter import SearchEventEmitter
 
 logger = logging.getLogger(__name__)
 

@@ -19,5 +19,17 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+    rules: {
+      'react-refresh/only-export-components': [
+        'error',
+        { allowExportNames: ['badgeVariants', 'buttonVariants'] },
+      ],
+    },
+  },
+  {
+    files: ['src/hooks/useMediaQuery.ts'],
+    rules: {
+      'react-hooks/set-state-in-effect': 'off',
+    },
   },
 ])

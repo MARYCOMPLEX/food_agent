@@ -3,7 +3,7 @@ name = "xhs-food-agent"
 version = "1.0.0"
 description = "小红书美食智能推荐Agent - 独立版"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12,<3.13"
 dependencies = [
     # FastAPI and server
     "fastapi>=0.104.0",
@@ -72,15 +72,17 @@ packages = ["src/xhs_food", "src/api"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+addopts = ["--strict-markers"]
 markers = [
     "unit: fast, isolated tests (no I/O)",
     "integration: tests requiring redis/postgres",
     "e2e: full pipeline tests",
+    "live: manual tests requiring external services or real credentials",
 ]
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM"]
@@ -91,5 +93,5 @@ ignore = ["E501"]
 
 [tool.pyright]
 include = ["src"]
-pythonVersion = "3.10"
+pythonVersion = "3.12"
 typeCheckingMode = "basic"

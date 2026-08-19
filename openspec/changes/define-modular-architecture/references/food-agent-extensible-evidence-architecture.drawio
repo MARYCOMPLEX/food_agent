@@ -1,0 +1,357 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="drawio" modified="2026-08-18T00:00:00.000Z" agent="Codex" version="26.0.0" type="device" pages="2">
+  <diagram id="target-architecture" name="01-目标架构">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2800" pageHeight="1700" math="0" shadow="0" background="#f8fafc">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="p1_title" value="Food Evidence Agent 目标架构" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=28;fontStyle=1;fontColor=#0f172a;" vertex="1" parent="1">
+          <mxGeometry x="60" y="25" width="1260" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_subtitle" value="核心卖点：跨平台、可追溯的美食证据采集 + 真实性判断 + 推荐决策。Agent 负责规划与判断，确定性服务负责采集、并发、存储、评分和恢复。" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=15;fontColor=#475569;" vertex="1" parent="1">
+          <mxGeometry x="60" y="72" width="1880" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_legend" value="图例：绿色框 = 未来新增实例，只接入箭头指向的扩展契约" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;strokeWidth=3;fontColor=#14532d;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="2050" y="35" width="680" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p1_entry" value="接入与运行治理" style="swimlane;startSize=34;horizontal=1;rounded=0;html=1;fillColor=#f1f5f9;swimlaneFillColor=#ffffff;strokeColor=#94a3b8;strokeWidth=2;fontColor=#334155;fontSize=14;fontStyle=1;container=1;pointerEvents=0;" vertex="1" parent="1">
+          <mxGeometry x="60" y="135" width="2680" height="175" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_client" value="HTTP / SSE Client&#xa;Web、App、内部调用方" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#64748b;strokeWidth=2;fontSize=13;fontStyle=1;" vertex="1" parent="p1_entry">
+          <mxGeometry x="40" y="65" width="240" height="75" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_api" value="FastAPI Adapter&#xa;鉴权、DTO、SSE 协议&#xa;不承载业务编排" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#dbeafe;strokeColor=#2563eb;strokeWidth=2;fontSize=13;fontStyle=1;" vertex="1" parent="p1_entry">
+          <mxGeometry x="370" y="55" width="300" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_task_service" value="ResearchTaskService&#xa;创建 / 恢复 / 取消研究任务&#xa;提交 ARQ，不创建裸 asyncio task" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#dbeafe;strokeColor=#2563eb;strokeWidth=2;fontSize=13;fontStyle=1;" vertex="1" parent="p1_entry">
+          <mxGeometry x="770" y="55" width="350" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_event_mapper" value="Stable Event Mapper&#xa;内部事件 → 版本化 SSE DTO&#xa;支持 turn cursor 与重放" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#fef3c7;strokeColor=#d97706;strokeWidth=2;fontSize=13;fontStyle=1;" vertex="1" parent="p1_entry">
+          <mxGeometry x="1220" y="55" width="330" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_ops" value="Operations&#xa;配置、日志、指标、审计&#xa;限速与平台健康度" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#f1f5f9;strokeColor=#64748b;strokeWidth=2;fontSize=13;fontStyle=1;" vertex="1" parent="p1_entry">
+          <mxGeometry x="1660" y="55" width="300" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_bootstrap" value="Composition Root&#xa;API / Worker 唯一装配入口&#xa;显式注册工具、Connector、Processor" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#f1f5f9;strokeColor=#64748b;strokeWidth=2;fontSize=13;fontStyle=1;" vertex="1" parent="p1_entry">
+          <mxGeometry x="2070" y="55" width="510" height="95" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p1_agent_lane" value="应用编排与 Agent" style="swimlane;startSize=34;horizontal=1;rounded=0;html=1;fillColor=#eef2ff;swimlaneFillColor=#ffffff;strokeColor=#6366f1;strokeWidth=2;fontColor=#3730a3;fontSize=14;fontStyle=1;container=1;pointerEvents=0;" vertex="1" parent="1">
+          <mxGeometry x="60" y="335" width="2680" height="325" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_coordinator" value="ResearchCoordinator&#xa;产品专用外层编排&#xa;预算、超时、重试、取消、幂等&#xa;调度 ResearchPlan 的独立步骤" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#e0e7ff;strokeColor=#4f46e5;strokeWidth=2;fontSize=13;fontStyle=1;" vertex="1" parent="p1_agent_lane">
+          <mxGeometry x="40" y="62" width="350" height="125" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_memory" value="ResearchContextService&#xa;Redis 工作上下文 + PostgreSQL 长期事实&#xa;检索后组装最小 Agent Context" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#ede9fe;strokeColor=#7c3aed;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p1_agent_lane">
+          <mxGeometry x="40" y="215" width="350" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_agent" value="FoodResearchAgent&#xa;OpenAI Agents SDK / Responses&#xa;唯一 Agent；SDK 负责单步 tool-call loop&#xa;只接触稳定领域工具" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#ede9fe;strokeColor=#7c3aed;strokeWidth=2;fontSize=13;fontStyle=1;" vertex="1" parent="p1_agent_lane">
+          <mxGeometry x="470" y="62" width="350" height="125" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_plan" value="ResearchPlan&#xa;Pydantic 类型化 DAG&#xa;goal / dependencies / status / evidence_refs&#xa;Agent 可修改待执行步骤" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#dbeafe;strokeColor=#2563eb;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p1_agent_lane">
+          <mxGeometry x="470" y="215" width="350" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_gateway" value="ToolGateway + ToolRegistry&#xa;唯一 Agent 工具入口&#xa;Schema、权限、超时、成本、并发、审计&#xa;工具返回类型化结果，不返回 SDK 事件" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#ffedd5;strokeColor=#ea580c;strokeWidth=2;fontSize=13;fontStyle=1;" vertex="1" parent="p1_agent_lane">
+          <mxGeometry x="900" y="62" width="380" height="125" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_domain_tools" value="稳定领域工具面&#xa;collect_evidence · enrich_places&#xa;rank_recommendations · run_fixed_food_search" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#ffedd5;strokeColor=#ea580c;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p1_agent_lane">
+          <mxGeometry x="900" y="215" width="380" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_new_tool" value="New Agent Tool&#xa;实现 AgentToolContract&#xa;注册到 ToolRegistry" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;strokeWidth=3;fontColor=#14532d;fontSize=13;fontStyle=1;" vertex="1" parent="p1_agent_lane">
+          <mxGeometry x="1370" y="62" width="270" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_new_workflow" value="New Fixed Workflow&#xa;实现 WorkflowToolContract&#xa;作为一个高层工具注册" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;strokeWidth=3;fontColor=#14532d;fontSize=13;fontStyle=1;" vertex="1" parent="p1_agent_lane">
+          <mxGeometry x="1370" y="195" width="270" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_provider" value="OpenAI-compatible Provider&#xa;OpenAIResponsesModel&#xa;deepseek-v4-flash-0731&#xa;Tracing 独立凭据或关闭" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#64748b;strokeWidth=2;dashed=1;fontSize=13;fontStyle=1;" vertex="1" parent="p1_agent_lane">
+          <mxGeometry x="1750" y="62" width="360" height="125" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_agent_rule" value="唯一循环边界&#xa;不保留自研通用 Agent Loop、LangGraph 或 LangChain Agent Runtime。&#xa;并发由 Coordinator / ARQ / 各 Gateway 管理，模型不直接创建并发任务。" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;fillColor=#fff7ed;strokeColor=#f97316;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="p1_agent_lane">
+          <mxGeometry x="2180" y="62" width="400" height="215" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p1_evidence_lane" value="内容与证据域：平台差异止于 SourceConnector" style="swimlane;startSize=34;horizontal=1;rounded=0;html=1;fillColor=#ecfeff;swimlaneFillColor=#ffffff;strokeColor=#0891b2;strokeWidth=2;fontColor=#155e75;fontSize=14;fontStyle=1;container=1;pointerEvents=0;" vertex="1" parent="1">
+          <mxGeometry x="60" y="685" width="1720" height="525" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_collect_tool" value="collect_evidence&#xa;Agent 看到的唯一采集工具&#xa;query / source_scope / depth / media_policy" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#cffafe;strokeColor=#0891b2;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p1_evidence_lane">
+          <mxGeometry x="35" y="62" width="280" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_source_gateway" value="SourceGateway&#xa;选择 Connector、扇出查询&#xa;平台限速 / 熔断 / 幂等 / 游标" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#cffafe;strokeColor=#0891b2;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p1_evidence_lane">
+          <mxGeometry x="370" y="62" width="285" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_connector_registry" value="SourceConnectorRegistry&#xa;唯一平台扩展契约&#xa;按 source_id 解析已注册 Connector" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#ffedd5;strokeColor=#ea580c;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p1_evidence_lane">
+          <mxGeometry x="710" y="62" width="300" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_xhs_connector" value="XHSConnector&#xa;search · fetch_document&#xa;fetch_comments · list_media_refs&#xa;封装 Cookie / Signer / 风控" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#ffedd5;strokeColor=#ea580c;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p1_evidence_lane">
+          <mxGeometry x="1070" y="50" width="260" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_new_connector" value="New Platform Connector&#xa;同一 SourceConnector 契约&#xa;例如抖音 / 大众点评 / B站" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;strokeWidth=3;fontColor=#14532d;fontSize=12;fontStyle=1;" vertex="1" parent="p1_evidence_lane">
+          <mxGeometry x="1400" y="50" width="275" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_source_contracts" value="Canonical Source Models&#xa;SourceDocument · SourceComment · AuthorRef · MediaRef&#xa;MediaRef.owner_type = document | comment；owner_id 指向所属内容&#xa;所有对象携带 source_id、external_id、canonical_url、captured_at" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#f0fdfa;strokeColor=#0f766e;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p1_evidence_lane">
+          <mxGeometry x="35" y="205" width="620" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_normalizer" value="EvidenceNormalizer&#xa;去重、清洗、语言与实体标准化&#xa;生成 EvidenceItem + SourceLocator" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#ccfbf1;strokeColor=#0f766e;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p1_evidence_lane">
+          <mxGeometry x="710" y="215" width="300" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_extractor_registry" value="EvidenceExtractorRegistry&#xa;从标准内容/派生媒体结果中&#xa;提取菜品、地点、情绪、价格、时间" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#ffedd5;strokeColor=#ea580c;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p1_evidence_lane">
+          <mxGeometry x="1070" y="215" width="260" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_new_extractor" value="New Evidence Extractor&#xa;实现 EvidenceExtractorContract&#xa;声明输入类型与输出 schema" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;strokeWidth=3;fontColor=#14532d;fontSize=12;fontStyle=1;" vertex="1" parent="p1_evidence_lane">
+          <mxGeometry x="1400" y="215" width="275" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_relevance_gate" value="Media Relevance Gate&#xa;首轮仅保存 MediaRef&#xa;按研究目标、证据质量和预算选择需下载媒体" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#fef3c7;strokeColor=#d97706;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p1_evidence_lane">
+          <mxGeometry x="710" y="365" width="300" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_evidence_store" value="EvidenceService + Provenance Graph&#xa;EvidenceItem → SourceDocument / SourceComment / MediaAsset&#xa;每条结论保留可回溯 source_locator、提取器版本和采集时间" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#ccfbf1;strokeColor=#0f766e;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p1_evidence_lane">
+          <mxGeometry x="1070" y="365" width="605" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p1_decision_lane" value="核心产品域：证据驱动的美食推荐" style="swimlane;startSize=34;horizontal=1;rounded=0;html=1;fillColor=#f0fdfa;swimlaneFillColor=#ffffff;strokeColor=#0f766e;strokeWidth=2;fontColor=#155e75;fontSize=14;fontStyle=1;container=1;pointerEvents=0;" vertex="1" parent="1">
+          <mxGeometry x="1810" y="685" width="930" height="525" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_fixed_workflow" value="FoodSearchWorkflow v1&#xa;固定高价值流程&#xa;意图 → 采集 → 证据 → POI → 评分 → 结果&#xa;作为一个高层 Agent Tool" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#dbeafe;strokeColor=#2563eb;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p1_decision_lane">
+          <mxGeometry x="40" y="60" width="380" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_authenticity" value="AuthenticityScorer&#xa;确定性特征与版本化权重&#xa;广告嫌疑、评论可信度、时间衰减&#xa;输出解释项，不让 LLM 直接改分" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#f0fdfa;strokeColor=#0f766e;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p1_decision_lane">
+          <mxGeometry x="500" y="60" width="380" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_ranker" value="RecommendationRanker&#xa;相关性、距离、口碑、可信度&#xa;可复现排序 + 过滤 + 去重" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#f0fdfa;strokeColor=#0f766e;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p1_decision_lane">
+          <mxGeometry x="40" y="225" width="380" height="105" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_poi" value="PlaceEnrichmentService&#xa;AmapPlaceProvider&#xa;地址、坐标、营业状态、门店消歧" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#ffedd5;strokeColor=#ea580c;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p1_decision_lane">
+          <mxGeometry x="500" y="225" width="380" height="105" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_result" value="RecommendationComposer&#xa;推荐项 + 证据摘要 + 来源链接 + 评分解释&#xa;结果只引用已持久化 evidence_id" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#f0fdfa;strokeColor=#0f766e;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p1_decision_lane">
+          <mxGeometry x="270" y="380" width="390" height="95" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p1_media_lane" value="媒体资产子域：独立队列、延迟下载、可插拔处理器" style="swimlane;startSize=34;horizontal=1;rounded=0;html=1;fillColor=#fff7ed;swimlaneFillColor=#ffffff;strokeColor=#f97316;strokeWidth=2;fontColor=#9a3412;fontSize=14;fontStyle=1;container=1;pointerEvents=0;" vertex="1" parent="1">
+          <mxGeometry x="60" y="1235" width="1720" height="355" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_media_dispatch" value="MediaJobDispatcher&#xa;仅为高价值 MediaRef 建任务&#xa;idempotency = source + external_media_id" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#ffedd5;strokeColor=#ea580c;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p1_media_lane">
+          <mxGeometry x="35" y="65" width="280" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_media_ingestion" value="MediaIngestionPipeline&#xa;下载 → MIME/大小校验 → SHA-256 去重&#xa;落 MinIO；数据库只保存元数据和对象 URI" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#ffedd5;strokeColor=#ea580c;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p1_media_lane">
+          <mxGeometry x="370" y="65" width="320" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_processor_registry" value="MediaProcessorRegistry&#xa;按 MIME / media_type 选择处理器&#xa;超时、资源配额、处理器版本" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#ffedd5;strokeColor=#ea580c;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p1_media_lane">
+          <mxGeometry x="745" y="65" width="300" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_new_processor" value="New Media Processor&#xa;实现 MediaProcessorContract&#xa;例如菜品检测 / 封面质量" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;strokeWidth=3;fontColor=#14532d;fontSize=12;fontStyle=1;" vertex="1" parent="p1_media_lane">
+          <mxGeometry x="1100" y="65" width="270" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_processors" value="内置 Processor&#xa;ImageOCR · AudioASR · VideoKeyframes · ffprobe metadata&#xa;统一输出 DerivedArtifact，随后重新进入 EvidenceExtractor" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#fff7ed;strokeColor=#f97316;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p1_media_lane">
+          <mxGeometry x="745" y="210" width="625" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_media_policy" value="两阶段策略&#xa;阶段 A：正文、评论和 MediaRef&#xa;阶段 B：只下载与当前 ResearchPlan 高相关的媒体&#xa;原始媒体不进入 Prompt、Redis、PostgreSQL JSON 或 SSE" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;fillColor=#fff7ed;strokeColor=#f97316;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="p1_media_lane">
+          <mxGeometry x="1420" y="60" width="255" height="240" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p1_infra_lane" value="唯一基础设施选型" style="swimlane;startSize=34;horizontal=1;rounded=0;html=1;fillColor=#f1f5f9;swimlaneFillColor=#ffffff;strokeColor=#64748b;strokeWidth=2;fontColor=#334155;fontSize=14;fontStyle=1;container=1;pointerEvents=0;" vertex="1" parent="1">
+          <mxGeometry x="1810" y="1235" width="930" height="355" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_redis" value="Redis + ARQ&#xa;research / media 两类队列&#xa;工作状态、锁、限速、SSE Stream&#xa;非权威数据" style="shape=cylinder3;size=15;boundedLbl=1;whiteSpace=wrap;html=1;fillColor=#fef3c7;strokeColor=#d97706;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p1_infra_lane">
+          <mxGeometry x="35" y="70" width="260" height="135" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_postgres" value="PostgreSQL + pgvector&#xa;任务、会话、偏好、规范内容&#xa;Evidence、Provenance、资产元数据&#xa;唯一事实源" style="shape=cylinder3;size=15;boundedLbl=1;whiteSpace=wrap;html=1;fillColor=#e0f2fe;strokeColor=#0284c7;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p1_infra_lane">
+          <mxGeometry x="335" y="70" width="270" height="135" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_minio" value="MinIO&#xa;S3-compatible Object Storage&#xa;原图 / 视频 / 音频 / 派生帧&#xa;按 content hash 去重" style="shape=cylinder3;size=15;boundedLbl=1;whiteSpace=wrap;html=1;fillColor=#e0f2fe;strokeColor=#0284c7;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p1_infra_lane">
+          <mxGeometry x="650" y="70" width="245" height="135" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_infra_rule" value="持久化规则：模块通过 Repository / ObjectStore 端口接入。PostgreSQL 保存可查询事实；MinIO 保存二进制；Redis 只保存可重建运行态。三者职责不重叠。" style="rounded=1;arcSize=4;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#94a3b8;dashed=1;fontSize=12;" vertex="1" parent="p1_infra_lane">
+          <mxGeometry x="35" y="245" width="860" height="65" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p1_e_client_api" value="HTTPS / SSE" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#475569;labelBackgroundColor=#ffffff;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="p1_client" target="p1_api"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p1_e_api_task" value="start / refine / recover" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#475569;labelBackgroundColor=#ffffff;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="p1_api" target="p1_task_service"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p1_e_event_api" value="版本化事件" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#d97706;labelBackgroundColor=#ffffff;fontSize=11;dashed=1;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" edge="1" parent="1" source="p1_event_mapper" target="p1_api"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p1_e_task_coord" value="ARQ research job" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#4f46e5;labelBackgroundColor=#ffffff;fontSize=11;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="p1_task_service" target="p1_coordinator"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="945" y="325" /><mxPoint x="275" y="325" /></Array></mxGeometry></mxCell>
+        <mxCell id="p1_e_coord_agent" value="plan / review / replan" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#4f46e5;labelBackgroundColor=#ffffff;fontSize=11;exitX=1;exitY=0.35;entryX=0;entryY=0.35;" edge="1" parent="1" source="p1_coordinator" target="p1_agent"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p1_e_coord_plan" value="owns lifecycle" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#2563eb;labelBackgroundColor=#ffffff;fontSize=11;exitX=1;exitY=0.8;entryX=0;entryY=0.5;" edge="1" parent="1" source="p1_coordinator" target="p1_plan"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p1_e_memory_coord" value="context / checkpoint" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#7c3aed;labelBackgroundColor=#ffffff;fontSize=11;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" edge="1" parent="1" source="p1_memory" target="p1_coordinator"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p1_e_agent_gateway" value="typed tool calls" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#7c3aed;labelBackgroundColor=#ffffff;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="p1_agent" target="p1_gateway"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p1_e_agent_provider" value="Responses API" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#7c3aed;labelBackgroundColor=#ffffff;fontSize=11;dashed=1;exitX=1;exitY=0.2;entryX=0;entryY=0.2;" edge="1" parent="1" source="p1_agent" target="p1_provider"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="855" y="365" /><mxPoint x="1810" y="365" /></Array></mxGeometry></mxCell>
+        <mxCell id="p1_e_gateway_domain" value="registered tools" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#ea580c;labelBackgroundColor=#ffffff;fontSize=11;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="p1_gateway" target="p1_domain_tools"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p1_e_new_tool" value="register" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#16a34a;strokeWidth=2;labelBackgroundColor=#ffffff;fontSize=11;exitX=0;exitY=0.4;entryX=1;entryY=0.3;" edge="1" parent="1" source="p1_new_tool" target="p1_gateway"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p1_e_new_workflow" value="wrap + register" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#16a34a;strokeWidth=2;labelBackgroundColor=#ffffff;fontSize=11;exitX=0;exitY=0.5;entryX=1;entryY=0.7;" edge="1" parent="1" source="p1_new_workflow" target="p1_domain_tools"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p1_e_domain_collect" value="collect_evidence" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#0891b2;labelBackgroundColor=#ffffff;fontSize=11;exitX=0;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="p1_domain_tools" target="p1_collect_tool"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1020" y="675" /><mxPoint x="235" y="675" /></Array></mxGeometry></mxCell>
+        <mxCell id="p1_e_collect_gateway" value="CollectRequest" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#0891b2;labelBackgroundColor=#ffffff;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="p1_collect_tool" target="p1_source_gateway"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p1_e_gateway_registry" value="resolve source_id" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#ea580c;labelBackgroundColor=#ffffff;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="p1_source_gateway" target="p1_connector_registry"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p1_e_registry_xhs" value="existing" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#ea580c;labelBackgroundColor=#ffffff;fontSize=11;exitX=1;exitY=0.35;entryX=0;entryY=0.35;" edge="1" parent="1" source="p1_connector_registry" target="p1_xhs_connector"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p1_e_new_connector" value="register" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#16a34a;strokeWidth=2;labelBackgroundColor=#ffffff;fontSize=11;exitX=0;exitY=0.65;entryX=1;entryY=0.65;" edge="1" parent="1" source="p1_new_connector" target="p1_connector_registry"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p1_e_connectors_models" value="canonical output" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#0f766e;labelBackgroundColor=#ffffff;fontSize=11;exitX=0.5;exitY=1;entryX=1;entryY=0.25;" edge="1" parent="1" source="p1_connector_registry" target="p1_source_contracts"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p1_e_models_normalizer" value="normalize" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#0f766e;labelBackgroundColor=#ffffff;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="p1_source_contracts" target="p1_normalizer"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p1_e_normalizer_extractors" value="extract" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#0f766e;labelBackgroundColor=#ffffff;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="p1_normalizer" target="p1_extractor_registry"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p1_e_new_extractor" value="register" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#16a34a;strokeWidth=2;labelBackgroundColor=#ffffff;fontSize=11;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" edge="1" parent="1" source="p1_new_extractor" target="p1_extractor_registry"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p1_e_extractors_store" value="EvidenceItem" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#0f766e;labelBackgroundColor=#ffffff;fontSize=11;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="p1_extractor_registry" target="p1_evidence_store"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p1_e_models_gate" value="MediaRef" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#d97706;labelBackgroundColor=#ffffff;fontSize=11;exitX=1;exitY=0.85;entryX=0;entryY=0.5;" edge="1" parent="1" source="p1_source_contracts" target="p1_relevance_gate"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p1_e_gate_dispatch" value="selected MediaRef" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#d97706;labelBackgroundColor=#ffffff;fontSize=11;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="p1_relevance_gate" target="p1_media_dispatch"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="920" y="1220" /><mxPoint x="235" y="1220" /></Array></mxGeometry></mxCell>
+        <mxCell id="p1_e_workflow_evidence" value="uses EvidenceService" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#0f766e;labelBackgroundColor=#ffffff;fontSize=11;exitX=0;exitY=0.5;entryX=1;entryY=0.25;" edge="1" parent="1" source="p1_fixed_workflow" target="p1_evidence_store"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p1_e_auth_rank" value="explainable score" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#0f766e;labelBackgroundColor=#ffffff;fontSize=11;exitX=0;exitY=1;entryX=1;entryY=0;" edge="1" parent="1" source="p1_authenticity" target="p1_ranker"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="2250" y="890" /><mxPoint x="2250" y="930" /></Array></mxGeometry></mxCell>
+        <mxCell id="p1_e_poi_rank" value="place facts" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#ea580c;labelBackgroundColor=#ffffff;fontSize=11;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" edge="1" parent="1" source="p1_poi" target="p1_ranker"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p1_e_rank_result" value="ranked candidates" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#0f766e;labelBackgroundColor=#ffffff;fontSize=11;exitX=0.5;exitY=1;entryX=0.25;entryY=0;" edge="1" parent="1" source="p1_ranker" target="p1_result"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p1_e_workflow_result" value="compose" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#0f766e;labelBackgroundColor=#ffffff;fontSize=11;exitX=0.5;exitY=1;entryX=0.75;entryY=0;" edge="1" parent="1" source="p1_fixed_workflow" target="p1_result"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p1_e_media_ingestion" value="ARQ media job" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#ea580c;labelBackgroundColor=#ffffff;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="p1_media_dispatch" target="p1_media_ingestion"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p1_e_ingestion_registry" value="MediaAsset" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#ea580c;labelBackgroundColor=#ffffff;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="p1_media_ingestion" target="p1_processor_registry"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p1_e_new_processor" value="register" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#16a34a;strokeWidth=2;labelBackgroundColor=#ffffff;fontSize=11;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" edge="1" parent="1" source="p1_new_processor" target="p1_processor_registry"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p1_e_registry_processors" value="dispatch by MIME" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#ea580c;labelBackgroundColor=#ffffff;fontSize=11;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="p1_processor_registry" target="p1_processors"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p1_e_processors_extractors" value="DerivedArtifact" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#ea580c;labelBackgroundColor=#ffffff;fontSize=11;exitX=0;exitY=0.8;entryX=0.5;entryY=1;" edge="1" parent="1" source="p1_processors" target="p1_extractor_registry"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="20" y="1517" /><mxPoint x="20" y="1030" /><mxPoint x="1200" y="1030" /></Array></mxGeometry></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram id="media-provenance" name="02-媒体采集与来源链">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2600" pageHeight="1600" math="0" shadow="0" background="#f8fafc">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="p2_title" value="统一采集模型：笔记、评论与媒体共享同一条来源链" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=26;fontStyle=1;fontColor=#0f172a;" vertex="1" parent="1">
+          <mxGeometry x="60" y="25" width="1600" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_subtitle" value="平台 Connector 只负责取数和规范化引用；媒体下载、对象存储和 OCR/ASR/视频分析是独立子域。任何派生证据都能反向定位到具体笔记、评论或媒体资产。" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=15;fontColor=#475569;" vertex="1" parent="1">
+          <mxGeometry x="60" y="70" width="2100" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_legend" value="绿色框 = 新扩展点" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;strokeWidth=3;fontColor=#14532d;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="2220" y="35" width="300" height="55" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p2_source_lane" value="平台适配层" style="swimlane;startSize=34;horizontal=1;rounded=0;html=1;fillColor=#fff7ed;swimlaneFillColor=#ffffff;strokeColor=#f97316;strokeWidth=2;fontColor=#9a3412;fontSize=14;fontStyle=1;container=1;pointerEvents=0;" vertex="1" parent="1">
+          <mxGeometry x="60" y="135" width="2480" height="215" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_collect" value="CollectRequest&#xa;query · source_scope · depth&#xa;media_policy = refs_only | selected" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#cffafe;strokeColor=#0891b2;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p2_source_lane">
+          <mxGeometry x="35" y="65" width="270" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_gateway" value="SourceGateway&#xa;游标、限速、重试、并发配额&#xa;按 source_id 解析 Connector" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#ffedd5;strokeColor=#ea580c;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p2_source_lane">
+          <mxGeometry x="370" y="65" width="300" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_xhs" value="XHSConnector&#xa;search / document / comments / media refs&#xa;返回 CanonicalSourceBatch" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#ffedd5;strokeColor=#ea580c;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p2_source_lane">
+          <mxGeometry x="735" y="65" width="320" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_new_platform" value="New Platform Connector&#xa;实现相同 SourceConnector 契约&#xa;平台字段只能存在于 adapter 内部" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;strokeWidth=3;fontColor=#14532d;fontSize=12;fontStyle=1;" vertex="1" parent="p2_source_lane">
+          <mxGeometry x="1120" y="65" width="330" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_connector_contract" value="SourceConnector Contract&#xa;search(request)&#xa;fetch_document(ref)&#xa;fetch_comments(document_ref, cursor)&#xa;list_media_refs(owner_ref)" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#64748b;strokeWidth=2;dashed=1;fontSize=12;fontStyle=1;" vertex="1" parent="p2_source_lane">
+          <mxGeometry x="1515" y="50" width="350" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_batch" value="CanonicalSourceBatch&#xa;documents[] · comments[] · authors[] · media_refs[]&#xa;不包含原始媒体二进制" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#f0fdfa;strokeColor=#0f766e;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p2_source_lane">
+          <mxGeometry x="1930" y="65" width="500" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p2_metadata_lane" value="阶段 A：文本与引用优先" style="swimlane;startSize=34;horizontal=1;rounded=0;html=1;fillColor=#ecfeff;swimlaneFillColor=#ffffff;strokeColor=#0891b2;strokeWidth=2;fontColor=#155e75;fontSize=14;fontStyle=1;container=1;pointerEvents=0;" vertex="1" parent="1">
+          <mxGeometry x="60" y="380" width="2480" height="350" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_document" value="SourceDocument&#xa;id · source_id · external_id&#xa;title · text · author_ref · canonical_url&#xa;例如：小红书笔记" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#ccfbf1;strokeColor=#0f766e;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p2_metadata_lane">
+          <mxGeometry x="35" y="65" width="300" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_comment" value="SourceComment&#xa;id · document_id · parent_comment_id?&#xa;text · author_ref · canonical_url&#xa;支持评论与回复层级" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#ccfbf1;strokeColor=#0f766e;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p2_metadata_lane">
+          <mxGeometry x="395" y="65" width="320" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_media_ref" value="MediaRef&#xa;id · owner_type · owner_id&#xa;media_type · source_url · thumbnail_url&#xa;owner_type = document | comment" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#ffedd5;strokeColor=#ea580c;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p2_metadata_lane">
+          <mxGeometry x="775" y="65" width="320" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_normalize" value="EvidenceNormalizer&#xa;文本清洗、去重、实体与时间标准化&#xa;保持 document/comment 原始边界" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#cffafe;strokeColor=#0891b2;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p2_metadata_lane">
+          <mxGeometry x="1160" y="65" width="330" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_text_evidence" value="Text EvidenceItem&#xa;claim_type · normalized_value · confidence&#xa;source_locator = document_id | comment_id&#xa;extractor_version · captured_at" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#f0fdfa;strokeColor=#0f766e;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p2_metadata_lane">
+          <mxGeometry x="1555" y="65" width="350" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_gate" value="Media Relevance Gate&#xa;根据 ResearchPlan、文本证据质量、媒体类型和预算&#xa;把 selected=false/true 写回 MediaRef" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#fef3c7;strokeColor=#d97706;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p2_metadata_lane">
+          <mxGeometry x="1970" y="65" width="460" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_a_note" value="例 1：笔记正文图片 → MediaRef(owner_type=document, owner_id=NOTE_ID)&#xa;例 2：评论晒图 → MediaRef(owner_type=comment, owner_id=COMMENT_ID)&#xa;例 3：笔记视频音轨 → 同一个 MediaAsset 派生 ASR 与关键帧证据" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;fillColor=#f0fdfa;strokeColor=#0f766e;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="p2_metadata_lane">
+          <mxGeometry x="35" y="225" width="2395" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p2_media_lane" value="阶段 B：仅处理已选择媒体" style="swimlane;startSize=34;horizontal=1;rounded=0;html=1;fillColor=#fff7ed;swimlaneFillColor=#ffffff;strokeColor=#f97316;strokeWidth=2;fontColor=#9a3412;fontSize=14;fontStyle=1;container=1;pointerEvents=0;" vertex="1" parent="1">
+          <mxGeometry x="60" y="760" width="2480" height="360" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_job" value="ARQ MediaJob&#xa;source_id + external_media_id 幂等&#xa;平台级 rate limit / concurrency" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#fef3c7;strokeColor=#d97706;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p2_media_lane">
+          <mxGeometry x="35" y="75" width="280" height="105" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_download" value="Fetch + Validate&#xa;重定向与域名策略、MIME、大小、超时&#xa;流式下载，不在内存聚合大文件" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#ffedd5;strokeColor=#ea580c;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p2_media_lane">
+          <mxGeometry x="365" y="75" width="300" height="105" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_hash" value="Hash + Deduplicate&#xa;SHA-256 content hash&#xa;已有资产只增加 provenance link" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#ffedd5;strokeColor=#ea580c;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p2_media_lane">
+          <mxGeometry x="715" y="75" width="280" height="105" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_object_store" value="MinIO&#xa;原始对象 + 派生对象&#xa;object_uri 以 hash 分片" style="shape=cylinder3;size=15;boundedLbl=1;whiteSpace=wrap;html=1;fillColor=#e0f2fe;strokeColor=#0284c7;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p2_media_lane">
+          <mxGeometry x="1045" y="65" width="250" height="125" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_asset" value="MediaAsset&#xa;asset_id · sha256 · mime · bytes&#xa;object_uri · width/height/duration&#xa;status · captured_at" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#ffedd5;strokeColor=#ea580c;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p2_media_lane">
+          <mxGeometry x="1345" y="65" width="300" height="125" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_processor_registry" value="MediaProcessorRegistry&#xa;ImageOCR · AudioASR&#xa;VideoKeyframes · ffprobe metadata" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#ffedd5;strokeColor=#ea580c;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p2_media_lane">
+          <mxGeometry x="1695" y="65" width="300" height="125" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_new_processor" value="New Media Processor&#xa;supports(media_type, mime)&#xa;process(asset) → DerivedArtifact[]" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;strokeWidth=3;fontColor=#14532d;fontSize=12;fontStyle=1;" vertex="1" parent="p2_media_lane">
+          <mxGeometry x="2050" y="65" width="380" height="125" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_artifact" value="DerivedArtifact&#xa;ocr_text | transcript | keyframe | metadata&#xa;asset_id + processor_name + processor_version + object_uri?" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#fff7ed;strokeColor=#f97316;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p2_media_lane">
+          <mxGeometry x="1345" y="235" width="650" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_new_extractor" value="New Evidence Extractor&#xa;DerivedArtifact → EvidenceItem[]&#xa;版本化 schema 与置信度" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;strokeWidth=3;fontColor=#14532d;fontSize=12;fontStyle=1;" vertex="1" parent="p2_media_lane">
+          <mxGeometry x="2050" y="225" width="380" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p2_store_lane" value="证据、来源链与存储" style="swimlane;startSize=34;horizontal=1;rounded=0;html=1;fillColor=#f0fdfa;swimlaneFillColor=#ffffff;strokeColor=#0f766e;strokeWidth=2;fontColor=#155e75;fontSize=14;fontStyle=1;container=1;pointerEvents=0;" vertex="1" parent="1">
+          <mxGeometry x="60" y="1150" width="2480" height="350" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_evidence" value="EvidenceItem&#xa;id · claim_type · value · confidence&#xa;source_locator · asset_id? · extractor_version&#xa;可以是正文、评论、OCR、ASR 或视频帧证据" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#f0fdfa;strokeColor=#0f766e;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p2_store_lane">
+          <mxGeometry x="35" y="70" width="360" height="125" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_locator" value="SourceLocator&#xa;source_id · document_id&#xa;comment_id? · media_ref_id? · asset_id?&#xa;canonical_url · captured_at" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#ccfbf1;strokeColor=#0f766e;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p2_store_lane">
+          <mxGeometry x="455" y="70" width="330" height="125" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_provenance" value="ProvenanceService&#xa;Evidence → Document / Comment / Asset&#xa;保留 parent_comment 与 media owner 关系&#xa;生成用户可点击的来源说明" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#ccfbf1;strokeColor=#0f766e;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p2_store_lane">
+          <mxGeometry x="845" y="70" width="370" height="125" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_pg" value="PostgreSQL + pgvector&#xa;documents / comments / media_refs / media_assets&#xa;evidence_items / provenance_edges / embeddings&#xa;权威事实与查询索引" style="shape=cylinder3;size=15;boundedLbl=1;whiteSpace=wrap;html=1;fillColor=#e0f2fe;strokeColor=#0284c7;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p2_store_lane">
+          <mxGeometry x="1275" y="60" width="390" height="145" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_redis" value="Redis + ARQ&#xa;job state / locks / retry / rate limits&#xa;任务完成后可清理" style="shape=cylinder3;size=15;boundedLbl=1;whiteSpace=wrap;html=1;fillColor=#fef3c7;strokeColor=#d97706;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="p2_store_lane">
+          <mxGeometry x="1725" y="60" width="300" height="145" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_rule" value="禁止项&#xa;1. Connector 不下载和永久保存媒体&#xa;2. Agent 不接收原始二进制或平台私有响应&#xa;3. Redis 不作为证据事实源&#xa;4. 删除平台时，不删除已经规范化并带 provenance 的历史证据" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;fillColor=#fff7ed;strokeColor=#f97316;fontSize=12;align=left;spacingLeft=12;" vertex="1" parent="p2_store_lane">
+          <mxGeometry x="2085" y="50" width="345" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_query" value="推荐与回答查询只读取 EvidenceItem + Provenance，不回查平台原始响应；需要刷新时创建新的采集任务并产生新版本。" style="rounded=1;arcSize=4;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#94a3b8;dashed=1;fontSize=12;" vertex="1" parent="p2_store_lane">
+          <mxGeometry x="35" y="250" width="1990" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p2_e_collect_gateway" value="collect" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#0891b2;labelBackgroundColor=#ffffff;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="p2_collect" target="p2_gateway"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p2_e_gateway_xhs" value="resolve + call" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#ea580c;labelBackgroundColor=#ffffff;fontSize=11;exitX=1;exitY=0.35;entryX=0;entryY=0.35;" edge="1" parent="1" source="p2_gateway" target="p2_xhs"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p2_e_new_contract" value="implements" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=open;endFill=0;strokeColor=#16a34a;strokeWidth=2;labelBackgroundColor=#ffffff;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="p2_new_platform" target="p2_connector_contract"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p2_e_xhs_contract" value="implements" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=open;endFill=0;strokeColor=#ea580c;labelBackgroundColor=#ffffff;fontSize=11;exitX=1;exitY=0.65;entryX=0;entryY=0.65;" edge="1" parent="1" source="p2_xhs" target="p2_connector_contract"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p2_e_contract_batch" value="canonical result" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#0f766e;labelBackgroundColor=#ffffff;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="p2_connector_contract" target="p2_batch"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p2_e_batch_doc" value="documents" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#0f766e;labelBackgroundColor=#ffffff;fontSize=11;exitX=0.15;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="p2_batch" target="p2_document"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="2010" y="365" /><mxPoint x="245" y="365" /></Array></mxGeometry></mxCell>
+        <mxCell id="p2_e_batch_comment" value="comments" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#0f766e;labelBackgroundColor=#ffffff;fontSize=11;exitX=0.35;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="p2_batch" target="p2_comment"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="2130" y="370" /><mxPoint x="615" y="370" /></Array></mxGeometry></mxCell>
+        <mxCell id="p2_e_batch_media" value="media_refs" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#ea580c;labelBackgroundColor=#ffffff;fontSize=11;exitX=0.55;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="p2_batch" target="p2_media_ref"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="2240" y="375" /><mxPoint x="995" y="375" /></Array></mxGeometry></mxCell>
+        <mxCell id="p2_e_doc_normalize" value="text" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#0f766e;labelBackgroundColor=#ffffff;fontSize=11;exitX=0.5;exitY=0;entryX=0.5;entryY=0;" edge="1" parent="1" source="p2_document" target="p2_normalize"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="245" y="420" /><mxPoint x="1325" y="420" /></Array></mxGeometry></mxCell>
+        <mxCell id="p2_e_comment_normalize" value="text" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#0f766e;labelBackgroundColor=#ffffff;fontSize=11;exitX=0.5;exitY=1;entryX=0.5;entryY=1;" edge="1" parent="1" source="p2_comment" target="p2_normalize"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="615" y="585" /><mxPoint x="1325" y="585" /></Array></mxGeometry></mxCell>
+        <mxCell id="p2_e_normalize_evidence" value="extract" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#0f766e;labelBackgroundColor=#ffffff;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="p2_normalize" target="p2_text_evidence"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p2_e_media_gate" value="rank refs" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#d97706;labelBackgroundColor=#ffffff;fontSize=11;exitX=0.5;exitY=1;entryX=0.5;entryY=1;" edge="1" parent="1" source="p2_media_ref" target="p2_gate"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="995" y="595" /><mxPoint x="2260" y="595" /></Array></mxGeometry></mxCell>
+        <mxCell id="p2_e_evidence_gate" value="quality signal" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#d97706;labelBackgroundColor=#ffffff;fontSize=11;exitX=1;exitY=0.7;entryX=0;entryY=0.7;" edge="1" parent="1" source="p2_text_evidence" target="p2_gate"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p2_e_gate_job" value="selected=true" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#d97706;labelBackgroundColor=#ffffff;fontSize=11;exitX=1;exitY=0.65;entryX=0.5;entryY=0;" edge="1" parent="1" source="p2_gate" target="p2_job"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="2555" y="523" /><mxPoint x="2555" y="745" /><mxPoint x="235" y="745" /></Array></mxGeometry></mxCell>
+        <mxCell id="p2_e_job_download" value="fetch" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#ea580c;labelBackgroundColor=#ffffff;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="p2_job" target="p2_download"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p2_e_download_hash" value="validated stream" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#ea580c;labelBackgroundColor=#ffffff;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="p2_download" target="p2_hash"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p2_e_hash_store" value="put if absent" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#0284c7;labelBackgroundColor=#ffffff;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="p2_hash" target="p2_object_store"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p2_e_store_asset" value="object_uri" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#0284c7;labelBackgroundColor=#ffffff;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="p2_object_store" target="p2_asset"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p2_e_asset_registry" value="process" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#ea580c;labelBackgroundColor=#ffffff;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="p2_asset" target="p2_processor_registry"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p2_e_new_processor" value="register" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#16a34a;strokeWidth=2;labelBackgroundColor=#ffffff;fontSize=11;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" edge="1" parent="1" source="p2_new_processor" target="p2_processor_registry"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p2_e_registry_artifact" value="DerivedArtifact" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#ea580c;labelBackgroundColor=#ffffff;fontSize=11;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="p2_processor_registry" target="p2_artifact"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p2_e_artifact_extractor" value="input" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#16a34a;strokeWidth=2;labelBackgroundColor=#ffffff;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="p2_artifact" target="p2_new_extractor"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p2_e_text_evidence_store" value="text evidence" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#0f766e;labelBackgroundColor=#ffffff;fontSize=11;exitX=0.2;exitY=0;entryX=0;entryY=0.5;" edge="1" parent="1" source="p2_text_evidence" target="p2_evidence"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1625" y="360" /><mxPoint x="30" y="360" /><mxPoint x="30" y="1282" /></Array></mxGeometry></mxCell>
+        <mxCell id="p2_e_extractor_evidence" value="media evidence" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#16a34a;labelBackgroundColor=#ffffff;fontSize=11;exitX=1;exitY=0.5;entryX=1;entryY=0.5;" edge="1" parent="1" source="p2_new_extractor" target="p2_evidence"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="2555" y="1030" /><mxPoint x="2555" y="1135" /><mxPoint x="455" y="1135" /></Array></mxGeometry></mxCell>
+        <mxCell id="p2_e_evidence_locator" value="has source" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#0f766e;labelBackgroundColor=#ffffff;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="p2_evidence" target="p2_locator"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p2_e_locator_provenance" value="resolve chain" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#0f766e;labelBackgroundColor=#ffffff;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="p2_locator" target="p2_provenance"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p2_e_provenance_pg" value="persist" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#0284c7;labelBackgroundColor=#ffffff;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="p2_provenance" target="p2_pg"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="p2_e_job_redis" value="runtime state" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=blockThin;endFill=1;strokeColor=#d97706;labelBackgroundColor=#ffffff;fontSize=11;dashed=1;exitX=0;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="p2_job" target="p2_redis"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="75" y="940" /><mxPoint x="75" y="1125" /><mxPoint x="1875" y="1125" /></Array></mxGeometry></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

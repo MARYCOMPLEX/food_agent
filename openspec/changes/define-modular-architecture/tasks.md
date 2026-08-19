@@ -1,7 +1,7 @@
 ## 1. Decision Gates And Contract Authority
 
-- [ ] 1.1 建立 ADR 索引，记录每个 Open Question 的负责人、截止阶段、证据链接和“未决即阻塞”的依赖里程碑。
-- [ ] 1.2 决定 HTML、Draw.io 和目标描述发生冲突时的权威顺序，修正 Draw.io 路径，并确定是否将两份图纳入仓库版本控制。
+- [x] 1.1 建立 ADR 索引，记录每个 Open Question 的负责人、截止阶段、证据链接和“未决即阻塞”的依赖里程碑。
+- [x] 1.2 决定 HTML、Draw.io 和目标描述发生冲突时的权威顺序，修正 Draw.io 路径，并确定是否将两份图纳入仓库版本控制。
 - [ ] 1.3 决定实际统一搜索路由与 README 旧 `/start`、`/refine`、`/recover` 路由的兼容权威和弃用策略。
 - [ ] 1.4 决定搜索、history、favorites、FAQ 响应包络和分页字段中前端与后端哪一侧是权威，并为每个裁决生成 JSON Schema fixture。
 - [ ] 1.5 决定 SSE 步骤 ID、`message/detail/error` 字段、终态和版本协商；重放固定为窗口内按 event ID 排他续传、窗口外返回 `replay_expired/resync` 与权威任务快照/终态，并生成两类 wire-level fixture。
@@ -11,22 +11,22 @@
 - [ ] 1.9 定义 Evidence、Bundle、SourceLocator、MediaRef、DerivedArtifact 的正式 schema、可见性、许可、保留和删除策略。
 - [ ] 1.10 定义 Domain Contract 方法、发现与版本协商、allowed tools、输出模式，并裁决 Fixed Workflow、Scoring Policy、Domain Sources 和 Refresh Coordinator 是否是公开扩展点。
 - [ ] 1.11 定义四层记忆 schema、用户/匿名身份迁移、同意、过期、纠正、导出、删除和反馈聚合隐私阈值。
-- [ ] 1.12 将已批准的数据权威写入 ADR：PostgreSQL 16 保存业务事实与 `task_progress_projection`，Temporal history 是唯一 executable checkpoint，Redis 只保存可重建热状态；目标多 worker 模式禁止进程内静默 fallback、Redis lock/Redlock 和 Redis durable task state。
+- [x] 1.12 将已批准的数据权威写入 ADR：PostgreSQL 16 保存业务事实与 `task_progress_projection`，Temporal history 是唯一 executable checkpoint，Redis 只保存可重建热状态；目标多 worker 模式禁止进程内静默 fallback、Redis lock/Redlock 和 Redis durable task state。
 - [ ] 1.13 将已批准的基础设施绑定写入 ADR：Temporal 承载 Research/Refresh/Media 三类 Task Queue，S3-compatible `ObjectStore` 使用 boto3 adapter、本地使用 MinIO；另行定义加密、保留、清理、重试耗尽和人工恢复策略。
-- [ ] 1.14 将 Pydantic AI V2 固化为唯一 Agent runtime，保留 SiliconFlow/OpenAI/DeepSeek 的 provider adapters，官方 MCP SDK 只进入外部 interop adapter；Node signer/Playwright 缺失合同仍单独裁决。
-- [ ] 1.15 将 Python 3.12 固化为主运行时和 blocking gate，并决定支持的 OS、CPU、浏览器、容器及其他 Python 版本的 blocking/probe 范围。
+- [x] 1.14 将 Pydantic AI V2 固化为唯一 Agent runtime，保留 SiliconFlow/OpenAI/DeepSeek 的 provider adapters，官方 MCP SDK 只进入外部 interop adapter；Node signer/Playwright 缺失合同仍单独裁决。
+- [x] 1.15 将 Python 3.12 固化为主运行时和 blocking gate，并决定支持的 OS、CPU、浏览器、容器及其他 Python 版本的 blocking/probe 范围。
 - [ ] 1.16 调查现有部署的 `turn_id` migration、缺失 internal docs、CORS/Vite/env/容器差异和已知搜索状态缺陷，逐项标记“先修复”“characterize 保留”或“独立 change”。
 - [ ] 1.17 定义显式刷新 use-case/API 版本、普通/强制模式授权、in-flight 合并和稳定 SSE 映射；明确它是新行为而非既有兼容合同。
-- [ ] 1.18 审批 ADR 索引，确认基础设施基线均标记为 accepted，剩余 Open Questions 只包含业务、兼容性和运维参数；未决项只阻塞其实际影响的里程碑。
-- [ ] 1.19 复核 `dependency-research.md` 已批准裁决并在 ADR 索引引用：adopt Pydantic AI V2、Temporal、SQLAlchemy 2 Async、asyncpg、Alembic、PostgreSQL 16/pgvector/pg_trgm、Redis、S3/boto3/MinIO、OpenTelemetry/Prometheus；为许可证、升级和安全响应指定 owner。
+- [x] 1.18 审批 ADR 索引，确认基础设施基线均标记为 accepted，剩余 Open Questions 只包含业务、兼容性和运维参数；未决项只阻塞其实际影响的里程碑。
+- [x] 1.19 复核 `dependency-research.md` 已批准裁决并在 ADR 索引引用：adopt Pydantic AI V2、Temporal、SQLAlchemy 2 Async、asyncpg、Alembic、PostgreSQL 16/pgvector/pg_trgm、Redis、S3/boto3/MinIO、OpenTelemetry/Prometheus；为许可证、升级和安全响应指定 owner。
 - [ ] 1.20 对 Temporal Python SDK 及 Pydantic AI 官方 Temporal durable execution integration 运行 workflow determinism、模型/工具 Activity replay、worker crash、取消竞争、重试耗尽和部署升级 qualification suite；记录 ARQ、Celery、LangGraph、OpenAI Agents SDK 及 Redis job facade 不作为第二套核心 runtime 的架构禁令。
-- [ ] 1.21 固化数据库和检索方案：SQLAlchemy 2 Async 通过 asyncpg 访问 PostgreSQL 16，Alembic 是唯一 schema authority，检索使用确定性键、`pg_trgm` 与 pgvector；定义 BGE-M3 `profile_v1`（1024 维、cosine）的新增 profile/table、回填、切换和回滚边界。
-- [ ] 1.22 固化 S3-compatible ObjectStore/boto3、本地 MinIO、OpenTelemetry SDK、Prometheus client、import-linter、Schemathesis/Hypothesis 和前端 OpenAPI client 的 adapter/tooling 边界及脱敏要求。
+- [x] 1.21 固化数据库和检索方案：SQLAlchemy 2 Async 通过 asyncpg 访问 PostgreSQL 16，Alembic 是唯一 schema authority，检索使用确定性键、`pg_trgm` 与 pgvector；定义 BGE-M3 `profile_v1`（1024 维、cosine）的新增 profile/table、回填、切换和回滚边界。
+- [x] 1.22 固化 S3-compatible ObjectStore/boto3、本地 MinIO、OpenTelemetry SDK、Prometheus client、import-linter、Schemathesis/Hypothesis 和前端 OpenAPI client 的 adapter/tooling 边界及脱敏要求。
 - [ ] 1.23 将官方资料 URL、核验日期、精确版本、维护状态和 spike 结果写入 ADR 索引；用 Python 3.12 生成并提交 `uv.lock`，依赖状态变化必须显式评审并更新锁文件。
 
 ## 2. S0 Characterization Baseline
 
-- [ ] 2.1 修复测试基础设施的独立 tooling 基线，使 Python 3.12 下的 `uv sync --frozen` 与 `uv lock --check`、frontend lockfile/tsconfig、pytest marker 选择和 CI 命令可重复执行且不改变生产行为。
+- [x] 2.1 修复测试基础设施的独立 tooling 基线，使 Python 3.12 下的 `uv sync --frozen` 与 `uv lock --check`、frontend lockfile/tsconfig、pytest marker 选择和 CI 命令可重复执行且不改变生产行为。
 - [ ] 2.2 生成当前 FastAPI OpenAPI snapshot，并为搜索 new/refine/recover、status/results 和错误分支添加 HTTP golden tests。
 - [ ] 2.3 为 favorites、history、user、help、health 和 metrics 的路径、header、状态码、分页、包络和软删除添加 characterization tests。
 - [ ] 2.4 为 `X-User-Id > X-Device-Id > anonymous`、匿名隔离和浏览器 device ID 添加身份 characterization tests。
