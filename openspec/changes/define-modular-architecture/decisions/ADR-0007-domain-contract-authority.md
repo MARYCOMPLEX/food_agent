@@ -48,8 +48,11 @@ digest. The registry validates, in order:
 1. manifest syntax, immutable schema IDs, digest, and unique `(domain_id, pack_version)`;
 2. Contract API/core compatibility and the exact required method set;
 3. locally bundled JSON Schema Draft 2020-12 documents and representative examples;
-4. every allowed tool's separate input and output schemas, permission, timeout, and
-   stable error mapping;
+4. every allowed tool's separate input and output schemas, permission, timeout, stable
+   error mapping, and exact capability/version presence in the Tool Gateway registry
+   snapshot; tool schemas are self-contained and may reference only their own local
+   fragments, while method/domain schemas may reference documents in the sealed schema
+   bundle;
 5. the Agent final output schema and output example;
 6. Scoring Policy purity metadata and public-only feature inputs;
 7. resolution of each required source capability by an independently registered
@@ -92,6 +95,16 @@ a Connector. Framework tool objects and MCP transports terminate at adapters.
 The Agent final value must validate against the pinned final output schema before result
 commit or success publication. A legacy Food mapper may transform that validated value
 to `food-dto/v1`; the legacy DTO is not the Domain Contract itself.
+
+The `build_final_output` method output schema and the Agent final-output schema MUST
+describe the same document shape; only their root `$id` values may differ. Registration
+rejects a Pack whose two declarations diverge, so a method-valid value cannot bypass the
+final publication schema.
+
+Tool input/output and Agent final-output schemas are self-contained documents. They may
+reuse local `$defs`, but they cannot depend on another bundle document. This keeps the
+manifest's public validation methods identical to registration-time validation without
+accepting a caller-supplied registry that could expand the trusted schema set.
 
 ### Public Extension-Point Rulings
 

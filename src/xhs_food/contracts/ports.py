@@ -2,21 +2,24 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import AsyncIterable, AsyncIterator
-from typing import Protocol, TypeVar, runtime_checkable
+from typing import Protocol, Self, TypeVar, runtime_checkable
+from urllib.parse import unquote, urlsplit
 
-from pydantic import Field
+from pydantic import ConfigDict, Field, model_validator
 
 from .base import (
-    ContractModel,
     ContractPayload,
     JsonValue,
     NonEmptyStr,
+    SchemaVersion,
     Timestamp,
-    VersionedContract,
+    schema_version_v1,
 )
 from .errors import ContractError
 from .evidence import (
+    AuthorityModel,
     CanonicalMediaRef,
     CanonicalSourceBatch,
     CanonicalSourceDocument,
@@ -25,7 +28,20 @@ from .evidence import (
 )
 
 
-class ToolCall(VersionedContract):
+class _PortValue(AuthorityModel):
+    model_config = ConfigDict(
+        extra="ignore",
+        frozen=True,
+        str_strip_whitespace=False,
+        use_enum_values=False,
+    )
+
+
+class _PortVersionedContract(_PortValue):
+    schema_version: SchemaVersion = Field(default_factory=schema_version_v1)
+
+
+class ToolCall(_PortVersionedContract):
     call_id: NonEmptyStr
     tool_name: NonEmptyStr
     arguments: ContractPayload
@@ -33,7 +49,7 @@ class ToolCall(VersionedContract):
     timeout_ms: int | None = Field(default=None, gt=0)
 
 
-class ToolResult(VersionedContract):
+class ToolResult(_PortVersionedContract):
     call_id: NonEmptyStr
     success: bool
     output: JsonValue = None
@@ -41,7 +57,7 @@ class ToolResult(VersionedContract):
     metadata: ContractPayload = Field(default_factory=dict)
 
 
-class WorkflowStart(VersionedContract):
+class WorkflowStart(_PortVersionedContract):
     workflow_id: NonEmptyStr
     workflow_type: NonEmptyStr
     task_queue: NonEmptyStr
@@ -49,46 +65,68 @@ class WorkflowStart(VersionedContract):
     idempotency_key: NonEmptyStr
 
 
-class WorkflowRun(VersionedContract):
+class WorkflowRun(_PortVersionedContract):
     workflow_id: NonEmptyStr
     run_id: NonEmptyStr
     status: NonEmptyStr
 
 
-class EventEnvelope(VersionedContract):
+class EventEnvelope(_PortVersionedContract):
     event_id: NonEmptyStr
     topic: NonEmptyStr
     payload: ContractPayload
     published_at: Timestamp
 
 
-class ObjectRef(VersionedContract):
+class ObjectRef(_PortVersionedContract):
     object_id: NonEmptyStr
     key: NonEmptyStr
     content_hash: NonEmptyStr
     size_bytes: int = Field(ge=0)
     content_type: NonEmptyStr
 
+    @model_validator(mode="after")
+    def validate_opaque_key(self) -> Self:
+        decoded_key = unquote(self.key)
+        parsed = urlsplit(decoded_key)
+        if parsed.scheme or parsed.netloc or parsed.query or parsed.fragment:
+            raise ValueError("ObjectRef key must be an opaque object key, not a URL")
+        if decoded_key.startswith(("/", "\\")) or "\\" in decoded_key:
+            raise ValueError("ObjectRef key must be relative and use object-key separators")
+        if any(character.isspace() or ord(character) < 32 for character in decoded_key):
+            raise ValueError("ObjectRef key must not contain whitespace or control characters")
+        if any(segment in {"", ".", ".."} for segment in decoded_key.split("/")):
+            raise ValueError("ObjectRef key must not contain empty or traversal segments")
+        sensitive = re.compile(
+            r"(?:^|[/._-])(?:token|credentials?|secrets?|password|passwd|authorization|"
+            r"cookies?|x-amz-(?:credential|signature)|api[-_]?key|access[-_]?key)"
+            r"(?:$|[/._=-])",
+            re.IGNORECASE,
+        )
+        if sensitive.search(decoded_key):
+            raise ValueError("ObjectRef key must not contain token or credential material")
+        return self
 
-class ObjectStat(ContractModel):
+
+class ObjectStat(_PortValue):
     ref: ObjectRef
     metadata: ContractPayload = Field(default_factory=dict)
 
 
-class ModelMessage(ContractModel):
+class ModelMessage(_PortValue):
     role: NonEmptyStr
     content: str
     name: str | None = None
     tool_call_id: str | None = None
 
 
-class ModelToolDefinition(ContractModel):
+class ModelToolDefinition(_PortValue):
     name: NonEmptyStr
     description: str
     input_schema: ContractPayload
 
 
-class ModelRequest(VersionedContract):
+class ModelRequest(_PortVersionedContract):
     request_id: NonEmptyStr
     model_role: NonEmptyStr
     messages: tuple[ModelMessage, ...]
@@ -98,18 +136,18 @@ class ModelRequest(VersionedContract):
     provider_options: ContractPayload = Field(default_factory=dict)
 
 
-class ModelToolCall(ContractModel):
+class ModelToolCall(_PortValue):
     call_id: NonEmptyStr
     name: NonEmptyStr
     arguments: ContractPayload
 
 
-class ModelUsage(ContractModel):
+class ModelUsage(_PortValue):
     input_tokens: int = Field(default=0, ge=0)
     output_tokens: int = Field(default=0, ge=0)
 
 
-class ModelResponse(VersionedContract):
+class ModelResponse(_PortVersionedContract):
     request_id: NonEmptyStr
     content: str | None = None
     structured_output: JsonValue = None

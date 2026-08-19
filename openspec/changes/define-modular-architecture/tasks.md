@@ -46,15 +46,15 @@
 
 - [x] 3.1 创建领域中立 contract package 和 schema-version 基础类型，不导入 FastAPI、平台 SDK、数据库或 Food/Travel 实现。
 - [x] 3.2 定义版本化 `ResearchRequest`（含 query/refine/refresh/recover operation）、`ResearchPlan`、`ResearchTask`、`TaskEvent`、非执行型 `task_progress_projection` 和稳定错误分类。
-- [ ] 3.3 定义 `CanonicalQuery`、`CollectRequest`、`CanonicalSourceBatch`、`SourceLocator`、`EvidenceItem` 和 `EvidenceBundle` 合同。
+- [x] 3.3 定义 `CanonicalQuery`、`CollectRequest`、`CanonicalSourceBatch`、`SourceLocator`、`EvidenceItem` 和 `EvidenceBundle` 合同。
 - [x] 3.4 定义 SourceConnector、Tool Gateway、Repository、Workflow、Cache/EventBus、ObjectStore 和 LLM provider ports。
-- [ ] 3.5 定义 Domain Contract SDK、Pack manifest、allowed-tools 及每个 tool input/output schema、Agent final output schema 和注册验证结果；schema 缺失或非法的 Pack 不得激活。
-- [ ] 3.6 定义 `MemoryRecord`、`PreferenceSnapshot`、`PersonalizationPolicy` 和用户隔离键合同。
-- [ ] 3.7 定义 RefreshJob、MediaAsset、DerivedArtifact、Processor 和 Evidence Extractor 合同。
+- [x] 3.5 定义 Domain Contract SDK、Pack manifest、allowed-tools 及每个 tool input/output schema、Agent final output schema 和注册验证结果；schema 缺失或非法的 Pack 不得激活。
+- [x] 3.6 定义 `MemoryRecord`、`PreferenceSnapshot`、`PersonalizationPolicy` 和用户隔离键合同。
+- [x] 3.7 定义 RefreshJob、MediaAsset、DerivedArtifact、Processor 和 Evidence Extractor 合同。
 - [x] 3.8 建立 Composition Root 骨架和 registry 生命周期；所有 registry 初始只装配 legacy adapters。
-- [ ] 3.9 添加允许依赖边的静态架构测试，默认拒绝跨层具体实现导入和新增下划线私有属性访问。
-- [ ] 3.10 添加合同序列化、向后兼容可选字段和破坏性枚举/字段变化检测。
-- [ ] 3.11 运行 S0+S1 tests，证明旧 imports、HTTP/SSE 和结果 golden 不变，并归档架构图生成结果。
+- [x] 3.9 添加允许依赖边的静态架构测试，默认拒绝跨层具体实现导入和新增下划线私有属性访问。
+- [x] 3.10 添加合同序列化、向后兼容可选字段和破坏性枚举/字段变化检测。
+- [x] 3.11 运行 S0+S1 tests，证明旧 imports、HTTP/SSE 和结果 golden 不变，并归档架构图生成结果。
 - [ ] 3.12 演练移除 contract/registry 绑定的 revert；将 S1 作为不依赖 S2 的独立提交。
 
 ## 4. S2 Experience And Task Facades

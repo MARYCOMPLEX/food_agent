@@ -10,11 +10,18 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "fixtures" / "authority" / "domain_contract_v1.json"
+SCHEMA_BUNDLE = (
+    ROOT / "tests" / "fixtures" / "authority" / "domain_contract_schema_bundle_v1.json"
+)
 DECISIONS = ROOT / "openspec" / "changes" / "define-modular-architecture" / "decisions"
 
 
 def _load() -> dict[str, Any]:
     return json.loads(FIXTURE.read_text(encoding="utf-8"))
+
+
+def _load_schema_bundle() -> dict[str, Any]:
+    return json.loads(SCHEMA_BUNDLE.read_text(encoding="utf-8"))
 
 
 def _schema_digest(schema: dict[str, Any]) -> str:
@@ -125,6 +132,62 @@ def test_required_methods_and_task_pins_are_explicit() -> None:
     }
 
 
+def test_method_and_domain_schema_pins_resolve_to_strict_local_documents() -> None:
+    authority = _load()
+    bundle = _load_schema_bundle()
+    documents = {item["schemaId"]: item for item in bundle["schemas"]}
+    schema_ids = set(documents)
+
+    assert bundle["bundleVersion"] == "domain-contract-schema-bundle/v1"
+    assert len(documents) == len(bundle["schemas"])
+    for item in documents.values():
+        assert item["schemaDigest"] == _schema_digest(item["schema"])
+        assert item["schema"]["$id"] == item["schemaId"]
+        assert item["examples"]
+        assert item["schema"].get("additionalProperties") is False or "$ref" in item[
+            "schema"
+        ]
+        for reference in _schema_refs(item["schema"]):
+            target = reference.split("#", maxsplit=1)[0]
+            assert not target or target in schema_ids
+
+    manifest = authority["manifestFixture"]
+    for pin in manifest["methodSchemas"]:
+        assert documents[pin["inputSchemaId"]]["schemaDigest"] == pin[
+            "inputSchemaDigest"
+        ]
+        assert documents[pin["outputSchemaId"]]["schemaDigest"] == pin[
+            "outputSchemaDigest"
+        ]
+    assert set(manifest["domainSchemas"].values()) <= schema_ids
+
+    stable_error = documents["urn:food-agent:stable-error:v1"]["schema"]
+    assert set(stable_error["required"]) == {
+        "schema_version",
+        "code",
+        "category",
+        "scope",
+        "retryable",
+        "terminal",
+        "message",
+        "boundary_ref",
+        "details",
+    }
+
+
+def _schema_refs(value: Any) -> list[str]:
+    if isinstance(value, dict):
+        references = [value["$ref"]] if isinstance(value.get("$ref"), str) else []
+        return references + [
+            reference
+            for item in value.values()
+            for reference in _schema_refs(item)
+        ]
+    if isinstance(value, list):
+        return [reference for item in value for reference in _schema_refs(item)]
+    return []
+
+
 def test_each_allowed_tool_has_strict_distinct_io_schemas_and_valid_examples() -> None:
     tools = _load()["manifestFixture"]["allowedTools"]
     ids = {tool["toolId"] for tool in tools}
@@ -183,6 +246,11 @@ def test_registration_is_atomic_and_rejects_incomplete_or_impure_packs() -> None
     registration = authority["registration"]
     assert registration["atomic"] is True
     assert registration["partialActivation"] is False
+    assert registration["referencePolicy"] == {
+        "bundleSchemas": "sealed_bundle_only",
+        "toolSchemas": "self_contained_local_refs_only",
+        "finalOutputSchema": "self_contained_local_refs_only",
+    }
     assert authority["manifestFixture"]["manifestDigest"]
     assert {item["method"] for item in authority["manifestFixture"]["methodSchemas"]} == {
         method["name"] for method in authority["requiredMethods"]
@@ -191,6 +259,7 @@ def test_registration_is_atomic_and_rejects_incomplete_or_impure_packs() -> None
     cases = {case["case"]: case for case in authority["registrationCases"]}
     assert cases["complete_pack"]["accepted"] is True
     assert cases["missing_tool_output_schema"]["failureCode"] == "invalid_tool_contract"
+    assert cases["allowed_tool_missing"]["failureCode"] == "invalid_tool_contract"
     assert cases["invalid_final_output"]["failureCode"] == "invalid_final_output_schema"
     assert cases["connector_embedded_in_pack"]["failureCode"] == "invalid_manifest"
     assert cases["impure_score"]["failureCode"] == "impure_scoring_policy"

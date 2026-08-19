@@ -136,7 +136,19 @@
         "connector_id": {"$ref": "#/$defs/slug"},
         "connector_version": {"$ref": "#/$defs/version"},
         "external_id": {"type": "string", "minLength": 1},
-        "canonical_url": {"type": "string", "format": "uri"},
+        "canonical_url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Stable canonical source URL. Ordinary query and fragment components are allowed; embedded userinfo and access-bearing parameters are forbidden.",
+          "allOf": [
+            {"pattern": "^(?![^:]+://[^/?#]*@).+$"},
+            {
+              "not": {
+                "pattern": "[?&#](?:(?:[A-Za-z0-9]+[-_.])*(?:[Ss][Ii][Gg][Nn][Aa][Tt][Uu][Rr][Ee]|[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll][Ss]?|[Ss][Ee][Cc][Uu][Rr][Ii][Tt][Yy][-_.]?[Tt][Oo][Kk][Ee][Nn])|[Aa][Cc][Cc][Ee][Ss][Ss][-_.]?[Kk][Ee][Yy](?:[-_.]?[Ii][Dd])?|[Aa][Cc][Cc][Ee][Ss][Ss][-_.]?[Tt][Oo][Kk][Ee][Nn]|[Aa][Pp][Ii][-_.]?[Kk][Ee][Yy]|[Aa][Uu][Tt][Hh]|[Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn]|[Aa][Ww][Ss][Aa][Cc][Cc][Ee][Ss][Ss][Kk][Ee][Yy][Ii][Dd]|[Gg][Oo][Oo][Gg][Ll][Ee][Aa][Cc][Cc][Ee][Ss][Ss][Ii][Dd]|[Kk][Ee][Yy][-_.]?[Pp][Aa][Ii][Rr][-_.]?[Ii][Dd]|[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Ss][Ii][Gg]|[Tt][Oo][Kk][Ee][Nn])="
+              }
+            }
+          ]
+        },
         "captured_at": {"type": "string", "format": "date-time"},
         "source_updated_at": {"type": ["string", "null"], "format": "date-time"},
         "watermark": {"type": ["string", "null"]},
@@ -160,7 +172,12 @@
         "media_ref_id": {"$ref": "#/$defs/slug"},
         "locator_id": {"$ref": "#/$defs/slug"},
         "media_type": {"enum": ["image", "audio", "video", "document"]},
-        "source_url": {"type": "string", "format": "uri"},
+        "source_url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Stable unfetched media reference without userinfo, query, or fragment components.",
+          "pattern": "^(?![^:]+://[^/?#]*@)[^?#]+$"
+        },
         "declared_content_type": {"type": ["string", "null"]},
         "declared_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"}
       }
@@ -186,7 +203,8 @@
         "artifact_id": {"$ref": "#/$defs/slug"},
         "object_ref": {
           "type": "string",
-          "pattern": "^s3://[a-z0-9][a-z0-9._-]*/[^\\s]+$"
+          "description": "Opaque S3-compatible object reference without credentials, query, or fragment components.",
+          "pattern": "^s3://[a-z0-9][a-z0-9._-]*/[^\\s?#]+$"
         },
         "sha256": {"$ref": "#/$defs/sha256"},
         "size_bytes": {"type": "integer", "minimum": 0},

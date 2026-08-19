@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import copy
 import json
 import os
 import subprocess
@@ -39,6 +40,7 @@ from xhs_food.contracts import (
 )
 
 NOW = datetime(2026, 8, 19, tzinfo=UTC)
+AUTHORITY = Path(__file__).parent / "fixtures" / "authority"
 
 
 def test_schema_version_is_explicit_and_rejects_ambiguous_values() -> None:
@@ -96,36 +98,33 @@ def test_stable_error_classification_is_serializable() -> None:
 
 
 def test_canonical_query_signature_has_no_identity_or_personal_fields() -> None:
-    query = CanonicalQuery(
-        domain="fixture-domain",
-        geo={"region": "fixture"},
-        intent={"kind": "research"},
-        audience=None,
-        constraints={"public-constraint": True},
-        freshness_policy={"policy_ref": "freshness-1"},
-        classifier_version="classifier-1",
-        user_id="must-be-ignored",
-        session_id="must-be-ignored",
-        preferences={"private": True},
+    fixture = json.loads(
+        (AUTHORITY / "canonical_query_v1.json").read_text(encoding="utf-8")
     )
+    query = CanonicalQuery.model_validate(fixture)
     payload = query.model_dump(mode="json")
     assert {"user_id", "session_id", "preferences"}.isdisjoint(payload)
     assert set(CanonicalQuery.model_fields) == {
         "schema_version",
-        "domain",
-        "geo",
-        "intent",
-        "audience",
-        "constraints",
-        "time_range",
-        "freshness_policy",
+        "normalizer_version",
         "classifier_version",
+        "isolation",
+        "query",
     }
+
+    private = copy.deepcopy(fixture)
+    private["user_id"] = "must-be-rejected"
+    with pytest.raises(ValidationError):
+        CanonicalQuery.model_validate(private)
 
 
 def test_canonical_source_batch_contains_metadata_but_rejects_binary() -> None:
     batch = CanonicalSourceBatch(
+        isolation={"tenant_scope": "public", "language": "en", "region": "US"},
         source_id="fixture-source",
+        connector_id="fixture.connector",
+        connector_version="fixture-connector/v1",
+        normalizer_version="fixture-normalizer/v1",
         documents=(
             CanonicalSourceDocument(
                 source_id="fixture-source",
@@ -135,6 +134,7 @@ def test_canonical_source_batch_contains_metadata_but_rejects_binary() -> None:
                 text="fixture text",
             ),
         ),
+        watermark=None,
     )
     assert CanonicalSourceBatch.model_validate_json(batch.model_dump_json()) == batch
     with pytest.raises(ValidationError):

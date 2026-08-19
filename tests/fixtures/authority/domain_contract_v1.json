@@ -73,7 +73,14 @@
       "scoringPolicyVersion",
       "policyProfiles"
     ],
-    "missingPinFailure": "pinned_contract_unavailable"
+    "missingPinFailure": "pinned_contract_unavailable",
+    "manifestDigestPreimage": {
+      "version": "domain-manifest-digest-preimage/v1",
+      "algorithm": "sha256",
+      "canonicalization": "utf8-json-sort-object-keys-no-whitespace",
+      "schemaProjection": "bundle-version-and-sorted-schema-id-digest-pins",
+      "representativeExamplesIncluded": false
+    }
   },
   "effectiveToolSet": [
     "domain_pack_allow_list",
@@ -95,12 +102,17 @@
   "registration": {
     "atomic": true,
     "partialActivation": false,
+    "referencePolicy": {
+      "bundleSchemas": "sealed_bundle_only",
+      "toolSchemas": "self_contained_local_refs_only",
+      "finalOutputSchema": "self_contained_local_refs_only"
+    },
     "validationOrder": [
       "manifest_and_digest",
       "contract_and_core_compatibility",
       "required_method_set",
       "bundled_schema_ids_digests_and_examples",
-      "per_tool_input_output_permission_timeout_and_errors",
+      "per_tool_contract_and_registered_exact_version_resolution",
       "final_output_schema_and_example",
       "scoring_purity_and_public_inputs",
       "required_source_capability_resolution",
@@ -124,7 +136,7 @@
     "packVersion": "1.0.0",
     "contractApi": "domain-contract/v1",
     "coreVersionRange": ">=1.0.0,<2.0.0",
-    "manifestDigest": "4a88f98c47d6f43ed39d556e57c5beae0a6638379bd138f9f541f6406b78be71",
+    "manifestDigest": "9d46b1d28b4093854faf7a0d4d912cfa54438ce938de9239f803f6d786de17d3",
     "methods": [
       "describe",
       "classify_constraints",
@@ -145,51 +157,51 @@
       {
         "method": "describe",
         "inputSchemaId": "urn:food-agent:domain-method:describe-input:v1",
-        "inputSchemaDigest": "f3ba6c9a1878be7ed5445122559998e06558ab24a5ab0dd745b341f4242f0147",
+        "inputSchemaDigest": "c67a3ef58bea90053d76251c9f9b7d72513a473ac3b493a776f871b694ebdc4c",
         "outputSchemaId": "urn:food-agent:domain-pack-manifest:v1",
-        "outputSchemaDigest": "8ef4dd59d8bb8ce33c3f40f1cf5c5862be9e844f95bdff52e401c1a7eadf36bb"
+        "outputSchemaDigest": "cf18f7372cdf8cc103748c7a39e72258810a910db4a70783b7facf52335eb29c"
       },
       {
         "method": "classify_constraints",
         "inputSchemaId": "urn:food-agent:domain-method:classify-constraints-input:v1",
-        "inputSchemaDigest": "f5a2aeec83c48d1412b2634223d617b6fcc72284e461e7d2a16d605f8c27f521",
+        "inputSchemaDigest": "019cdb9754bdbf064e03cf206d7584f3269b3e59e3b627ee84e661cbcaaae0a9",
         "outputSchemaId": "urn:food-agent:domain-method:classify-constraints-output:v1",
-        "outputSchemaDigest": "e798c57cc407816a39f0795771316923443c52952f95ed3c3b3d5494aff2475c"
+        "outputSchemaDigest": "483114a40fb6d8469fa36edabab3de30c1afe5a9f99365f43e4cdcfeea48a75e"
       },
       {
         "method": "validate_evidence",
         "inputSchemaId": "urn:food-agent:domain-method:validate-evidence-input:v1",
-        "inputSchemaDigest": "c70108c568d6556a5887b0fdc4387a3e663a5964e4daddb2d65ef245829cabd2",
+        "inputSchemaDigest": "282060148fe54aff339d706de15f6296db479a051450a6700c53666808e793f2",
         "outputSchemaId": "urn:food-agent:domain-method:validate-evidence-output:v1",
-        "outputSchemaDigest": "66d4d33e4f43925211b01a56da8b2772418f90fa9d8e8fe02c906e68e8902774"
+        "outputSchemaDigest": "651bb0bda11b0b60bbba677b7ed8a5267f81883ad781b80074d00806a49590e4"
       },
       {
         "method": "compute_features",
         "inputSchemaId": "urn:food-agent:domain-method:compute-features-input:v1",
-        "inputSchemaDigest": "fba869b160328004632a797901da17a9f8ddbe7cbfc52d1aa6864cfc1e3fbe2d",
+        "inputSchemaDigest": "7eef327d351a18492f10c0f04352f059de7d4b4ee877954a8d810023f15598c9",
         "outputSchemaId": "urn:food-agent:domain-method:compute-features-output:v1",
-        "outputSchemaDigest": "2b2094739b12222650d7979fb788ea30092d599d1a0281c2728d55b7f7d9f0bf"
+        "outputSchemaDigest": "1c54963e6e3b7ab68227c85316ebac54562cac12858f1c5cb5f342ee0b382f86"
       },
       {
         "method": "score_public",
         "inputSchemaId": "urn:food-agent:domain-method:score-public-input:v1",
-        "inputSchemaDigest": "3984aa396530ee81271759f6f56e02a2bc6a3b789459d5980ba5f2b06ba24372",
+        "inputSchemaDigest": "b693f9a6beb436169d5dc5bb909a36a09bd4d3417b9db1baa73318e0b273c4fc",
         "outputSchemaId": "urn:food-agent:domain-method:score-public-output:v1",
-        "outputSchemaDigest": "a89e7b2a642cbb24f5d7cd751304540f0078192051a0d9b18fe56c0632b21b4e"
+        "outputSchemaDigest": "ca3e9da31b4c2dcbcc22f50a55fd638c1fc6ab0c51935aa8f01c566e9746c664"
       },
       {
         "method": "build_final_output",
         "inputSchemaId": "urn:food-agent:domain-method:build-final-output-input:v1",
-        "inputSchemaDigest": "e729a2211ef6f02ec8fe54191c94e1246fe42523aba0ca4f0ed5f78d79ef4ad2",
+        "inputSchemaDigest": "6af85cf0fe2403472b0e134dafcedb00784568be90db7fc08e6d4fb5e57e7737",
         "outputSchemaId": "urn:food-agent:domain-method:build-final-output-output:v1",
-        "outputSchemaDigest": "e546d63ae1a576785ade6d7b413720015309311059fa63291827286ea7f45b35"
+        "outputSchemaDigest": "9c034f3eff03c535891876717eaa18e8cb91c4341720d3bb482d987bb461e78e"
       },
       {
         "method": "map_error",
         "inputSchemaId": "urn:food-agent:domain-method:map-error-input:v1",
-        "inputSchemaDigest": "8f7cc98948f17d73d98ca67f8b1bf49b4350e47edba3e6e26b42ce2cfa343a97",
+        "inputSchemaDigest": "01ae2d7e4ec811204bf099839eb4e9f670981e7892e9a2bff3a5948474d8a674",
         "outputSchemaId": "urn:food-agent:stable-error:v1",
-        "outputSchemaDigest": "6be550eef553a41f7875c41e4e06bd6a12656cb7f32e3717f81f8cd6801ad55d"
+        "outputSchemaDigest": "d5f01b2f63a02aba36561c5a9248ca65f60c6cb73fcbc7deff6acb8c4fad6e51"
       }
     ],
     "allowedTools": [
@@ -347,6 +359,8 @@
   "registrationCases": [
     {"case": "complete_pack", "mutation": "none", "accepted": true, "failureCode": null},
     {"case": "missing_tool_output_schema", "mutation": "delete:allowedTools[0].outputSchema", "accepted": false, "failureCode": "invalid_tool_contract"},
+    {"case": "allowed_tool_missing", "mutation": "toolGateway.unregister(place.lookup)", "accepted": false, "failureCode": "invalid_tool_contract"},
+    {"case": "build_output_schema_mismatch", "mutation": "finalOutputSchema+=optional:detail", "accepted": false, "failureCode": "invalid_final_output_schema"},
     {"case": "invalid_final_output", "mutation": "finalOutputExample.recommendations[0].publicScore=2", "accepted": false, "failureCode": "invalid_final_output_schema"},
     {"case": "connector_embedded_in_pack", "mutation": "domainSources[0].connectorClass=ConcretePoiConnector", "accepted": false, "failureCode": "invalid_manifest"},
     {"case": "impure_score", "mutation": "scoringPolicy.forbiddenEffects-=network", "accepted": false, "failureCode": "impure_scoring_policy"},
