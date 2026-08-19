@@ -1,0 +1,41 @@
+{
+  "schema_version": "canonical-query/v1",
+  "normalizer_version": "canonical-normalizer/v1",
+  "classifier_version": "food-constraint-classifier/v1",
+  "isolation": {
+    "tenant_scope": "public",
+    "language": "zh-Hans",
+    "region": "CN"
+  },
+  "query": {
+    "domain": "food",
+    "geo": {
+      "country_code": "CN",
+      "admin_path": ["cn.sc"],
+      "locality": "cn.sc.zigong"
+    },
+    "intent": {
+      "kind": "recommend",
+      "subject": "restaurant"
+    },
+    "audience": ["visitor"],
+    "constraints": [
+      {
+        "key": "entity.category",
+        "operator": "eq",
+        "value": "local_food",
+        "classification_rule": "food.public.entity_category"
+      }
+    ],
+    "time_range": {
+      "kind": "current",
+      "start": null,
+      "end": null,
+      "timezone": "Asia/Shanghai"
+    },
+    "freshness_policy": {
+      "policy_id": "food.default",
+      "policy_version": "food-freshness/v1"
+    }
+  }
+}

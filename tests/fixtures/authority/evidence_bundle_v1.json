@@ -1,0 +1,189 @@
+{
+  "schema_version": "evidence-bundle/v1",
+  "isolation": {
+    "tenant_scope": "public",
+    "language": "zh-Hans",
+    "region": "CN"
+  },
+  "governance": {
+    "visibility_scopes": ["public", "tenant", "entitlement"],
+    "license_use": ["extract_only", "internal_reuse", "redistributable"],
+    "deletion": {
+      "request_is_idempotent": true,
+      "uses_tombstone": true,
+      "replacement_candidate_required": true,
+      "cleanup_is_async_and_idempotent": true,
+      "legal_hold_blocks_bytes_delete": true,
+      "metadata_authority": "postgresql"
+    }
+  },
+  "source_locators": [
+    {
+      "locator_id": "source.xhs.note.123",
+      "source_id": "xhs",
+      "connector_id": "xhs.search",
+      "connector_version": "xhs-connector/v1",
+      "external_id": "note-123",
+      "canonical_url": "https://source.invalid/notes/note-123",
+      "captured_at": "2026-08-19T02:00:00Z",
+      "source_updated_at": "2026-08-18T23:00:00Z",
+      "watermark": "opaque:source-watermark-42",
+      "visibility": {
+        "scope": "public",
+        "tenant_scope": "public",
+        "entitlement_ids": []
+      },
+      "license": {
+        "license_id": "source-internal-reuse",
+        "status": "known",
+        "allowed_use": "internal_reuse",
+        "attribution_required": true,
+        "expires_at": null,
+        "policy_version": "evidence-license/v1"
+      },
+      "retention": {
+        "retention_class": "source_default",
+        "duration_seconds": null,
+        "legal_hold": false
+      }
+    }
+  ],
+  "media_refs": [
+    {
+      "media_ref_id": "media.xhs.note.123.cover",
+      "locator_id": "source.xhs.note.123",
+      "media_type": "image",
+      "source_url": "https://source.invalid/notes/note-123/cover.jpg",
+      "declared_content_type": "image/jpeg",
+      "declared_sha256": null
+    }
+  ],
+  "derived_artifacts": [
+    {
+      "artifact_id": "artifact.ocr.note.123",
+      "object_ref": "s3://food-agent/derived/sha256/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "size_bytes": 128,
+      "content_type": "application/json",
+      "processor_id": "ocr",
+      "processor_version": "ocr/v1",
+      "input_refs": ["media.xhs.note.123.cover"],
+      "created_at": "2026-08-19T02:01:00Z",
+      "visibility": {
+        "scope": "public",
+        "tenant_scope": "public",
+        "entitlement_ids": []
+      },
+      "license": {
+        "license_id": "source-internal-reuse",
+        "status": "known",
+        "allowed_use": "internal_reuse",
+        "attribution_required": true,
+        "expires_at": null,
+        "policy_version": "evidence-license/v1"
+      },
+      "retention": {
+        "retention_class": "derived_default",
+        "duration_seconds": null,
+        "legal_hold": false
+      }
+    }
+  ],
+  "evidence_items": [
+    {
+      "evidence_id": "evidence.restaurant.name.123",
+      "evidence_type": "restaurant",
+      "claim_type": "restaurant_name",
+      "claim_value": "老灶火锅",
+      "confidence": 0.98,
+      "source_locator_id": "source.xhs.note.123",
+      "media_ref_ids": [],
+      "derived_artifact_ids": [],
+      "extractor_version": "text-normalizer/v1",
+      "schema_version": "food-evidence/v1",
+      "content_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "status": "accepted",
+      "visibility": {
+        "scope": "public",
+        "tenant_scope": "public",
+        "entitlement_ids": []
+      },
+      "license": {
+        "license_id": "source-internal-reuse",
+        "status": "known",
+        "allowed_use": "internal_reuse",
+        "attribution_required": true,
+        "expires_at": null,
+        "policy_version": "evidence-license/v1"
+      },
+      "retention": {
+        "retention_class": "evidence_default",
+        "duration_seconds": null,
+        "legal_hold": false
+      }
+    },
+    {
+      "evidence_id": "evidence.restaurant.menu.123",
+      "evidence_type": "restaurant",
+      "claim_type": "menu_text",
+      "claim_value": {"dish": "鲜椒牛肉", "spicy": true},
+      "confidence": 0.91,
+      "source_locator_id": "source.xhs.note.123",
+      "media_ref_ids": ["media.xhs.note.123.cover"],
+      "derived_artifact_ids": ["artifact.ocr.note.123"],
+      "extractor_version": "ocr-extractor/v1",
+      "schema_version": "food-evidence/v1",
+      "content_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "status": "accepted",
+      "visibility": {
+        "scope": "public",
+        "tenant_scope": "public",
+        "entitlement_ids": []
+      },
+      "license": {
+        "license_id": "source-internal-reuse",
+        "status": "known",
+        "allowed_use": "internal_reuse",
+        "attribution_required": true,
+        "expires_at": null,
+        "policy_version": "evidence-license/v1"
+      },
+      "retention": {
+        "retention_class": "evidence_default",
+        "duration_seconds": null,
+        "legal_hold": false
+      }
+    }
+  ],
+  "bundles": [
+    {
+      "bundle_id": "bundle.food.zigong.v1",
+      "family_id": "family.food.zigong.restaurant.v1",
+      "bundle_version": 1,
+      "parent_bundle_version": null,
+      "state": "published",
+      "evidence_ids": ["evidence.restaurant.name.123", "evidence.restaurant.menu.123"],
+      "coverage": {
+        "entity_identity": 0.95,
+        "source_provenance": 1.0,
+        "public_attributes": 0.8
+      },
+      "watermarks": {"restaurant.source_updated": "2026-08-18T23:00:00Z"},
+      "verified_at": "2026-08-19T02:02:00Z",
+      "freshness_policy_id": "food.default",
+      "freshness_policy_version": "food-freshness/v1",
+      "provenance_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "content_hash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "visibility": {
+        "scope": "public",
+        "tenant_scope": "public",
+        "entitlement_ids": []
+      },
+      "retention": {
+        "retention_class": "bundle_default",
+        "duration_seconds": null,
+        "legal_hold": false
+      }
+    }
+  ]
+}

@@ -1,0 +1,69 @@
+{
+  "schema_version": "freshness-policy/v1",
+  "policy_id": "food.default",
+  "policy_version": "food-freshness/v1",
+  "domain": "food",
+  "status": "draft",
+  "partitions": [
+    {
+      "partition_id": "restaurant_profile",
+      "required": true,
+      "fresh_for_seconds": 86400,
+      "max_stale_for_seconds": 604800,
+      "minimum_coverage": 0.8,
+      "watermark_key": "restaurant.source_updated"
+    },
+    {
+      "partition_id": "review_signal",
+      "required": false,
+      "fresh_for_seconds": 21600,
+      "max_stale_for_seconds": 172800,
+      "minimum_coverage": 0.6,
+      "watermark_key": "review.source_updated"
+    }
+  ],
+  "coverage": {
+    "dimensions": [
+      {"dimension": "entity_identity", "weight": 0.5, "minimum_ratio": 0.8},
+      {"dimension": "source_provenance", "weight": 0.3, "minimum_ratio": 0.8},
+      {"dimension": "public_attributes", "weight": 0.2, "minimum_ratio": 0.6}
+    ],
+    "overall_minimum_ratio": 0.75,
+    "calculation_version": "coverage-score/v1"
+  },
+  "watermarks": {
+    "rules": [
+      {
+        "watermark_key": "restaurant.source_updated",
+        "mode": "source_updated_at",
+        "comparator_version": "source-watermark/v1"
+      },
+      {
+        "watermark_key": "review.source_updated",
+        "mode": "opaque_cursor",
+        "comparator_version": "source-watermark/v1"
+      }
+    ],
+    "missing_action": "incremental"
+  },
+  "popularity": {
+    "window_seconds": 2592000,
+    "aggregate_signals": ["family_request_count"],
+    "privacy_policy_version": "memory-privacy/v1"
+  },
+  "priority": {
+    "factors": [
+      {"factor": "expiry_urgency", "weight": 0.4},
+      {"factor": "coverage_deficit", "weight": 0.25},
+      {"factor": "popularity", "weight": 0.2},
+      {"factor": "watermark_advance", "weight": 0.15}
+    ],
+    "tie_breakers": ["earliest_expiry", "highest_popularity", "family_id"],
+    "calculation_version": "refresh-priority/v1"
+  },
+  "gate": {
+    "outcomes": ["fresh", "incremental", "new"],
+    "active_refresh": "reuse_task",
+    "stale_failure_action": "return_stale_with_status"
+  }
+}

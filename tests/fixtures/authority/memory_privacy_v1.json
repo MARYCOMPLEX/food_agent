@@ -1,0 +1,245 @@
+{
+  "authorityVersion": "memory-privacy-authority/v1",
+  "recordSchema": "memory-record/v1",
+  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
+  "authority": {
+    "committedFacts": "postgresql16",
+    "transactionalTables": ["conversation_turns", "memory_records", "memory_events", "preference_snapshots", "consent_events", "claim_events", "outbox"],
+    "derivedOnly": ["redis_session_window", "rolling_summary", "embedding", "recall_index", "preference_projection", "framework_model_messages"],
+    "redis": {"role": "rebuildable_projection", "maxMessages": 20, "ttlHours": 24, "factAuthority": false},
+    "frameworkMemoryAuthority": false,
+    "writeConfirmation": "after_postgresql_commit"
+  },
+  "identity": {
+    "requiredPartitionPrefix": "tenant_id",
+    "authenticated": ["tenant_id", "user_id"],
+    "authenticatedSession": ["tenant_id", "user_id", "session_id"],
+    "anonymous": ["tenant_id", "anonymous_subject_id", "session_id"],
+    "anonymousSubjectSource": "cryptographically_random_server_subject",
+    "forbiddenSubjectValues": ["anonymous", "shared", "ip_address", "user_agent", "device_only"],
+    "cohortIsAuthorization": false,
+    "localeIsAuthorization": false,
+    "visibilityValues": ["private_subject", "private_session"],
+    "publicEvidenceIsMemory": false
+  },
+  "publicQueryFamilyIsolation": {
+    "authority": "ADR-0006",
+    "requiredCoordinates": ["tenant_scope", "language", "region"],
+    "forbiddenIdentityInputs": ["user_id", "session_id", "device_id", "cohort", "preference", "memory"],
+    "memoryMayBroadenVisibility": false
+  },
+  "layers": {
+    "session": {
+      "valueKinds": ["current_query", "geo", "time", "temporary_constraint"],
+      "confidence": "absent",
+      "requiresSessionId": true,
+      "activeUseExpiry": "PT24H_AFTER_LAST_ACTIVITY",
+      "consentBasis": "service_required"
+    },
+    "explicit": {
+      "valueKinds": ["preference", "hard_constraint", "budget", "travel_requirement"],
+      "confidence": "absent",
+      "requiresSessionIdForAnonymous": true,
+      "activeUseExpiry": "UNTIL_CORRECTED_DELETED_WITHDRAWN_OR_USER_EXPIRY",
+      "consentBasis": "user_directed"
+    },
+    "inferred": {
+      "valueKinds": ["preference", "affinity", "avoidance"],
+      "confidence": "required_0_to_1",
+      "requiresAuthenticatedUser": true,
+      "activeUseExpiry": "P180D_AFTER_LATEST_SUPPORT_EVENT",
+      "consentBasis": "personalization_opt_in",
+      "anonymousPromotion": "forbidden_without_explicit_claim"
+    },
+    "strategy_feedback": {
+      "valueKinds": ["research_depth", "source_trust", "result_style"],
+      "confidence": "absent",
+      "requiresSessionIdForAnonymous": true,
+      "activeUseExpiry": "P90D_AFTER_CAPTURE",
+      "consentBasis": "feedback_personalization_opt_in"
+    }
+  },
+  "recordSchemaDefinition": {
+    "$id": "urn:food-agent:memory-record:v1",
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["schemaVersion", "recordId", "tenantId", "subject", "layer", "key", "value", "sourceEventIds", "consent", "validFrom", "expiresAt", "status", "policyVersion", "createdAt", "updatedAt"],
+    "properties": {
+      "schemaVersion": {"const": "memory-record/v1"},
+      "recordId": {"type": "string", "minLength": 1},
+      "tenantId": {"type": "string", "minLength": 1},
+      "subject": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "id"],
+        "properties": {
+          "kind": {"enum": ["user", "anonymous"]},
+          "id": {"type": "string", "minLength": 16},
+          "cohort": {"type": ["string", "null"]},
+          "locale": {"type": ["string", "null"]}
+        }
+      },
+      "sessionId": {"type": ["string", "null"]},
+      "layer": {"enum": ["session", "explicit", "inferred", "strategy_feedback"]},
+      "key": {"type": "string", "minLength": 1},
+      "value": {"type": "object", "additionalProperties": true},
+      "confidence": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+      "sourceEventIds": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+      "consent": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["basis", "policyVersion", "status", "capturedAt"],
+        "properties": {
+          "basis": {"enum": ["service_required", "user_directed", "personalization_opt_in", "feedback_personalization_opt_in"]},
+          "policyVersion": {"type": "string", "minLength": 1},
+          "status": {"enum": ["active", "withdrawn"]},
+          "capturedAt": {"type": "string", "format": "date-time"}
+        }
+      },
+      "validFrom": {"type": "string", "format": "date-time"},
+      "expiresAt": {"type": ["string", "null"], "format": "date-time"},
+      "status": {"enum": ["active", "superseded", "expired", "tombstoned", "claimed"]},
+      "supersedesRecordId": {"type": ["string", "null"]},
+      "policyVersion": {"type": "string", "minLength": 1},
+      "createdAt": {"type": "string", "format": "date-time"},
+      "updatedAt": {"type": "string", "format": "date-time"}
+    }
+  },
+  "layerInvariants": [
+    {"layer": "session", "requiredValueKeys": ["kind", "value"], "confidence": null, "requiresSessionId": true},
+    {"layer": "explicit", "requiredValueKeys": ["kind", "operator", "value"], "confidence": null, "requiresSessionIdForSubject": "anonymous"},
+    {"layer": "inferred", "requiredValueKeys": ["kind", "value", "supportEventIds"], "confidence": "required", "requiresSessionId": false, "requiresUser": true},
+    {"layer": "strategy_feedback", "requiredValueKeys": ["dimension", "value"], "confidence": null, "requiresSessionIdForSubject": "anonymous"}
+  ],
+  "claim": {
+    "explicitCommand": "claim_anonymous_memory",
+    "requiredFields": ["claimId", "tenantId", "anonymousSubjectId", "sessionId", "oneTimeToken", "targetUserId", "consentPolicyVersion", "idempotencyKey"],
+    "transactionChecks": ["same_tenant", "token_bound_to_scope", "scope_unclaimed", "target_authorized", "idempotency_not_replayed"],
+    "migratedLayers": ["session", "explicit", "strategy_feedback"],
+    "recomputedLayers": ["inferred"],
+    "automaticDeviceMerge": false,
+    "crossTenantClaim": false,
+    "failureAtomic": true,
+    "outboxAfterCommit": true
+  },
+  "lifecycle": {
+    "correction": {"style": "append_only_supersession", "oldStatus": "superseded", "requiresSameTransaction": true},
+    "export": {"format": "utf8-json", "includes": ["active", "superseded", "expired", "consent", "claim", "source", "policy"], "excludes": ["credentials", "raw_embedding_vectors"], "scope": "tenant_subject_authorized"},
+    "delete": {"targets": ["record", "layer", "session", "subject"], "onlineBlock": "same_authority_transaction", "onlinePurgeSla": "PT24H", "backupPurgeSla": "P30D", "replayCannotRecreateTombstone": true},
+    "withdrawal": {"blocksNewWritesAndUse": true, "supersedesActive": true, "purgesDerived": true}
+  },
+  "derivedData": {
+    "allowedSources": ["active_consent_valid_unexpired_authority_records"],
+    "mustCarry": ["authorityRecordVersion", "modelOrRuleProfile", "tenantId", "subjectScope"],
+    "rebuildable": true,
+    "mayOverwriteNewerAuthority": false,
+    "frameworkMessagesPersistedAsMemory": false,
+    "redisMissAction": "rebuild_from_postgresql_or_use_non_personalized_path"
+  },
+  "publicRefreshInfluence": {
+    "enabled": false,
+    "threshold": null,
+    "individualSignalAllowed": false,
+    "smallCohortSignalAllowed": false,
+    "aggregateSignalAllowed": false,
+    "futureEnablement": "separate_adr_and_policy_version",
+    "untilThen": "no_signal"
+  },
+  "exampleRecords": [
+    {
+      "schemaVersion": "memory-record/v1",
+      "recordId": "mem-session-001",
+      "tenantId": "tenant-cn-1",
+      "subject": {"kind": "anonymous", "id": "anon-8bf1c0f4317f4e9d", "cohort": null, "locale": "zh-CN"},
+      "sessionId": "sess-anon-001",
+      "layer": "session",
+      "key": "temporary_constraint",
+      "value": {"kind": "temporary_constraint", "value": "不要辣"},
+      "confidence": null,
+      "sourceEventIds": ["turn-001"],
+      "consent": {"basis": "service_required", "policyVersion": "memory-policy/v1", "status": "active", "capturedAt": "2026-08-19T01:00:00Z"},
+      "validFrom": "2026-08-19T01:00:00Z",
+      "expiresAt": "2026-08-20T01:00:00Z",
+      "status": "active",
+      "supersedesRecordId": null,
+      "policyVersion": "memory-policy/v1",
+      "createdAt": "2026-08-19T01:00:00Z",
+      "updatedAt": "2026-08-19T01:00:00Z"
+    },
+    {
+      "schemaVersion": "memory-record/v1",
+      "recordId": "mem-explicit-001",
+      "tenantId": "tenant-cn-1",
+      "subject": {"kind": "user", "id": "user-2b4aa1b95c884d64", "cohort": "returning", "locale": "zh-CN"},
+      "sessionId": null,
+      "layer": "explicit",
+      "key": "diet.spice",
+      "value": {"kind": "preference", "operator": "equals", "value": "mild", "hardConstraint": true},
+      "confidence": null,
+      "sourceEventIds": ["turn-104"],
+      "consent": {"basis": "user_directed", "policyVersion": "memory-policy/v1", "status": "active", "capturedAt": "2026-08-18T10:00:00Z"},
+      "validFrom": "2026-08-18T10:00:00Z",
+      "expiresAt": null,
+      "status": "active",
+      "supersedesRecordId": null,
+      "policyVersion": "memory-policy/v1",
+      "createdAt": "2026-08-18T10:00:00Z",
+      "updatedAt": "2026-08-18T10:00:00Z"
+    },
+    {
+      "schemaVersion": "memory-record/v1",
+      "recordId": "mem-inferred-001",
+      "tenantId": "tenant-cn-1",
+      "subject": {"kind": "user", "id": "user-2b4aa1b95c884d64", "cohort": "returning", "locale": "zh-CN"},
+      "sessionId": null,
+      "layer": "inferred",
+      "key": "style.local_longstanding",
+      "value": {"kind": "affinity", "value": true, "supportEventIds": ["favorite-001", "click-008"]},
+      "confidence": 0.82,
+      "sourceEventIds": ["favorite-001", "click-008"],
+      "consent": {"basis": "personalization_opt_in", "policyVersion": "memory-policy/v1", "status": "active", "capturedAt": "2026-08-01T00:00:00Z"},
+      "validFrom": "2026-08-01T00:00:00Z",
+      "expiresAt": "2027-01-28T00:00:00Z",
+      "status": "active",
+      "supersedesRecordId": null,
+      "policyVersion": "memory-policy/v1",
+      "createdAt": "2026-08-01T00:00:00Z",
+      "updatedAt": "2026-08-18T10:00:00Z"
+    },
+    {
+      "schemaVersion": "memory-record/v1",
+      "recordId": "mem-feedback-001",
+      "tenantId": "tenant-cn-1",
+      "subject": {"kind": "user", "id": "user-2b4aa1b95c884d64", "cohort": "returning", "locale": "zh-CN"},
+      "sessionId": null,
+      "layer": "strategy_feedback",
+      "key": "research_depth",
+      "value": {"dimension": "research_depth", "value": "deep"},
+      "confidence": null,
+      "sourceEventIds": ["feedback-009"],
+      "consent": {"basis": "feedback_personalization_opt_in", "policyVersion": "memory-policy/v1", "status": "active", "capturedAt": "2026-08-10T00:00:00Z"},
+      "validFrom": "2026-08-10T00:00:00Z",
+      "expiresAt": "2026-11-08T00:00:00Z",
+      "status": "active",
+      "supersedesRecordId": null,
+      "policyVersion": "memory-policy/v1",
+      "createdAt": "2026-08-10T00:00:00Z",
+      "updatedAt": "2026-08-10T00:00:00Z"
+    }
+  ],
+  "claimFixture": {
+    "claimId": "claim-001",
+    "tenantId": "tenant-cn-1",
+    "anonymousSubjectId": "anon-8bf1c0f4317f4e9d",
+    "sessionId": "sess-anon-001",
+    "oneTimeToken": "token-redacted-fixture",
+    "targetUserId": "user-2b4aa1b95c884d64",
+    "consentPolicyVersion": "memory-policy/v1",
+    "idempotencyKey": "claim-idempotency-001"
+  },
+  "lifecycleFixtures": {
+    "correction": {"newRecordId": "mem-explicit-002", "supersedesRecordId": "mem-explicit-001", "newValue": "no_spice", "oldStatus": "superseded"},
+    "export": {"recordCount": 4, "format": "utf8-json", "includesPolicyVersion": true, "includesConsent": true, "includesRawEmbedding": false},
+    "delete": {"target": "subject", "onlineStatus": "tombstoned", "redisInvalidated": true, "indexRebuildExcludes": "tombstoned"}
+  }
+}

@@ -1,0 +1,363 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:food-agent:evidence-bundle:v1",
+  "title": "Evidence and media governance v1 authority",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "isolation",
+    "governance",
+    "source_locators",
+    "media_refs",
+    "derived_artifacts",
+    "evidence_items",
+    "bundles"
+  ],
+  "properties": {
+    "schema_version": {"const": "evidence-bundle/v1"},
+    "isolation": {"$ref": "#/$defs/isolation"},
+    "governance": {"$ref": "#/$defs/governance"},
+    "source_locators": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/source_locator"}
+    },
+    "media_refs": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/media_ref"}
+    },
+    "derived_artifacts": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/derived_artifact"}
+    },
+    "evidence_items": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/evidence_item"}
+    },
+    "bundles": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/bundle"}
+    }
+  },
+  "$defs": {
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]*/v[1-9][0-9]*$"
+    },
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "isolation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tenant_scope", "language", "region"],
+      "properties": {
+        "tenant_scope": {
+          "type": "string",
+          "pattern": "^(?:public|tenant:[a-z0-9][a-z0-9_-]{0,63})$"
+        },
+        "language": {
+          "type": "string",
+          "pattern": "^[a-z]{2,3}(?:-[A-Z][a-z]{3})?$"
+        },
+        "region": {"type": "string", "pattern": "^[A-Z]{2}$"}
+      }
+    },
+    "visibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scope", "tenant_scope", "entitlement_ids"],
+      "properties": {
+        "scope": {"enum": ["public", "tenant", "entitlement"]},
+        "tenant_scope": {"type": "string"},
+        "entitlement_ids": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/slug"},
+          "uniqueItems": true
+        }
+      }
+    },
+    "license": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "license_id",
+        "status",
+        "allowed_use",
+        "attribution_required",
+        "expires_at",
+        "policy_version"
+      ],
+      "properties": {
+        "license_id": {"type": "string", "minLength": 1},
+        "status": {"enum": ["known", "unknown", "expired", "revoked"]},
+        "allowed_use": {
+          "enum": ["extract_only", "internal_reuse", "redistributable"]
+        },
+        "attribution_required": {"type": "boolean"},
+        "expires_at": {"type": ["string", "null"], "format": "date-time"},
+        "policy_version": {"$ref": "#/$defs/version"}
+      }
+    },
+    "retention": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["retention_class", "duration_seconds", "legal_hold"],
+      "properties": {
+        "retention_class": {"$ref": "#/$defs/slug"},
+        "duration_seconds": {"type": ["integer", "null"], "minimum": 0},
+        "legal_hold": {"type": "boolean"}
+      }
+    },
+    "source_locator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "locator_id",
+        "source_id",
+        "connector_id",
+        "connector_version",
+        "external_id",
+        "canonical_url",
+        "captured_at",
+        "source_updated_at",
+        "watermark",
+        "visibility",
+        "license",
+        "retention"
+      ],
+      "properties": {
+        "locator_id": {"$ref": "#/$defs/slug"},
+        "source_id": {"$ref": "#/$defs/slug"},
+        "connector_id": {"$ref": "#/$defs/slug"},
+        "connector_version": {"$ref": "#/$defs/version"},
+        "external_id": {"type": "string", "minLength": 1},
+        "canonical_url": {"type": "string", "format": "uri"},
+        "captured_at": {"type": "string", "format": "date-time"},
+        "source_updated_at": {"type": ["string", "null"], "format": "date-time"},
+        "watermark": {"type": ["string", "null"]},
+        "visibility": {"$ref": "#/$defs/visibility"},
+        "license": {"$ref": "#/$defs/license"},
+        "retention": {"$ref": "#/$defs/retention"}
+      }
+    },
+    "media_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "media_ref_id",
+        "locator_id",
+        "media_type",
+        "source_url",
+        "declared_content_type",
+        "declared_sha256"
+      ],
+      "properties": {
+        "media_ref_id": {"$ref": "#/$defs/slug"},
+        "locator_id": {"$ref": "#/$defs/slug"},
+        "media_type": {"enum": ["image", "audio", "video", "document"]},
+        "source_url": {"type": "string", "format": "uri"},
+        "declared_content_type": {"type": ["string", "null"]},
+        "declared_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "derived_artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifact_id",
+        "object_ref",
+        "sha256",
+        "size_bytes",
+        "content_type",
+        "processor_id",
+        "processor_version",
+        "input_refs",
+        "created_at",
+        "visibility",
+        "license",
+        "retention"
+      ],
+      "properties": {
+        "artifact_id": {"$ref": "#/$defs/slug"},
+        "object_ref": {
+          "type": "string",
+          "pattern": "^s3://[a-z0-9][a-z0-9._-]*/[^\\s]+$"
+        },
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "size_bytes": {"type": "integer", "minimum": 0},
+        "content_type": {"type": "string", "minLength": 1},
+        "processor_id": {"$ref": "#/$defs/slug"},
+        "processor_version": {"$ref": "#/$defs/version"},
+        "input_refs": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/slug"},
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "created_at": {"type": "string", "format": "date-time"},
+        "visibility": {"$ref": "#/$defs/visibility"},
+        "license": {"$ref": "#/$defs/license"},
+        "retention": {"$ref": "#/$defs/retention"}
+      }
+    },
+    "claim_value": {
+      "oneOf": [
+        {"type": ["string", "number", "boolean", "null"]},
+        {"type": "array"},
+        {"type": "object"}
+      ]
+    },
+    "evidence_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidence_id",
+        "evidence_type",
+        "claim_type",
+        "claim_value",
+        "confidence",
+        "source_locator_id",
+        "media_ref_ids",
+        "derived_artifact_ids",
+        "extractor_version",
+        "schema_version",
+        "content_hash",
+        "status",
+        "visibility",
+        "license",
+        "retention"
+      ],
+      "properties": {
+        "evidence_id": {"$ref": "#/$defs/slug"},
+        "evidence_type": {"$ref": "#/$defs/slug"},
+        "claim_type": {"$ref": "#/$defs/slug"},
+        "claim_value": {"$ref": "#/$defs/claim_value"},
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "source_locator_id": {"$ref": "#/$defs/slug"},
+        "media_ref_ids": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/slug"},
+          "uniqueItems": true
+        },
+        "derived_artifact_ids": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/slug"},
+          "uniqueItems": true
+        },
+        "extractor_version": {"$ref": "#/$defs/version"},
+        "schema_version": {"$ref": "#/$defs/version"},
+        "content_hash": {"$ref": "#/$defs/sha256"},
+        "status": {"enum": ["candidate", "accepted", "quarantined", "tombstoned"]},
+        "visibility": {"$ref": "#/$defs/visibility"},
+        "license": {"$ref": "#/$defs/license"},
+        "retention": {"$ref": "#/$defs/retention"}
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": {"type": "number", "minimum": 0, "maximum": 1}
+    },
+    "bundle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bundle_id",
+        "family_id",
+        "bundle_version",
+        "parent_bundle_version",
+        "state",
+        "evidence_ids",
+        "coverage",
+        "watermarks",
+        "verified_at",
+        "freshness_policy_id",
+        "freshness_policy_version",
+        "provenance_hash",
+        "content_hash",
+        "visibility",
+        "retention"
+      ],
+      "properties": {
+        "bundle_id": {"$ref": "#/$defs/slug"},
+        "family_id": {"$ref": "#/$defs/slug"},
+        "bundle_version": {"type": "integer", "minimum": 1},
+        "parent_bundle_version": {"type": ["integer", "null"], "minimum": 1},
+        "state": {"enum": ["candidate", "published", "rejected", "tombstoned"]},
+        "evidence_ids": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/slug"},
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "coverage": {"$ref": "#/$defs/coverage"},
+        "watermarks": {"type": "object", "additionalProperties": {"type": "string"}},
+        "verified_at": {"type": "string", "format": "date-time"},
+        "freshness_policy_id": {"$ref": "#/$defs/slug"},
+        "freshness_policy_version": {"$ref": "#/$defs/version"},
+        "provenance_hash": {"$ref": "#/$defs/sha256"},
+        "content_hash": {"$ref": "#/$defs/sha256"},
+        "visibility": {"$ref": "#/$defs/visibility"},
+        "retention": {"$ref": "#/$defs/retention"}
+      }
+    },
+    "governance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["visibility_scopes", "license_use", "deletion"],
+      "properties": {
+        "visibility_scopes": {
+          "const": ["public", "tenant", "entitlement"]
+        },
+        "license_use": {
+          "const": ["extract_only", "internal_reuse", "redistributable"]
+        },
+        "deletion": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "request_is_idempotent",
+            "uses_tombstone",
+            "replacement_candidate_required",
+            "cleanup_is_async_and_idempotent",
+            "legal_hold_blocks_bytes_delete",
+            "metadata_authority"
+          ],
+          "properties": {
+            "request_is_idempotent": {"const": true},
+            "uses_tombstone": {"const": true},
+            "replacement_candidate_required": {"const": true},
+            "cleanup_is_async_and_idempotent": {"const": true},
+            "legal_hold_blocks_bytes_delete": {"const": true},
+            "metadata_authority": {"const": "postgresql"}
+          }
+        }
+      }
+    }
+  },
+  "x-authority": {
+    "binaryBoundary": "object_store_only",
+    "metadataAuthority": "postgresql",
+    "workflowAuthority": "temporal_history_without_business_facts",
+    "cacheBoundary": "redis_rebuildable_only",
+    "publicationRequirements": [
+      "accepted_evidence",
+      "complete_source_chain",
+      "valid_object_hash_and_reference",
+      "known_unexpired_license",
+      "license_and_visibility_compatible",
+      "candidate_bundle_cas_activation"
+    ],
+    "retentionDurations": "deferred_to_oq12_b4",
+    "forbiddenMediaOrArtifactFields": ["bytes", "data", "base64", "credentials", "cookies", "signed_url"],
+    "deletion": {
+      "publishedBundle": "never_mutate_in_place",
+      "oldMetadata": "retain_auditable_tombstone",
+      "oldBytes": "delete_after_reference_retention_and_legal_hold_checks"
+    }
+  }
+}

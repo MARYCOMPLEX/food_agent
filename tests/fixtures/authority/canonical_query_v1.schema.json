@@ -1,0 +1,231 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:food-agent:canonical-query:v1",
+  "title": "Canonical Query v1 authority",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "normalizer_version",
+    "classifier_version",
+    "isolation",
+    "query"
+  ],
+  "properties": {
+    "schema_version": {"const": "canonical-query/v1"},
+    "normalizer_version": {"$ref": "#/$defs/version"},
+    "classifier_version": {"$ref": "#/$defs/version"},
+    "isolation": {"$ref": "#/$defs/isolation"},
+    "query": {"$ref": "#/$defs/query"}
+  },
+  "$defs": {
+    "version": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]*/v[1-9][0-9]*$"
+    },
+    "registered_slug": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "isolation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tenant_scope", "language", "region"],
+      "properties": {
+        "tenant_scope": {
+          "type": "string",
+          "pattern": "^(?:public|tenant:[a-z0-9][a-z0-9_-]{0,63})$"
+        },
+        "language": {
+          "type": "string",
+          "pattern": "^[a-z]{2,3}(?:-[A-Z][a-z]{3})?$"
+        },
+        "region": {"type": "string", "pattern": "^[A-Z]{2}$"}
+      }
+    },
+    "geo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["country_code", "admin_path", "locality"],
+      "properties": {
+        "country_code": {"type": "string", "pattern": "^[A-Z]{2}$"},
+        "admin_path": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/registered_slug"},
+          "uniqueItems": true,
+          "maxItems": 8
+        },
+        "locality": {"$ref": "#/$defs/registered_slug"}
+      }
+    },
+    "intent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "subject"],
+      "properties": {
+        "kind": {
+          "enum": ["discover", "recommend", "compare", "verify", "plan"]
+        },
+        "subject": {"$ref": "#/$defs/registered_slug"}
+      }
+    },
+    "constraint_value": {
+      "oneOf": [
+        {"type": ["string", "number", "boolean", "null"]},
+        {
+          "type": "array",
+          "items": {"type": ["string", "number", "integer", "boolean"]},
+          "uniqueItems": true,
+          "minItems": 1
+        }
+      ]
+    },
+    "public_constraint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "operator", "value", "classification_rule"],
+      "properties": {
+        "key": {"$ref": "#/$defs/registered_slug"},
+        "operator": {"enum": ["eq", "in", "range", "exists"]},
+        "value": {"$ref": "#/$defs/constraint_value"},
+        "classification_rule": {"$ref": "#/$defs/registered_slug"}
+      }
+    },
+    "time_range": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "start", "end", "timezone"],
+      "properties": {
+        "kind": {"enum": ["any", "current", "interval", "season"]},
+        "start": {"type": ["string", "null"], "format": "date-time"},
+        "end": {"type": ["string", "null"], "format": "date-time"},
+        "timezone": {
+          "type": "string",
+          "pattern": "^(?:Etc/UTC|[A-Za-z_]+/[A-Za-z_+-]+)$"
+        }
+      }
+    },
+    "freshness_policy_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policy_id", "policy_version"],
+      "properties": {
+        "policy_id": {"$ref": "#/$defs/registered_slug"},
+        "policy_version": {"$ref": "#/$defs/version"}
+      }
+    },
+    "query": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "domain",
+        "geo",
+        "intent",
+        "audience",
+        "constraints",
+        "time_range",
+        "freshness_policy"
+      ],
+      "properties": {
+        "domain": {"$ref": "#/$defs/registered_slug"},
+        "geo": {"$ref": "#/$defs/geo"},
+        "intent": {"$ref": "#/$defs/intent"},
+        "audience": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/registered_slug"},
+          "uniqueItems": true
+        },
+        "constraints": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/public_constraint"}
+        },
+        "time_range": {"$ref": "#/$defs/time_range"},
+        "freshness_policy": {"$ref": "#/$defs/freshness_policy_ref"}
+      }
+    }
+  },
+  "x-authority": {
+    "canonicalization": {
+      "unicode": "NFKC",
+      "whitespace": "trim_and_collapse",
+      "registeredSlugs": "lower_ascii",
+      "countryAndRegionCodes": "upper_ascii",
+      "timestamps": "rfc3339_utc",
+      "sets": "stable_sort_then_deduplicate",
+      "objectSerialization": "rfc8785_style_canonical_json"
+    },
+    "familyIdentity": {
+      "isolationFields": ["tenant_scope", "language", "region"],
+      "queryFields": [
+        "domain",
+        "geo",
+        "intent",
+        "constraints",
+        "time_range",
+        "freshness_policy"
+      ],
+      "excludedQueryFields": ["audience"],
+      "forbiddenFields": [
+        "user_id",
+        "session_id",
+        "device_id",
+        "cohort",
+        "preferences",
+        "clicks",
+        "favorites",
+        "memory"
+      ]
+    },
+    "audience": {
+      "exactIdentity": false,
+      "explainableSimilarity": true,
+      "reranking": true,
+      "publicFactNeed": "project_to_versioned_public_constraint"
+    },
+    "constraintClassification": {
+      "publicCategories": [
+        "entity_category",
+        "public_attribute",
+        "source_scope",
+        "public_time_scope"
+      ],
+      "personalCategories": [
+        "taste",
+        "dietary_restriction",
+        "personal_budget",
+        "mobility_need",
+        "trip_style"
+      ],
+      "unknownAction": ["clarify", "non_shared_research"]
+    },
+    "matching": {
+      "partition": ["tenant_scope", "language", "region", "domain"],
+      "orderedLevels": ["deterministic", "pg_trgm", "bge_m3_profile_v1"],
+      "vectorProfile": {
+        "id": "profile_v1",
+        "dimensions": 1024,
+        "metric": "cosine",
+        "normalized": true
+      },
+      "lowConfidence": "new_family_or_review_candidate",
+      "thresholds": "deferred_to_b2_versioned_matching_policy"
+    },
+    "mergeSplitAuditRequired": [
+      "operation_id",
+      "operation",
+      "before_family_ids",
+      "after_family_ids",
+      "isolation",
+      "actor_type",
+      "rule_version",
+      "profile_version",
+      "threshold_version",
+      "scores",
+      "reason_codes",
+      "evidence_refs",
+      "recorded_at"
+    ]
+  }
+}

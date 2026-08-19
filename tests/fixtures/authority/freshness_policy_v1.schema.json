@@ -1,0 +1,186 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:food-agent:freshness-policy:v1",
+  "title": "Freshness Policy v1 authority",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "policy_id",
+    "policy_version",
+    "domain",
+    "status",
+    "partitions",
+    "coverage",
+    "watermarks",
+    "popularity",
+    "priority",
+    "gate"
+  ],
+  "properties": {
+    "schema_version": {"const": "freshness-policy/v1"},
+    "policy_id": {"$ref": "#/$defs/slug"},
+    "policy_version": {"$ref": "#/$defs/version"},
+    "domain": {"$ref": "#/$defs/slug"},
+    "status": {"enum": ["draft", "active", "retired"]},
+    "partitions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/partition"}
+    },
+    "coverage": {"$ref": "#/$defs/coverage"},
+    "watermarks": {"$ref": "#/$defs/watermarks"},
+    "popularity": {"$ref": "#/$defs/popularity"},
+    "priority": {"$ref": "#/$defs/priority"},
+    "gate": {"$ref": "#/$defs/gate"}
+  },
+  "$defs": {
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]*/v[1-9][0-9]*$"
+    },
+    "ratio": {"type": "number", "minimum": 0, "maximum": 1},
+    "seconds": {"type": "integer", "minimum": 0},
+    "partition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "partition_id",
+        "required",
+        "fresh_for_seconds",
+        "max_stale_for_seconds",
+        "minimum_coverage",
+        "watermark_key"
+      ],
+      "properties": {
+        "partition_id": {"$ref": "#/$defs/slug"},
+        "required": {"type": "boolean"},
+        "fresh_for_seconds": {"$ref": "#/$defs/seconds"},
+        "max_stale_for_seconds": {"$ref": "#/$defs/seconds"},
+        "minimum_coverage": {"$ref": "#/$defs/ratio"},
+        "watermark_key": {"$ref": "#/$defs/slug"}
+      }
+    },
+    "coverage_dimension": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dimension", "weight", "minimum_ratio"],
+      "properties": {
+        "dimension": {"$ref": "#/$defs/slug"},
+        "weight": {"$ref": "#/$defs/ratio"},
+        "minimum_ratio": {"$ref": "#/$defs/ratio"}
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dimensions", "overall_minimum_ratio", "calculation_version"],
+      "properties": {
+        "dimensions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/coverage_dimension"}
+        },
+        "overall_minimum_ratio": {"$ref": "#/$defs/ratio"},
+        "calculation_version": {"$ref": "#/$defs/version"}
+      }
+    },
+    "watermark_rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["watermark_key", "mode", "comparator_version"],
+      "properties": {
+        "watermark_key": {"$ref": "#/$defs/slug"},
+        "mode": {
+          "enum": ["source_updated_at", "opaque_cursor", "captured_at_fallback"]
+        },
+        "comparator_version": {"$ref": "#/$defs/version"}
+      }
+    },
+    "watermarks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rules", "missing_action"],
+      "properties": {
+        "rules": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/watermark_rule"}
+        },
+        "missing_action": {"enum": ["incremental", "new", "fail_closed"]}
+      }
+    },
+    "popularity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["window_seconds", "aggregate_signals", "privacy_policy_version"],
+      "properties": {
+        "window_seconds": {"type": "integer", "minimum": 1},
+        "aggregate_signals": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/slug"},
+          "uniqueItems": true
+        },
+        "privacy_policy_version": {"$ref": "#/$defs/version"}
+      }
+    },
+    "factor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["factor", "weight"],
+      "properties": {
+        "factor": {"$ref": "#/$defs/slug"},
+        "weight": {"$ref": "#/$defs/ratio"}
+      }
+    },
+    "priority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["factors", "tie_breakers", "calculation_version"],
+      "properties": {
+        "factors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/factor"}
+        },
+        "tie_breakers": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/slug"},
+          "uniqueItems": true,
+          "minItems": 1
+        },
+        "calculation_version": {"$ref": "#/$defs/version"}
+      }
+    },
+    "gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outcomes", "active_refresh", "stale_failure_action"],
+      "properties": {
+        "outcomes": {
+          "const": ["fresh", "incremental", "new"]
+        },
+        "active_refresh": {"enum": ["reuse_task", "wait_for_task", "read_stale_if_allowed"]},
+        "stale_failure_action": {"enum": ["return_stale_with_status", "new_research", "fail"]}
+      }
+    }
+  },
+  "x-authority": {
+    "invariants": [
+      "max_stale_for_seconds >= fresh_for_seconds for every partition",
+      "coverage dimension weights sum to 1",
+      "priority weights are versioned and contain no user identity",
+      "watermark comparison is connector-owned and opaque",
+      "gate returns exactly one of fresh, incremental, new"
+    ],
+    "reviewExampleValues": "non_normative_until_b2_b4",
+    "publicFeedbackInfluence": "disabled_by_memory-privacy/v1",
+    "forbiddenPriorityInputs": ["user_id", "session_id", "private_preference", "raw_feedback_value"]
+  }
+}

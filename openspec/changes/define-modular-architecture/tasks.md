@@ -6,11 +6,11 @@
 - [x] 1.4 决定搜索、history、favorites、FAQ 响应包络和分页字段中前端与后端哪一侧是权威，并为每个裁决生成 JSON Schema fixture。
 - [x] 1.5 决定 SSE 步骤 ID、`message/detail/error` 字段、终态和版本协商；重放固定为窗口内按 event ID 排他续传、窗口外返回 `replay_expired/resync` 与权威任务快照/终态，并生成两类 wire-level fixture。
 - [x] 1.6 决定 Food DTO 的 camelCase/snake_case、Restaurant 身份语义、ID 稳定性、Python public exports 和结果等价容差。
-- [ ] 1.7 定义 Canonical Query 字段枚举、规范化版本、语言/地域/租户隔离、`audience` 语义、公共/个人约束分类、相似算法和 Family 合并/拆分规则。
-- [ ] 1.8 定义 freshness、最大陈旧时间、最低覆盖度、来源水位、热门度和刷新优先级的领域配置合同。
-- [ ] 1.9 定义 Evidence、Bundle、SourceLocator、MediaRef、DerivedArtifact 的正式 schema、可见性、许可、保留和删除策略。
-- [ ] 1.10 定义 Domain Contract 方法、发现与版本协商、allowed tools、输出模式，并裁决 Fixed Workflow、Scoring Policy、Domain Sources 和 Refresh Coordinator 是否是公开扩展点。
-- [ ] 1.11 定义四层记忆 schema、用户/匿名身份迁移、同意、过期、纠正、导出、删除和反馈聚合隐私阈值。
+- [x] 1.7 定义 Canonical Query 字段枚举、规范化版本、语言/地域/租户隔离、`audience` 语义、公共/个人约束分类、相似算法和 Family 合并/拆分规则。
+- [x] 1.8 定义 freshness、最大陈旧时间、最低覆盖度、来源水位、热门度和刷新优先级的领域配置合同。
+- [x] 1.9 定义 Evidence、Bundle、SourceLocator、MediaRef、DerivedArtifact 的正式 schema、可见性、许可、保留和删除策略。
+- [x] 1.10 定义 Domain Contract 方法、发现与版本协商、allowed tools、输出模式，并裁决 Fixed Workflow、Scoring Policy、Domain Sources 和 Refresh Coordinator 是否是公开扩展点。
+- [x] 1.11 定义四层记忆 schema、用户/匿名身份迁移、同意、过期、纠正、导出、删除和反馈聚合隐私阈值。
 - [x] 1.12 将已批准的数据权威写入 ADR：PostgreSQL 16 保存业务事实与 `task_progress_projection`，Temporal history 是唯一 executable checkpoint，Redis 只保存可重建热状态；目标多 worker 模式禁止进程内静默 fallback、Redis lock/Redlock 和 Redis durable task state。
 - [ ] 1.13 将已批准的基础设施绑定写入 ADR：Temporal 承载 Research/Refresh/Media 三类 Task Queue，S3-compatible `ObjectStore` 使用 boto3 adapter、本地使用 MinIO；另行定义加密、保留、清理、重试耗尽和人工恢复策略。
 - [x] 1.14 将 Pydantic AI V2 固化为唯一 Agent runtime，保留 SiliconFlow/OpenAI/DeepSeek 的 provider adapters，官方 MCP SDK 只进入外部 interop adapter；Node signer/Playwright 缺失合同仍单独裁决。
