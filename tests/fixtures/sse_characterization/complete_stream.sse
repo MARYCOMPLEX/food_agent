@@ -1,0 +1,11 @@
+id: mem-1
+event: step_start
+data: {"step": "step1", "message": "解析: 成都火锅", "steps": [{"id": "step1", "label": "解析: 成都火锅", "status": "loading"}], "progress": 0}
+
+id: mem-2
+event: result
+data: {"summary": "推荐完成", "total": 1, "filtered": 0, "steps": [{"id": "step1", "label": "解析: 成都火锅", "status": "done"}]}
+
+id: mem-3
+event: done
+data: {"message": "搜索完成"}

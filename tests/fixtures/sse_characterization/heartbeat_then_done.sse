@@ -1,0 +1,7 @@
+id: heartbeat
+event: progress
+data: {"heartbeat": true}
+
+id: terminal-1
+event: done
+data: {"message": "搜索完成"}

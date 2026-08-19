@@ -27,19 +27,19 @@
 ## 2. S0 Characterization Baseline
 
 - [x] 2.1 修复测试基础设施的独立 tooling 基线，使 Python 3.12 下的 `uv sync --frozen` 与 `uv lock --check`、frontend lockfile/tsconfig、pytest marker 选择和 CI 命令可重复执行且不改变生产行为。
-- [ ] 2.2 生成当前 FastAPI OpenAPI snapshot，并为搜索 new/refine/recover、status/results 和错误分支添加 HTTP golden tests。
-- [ ] 2.3 为 favorites、history、user、help、health 和 metrics 的路径、header、状态码、分页、包络和软删除添加 characterization tests。
-- [ ] 2.4 为 `X-User-Id > X-Device-Id > anonymous`、匿名隔离和浏览器 device ID 添加身份 characterization tests。
-- [ ] 2.5 为完整 SSE 字节流、六步顺序、payload、event ID、心跳、终态和 `Last-Event-ID` 排他重放添加 tests。
-- [ ] 2.6 为同 session refine、断线恢复、旧 terminal event、重复订阅和多 worker 模拟添加 SSE/state characterization tests。
-- [ ] 2.7 为四阶段关键词、fast/deep 停止、note 去重、合并、过滤、排序和追问添加冻结来源/LLM fixture tests。
-- [ ] 2.8 为 `FoodSearchIntent`、`RestaurantRecommendation`、`XHSFoodResponse`、Enriched DTO 和持久化 JSON 添加全字段/空值/Unicode golden tests，并锁定 restaurant hash 在空电话与 `trim(name):trim(tel)` 两个分支的精确公式。
-- [ ] 2.9 为顶层 `__all__`、Orchestrator public methods、构造注入、MCP 注册名和 ToolResult 添加 Python/import contract snapshots。
-- [ ] 2.10 为 Memory/Redis 状态、EventBus、session window、TTL、warm-up、PostgreSQL/pgvector 禁用和启动 fallback 添加固定时钟 tests。
-- [ ] 2.11 为 clean DB、迁移前 `search_results` 和已执行 `turn_id` migration 的 schema/repository 组合建立可重放 fixtures。
-- [ ] 2.12 为环境变量名称/默认值/优先级、多 LLM、Node signer、容器入口/端口/UID/卷/healthcheck 添加 configuration/deployment characterization。
-- [ ] 2.13 建立前端和服务端双方的 consumer fixture，记录 search/history/favorites/FAQ/SSE/CORS 当前不一致，测试不得通过隐式改一侧来消除差异。
-- [ ] 2.14 运行 S0 在无外部网络的 CI 基线，归档测试数量、未覆盖项和 fixture 更新规则。
+- [x] 2.2 生成当前 FastAPI OpenAPI snapshot，并为搜索 new/refine/recover、status/results 和错误分支添加 HTTP golden tests。
+- [x] 2.3 为 favorites、history、user、help、health 和 metrics 的路径、header、状态码、分页、包络和软删除添加 characterization tests。
+- [x] 2.4 为 `X-User-Id > X-Device-Id > anonymous`、匿名隔离和浏览器 device ID 添加身份 characterization tests。
+- [x] 2.5 为完整 SSE 字节流、六步顺序、payload、event ID、心跳、终态和 `Last-Event-ID` 排他重放添加 tests。
+- [x] 2.6 为同 session refine、断线恢复、旧 terminal event、重复订阅和多 worker 模拟添加 SSE/state characterization tests。
+- [x] 2.7 为四阶段关键词、fast/deep 停止、note 去重、合并、过滤、排序和追问添加冻结来源/LLM fixture tests。
+- [x] 2.8 为 `FoodSearchIntent`、`RestaurantRecommendation`、`XHSFoodResponse`、Enriched DTO 和持久化 JSON 添加全字段/空值/Unicode golden tests，并锁定 restaurant hash 在空电话与 `trim(name):trim(tel)` 两个分支的精确公式。
+- [x] 2.9 为顶层 `__all__`、Orchestrator public methods、构造注入、MCP 注册名和 ToolResult 添加 Python/import contract snapshots。
+- [x] 2.10 为 Memory/Redis 状态、EventBus、session window、TTL、warm-up、PostgreSQL/pgvector 禁用和启动 fallback 添加固定时钟 tests。
+- [x] 2.11 为 clean DB、迁移前 `search_results` 和已执行 `turn_id` migration 的 schema/repository 组合建立可重放 fixtures。
+- [x] 2.12 为环境变量名称/默认值/优先级、多 LLM、Node signer、容器入口/端口/UID/卷/healthcheck 添加 configuration/deployment characterization。
+- [x] 2.13 建立前端和服务端双方的 consumer fixture，记录 search/history/favorites/FAQ/SSE/CORS 当前不一致，测试不得通过隐式改一侧来消除差异。
+- [x] 2.14 运行 S0 在无外部网络的 CI 基线，归档测试数量、未覆盖项和 fixture 更新规则。
 - [ ] 2.15 演练 revert S0 提交并确认仅移除测试/tooling 资产；将 S0 作为不含生产行为变化的独立提交。
 
 ## 3. S1 Contract SDK And Architecture Rules

@@ -1,0 +1,35 @@
+{
+  "server_current": {
+    "search_entry": "POST /v1/search/",
+    "search_response_session": "data.sessionId",
+    "refine_and_recover": "POST /v1/search/",
+    "history_query": ["limit", "offset"],
+    "history_items": "data.items",
+    "favorites_items": "data.items",
+    "faqs_items": "data",
+    "sse_replay": "Last-Event-ID",
+    "sse_steps": ["step1", "step2", "step3", "step4", "step5", "step6"],
+    "sse_detail_fields": ["message", "error"],
+    "cors_origin": "http://localhost:5173",
+    "cors_methods": ["GET", "POST", "DELETE", "OPTIONS"]
+  },
+  "frontend_assumed": {
+    "search_entry": "POST /v1/search/",
+    "search_response_session": "sessionId",
+    "refine": "POST /v1/search/refine",
+    "recover": "GET /v1/search/recover/{sessionId}",
+    "history_query": ["page", "pageSize"],
+    "history_items": "data.history",
+    "favorites_items": "data.favorites",
+    "faqs_items": "data.faqs",
+    "sse_replay": "lastEventIndex",
+    "sse_steps": ["intent_parsing", "xhs_search", "comment_analysis", "cross_validation", "poi_enrichment", "result_generation"],
+    "sse_detail_field": "detail",
+    "dev_origin": "http://localhost:3000"
+  },
+  "docs_declared": {
+    "start": "POST /v1/search/start",
+    "refine": "POST /v1/search/refine",
+    "recover": "GET /v1/search/recover/{id}"
+  }
+}

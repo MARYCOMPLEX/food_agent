@@ -1,0 +1,29 @@
+{
+  "intent": {
+    "location": "自贡",
+    "food_type": "火锅",
+    "requirements": ["本地人常去", "适合夜宵", "不会进入前三个阶段一"],
+    "exclude_keywords": ["网红"],
+    "time_filter": null,
+    "price_range": null
+  },
+  "phase1_keywords": [
+    "自贡 本地人 老店",
+    "自贡 火锅 地道",
+    "自贡 本地人 推荐",
+    "自贡 本地人常去",
+    "自贡 适合夜宵"
+  ],
+  "phase2_keywords": [
+    "自贡 苍蝇馆子 好吃",
+    "自贡 小馆子 本地人",
+    "自贡 巷子里 老店",
+    "自贡 不起眼 好吃"
+  ],
+  "expand_keywords": ["自贡 隐藏美食", "自贡 老字号", "自贡 街边小店"],
+  "follow_up_llm": {
+    "shops": ["老灶火锅"],
+    "response": "保留老灶火锅，排除其他候选。",
+    "new_search": false
+  }
+}

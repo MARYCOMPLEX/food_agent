@@ -13,7 +13,9 @@ This conftest provides:
 from __future__ import annotations
 
 import os
+import socket
 import sys
+from ipaddress import ip_address
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -81,6 +83,52 @@ def _set_test_env() -> None:
     """Provide a dummy OPENAI_API_KEY so Settings doesn't blow up on import."""
     os.environ.setdefault("OPENAI_API_KEY", "test-key")
     os.environ.setdefault("DEFAULT_LLM_MODEL", "test-model")
+
+
+def _is_loopback_host(host: object) -> bool:
+    if not isinstance(host, str):
+        return True
+    if host.lower() in {"localhost", "testserver"}:
+        return True
+    try:
+        return ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+@pytest.fixture(autouse=True)
+def _block_external_network(
+    request: pytest.FixtureRequest,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Keep non-live suites offline while allowing local service containers."""
+    if request.node.get_closest_marker("live"):
+        yield
+        return
+
+    original_getaddrinfo = socket.getaddrinfo
+    original_connect = socket.socket.connect
+    original_connect_ex = socket.socket.connect_ex
+
+    def guarded_getaddrinfo(host: object, *args: Any, **kwargs: Any):
+        if not _is_loopback_host(host):
+            raise RuntimeError(f"External network is disabled for tests: {host}")
+        return original_getaddrinfo(host, *args, **kwargs)
+
+    def guarded_connect(sock: socket.socket, address: object):
+        if isinstance(address, tuple) and not _is_loopback_host(address[0]):
+            raise RuntimeError(f"External network is disabled for tests: {address[0]}")
+        return original_connect(sock, address)
+
+    def guarded_connect_ex(sock: socket.socket, address: object):
+        if isinstance(address, tuple) and not _is_loopback_host(address[0]):
+            raise RuntimeError(f"External network is disabled for tests: {address[0]}")
+        return original_connect_ex(sock, address)
+
+    monkeypatch.setattr(socket, "getaddrinfo", guarded_getaddrinfo)
+    monkeypatch.setattr(socket.socket, "connect", guarded_connect)
+    monkeypatch.setattr(socket.socket, "connect_ex", guarded_connect_ex)
+    yield
 
 
 # ---------------------------------------------------------------------------

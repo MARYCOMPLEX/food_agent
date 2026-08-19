@@ -1,0 +1,57 @@
+{
+  "clean_db": {
+    "exists": false,
+    "columns": [],
+    "primary_key": [],
+    "unique_constraints": [],
+    "indexes": {}
+  },
+  "pre_turn_id": {
+    "exists": true,
+    "columns": [
+      "id",
+      "session_id",
+      "restaurants",
+      "summary",
+      "filtered_count",
+      "created_at"
+    ],
+    "primary_key": ["id"],
+    "unique_constraints": [["session_id"]],
+    "indexes": {
+      "idx_results_session": {
+        "columns": ["session_id"],
+        "unique": false
+      }
+    }
+  },
+  "post_turn_id": {
+    "exists": true,
+    "columns": [
+      "id",
+      "session_id",
+      "restaurants",
+      "summary",
+      "filtered_count",
+      "created_at",
+      "turn_id",
+      "query"
+    ],
+    "primary_key": ["id"],
+    "unique_constraints": [],
+    "indexes": {
+      "idx_results_session": {
+        "columns": ["session_id"],
+        "unique": false
+      },
+      "idx_results_session_turn": {
+        "columns": ["session_id", "turn_id"],
+        "unique": true
+      },
+      "idx_results_turn": {
+        "columns": ["session_id", "turn_id DESC"],
+        "unique": false
+      }
+    }
+  }
+}

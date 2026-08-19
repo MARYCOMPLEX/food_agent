@@ -121,6 +121,7 @@ downloads/
 !frontend/tsconfig*.json
 !frontend/src/lib/
 !frontend/src/lib/utils.ts
+!tests/fixtures/**/*.json
 
 # ----- XHS Spider Specific -----
 cookies.txt

@@ -1,0 +1,303 @@
+{
+  "schema_version": 1,
+  "settings": {
+    "source": "src/xhs_food/config.py",
+    "model_config": {
+      "env_file": ".env",
+      "env_file_encoding": "utf-8",
+      "case_sensitive": false,
+      "extra": "ignore"
+    },
+    "precedence_high_to_low": [
+      "init_kwargs",
+      "process_environment",
+      "dotenv_file",
+      "field_default"
+    ],
+    "env_names": [
+      "ANALYZE_CONCURRENCY",
+      "API_HOST",
+      "API_PORT",
+      "CORS_ORIGINS",
+      "DATABASE_URL",
+      "DEFAULT_LLM_MODEL",
+      "EMBEDDING_API_BASE",
+      "EMBEDDING_API_KEY",
+      "EMBEDDING_MODEL",
+      "EVENT_BUS_BACKEND",
+      "EVENT_STREAM_MAXLEN",
+      "EVENT_STREAM_TTL_SECONDS",
+      "LLM_MAX_TOKENS",
+      "LLM_TEMPERATURE",
+      "LOG_LEVEL",
+      "OPENAI_API_BASE",
+      "OPENAI_API_KEY",
+      "POI_CONCURRENCY",
+      "POSTGRES_DB",
+      "POSTGRES_HOST",
+      "POSTGRES_PASSWORD",
+      "POSTGRES_PORT",
+      "POSTGRES_USER",
+      "RATE_LIMIT_SEARCH",
+      "REDIS_DATABASE",
+      "REDIS_HOST",
+      "REDIS_PASSWORD",
+      "REDIS_PORT",
+      "REDIS_URL",
+      "REDIS_USERNAME",
+      "SEARCH_DEEP_MODE",
+      "SEARCH_MAX_RESTAURANTS",
+      "SEARCH_NOTES_PER_KEYWORD",
+      "SEARCH_NOTE_LIMIT",
+      "SSE_HEARTBEAT_SECONDS",
+      "SSE_TIMEOUT_SECONDS",
+      "XHS_COOKIES",
+      "XHS_LOG_DB_PATH",
+      "XHS_PROFILE_DIR"
+    ],
+    "defaults": {
+      "openai_api_key": null,
+      "openai_api_base": "https://api.siliconflow.cn/v1/",
+      "default_llm_model": "Qwen/Qwen3-8B",
+      "llm_temperature": 0.2,
+      "llm_max_tokens": 1024,
+      "embedding_api_key": null,
+      "embedding_api_base": null,
+      "embedding_model": "text-embedding-3-small",
+      "search_deep_mode": false,
+      "search_note_limit": 15,
+      "search_notes_per_keyword": 4,
+      "search_max_restaurants": 10,
+      "analyze_concurrency": 5,
+      "poi_concurrency": 5,
+      "api_host": "0.0.0.0",
+      "api_port": 8000,
+      "sse_heartbeat_seconds": 30,
+      "sse_timeout_seconds": 900,
+      "cors_origins": [
+        "http://localhost:5173"
+      ],
+      "rate_limit_search": "10/minute",
+      "event_bus_backend": "memory",
+      "event_stream_ttl_seconds": 3600,
+      "event_stream_maxlen": 1000,
+      "redis_url": null,
+      "redis_host": null,
+      "redis_port": 6379,
+      "redis_database": 0,
+      "redis_username": null,
+      "redis_password": null,
+      "database_url": null,
+      "postgres_host": null,
+      "postgres_port": 5432,
+      "postgres_db": "xhs_food_agent",
+      "postgres_user": "postgres",
+      "postgres_password": null,
+      "xhs_cookies": null,
+      "xhs_profile_dir": null,
+      "xhs_log_db_path": null,
+      "log_level": "INFO"
+    }
+  },
+  "env_example": {
+    "source": ".env.example",
+    "declared_names": [
+      "API_HOST",
+      "API_PORT",
+      "DEFAULT_LLM_MODEL",
+      "EMBEDDING_API_BASE",
+      "EMBEDDING_API_KEY",
+      "EMBEDDING_MODEL",
+      "LOG_LEVEL",
+      "OPENAI_API_BASE",
+      "OPENAI_API_KEY",
+      "POSTGRES_DB",
+      "POSTGRES_HOST",
+      "POSTGRES_PASSWORD",
+      "POSTGRES_PORT",
+      "POSTGRES_USER",
+      "REDIS_DATABASE",
+      "REDIS_HOST",
+      "REDIS_PASSWORD",
+      "REDIS_PORT",
+      "SEARCH_DEEP_MODE",
+      "SEARCH_MAX_RESTAURANTS",
+      "SEARCH_NOTES_PER_KEYWORD",
+      "SEARCH_NOTE_LIMIT",
+      "SSE_TIMEOUT",
+      "XHS_COOKIES"
+    ],
+    "active_names": [
+      "DEFAULT_LLM_MODEL",
+      "OPENAI_API_BASE",
+      "OPENAI_API_KEY",
+      "SEARCH_DEEP_MODE",
+      "SEARCH_MAX_RESTAURANTS",
+      "SEARCH_NOTES_PER_KEYWORD",
+      "SEARCH_NOTE_LIMIT",
+      "SSE_TIMEOUT"
+    ],
+    "settings_only_names": [
+      "ANALYZE_CONCURRENCY",
+      "CORS_ORIGINS",
+      "DATABASE_URL",
+      "EVENT_BUS_BACKEND",
+      "EVENT_STREAM_MAXLEN",
+      "EVENT_STREAM_TTL_SECONDS",
+      "LLM_MAX_TOKENS",
+      "LLM_TEMPERATURE",
+      "POI_CONCURRENCY",
+      "RATE_LIMIT_SEARCH",
+      "REDIS_URL",
+      "REDIS_USERNAME",
+      "SSE_HEARTBEAT_SECONDS",
+      "SSE_TIMEOUT_SECONDS",
+      "XHS_LOG_DB_PATH",
+      "XHS_PROFILE_DIR"
+    ],
+    "env_example_only_names": [
+      "SSE_TIMEOUT"
+    ],
+    "known_conflicts": {
+      "sse_timeout": "SSE_TIMEOUT is documented and active in .env.example, but Settings consumes SSE_TIMEOUT_SECONDS.",
+      "cors_origins": "Settings documents comma splitting, while pydantic-settings rejects a raw comma-delimited environment value before the validator runs."
+    }
+  },
+  "llm": {
+    "implementation": "OpenAI-compatible ChatOpenAI",
+    "credential_env": "OPENAI_API_KEY",
+    "base_url_env": "OPENAI_API_BASE",
+    "model_env": "DEFAULT_LLM_MODEL",
+    "constructor_model_precedence": [
+      "model_name_argument",
+      "DEFAULT_LLM_MODEL",
+      "Qwen/Qwen3-8B"
+    ],
+    "providers": [
+      {
+        "name": "SiliconFlow",
+        "base_url": "https://api.siliconflow.cn/v1/",
+        "model": "Qwen/Qwen3-8B"
+      },
+      {
+        "name": "OpenAI",
+        "base_url": "https://api.openai.com/v1/",
+        "model": "gpt-4o-mini"
+      },
+      {
+        "name": "DeepSeek",
+        "base_url": "https://api.deepseek.com/v1/",
+        "model": "deepseek-chat"
+      }
+    ]
+  },
+  "node_signer": {
+    "python_source": "src/xhs_food/auth/signer.py",
+    "javascript_source": "src/xhs_food/auth/_node/signer.js",
+    "package_manifest": "src/xhs_food/auth/_node/package.json",
+    "package_lock_present": false,
+    "runtime_command": [
+      "node",
+      "SIGNER_JS"
+    ],
+    "environment": {
+      "required": "XHS_COOKIE",
+      "optional": "XHS_UA"
+    },
+    "modes": {
+      "default": "stdio newline-delimited JSON",
+      "preferred": "UNIX socket daemon",
+      "socket_argument": "--socket=PATH",
+      "socket_mode": "0600",
+      "stdio_fallback": true
+    },
+    "dependency_behavior": {
+      "dependency": "jsdom",
+      "version": "^29.1.1",
+      "missing_action": [
+        "npm",
+        "install"
+      ],
+      "failure": "SystemExit"
+    }
+  },
+  "deployment": {
+    "dockerfile": {
+      "source": "Dockerfile",
+      "node_image": "node:20-slim",
+      "builder_image": "python:3.11-slim",
+      "runtime_image": "python:3.11-slim",
+      "entrypoint": null,
+      "cmd": [
+        "uvicorn",
+        "api.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000"
+      ],
+      "exposed_port": 8000,
+      "runtime_user": "app",
+      "uid": 1001,
+      "gid": 1001,
+      "writable_directories": [
+        "/app/.xhs_profiles",
+        "/app/logs"
+      ],
+      "healthcheck": {
+        "url": "http://127.0.0.1:8000/health",
+        "interval": "30s",
+        "timeout": "5s",
+        "start_period": "20s",
+        "retries": 3,
+        "request_timeout_seconds": 3,
+        "expected_status": 200
+      }
+    },
+    "compose": {
+      "source": "docker-compose.yml",
+      "services": [
+        "app",
+        "postgres",
+        "redis"
+      ],
+      "frontend_service_present": false,
+      "app_env_file": [
+        ".env"
+      ],
+      "app_environment_overrides": {
+        "POSTGRES_HOST": "postgres",
+        "POSTGRES_PORT": "5432",
+        "REDIS_HOST": "redis",
+        "REDIS_PORT": "6379"
+      },
+      "app_port_mapping": "8000:8000",
+      "app_volumes": [
+        "xhs_profiles:/app/.xhs_profiles",
+        "app_logs:/app/logs"
+      ],
+      "named_volumes": [
+        "app_logs",
+        "postgres_data",
+        "redis_data",
+        "xhs_profiles"
+      ],
+      "redis_image": "redis:7-alpine",
+      "postgres_image": "pgvector/pgvector:pg16",
+      "event_bus_backend_override_present": false,
+      "healthcheck_url": "http://127.0.0.1:8000/health"
+    },
+    "readme": {
+      "python_requirement": "Python 3.10+",
+      "startup_command": "uvicorn src.api.main:app --reload --port 8000",
+      "docker_support_checked": false
+    },
+    "known_conflicts": [
+      "Docker builder/runtime use Python 3.11 while pyproject.toml requires Python >=3.12,<3.13.",
+      "Compose configures Redis connectivity but does not set EVENT_BUS_BACKEND=redis, so the Settings default remains memory.",
+      "The Node signer package has no package-lock.json and Docker falls back from npm ci to npm install.",
+      "README claims Python 3.10+ and marks Docker support incomplete despite the Python 3.12 project constraint and committed container manifests.",
+      "README starts src.api.main:app while the container starts api.main:app."
+    ]
+  }
+}

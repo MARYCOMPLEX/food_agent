@@ -1,0 +1,257 @@
+{
+  "new_search": {
+    "request": {
+      "method": "POST",
+      "path": "/v1/search/",
+      "json": {
+        "query": "自贡本地人常吃什么？"
+      }
+    },
+    "response": {
+      "status": 200,
+      "json": {
+        "success": true,
+        "data": {
+          "sessionId": "fixed-session-id",
+          "streamUrl": "/v1/search/stream/fixed-session-id",
+          "action": "new_search"
+        }
+      }
+    }
+  },
+  "refine": {
+    "request": {
+      "method": "POST",
+      "path": "/v1/search/",
+      "json": {
+        "sessionId": "session-active",
+        "query": "不要辣，再近一点"
+      }
+    },
+    "response": {
+      "status": 200,
+      "json": {
+        "success": true,
+        "data": {
+          "sessionId": "session-active",
+          "streamUrl": "/v1/search/stream/session-active",
+          "turnId": 7,
+          "action": "refine"
+        }
+      }
+    }
+  },
+  "missing_trailing_slash": {
+    "request": {
+      "method": "POST",
+      "path": "/v1/search",
+      "json": {
+        "query": "路径重定向"
+      }
+    },
+    "response": {
+      "status": 307,
+      "location": "http://testserver/v1/search/"
+    }
+  },
+  "recover_completed": {
+    "request": {
+      "method": "POST",
+      "path": "/v1/search/",
+      "json": {
+        "sessionId": "session-recover"
+      }
+    },
+    "response": {
+      "status": 200,
+      "json": {
+        "success": true,
+        "data": {
+          "sessionId": "session-recover",
+          "status": "completed",
+          "turnId": 2,
+          "query": "不要辣",
+          "restaurants": [
+            {
+              "id": "r-2",
+              "name": "家常菜馆"
+            }
+          ],
+          "summary": "第二轮摘要",
+          "total": 1,
+          "turns": [
+            {
+              "turnId": 1,
+              "query": "自贡美食",
+              "restaurants": [
+                {
+                  "id": "r-1",
+                  "name": "盐帮菜馆"
+                }
+              ],
+              "summary": "第一轮摘要",
+              "total": 1,
+              "createdAt": "2026-08-18T12:00:00+08:00"
+            },
+            {
+              "turnId": 2,
+              "query": "不要辣",
+              "restaurants": [
+                {
+                  "id": "r-2",
+                  "name": "家常菜馆"
+                }
+              ],
+              "summary": "第二轮摘要",
+              "total": 1,
+              "createdAt": "2026-08-18T12:05:00+08:00"
+            }
+          ],
+          "turnCount": 2,
+          "fromDatabase": true
+        }
+      }
+    }
+  },
+  "status_loading": {
+    "request": {
+      "method": "GET",
+      "path": "/v1/search/status/session-active"
+    },
+    "response": {
+      "status": 200,
+      "json": {
+        "success": true,
+        "data": {
+          "sessionId": "session-active",
+          "status": "loading",
+          "loadingSteps": [
+            {
+              "id": "intent",
+              "label": "理解需求",
+              "status": "done"
+            },
+            {
+              "id": "search",
+              "label": "搜索笔记",
+              "status": "loading"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "results_completed": {
+    "request": {
+      "method": "GET",
+      "path": "/v1/search/results/session-complete"
+    },
+    "response": {
+      "status": 200,
+      "json": {
+        "success": true,
+        "data": {
+          "sessionId": "session-complete",
+          "restaurants": [
+            {
+              "id": "restaurant-1",
+              "name": "老街饭店",
+              "trustScore": 8.5,
+              "tags": [
+                "本地",
+                "家常菜"
+              ]
+            }
+          ],
+          "summary": "当前结果摘要"
+        }
+      }
+    }
+  },
+  "new_search_missing_query": {
+    "request": {
+      "method": "POST",
+      "path": "/v1/search/",
+      "json": {}
+    },
+    "response": {
+      "status": 400,
+      "json": {
+        "detail": "新查询必须提供 query 参数"
+      }
+    }
+  },
+  "request_validation_error": {
+    "request": {
+      "method": "POST",
+      "path": "/v1/search/",
+      "json": {
+        "query": [
+          "不是字符串"
+        ]
+      }
+    },
+    "response": {
+      "status": 422,
+      "json": {
+        "detail": [
+          {
+            "type": "string_type",
+            "loc": [
+              "body",
+              "query"
+            ],
+            "msg": "Input should be a valid string",
+            "input": [
+              "不是字符串"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "recover_not_found": {
+    "request": {
+      "method": "POST",
+      "path": "/v1/search/",
+      "json": {
+        "sessionId": "missing-session"
+      }
+    },
+    "response": {
+      "status": 200,
+      "json": {
+        "success": false,
+        "data": {
+          "sessionId": "missing-session",
+          "status": "not_found",
+          "message": "会话不存在或已过期"
+        }
+      }
+    }
+  },
+  "status_not_found": {
+    "request": {
+      "method": "GET",
+      "path": "/v1/search/status/missing-session"
+    },
+    "response": {
+      "status": 404,
+      "json": {
+        "detail": "Session not found"
+      }
+    }
+  },
+  "results_not_found": {
+    "request": {
+      "method": "GET",
+      "path": "/v1/search/results/missing-session"
+    },
+    "response": {
+      "status": 404,
+      "json": {
+        "detail": "Session not found"
+      }
+    }
+  }
+}

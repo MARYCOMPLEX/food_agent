@@ -1,0 +1,8 @@
+{
+  "source": "frontend/src/api/client.ts",
+  "storage": "localStorage",
+  "storageKey": "deviceId",
+  "generator": "crypto.randomUUID",
+  "requestHeader": "X-Device-Id",
+  "exportedFunction": "getDeviceId"
+}
