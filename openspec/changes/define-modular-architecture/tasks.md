@@ -44,10 +44,10 @@
 
 ## 3. S1 Contract SDK And Architecture Rules
 
-- [ ] 3.1 创建领域中立 contract package 和 schema-version 基础类型，不导入 FastAPI、平台 SDK、数据库或 Food/Travel 实现。
-- [ ] 3.2 定义版本化 `ResearchRequest`（含 query/refine/refresh/recover operation）、`ResearchPlan`、`ResearchTask`、`TaskEvent`、非执行型 `task_progress_projection` 和稳定错误分类。
+- [x] 3.1 创建领域中立 contract package 和 schema-version 基础类型，不导入 FastAPI、平台 SDK、数据库或 Food/Travel 实现。
+- [x] 3.2 定义版本化 `ResearchRequest`（含 query/refine/refresh/recover operation）、`ResearchPlan`、`ResearchTask`、`TaskEvent`、非执行型 `task_progress_projection` 和稳定错误分类。
 - [ ] 3.3 定义 `CanonicalQuery`、`CollectRequest`、`CanonicalSourceBatch`、`SourceLocator`、`EvidenceItem` 和 `EvidenceBundle` 合同。
-- [ ] 3.4 定义 SourceConnector、Tool Gateway、Repository、Workflow、Cache/EventBus、ObjectStore 和 LLM provider ports。
+- [x] 3.4 定义 SourceConnector、Tool Gateway、Repository、Workflow、Cache/EventBus、ObjectStore 和 LLM provider ports。
 - [ ] 3.5 定义 Domain Contract SDK、Pack manifest、allowed-tools 及每个 tool input/output schema、Agent final output schema 和注册验证结果；schema 缺失或非法的 Pack 不得激活。
 - [ ] 3.6 定义 `MemoryRecord`、`PreferenceSnapshot`、`PersonalizationPolicy` 和用户隔离键合同。
 - [ ] 3.7 定义 RefreshJob、MediaAsset、DerivedArtifact、Processor 和 Evidence Extractor 合同。

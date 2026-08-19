@@ -1,5 +1,4 @@
-"""
-XHS Food Agent Module - 小红书美食智能检索代理 (独立版).
+"""XHS Food Agent Module - 小红书美食智能检索代理 (独立版).
 
 该模块提供:
 - XHSFoodOrchestrator: 主编排器
@@ -19,20 +18,12 @@ XHS Food Agent Module - 小红书美食智能检索代理 (独立版).
     print(result.to_markdown_table())
 """
 
-from xhs_food.orchestrator import XHSFoodOrchestrator
-from xhs_food.state import XHSFoodState
-from xhs_food.schemas import (
-    FoodSearchIntent,
-    XHSFoodResponse,
-    RestaurantRecommendation,
-    SearchPhase,
-    CommentWeight,
-    CrossValidationResult,
-    RecommendationLevel,
-    WanghongScore,
-    FollowUpType,
-    ConversationContext,
-)
+# pyright: reportUnsupportedDunderAll=false
+
+from __future__ import annotations
+
+from importlib import import_module
+from typing import Any
 
 __all__ = [
     "XHSFoodOrchestrator",
@@ -48,3 +39,33 @@ __all__ = [
     "FollowUpType",
     "ConversationContext",
 ]
+
+_EXPORT_MODULES = {
+    "XHSFoodOrchestrator": "xhs_food.orchestrator",
+    "XHSFoodState": "xhs_food.state",
+    "FoodSearchIntent": "xhs_food.schemas",
+    "XHSFoodResponse": "xhs_food.schemas",
+    "RestaurantRecommendation": "xhs_food.schemas",
+    "SearchPhase": "xhs_food.schemas",
+    "CommentWeight": "xhs_food.schemas",
+    "CrossValidationResult": "xhs_food.schemas",
+    "RecommendationLevel": "xhs_food.schemas",
+    "WanghongScore": "xhs_food.schemas",
+    "FollowUpType": "xhs_food.schemas",
+    "ConversationContext": "xhs_food.schemas",
+}
+
+
+def __getattr__(name: str) -> Any:
+    """Load legacy public exports only when a caller requests one."""
+
+    module_name = _EXPORT_MODULES.get(name)
+    if module_name is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    value = getattr(import_module(module_name), name)
+    globals()[name] = value
+    return value
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | set(__all__))
