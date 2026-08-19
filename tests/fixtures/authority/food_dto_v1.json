@@ -1,0 +1,129 @@
+{
+  "schemaVersion": "food-dto/v1",
+  "identity": {
+    "algorithm": "sha256-utf8-prefix32",
+    "withoutTelephone": {
+      "name": "  老灶火锅  ",
+      "tel": null,
+      "preimage": "老灶火锅",
+      "id": "d0e6a2f7137b481c4f3f18dda010eb75"
+    },
+    "withTelephone": {
+      "name": "老灶火锅",
+      "tel": " 028-12345678 ",
+      "preimage": "老灶火锅:028-12345678",
+      "id": "60da14c2146960f98c934c0f75093bd8"
+    }
+  },
+  "equivalence": {
+    "floatAbsoluteTolerance": 0.000001,
+    "floatRelativeTolerance": 0,
+    "orderedCollections": true,
+    "exactSerializedRounding": true,
+    "finiteNumbersOnly": true
+  },
+  "dto": {
+    "intent": {
+      "location": "自贡市",
+      "food_type": "冷吃兔",
+      "requirements": ["本地人常去", "营业到深夜"],
+      "exclude_keywords": ["网红", "排队"],
+      "time_filter": "晚餐",
+      "price_range": "¥¥"
+    },
+    "recommendation": {
+      "name": "老灶火锅",
+      "location": "自流井区同兴路 8 号",
+      "features": ["牛油锅底", "本地老店"],
+      "source_notes": ["note-甲", "note-乙"],
+      "confidence": 0.875,
+      "is_recommended": true,
+      "filter_reason": null,
+      "wanghong_analysis": {
+        "score": "likely_local",
+        "confidence": 0.875,
+        "reasons": ["本地人口吻"],
+        "indicators": {
+          "has_queue_mentions": false,
+          "has_photo_focus": false,
+          "has_negative_service": true,
+          "has_local_mentions": true,
+          "has_years_mentioned": true
+        }
+      },
+      "poi_details": {"poi_id": "POI-中文", "distance_m": 320},
+      "pros": ["味道稳定"],
+      "cons": ["停车不便"],
+      "mustTry": [{"name": "鲜毛肚", "reason": "脆", "img": "https://img.invalid/毛肚.jpg"}],
+      "blackList": [{"name": "冰粉", "reason": "偏甜"}],
+      "stats": {"flavor": "9", "cost": "¥¥", "wait": "20 分钟", "env": "老街"},
+      "tags": ["火锅", "夜宵"]
+    },
+    "response": {
+      "status": "ok",
+      "recommendations": [],
+      "filtered_count": 2,
+      "clarify_questions": ["能吃辣吗？"],
+      "error_message": null,
+      "summary": "共找到 1 家。"
+    },
+    "enriched": {
+      "name": "老灶火锅",
+      "chnName": "老灶",
+      "address": "自流井区同兴路 8 号",
+      "location": "29.341,104.776",
+      "city": "自贡",
+      "district": "自流井区",
+      "businessArea": "同兴路",
+      "tel": "028-12345678",
+      "rating": 4.6,
+      "cost": "88",
+      "openTime": "17:00-02:00",
+      "trustScore": 8.8,
+      "oneLiner": "本地人的深夜牛油锅。",
+      "tags": ["火锅"],
+      "pros": ["锅底香"],
+      "cons": ["等位"],
+      "warning": null,
+      "photos": [{"url": "https://img.invalid/店.jpg", "title": "门头"}],
+      "sourceNotes": ["note-甲"],
+      "mustTry": [{"name": "毛肚", "reason": "脆"}],
+      "blackList": [{"name": "冰粉", "reason": "偏甜"}],
+      "stats": {"flavor": "9", "cost": "8", "wait": "6", "env": "7"}
+    },
+    "persistedRestaurant": {
+      "id": "60da14c2146960f98c934c0f75093bd8",
+      "name": "老灶火锅",
+      "chnName": "老灶",
+      "address": "自流井区同兴路 8 号",
+      "location": "29.341,104.776",
+      "city": "自贡",
+      "district": "自流井区",
+      "businessArea": "同兴路",
+      "tel": "028-12345678",
+      "rating": 4.6,
+      "cost": "88",
+      "openTime": "17:00-02:00",
+      "trustScore": 8.8,
+      "oneLiner": "本地人的深夜牛油锅。",
+      "tags": ["火锅"],
+      "pros": ["锅底香"],
+      "cons": ["等位"],
+      "warning": null,
+      "photos": [{"url": "https://img.invalid/店.jpg", "title": "门头"}],
+      "sourceNotes": ["note-甲"],
+      "mustTry": [{"name": "毛肚", "reason": "脆"}],
+      "blackList": [{"name": "冰粉", "reason": "偏甜"}],
+      "stats": {"flavor": "9", "cost": "8", "wait": "6", "env": "7"}
+    }
+  },
+  "publicExports": {
+    "xhs_food": ["XHSFoodOrchestrator", "XHSFoodState", "FoodSearchIntent", "XHSFoodResponse", "RestaurantRecommendation", "SearchPhase", "CommentWeight", "CrossValidationResult", "RecommendationLevel", "WanghongScore", "FollowUpType", "ConversationContext"],
+    "xhs_food.schemas": ["WanghongScore", "SearchPhase", "RecommendationLevel", "FollowUpType", "CommentWeight", "CrossValidationResult", "ConversationContext", "FoodSearchIntent", "XHSNote", "RestaurantInfo", "WanghongAnalysis", "MustTryItem", "BlackListItem", "ShopStats", "RestaurantRecommendation", "XHSFoodResponse"],
+    "xhs_food.agents": ["IntentParserAgent", "IntentParseResult", "AnalyzerAgent", "AnalyzeResult", "POIEnricherAgent", "EnrichedRestaurant", "get_poi_enricher"],
+    "xhs_food.services": ["LLMService", "RedisMemory", "ChatMessage", "PostgresStorage", "ChatHistoryRecord", "SessionManager", "get_session_manager", "UserStorageService", "get_user_storage_service", "ProcessedComment", "preprocess_comments", "extract_likes_from_text", "calculate_interaction_score", "format_comments_for_llm", "CommentAnalysis", "CommentScore", "ShopScore", "calculate_scores", "calculate_comment_score", "get_top_shops"],
+    "xhs_food.events": ["SearchEvent", "SearchEventType", "EventBus", "InMemoryEventBus", "RedisStreamEventBus", "get_event_bus", "SearchEventEmitter", "get_emitter", "remove_emitter"],
+    "xhs_food.protocols": ["ToolResult", "MCPToolProvider", "MCPToolRegistry"],
+    "xhs_food.di": ["get_xhs_service", "get_xhs_tool_registry", "get_xhs_food_orchestrator"]
+  }
+}

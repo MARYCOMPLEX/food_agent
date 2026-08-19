@@ -1,0 +1,228 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://food-agent.local/schemas/food-dto-v1.schema.json",
+  "title": "Food DTO v1 authority fixture",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "identity", "equivalence", "dto", "publicExports"],
+  "properties": {
+    "schemaVersion": {"const": "food-dto/v1"},
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "withoutTelephone", "withTelephone"],
+      "properties": {
+        "algorithm": {"const": "sha256-utf8-prefix32"},
+        "withoutTelephone": {"$ref": "#/$defs/identityVector"},
+        "withTelephone": {"$ref": "#/$defs/identityVector"}
+      }
+    },
+    "equivalence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["floatAbsoluteTolerance", "floatRelativeTolerance", "orderedCollections", "exactSerializedRounding", "finiteNumbersOnly"],
+      "properties": {
+        "floatAbsoluteTolerance": {"const": 0.000001},
+        "floatRelativeTolerance": {"const": 0},
+        "orderedCollections": {"const": true},
+        "exactSerializedRounding": {"const": true},
+        "finiteNumbersOnly": {"const": true}
+      }
+    },
+    "dto": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["intent", "recommendation", "response", "enriched", "persistedRestaurant"],
+      "properties": {
+        "intent": {"$ref": "#/$defs/foodSearchIntent"},
+        "recommendation": {"$ref": "#/$defs/restaurantRecommendation"},
+        "response": {"$ref": "#/$defs/xhsFoodResponse"},
+        "enriched": {"$ref": "#/$defs/enrichedRestaurant"},
+        "persistedRestaurant": {"$ref": "#/$defs/persistedRestaurant"}
+      }
+    },
+    "publicExports": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["xhs_food", "xhs_food.schemas", "xhs_food.agents", "xhs_food.services", "xhs_food.events", "xhs_food.protocols", "xhs_food.di"],
+      "properties": {
+        "xhs_food": {"$ref": "#/$defs/publicExportArray"},
+        "xhs_food.schemas": {"$ref": "#/$defs/publicExportArray"},
+        "xhs_food.agents": {"$ref": "#/$defs/publicExportArray"},
+        "xhs_food.services": {"$ref": "#/$defs/publicExportArray"},
+        "xhs_food.events": {"$ref": "#/$defs/publicExportArray"},
+        "xhs_food.protocols": {"$ref": "#/$defs/publicExportArray"},
+        "xhs_food.di": {"$ref": "#/$defs/publicExportArray"}
+      }
+    }
+  },
+  "$defs": {
+    "publicExportArray": {
+      "type": "array",
+      "items": {"type": "string"},
+      "uniqueItems": true
+    },
+    "identityVector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "tel", "preimage", "id"],
+      "properties": {
+        "name": {"type": "string"},
+        "tel": {"type": ["string", "null"]},
+        "preimage": {"type": "string"},
+        "id": {"type": "string", "pattern": "^[0-9a-f]{32}$"}
+      }
+    },
+    "nullableString": {"type": ["string", "null"]},
+    "stringArray": {"type": "array", "items": {"type": "string"}},
+    "foodSearchIntent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["location", "food_type", "requirements", "exclude_keywords", "time_filter", "price_range"],
+      "properties": {
+        "location": {"type": "string"},
+        "food_type": {"$ref": "#/$defs/nullableString"},
+        "requirements": {"$ref": "#/$defs/stringArray"},
+        "exclude_keywords": {"$ref": "#/$defs/stringArray"},
+        "time_filter": {"$ref": "#/$defs/nullableString"},
+        "price_range": {"$ref": "#/$defs/nullableString"}
+      }
+    },
+    "mustTryItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "reason", "img"],
+      "properties": {
+        "name": {"type": "string"},
+        "reason": {"type": "string"},
+        "img": {"type": "string"}
+      }
+    },
+    "blackListItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "reason"],
+      "properties": {
+        "name": {"type": "string"},
+        "reason": {"type": "string"}
+      }
+    },
+    "shopStats": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["flavor", "cost", "wait", "env"],
+      "properties": {
+        "flavor": {"type": "string"},
+        "cost": {"type": "string"},
+        "wait": {"type": "string"},
+        "env": {"type": "string"}
+      }
+    },
+    "wanghongAnalysis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["score", "confidence", "reasons", "indicators"],
+      "properties": {
+        "score": {"enum": ["definitely_wanghong", "likely_wanghong", "unknown", "likely_local", "definitely_local"]},
+        "confidence": {"type": "number"},
+        "reasons": {"$ref": "#/$defs/stringArray"},
+        "indicators": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["has_queue_mentions", "has_photo_focus", "has_negative_service", "has_local_mentions", "has_years_mentioned"],
+          "properties": {
+            "has_queue_mentions": {"type": "boolean"},
+            "has_photo_focus": {"type": "boolean"},
+            "has_negative_service": {"type": "boolean"},
+            "has_local_mentions": {"type": "boolean"},
+            "has_years_mentioned": {"type": "boolean"}
+          }
+        }
+      }
+    },
+    "restaurantRecommendation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "location", "features", "source_notes", "confidence", "is_recommended", "filter_reason", "wanghong_analysis", "poi_details", "pros", "cons", "mustTry", "blackList", "stats", "tags"],
+      "properties": {
+        "name": {"type": "string"},
+        "location": {"$ref": "#/$defs/nullableString"},
+        "features": {"$ref": "#/$defs/stringArray"},
+        "source_notes": {"$ref": "#/$defs/stringArray"},
+        "confidence": {"type": "number"},
+        "is_recommended": {"type": "boolean"},
+        "filter_reason": {"$ref": "#/$defs/nullableString"},
+        "wanghong_analysis": {"oneOf": [{"$ref": "#/$defs/wanghongAnalysis"}, {"type": "null"}]},
+        "poi_details": {"type": ["object", "null"]},
+        "pros": {"$ref": "#/$defs/stringArray"},
+        "cons": {"$ref": "#/$defs/stringArray"},
+        "mustTry": {"type": "array", "items": {"$ref": "#/$defs/mustTryItem"}},
+        "blackList": {"type": "array", "items": {"$ref": "#/$defs/blackListItem"}},
+        "stats": {"$ref": "#/$defs/shopStats"},
+        "tags": {"$ref": "#/$defs/stringArray"}
+      }
+    },
+    "xhsFoodResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "recommendations", "filtered_count", "clarify_questions", "error_message", "summary"],
+      "properties": {
+        "status": {"type": "string"},
+        "recommendations": {"type": "array", "items": {"$ref": "#/$defs/restaurantRecommendation"}},
+        "filtered_count": {"type": "integer"},
+        "clarify_questions": {"$ref": "#/$defs/stringArray"},
+        "error_message": {"$ref": "#/$defs/nullableString"},
+        "summary": {"type": "string"}
+      }
+    },
+    "displayItem": {
+      "type": "object",
+      "required": ["name", "reason"],
+      "properties": {"name": {"type": "string"}, "reason": {"type": "string"}},
+      "additionalProperties": true
+    },
+    "restaurantView": {
+      "type": "object",
+      "required": ["name", "chnName", "address", "location", "city", "district", "businessArea", "tel", "rating", "cost", "openTime", "trustScore", "oneLiner", "tags", "pros", "cons", "warning", "photos", "sourceNotes", "mustTry", "blackList", "stats"],
+      "properties": {
+        "name": {"type": "string"},
+        "chnName": {"type": "string"},
+        "address": {"type": "string"},
+        "location": {"$ref": "#/$defs/nullableString"},
+        "city": {"type": "string"},
+        "district": {"type": "string"},
+        "businessArea": {"type": "string"},
+        "tel": {"$ref": "#/$defs/nullableString"},
+        "rating": {"type": ["number", "null"]},
+        "cost": {"$ref": "#/$defs/nullableString"},
+        "openTime": {"$ref": "#/$defs/nullableString"},
+        "trustScore": {"type": "number"},
+        "oneLiner": {"type": "string"},
+        "tags": {"$ref": "#/$defs/stringArray"},
+        "pros": {"$ref": "#/$defs/stringArray"},
+        "cons": {"$ref": "#/$defs/stringArray"},
+        "warning": {"$ref": "#/$defs/nullableString"},
+        "photos": {"type": "array", "items": {"type": "object"}},
+        "sourceNotes": {"$ref": "#/$defs/stringArray"},
+        "mustTry": {"type": "array", "items": {"$ref": "#/$defs/displayItem"}},
+        "blackList": {"type": "array", "items": {"$ref": "#/$defs/displayItem"}},
+        "stats": {"type": "object", "additionalProperties": {"type": "string"}}
+      }
+    },
+    "enrichedRestaurant": {
+      "allOf": [{"$ref": "#/$defs/restaurantView"}],
+      "unevaluatedProperties": false
+    },
+    "persistedRestaurant": {
+      "allOf": [
+        {"$ref": "#/$defs/restaurantView"},
+        {
+          "type": "object",
+          "required": ["id"],
+          "properties": {"id": {"type": "string", "pattern": "^[0-9a-f]{32}$"}}
+        }
+      ],
+      "unevaluatedProperties": false
+    }
+  }
+}

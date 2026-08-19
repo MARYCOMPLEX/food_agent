@@ -1,0 +1,2 @@
+event: replay_expired
+data: {"schemaVersion":"v1","sessionId":"session-authority-1","taskId":"task-authority-1","turnId":2,"reason":"cursor_not_retained","action":"resync","snapshot":{"snapshotVersion":7,"status":"completed","terminal":{"event":"done","message":"搜索完成"}}}

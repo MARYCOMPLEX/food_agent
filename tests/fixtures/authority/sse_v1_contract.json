@@ -1,0 +1,131 @@
+{
+  "contractVersion": "v1",
+  "negotiation": {
+    "queryParameter": "sseVersion",
+    "explicitValue": "v1",
+    "legacyValue": "legacy",
+    "omittedDuringCompatibilityWindow": "legacy",
+    "responseHeader": {"X-SSE-Version": "v1"},
+    "unsupportedStatus": 406,
+    "unsupportedCode": "unsupported_sse_version",
+    "cursorHeader": "Last-Event-ID",
+    "rejectedCursorAlias": "lastEventIndex"
+  },
+  "semanticSteps": [
+    "intent_parsing",
+    "evidence_collection",
+    "evidence_analysis",
+    "evidence_validation",
+    "entity_enrichment",
+    "result_generation"
+  ],
+  "legacyMappings": {
+    "server": {
+      "step1": "intent_parsing",
+      "step2": "evidence_collection",
+      "step3": "evidence_analysis",
+      "step4": "evidence_validation",
+      "step5": "entity_enrichment",
+      "step6": "result_generation"
+    },
+    "frontend": {
+      "intent_parsing": "intent_parsing",
+      "xhs_search": "evidence_collection",
+      "comment_analysis": "evidence_analysis",
+      "cross_validation": "evidence_validation",
+      "poi_enrichment": "entity_enrichment",
+      "result_generation": "result_generation"
+    }
+  },
+  "commonRequired": ["schemaVersion", "sessionId", "taskId", "turnId"],
+  "fieldAuthority": {
+    "detail": "optional human-readable step detail; clients do not branch on it",
+    "message": "human-readable successful terminal text on done",
+    "error": {
+      "type": "object",
+      "required": ["code", "message", "retryable"]
+    }
+  },
+  "terminal": {
+    "events": ["done", "error"],
+    "exactlyOnePer": ["taskId", "turnId"],
+    "resultIsTerminal": false,
+    "stepErrorIsTerminal": false,
+    "publishAfter": "authoritative_postgresql_projection_commit"
+  },
+  "replay": {
+    "retainedCursor": "exclusive",
+    "retainedFixtureCursor": "1734567890000-0",
+    "expiredReasons": ["unknown", "trimmed", "ttl_expired", "redis_recovery"],
+    "expiredEvent": "replay_expired",
+    "expiredEventHasId": false,
+    "expiredAction": "resync",
+    "snapshotAuthority": "postgresql_task_progress_projection",
+    "runningSnapshotRequires": "resumeFromEventId",
+    "terminalSnapshotRequires": "terminal",
+    "connectionAfterExpiredEvent": "close",
+    "createsNewTask": false
+  },
+  "payloadSchemas": {
+    "step": {
+      "type": "object",
+      "required": ["schemaVersion", "sessionId", "taskId", "turnId", "step", "detail", "progress"],
+      "properties": {
+        "schemaVersion": {"const": "v1"},
+        "sessionId": {"type": "string"},
+        "taskId": {"type": "string"},
+        "turnId": {"type": "integer", "minimum": 1},
+        "step": {"enum": ["intent_parsing", "evidence_collection", "evidence_analysis", "evidence_validation", "entity_enrichment", "result_generation"]},
+        "detail": {"type": ["string", "null"]},
+        "progress": {"type": "integer", "minimum": 0, "maximum": 100}
+      }
+    },
+    "done": {
+      "type": "object",
+      "required": ["schemaVersion", "sessionId", "taskId", "turnId", "message"],
+      "properties": {
+        "schemaVersion": {"const": "v1"},
+        "sessionId": {"type": "string"},
+        "taskId": {"type": "string"},
+        "turnId": {"type": "integer", "minimum": 1},
+        "message": {"type": "string"}
+      }
+    },
+    "error": {
+      "type": "object",
+      "required": ["schemaVersion", "sessionId", "taskId", "turnId", "error"],
+      "properties": {
+        "schemaVersion": {"const": "v1"},
+        "sessionId": {"type": "string"},
+        "taskId": {"type": "string"},
+        "turnId": {"type": "integer", "minimum": 1},
+        "error": {
+          "type": "object",
+          "required": ["code", "message", "retryable"],
+          "properties": {
+            "code": {"type": "string"},
+            "message": {"type": "string"},
+            "retryable": {"type": "boolean"}
+          }
+        }
+      }
+    },
+    "replayExpired": {
+      "type": "object",
+      "required": ["schemaVersion", "sessionId", "taskId", "turnId", "reason", "action", "snapshot"],
+      "properties": {
+        "schemaVersion": {"const": "v1"},
+        "sessionId": {"type": "string"},
+        "taskId": {"type": "string"},
+        "turnId": {"type": "integer", "minimum": 1},
+        "reason": {"const": "cursor_not_retained"},
+        "action": {"const": "resync"},
+        "snapshot": {"type": "object"}
+      }
+    }
+  },
+  "wireFixtures": {
+    "retainedWindow": "sse_v1_window_replay.sse",
+    "expiredWindow": "sse_v1_replay_expired.sse"
+  }
+}

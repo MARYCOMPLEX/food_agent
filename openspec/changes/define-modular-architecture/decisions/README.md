@@ -23,6 +23,8 @@ This index is the authority gate for the change. An unresolved question blocks o
 | ADR-0001 | Specification authority and versioned architecture references | Architecture | [ADR-0001](./ADR-0001-specification-authority.md) |
 | ADR-0002 | Approved infrastructure and framework baseline | Architecture + Platform | [ADR-0002](./ADR-0002-infrastructure-baseline.md) |
 | ADR-0003 | Runtime and platform support matrix | Build + Release + QA | [ADR-0003](./ADR-0003-runtime-support-matrix.md) |
+| ADR-0004 | HTTP route/envelope authority and canonical SSE v1 | API + Frontend | [ADR-0004](./ADR-0004-http-sse-authority.md) |
+| ADR-0005 | Food DTO, restaurant identity, Python exports, and result equivalence | API + Domain + Data + SDK + QA | [ADR-0005](./ADR-0005-food-dto-identity-authority.md) |
 
 ## Open Question Register
 
@@ -43,17 +45,17 @@ This index is the authority gate for the change. An unresolved question blocks o
 | 13 | Memory scope, consent, expiry, correction, export, and deletion semantics | Product + Privacy | S1 | S1, B3 | Open | [memory spec](../specs/personalization-memory/spec.md) |
 | 14 | Privacy threshold for feedback that may influence public refresh priority | Privacy + Evidence | B3 | B3, B4 | Open | [memory spec](../specs/personalization-memory/spec.md) |
 | 15 | Tenant, cohort, locale, visibility isolation, and anonymous-to-user migration | Security + Data | S1 | S1, B1, B2, B3 | Open | [memory spec](../specs/personalization-memory/spec.md) |
-| 16 | Authority and deprecation for unified search versus documented legacy routes | API | S0 | S2 | Investigating | [design compatibility ledger](../design.md#known-incompatible-current-expectations) |
-| 17 | Authority for envelopes, pagination, SSE replay, step IDs, and error fields | API + Frontend | S0 | S2 | Investigating | [design compatibility ledger](../design.md#known-incompatible-current-expectations) |
-| 18 | Versioning policy for mixed camelCase/snake_case DTOs | API + Domain | S0 | S2, S4 | Investigating | [design compatibility contracts](../design.md#compatibility-contracts) |
+| 16 | Authority and deprecation for unified search versus documented legacy routes | API | S0 | S2 | Accepted | [ADR-0004](./ADR-0004-http-sse-authority.md) |
+| 17 | Authority for envelopes, pagination, SSE replay, step IDs, and error fields | API + Frontend | S0 | S2 | Accepted | [ADR-0004](./ADR-0004-http-sse-authority.md) |
+| 18 | Versioning policy for mixed camelCase/snake_case DTOs | API + Domain | S0 | S2, S4 | Accepted | [ADR-0005](./ADR-0005-food-dto-identity-authority.md) |
 | 19 | Historical `turn_id` migration state and Alembic baseline/stamp | Data Platform | B1 | B1 | Investigating | [`migrate_turn_id.py`](../../../../scripts/migrate_turn_id.py) |
-| 20 | Restaurant entity/view/result ownership and stable identity | Domain + Data | S0 | S4, B1 | Investigating | [design compatibility contracts](../design.md#compatibility-contracts) |
+| 20 | Restaurant entity/view/result ownership and stable identity | Domain + Data | S0 | S4, B1 | Accepted | [ADR-0005](./ADR-0005-food-dto-identity-authority.md) |
 | 21 | Disposition of known search history, terminal-state, and refine replay defects | API | S0 | S2, B0 | Investigating | [design compatibility ledger](../design.md#known-incompatible-current-expectations) |
 | 22 | Legacy client mapping for source failure: error, partial, or empty success | API + Evidence | S3 | S3, B1 | Investigating | [core spec](../specs/modular-research-core/spec.md) |
-| 23 | Long-term support boundary for Python exports, injection points, and examples | Architecture + SDK | S0 | S1 | Investigating | [design compatibility contracts](../design.md#compatibility-contracts) |
+| 23 | Long-term support boundary for Python exports, injection points, and examples | Architecture + SDK | S0 | S1 | Accepted | [ADR-0005](./ADR-0005-food-dto-identity-authority.md) |
 | 24 | Target topology for CORS, frontend, SSE configuration, and container delivery | Platform + Frontend | B0 | B0, B4, Release gate | Investigating | [design compatibility ledger](../design.md#known-incompatible-current-expectations) |
 | 25 | Supported macOS/arm64 and browser probe matrix | Build + QA | S0 | Release gate | Accepted | [ADR-0003](./ADR-0003-runtime-support-matrix.md) |
-| 26 | Food equivalence rule and approval of nondeterministic fixture updates | Domain + QA | S4 | S4, B2 | Open | [design verification baseline](../design.md#verification-baseline) |
+| 26 | Food equivalence rule and approval of nondeterministic fixture updates | Domain + QA | S4 | S4, B2 | Accepted | [ADR-0005](./ADR-0005-food-dto-identity-authority.md) |
 | 27 | Recovery or replacement of missing `internal-docs/*` references | Architecture | S0 | S0 documentation gate | Investigating | [design Open Questions](../design.md#open-questions) |
 | 28 | Explicit refresh API, authorization, in-flight merge, and SSE mapping | API + Evidence | B2 | B2 | Open | [core spec](../specs/modular-research-core/spec.md) |
 

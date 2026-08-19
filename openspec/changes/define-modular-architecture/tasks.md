@@ -2,10 +2,10 @@
 
 - [x] 1.1 建立 ADR 索引，记录每个 Open Question 的负责人、截止阶段、证据链接和“未决即阻塞”的依赖里程碑。
 - [x] 1.2 决定 HTML、Draw.io 和目标描述发生冲突时的权威顺序，修正 Draw.io 路径，并确定是否将两份图纳入仓库版本控制。
-- [ ] 1.3 决定实际统一搜索路由与 README 旧 `/start`、`/refine`、`/recover` 路由的兼容权威和弃用策略。
-- [ ] 1.4 决定搜索、history、favorites、FAQ 响应包络和分页字段中前端与后端哪一侧是权威，并为每个裁决生成 JSON Schema fixture。
-- [ ] 1.5 决定 SSE 步骤 ID、`message/detail/error` 字段、终态和版本协商；重放固定为窗口内按 event ID 排他续传、窗口外返回 `replay_expired/resync` 与权威任务快照/终态，并生成两类 wire-level fixture。
-- [ ] 1.6 决定 Food DTO 的 camelCase/snake_case、Restaurant 身份语义、ID 稳定性、Python public exports 和结果等价容差。
+- [x] 1.3 决定实际统一搜索路由与 README 旧 `/start`、`/refine`、`/recover` 路由的兼容权威和弃用策略。
+- [x] 1.4 决定搜索、history、favorites、FAQ 响应包络和分页字段中前端与后端哪一侧是权威，并为每个裁决生成 JSON Schema fixture。
+- [x] 1.5 决定 SSE 步骤 ID、`message/detail/error` 字段、终态和版本协商；重放固定为窗口内按 event ID 排他续传、窗口外返回 `replay_expired/resync` 与权威任务快照/终态，并生成两类 wire-level fixture。
+- [x] 1.6 决定 Food DTO 的 camelCase/snake_case、Restaurant 身份语义、ID 稳定性、Python public exports 和结果等价容差。
 - [ ] 1.7 定义 Canonical Query 字段枚举、规范化版本、语言/地域/租户隔离、`audience` 语义、公共/个人约束分类、相似算法和 Family 合并/拆分规则。
 - [ ] 1.8 定义 freshness、最大陈旧时间、最低覆盖度、来源水位、热门度和刷新优先级的领域配置合同。
 - [ ] 1.9 定义 Evidence、Bundle、SourceLocator、MediaRef、DerivedArtifact 的正式 schema、可见性、许可、保留和删除策略。

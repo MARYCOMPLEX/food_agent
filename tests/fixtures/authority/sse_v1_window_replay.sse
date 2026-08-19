@@ -1,0 +1,11 @@
+id: 1734567890000-1
+event: step_done
+data: {"schemaVersion":"v1","sessionId":"session-authority-1","taskId":"task-authority-1","turnId":2,"step":"evidence_validation","detail":"证据验证完成","progress":66}
+
+id: 1734567890000-2
+event: result
+data: {"schemaVersion":"v1","sessionId":"session-authority-1","taskId":"task-authority-1","turnId":2,"summary":"推荐完成","total":1}
+
+id: 1734567890000-3
+event: done
+data: {"schemaVersion":"v1","sessionId":"session-authority-1","taskId":"task-authority-1","turnId":2,"message":"搜索完成"}

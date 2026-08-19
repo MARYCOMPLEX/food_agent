@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:food-agent:http:v1:authority",
+  "title": "Food Agent HTTP v1 compatibility authority",
+  "$comment": "Accepted by ADR-0004. This freezes envelope and pagination authority, not every domain payload field.",
+  "$defs": {
+    "searchCommandResponse": {
+      "type": "object",
+      "required": ["success", "data"],
+      "properties": {
+        "success": {"const": true},
+        "data": {
+          "type": "object",
+          "required": ["sessionId"],
+          "properties": {
+            "sessionId": {"type": "string", "minLength": 1},
+            "streamUrl": {"type": "string", "pattern": "^/v1/search/stream/"},
+            "action": {"enum": ["new_search", "refine"]},
+            "turnId": {"type": "integer", "minimum": 1},
+            "status": {"type": "string"}
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "historyListResponse": {
+      "type": "object",
+      "required": ["success", "data"],
+      "properties": {
+        "success": {"const": true},
+        "data": {
+          "type": "object",
+          "required": ["items", "total", "limit", "offset"],
+          "properties": {
+            "items": {"type": "array", "items": {"type": "object"}},
+            "total": {"type": "integer", "minimum": 0},
+            "limit": {"type": "integer", "minimum": 1, "maximum": 100},
+            "offset": {"type": "integer", "minimum": 0}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "favoritesListResponse": {
+      "type": "object",
+      "required": ["success", "data"],
+      "properties": {
+        "success": {"const": true},
+        "data": {
+          "type": "object",
+          "required": ["items", "total"],
+          "properties": {
+            "items": {"type": "array", "items": {"type": "object"}},
+            "total": {"type": "integer", "minimum": 0}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "faqListResponse": {
+      "type": "object",
+      "required": ["success", "data"],
+      "properties": {
+        "success": {"const": true},
+        "data": {"type": "array", "items": {"type": "object"}}
+      },
+      "additionalProperties": false
+    },
+    "fastApiErrorResponse": {
+      "type": "object",
+      "required": ["detail"],
+      "properties": {
+        "detail": {
+          "oneOf": [
+            {"type": "string"},
+            {"type": "array", "items": {"type": "object"}}
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "x-authority": {
+    "search": {
+      "canonicalCommand": {"method": "POST", "path": "/v1/search/"},
+      "dispatch": {
+        "new": ["query"],
+        "refine": ["sessionId", "query"],
+        "recover": ["sessionId"]
+      },
+      "deprecatedDocumentationOnlyPaths": [
+        "POST /v1/search/start",
+        "POST /v1/search/refine",
+        "GET /v1/search/recover/{sessionId}"
+      ],
+      "sessionIdLocation": "data.sessionId"
+    },
+    "history": {
+      "queryParameters": ["limit", "offset"],
+      "itemsLocation": "data.items",
+      "paginationLocations": ["data.total", "data.limit", "data.offset"]
+    },
+    "favorites": {"itemsLocation": "data.items", "totalLocation": "data.total"},
+    "faq": {"itemsLocation": "data"},
+    "errors": {"transportField": "detail"}
+  },
+  "x-fixture-examples": {
+    "searchCommandResponse": {
+      "success": true,
+      "data": {
+        "sessionId": "session-authority-1",
+        "streamUrl": "/v1/search/stream/session-authority-1",
+        "action": "new_search"
+      }
+    },
+    "historyListResponse": {
+      "success": true,
+      "data": {"items": [], "total": 0, "limit": 20, "offset": 0}
+    },
+    "favoritesListResponse": {
+      "success": true,
+      "data": {"items": [], "total": 0}
+    },
+    "faqListResponse": {"success": true, "data": []},
+    "fastApiErrorResponse": {"detail": "Session not found"}
+  }
+}
