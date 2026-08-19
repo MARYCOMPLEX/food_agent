@@ -30,15 +30,15 @@ def client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
     from api.search import tasks as tasks_mod
 
     # No-op the background streaming task.
-    async def _noop_run_stream_search(session_id: str, query: str) -> None:  # noqa: ARG001
+    async def _noop_run_stream_search(  # noqa: ARG001
+        session_id: str,
+        query: str,
+        *,
+        result_mapper: object | None = None,
+    ) -> None:
         return None
 
     monkeypatch.setattr(tasks_mod, "run_stream_search", _noop_run_stream_search)
-    # Routes import the symbol directly, patch there too.
-    from api.search import routes as routes_mod
-
-    monkeypatch.setattr(routes_mod, "run_stream_search", _noop_run_stream_search)
-
     # Force a fresh in-memory state store to avoid cross-test pollution.
     fresh_store = state_mod._MemoryStateStore()  # noqa: SLF001
     monkeypatch.setattr(state_mod, "_state_store", fresh_store)

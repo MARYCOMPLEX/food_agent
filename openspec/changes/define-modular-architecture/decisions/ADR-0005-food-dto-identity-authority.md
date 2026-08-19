@@ -20,13 +20,19 @@ while the modular core uses domain-neutral contracts internally.
 | `FoodSearchIntent.to_dict/from_dict` | Legacy wire | Keep `location`, `food_type`, `requirements`, `exclude_keywords`, `time_filter`, and `price_range` in snake case. |
 | `RestaurantRecommendation.to_dict` | Legacy wire | Keep the characterized mixed form: most fields are snake case, while `mustTry` and `blackList` remain camel case. Nested indicator keys remain snake case. |
 | `XHSFoodResponse.to_dict` | Legacy wire | Keep the characterized snake-case result envelope. |
-| `EnrichedRestaurant.to_dict` and persisted restaurant JSON | Legacy wire/storage view | Keep the characterized camel-case view fields such as `chnName`, `businessArea`, `openTime`, `trustScore`, `oneLiner`, `sourceNotes`, `mustTry`, and `blackList`; do not add `id` to the enriched pre-persistence view. |
+| `EnrichedRestaurant.to_dict` | Legacy SSE restaurant view | Keep the characterized camel-case view fields such as `chnName`, `businessArea`, `openTime`, `trustScore`, `oneLiner`, `sourceNotes`, `mustTry`, and `blackList`; do not add `id` to this enriched view. |
+| `Restaurant.to_dict` and the constructed `persistedRestaurant` fixture | Legacy restaurant entity/storage view | Keep the enriched camel-case fields and reuse the stored `id`. This fixture characterizes `Restaurant.to_dict`; it is not evidence of the live `search_results` writer input. |
+| Live `search_results.restaurants` writer | Legacy task persistence/recovery view | Preserve `ConversationContext.last_recommendations`: the mixed `RestaurantRecommendation.to_dict` shape plus the generated or stored `id`. Do not silently replace it with `EnrichedRestaurant.to_dict` or `Restaurant.to_dict`. |
 | New modular contracts | Versioned internal schema | Use `snake_case` and a mapper at every legacy boundary. A generic recursive case converter is forbidden because it would corrupt the mixed v1 contract. |
 
 The authoritative key sets, null/default behavior, and representative Unicode values
-are defined by the normative schema and fixture. Persisted v1 restaurant JSON is read
-back without case conversion. The Pydantic API `Restaurant` class is a transport view,
-not the owner of the domain entity or persistence identity.
+for the modeled DTOs are defined by the normative schema and fixture. The live
+`search_results` writer boundary was discovered after this ADR's initial acceptance;
+ADR-0009 records its code evidence and requires S2 to add a writer-path
+characterization. Existing persisted v1 restaurant JSON is read back without case
+conversion regardless of which legacy writer shape produced it. The Pydantic API
+`Restaurant` class is a transport view, not the owner of the domain entity or
+persistence identity.
 
 ### Restaurant Compatibility Identity
 
@@ -96,14 +102,17 @@ to mutate v1.
 
 A future normalized DTO must use a distinct schema/media/API version and an explicit
 mapper. During migration, v1 and the new version receive the same internal result and are
-tested independently. Existing persisted JSON and restaurant IDs remain readable for the
-retention lifetime. A new version cannot become the default until both server and client
-consumer fixtures pass and rollback to the v1 mapper has been rehearsed.
+tested independently. Existing persisted JSON in both observed legacy shapes and
+restaurant IDs remain readable for the retention lifetime. A new version cannot become
+the default until writer-path, server, and client consumer fixtures pass and rollback to
+the v1 mapper has been rehearsed.
 
 ## Consequences
 
 - Internal modular types can be consistently snake-cased without changing legacy clients.
 - Compatibility adapters must be field-aware and version-aware.
+- The task result mapper must distinguish the live recommendation-plus-`id` writer from
+  the enriched SSE view and the `Restaurant.to_dict` entity view.
 - Restaurant identity remains reproducible for existing favorites and stored results.
 - The mixed v1 naming is deliberate technical debt, isolated at boundaries rather than
   propagated into the modular core.

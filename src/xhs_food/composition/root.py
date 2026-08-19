@@ -35,6 +35,19 @@ class AdapterBinding:
             raise ValueError("binding name and contract_version must be non-empty")
 
 
+@dataclass(frozen=True, slots=True)
+class LogicalBinding:
+    """A stable capability name resolved to one concrete registry binding."""
+
+    name: str
+    registry_name: str
+    binding_name: str
+
+    def __post_init__(self) -> None:
+        if not self.name or not self.registry_name or not self.binding_name:
+            raise ValueError("logical binding names must be non-empty")
+
+
 class BindingRegistry:
     """Configure once, activate atomically, and close owned instances."""
 
@@ -106,6 +119,7 @@ class CompositionRoot:
     def __init__(self) -> None:
         self._state = RegistryState.CONFIGURING
         self._registries: dict[str, BindingRegistry] = {}
+        self._logical_bindings: dict[str, LogicalBinding] = {}
 
     @property
     def state(self) -> RegistryState:
@@ -115,6 +129,10 @@ class CompositionRoot:
     def registries(self) -> Mapping[str, BindingRegistry]:
         return MappingProxyType(self._registries)
 
+    @property
+    def logical_bindings(self) -> Mapping[str, LogicalBinding]:
+        return MappingProxyType(self._logical_bindings)
+
     def registry(self, name: str) -> BindingRegistry:
         if self._state is not RegistryState.CONFIGURING:
             raise RuntimeError("composition root is no longer configurable")
@@ -123,6 +141,23 @@ class CompositionRoot:
             registry = BindingRegistry(name)
             self._registries[name] = registry
         return registry
+
+    def bind_logical(self, name: str, *, registry_name: str, binding_name: str) -> None:
+        if self._state is not RegistryState.CONFIGURING:
+            raise RuntimeError("composition root is no longer configurable")
+        if name in self._logical_bindings:
+            raise ValueError(f"duplicate logical binding: {name}")
+        try:
+            registry = self._registries[registry_name]
+        except KeyError as exc:
+            raise KeyError(f"unknown registry: {registry_name}") from exc
+        if binding_name not in registry.bindings:
+            raise KeyError(f"unknown binding: {registry_name}.{binding_name}")
+        self._logical_bindings[name] = LogicalBinding(
+            name=name,
+            registry_name=registry_name,
+            binding_name=binding_name,
+        )
 
     def activate(self) -> None:
         if self._state is not RegistryState.CONFIGURING:
@@ -139,6 +174,15 @@ class CompositionRoot:
         except KeyError as exc:
             raise KeyError(f"unknown registry: {registry_name}") from exc
         return await registry.resolve(binding_name)
+
+    async def resolve_logical(self, name: str) -> object:
+        if self._state is not RegistryState.ACTIVE:
+            raise RuntimeError("composition root is not active")
+        try:
+            binding = self._logical_bindings[name]
+        except KeyError as exc:
+            raise KeyError(f"unknown logical binding: {name}") from exc
+        return await self.resolve(binding.registry_name, binding.binding_name)
 
     def assert_legacy_only(self) -> None:
         non_legacy = [
@@ -161,6 +205,7 @@ class CompositionRoot:
 def build_legacy_composition_root() -> CompositionRoot:
     """Create the inactive-behavior S1 root using only current factories."""
 
+    from xhs_food.composition.legacy_research_task import LegacyResearchTaskFacade
     from xhs_food.di import factories as legacy
 
     root = CompositionRoot()
@@ -188,6 +233,19 @@ def build_legacy_composition_root() -> CompositionRoot:
             legacy=True,
         )
     )
+    root.registry("use_cases").register(
+        AdapterBinding(
+            name="research_task",
+            contract_version="legacy/v1",
+            factory=LegacyResearchTaskFacade,
+            legacy=True,
+        )
+    )
+    root.bind_logical(
+        "modular_core",
+        registry_name="use_cases",
+        binding_name="research_task",
+    )
     root.assert_legacy_only()
     root.activate()
     return root
@@ -197,6 +255,7 @@ __all__ = [
     "AdapterBinding",
     "BindingRegistry",
     "CompositionRoot",
+    "LogicalBinding",
     "RegistryState",
     "build_legacy_composition_root",
 ]

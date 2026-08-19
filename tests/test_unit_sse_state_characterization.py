@@ -153,7 +153,8 @@ async def test_same_session_refine_keeps_old_done_in_event_log(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Freeze stale-DONE replay: refine resets the emitter, not its bus stream."""
-    from api.search import routes
+    from xhs_food.composition import legacy_research_task
+    from xhs_food.composition.legacy_research_task import LegacyResearchTaskFacade
 
     bus = InMemoryEventBus()
     emitter = SearchEventEmitter("refine-session", bus)
@@ -190,21 +191,23 @@ async def test_same_session_refine_keeps_old_done_in_event_log(
         coro.close()
         return object()
 
-    monkeypatch.setattr(routes, "load_state", _load_state)
-    monkeypatch.setattr(routes, "update_state", _update_state)
-    monkeypatch.setattr(routes, "get_session_manager", _get_session_manager)
-    monkeypatch.setattr(routes, "get_emitter", _get_emitter)
-    monkeypatch.setattr(routes, "run_stream_search", _noop_search)
-    monkeypatch.setattr(routes.asyncio, "create_task", _discard_task)
+    monkeypatch.setattr(legacy_research_task.legacy_state, "load_state", _load_state)
+    monkeypatch.setattr(legacy_research_task.legacy_state, "update_state", _update_state)
+    monkeypatch.setattr(legacy_research_task, "get_session_manager", _get_session_manager)
+    monkeypatch.setattr(legacy_research_task, "get_emitter", _get_emitter)
 
-    turn_id = await routes._kick_off_refine("refine-session", "less spicy")
+    facade = LegacyResearchTaskFacade(
+        task_runner=_noop_search,
+        task_spawner=_discard_task,
+    )
+    admission = await facade.refine("refine-session", "less spicy")
     await emitter.step_start("step1", "refine start")
     await emitter.emit_done()
 
     replay_without_cursor = await _collect(bus, "refine-session")
     replay_after_old_done = await _collect(bus, "refine-session", old_done_id)
 
-    assert turn_id == 2
+    assert admission.turn_id == 2
     assert state == {
         "turn_id": 2,
         "status": "loading",

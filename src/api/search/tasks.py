@@ -1,18 +1,30 @@
 """Background search task + recovery payload builder."""
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from copy import deepcopy
+from typing import Any
 
 from loguru import logger
 
-from xhs_food.events import SearchEventType, get_emitter
+from xhs_food.contracts import (
+    ContextMessage,
+    ResearchContextSnapshot,
+    StableResultMapperPort,
+)
+from xhs_food.events import get_emitter
+from xhs_food.experience.results import StableResultMapper
 from xhs_food.services import get_session_manager, get_user_storage_service
 from xhs_food.services.user_storage import generate_restaurant_hash
 
 from .state import get_orchestrator, load_state, update_state
 
 
-async def run_stream_search(session_id: str, query: str) -> None:
+async def run_stream_search(
+    session_id: str,
+    query: str,
+    *,
+    result_mapper: StableResultMapperPort | None = None,
+) -> None:
     """Background task driving the orchestrator + persisting results."""
     orchestrator = get_orchestrator(session_id)
     emitter = await get_emitter(session_id)
@@ -21,16 +33,30 @@ async def run_stream_search(session_id: str, query: str) -> None:
         manager = await get_session_manager()
         history = await manager.get_context(session_id)
         if history and len(history) > 1:
-            for msg in history[:-1]:
-                if msg["role"] == "user":
-                    orchestrator._context.add_user_message(msg["content"])
-                elif msg["role"] == "assistant":
-                    orchestrator._context.add_assistant_message(msg["content"])
+            orchestrator.restore_context(
+                ResearchContextSnapshot(
+                    messages=tuple(
+                        ContextMessage(role=msg["role"], content=msg["content"])
+                        for msg in history[:-1]
+                        if msg["role"] in {"user", "assistant"}
+                    )
+                ),
+                merge=True,
+            )
 
         await orchestrator.search_stream(query, emitter)
 
         await update_state(session_id, status="completed")
-        await _persist_results(session_id, query, orchestrator, manager)
+        if result_mapper is None:
+            await _persist_results(session_id, query, orchestrator, manager)
+        else:
+            await _persist_results(
+                session_id,
+                query,
+                orchestrator,
+                manager,
+                result_mapper=result_mapper,
+            )
 
     except Exception as exc:
         logger.exception(f"stream search failed: {session_id}")
@@ -48,6 +74,8 @@ async def _persist_results(
     query: str,
     orchestrator,
     manager,
+    *,
+    result_mapper: StableResultMapperPort | None = None,
 ) -> None:
     state = await load_state(session_id) or {}
     summary = state.get("summary", "")
@@ -59,26 +87,35 @@ async def _persist_results(
 
     storage = await get_user_storage_service()
 
-    restaurants: List[Dict[str, Any]] = []
+    mapper = result_mapper or StableResultMapper()
+    restaurants: list[dict[str, Any]] = []
     result_summary = ""
     # We previously read events from the emitter buffer; with the bus we
     # rely on the orchestrator having stored recommendations on its
     # context. Fall back to context for both restaurants and summary.
-    for rec_name, rec_dict in orchestrator._context.last_recommendations.items():
+    context_snapshot = orchestrator.snapshot_context()
+    for recommendation in context_snapshot.recommendations:
+        rec_name = recommendation.key
+        rec_dict = deepcopy(recommendation.payload)
         if not rec_dict:
             continue
         if "id" not in rec_dict:
-            rec_dict["id"] = generate_restaurant_hash(rec_name, rec_dict.get("tel"))
+            rec_dict = mapper.to_persisted_restaurant(
+                rec_dict,
+                generate_restaurant_hash(rec_name, rec_dict.get("tel")),
+            )
+        # The legacy writer mutates context before the restaurant upsert await.
+        orchestrator.update_context_recommendation(rec_name, rec_dict)
         try:
             saved = await storage.upsert_restaurant(rec_dict)
             if saved:
-                rec_dict["id"] = saved.id
+                rec_dict = mapper.to_persisted_restaurant(rec_dict, saved.id)
+                orchestrator.update_context_recommendation(rec_name, rec_dict)
         except Exception as exc:
             logger.warning(f"upsert_restaurant failed: {exc}")
         restaurants.append(rec_dict)
 
-    if hasattr(orchestrator._context, "last_summary"):
-        result_summary = getattr(orchestrator._context, "last_summary", "") or summary
+    result_summary = context_snapshot.last_summary or summary
 
     try:
         await storage.save_search_result(
@@ -108,7 +145,10 @@ async def _persist_results(
 # ---------------------------------------------------------------------------
 
 
-async def build_recovery_payload(session_id: str) -> Dict[str, Any]:
+async def build_recovery_payload(
+    session_id: str,
+    result_mapper: StableResultMapperPort | None = None,
+) -> dict[str, Any]:
     """Return the unified-search response for the recover branch.
 
     Source-of-truth order: PostgreSQL (search_results) → search_history →
@@ -119,33 +159,8 @@ async def build_recovery_payload(session_id: str) -> Dict[str, Any]:
         storage = await get_user_storage_service()
         all_results = await storage.get_all_search_results(session_id)
         if all_results:
-            turns = [
-                {
-                    "turnId": r.get("turn_id", 1),
-                    "query": r.get("query", ""),
-                    "restaurants": r.get("restaurants", []),
-                    "summary": r.get("summary", ""),
-                    "total": len(r.get("restaurants", [])),
-                    "createdAt": r.get("created_at"),
-                }
-                for r in all_results
-            ]
-            latest = all_results[-1]
-            return {
-                "success": True,
-                "data": {
-                    "sessionId": session_id,
-                    "status": "completed",
-                    "turnId": latest.get("turn_id", 1),
-                    "query": latest.get("query", ""),
-                    "restaurants": latest.get("restaurants", []),
-                    "summary": latest.get("summary", ""),
-                    "total": len(latest.get("restaurants", [])),
-                    "turns": turns,
-                    "turnCount": len(turns),
-                    "fromDatabase": True,
-                },
-            }
+            mapper = result_mapper or StableResultMapper()
+            return mapper.to_completed_recovery(session_id, tuple(all_results))
 
         history = await storage.get_history_by_session(session_id)
         if history:

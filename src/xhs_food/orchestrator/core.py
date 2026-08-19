@@ -8,12 +8,18 @@ from __future__ import annotations
 
 import logging
 import time
+from copy import deepcopy
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from xhs_food.agents.analyzer import AnalyzerAgent
 from xhs_food.agents.intent_parser import IntentParserAgent
 from xhs_food.common.location import extract_city_from_location
 from xhs_food.config import settings
+from xhs_food.contracts.experience import (
+    ContextMessage,
+    RecommendationSnapshot,
+    ResearchContextSnapshot,
+)
 from xhs_food.exceptions import IntentError, LLMError
 from xhs_food.observability.metrics import (
     search_duration_seconds,
@@ -110,6 +116,53 @@ class XHSFoodOrchestrator:
     def context(self) -> ConversationContext:
         """获取当前对话上下文."""
         return self._context
+
+    def snapshot_context(self) -> ResearchContextSnapshot:
+        """Return a detached deep copy for compatibility adapters."""
+        return ResearchContextSnapshot(
+            messages=tuple(
+                ContextMessage(role=message["role"], content=message["content"])
+                for message in deepcopy(self._context.conversation_history)
+            ),
+            recommendations=tuple(
+                RecommendationSnapshot(key=name, payload=deepcopy(payload))
+                for name, payload in self._context.last_recommendations.items()
+            ),
+            last_summary=getattr(self._context, "last_summary", "") or "",
+            last_intent=deepcopy(self._context.last_intent),
+            excluded_shops=tuple(self._context.excluded_shops),
+            accumulated_preferences=tuple(self._context.accumulated_preferences),
+            turn_count=self._context.turn_count,
+            last_notes=tuple(deepcopy(self._context.last_notes)),
+            target_city=self._context.target_city,
+        )
+
+    def restore_context(self, snapshot: ResearchContextSnapshot, *, merge: bool = False) -> None:
+        """Restore a trusted snapshot without exposing mutable context internals."""
+        messages = [
+            {"role": message.role, "content": message.content} for message in snapshot.messages
+        ]
+        recommendations = {item.key: deepcopy(item.payload) for item in snapshot.recommendations}
+        if merge:
+            self._context.conversation_history.extend(messages)
+            self._context.last_recommendations.update(recommendations)
+            if snapshot.last_summary:
+                self._context.last_summary = snapshot.last_summary  # type: ignore[attr-defined]
+            return
+
+        self._context.conversation_history = messages
+        self._context.last_recommendations = recommendations
+        self._context.last_intent = deepcopy(snapshot.last_intent)
+        self._context.excluded_shops = list(snapshot.excluded_shops)
+        self._context.accumulated_preferences = list(snapshot.accumulated_preferences)
+        self._context.turn_count = snapshot.turn_count
+        self._context.last_notes = [deepcopy(note) for note in snapshot.last_notes]
+        self._context.target_city = snapshot.target_city
+        self._context.last_summary = snapshot.last_summary  # type: ignore[attr-defined]
+
+    def update_context_recommendation(self, key: str, recommendation: dict[str, Any]) -> None:
+        """Transfer one trusted compatibility result into the live context."""
+        self._context.last_recommendations[key] = recommendation
 
     def _record_response(self, response: XHSFoodResponse) -> XHSFoodResponse:
         """记录响应到对话历史并返回."""

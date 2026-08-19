@@ -53,8 +53,9 @@ def search_http(
     monkeypatch: pytest.MonkeyPatch,
 ) -> Iterator[tuple[TestClient, _CallLog, _Storage]]:
     from api.main import app
-    from api.search import routes as routes_mod
     from api.search import tasks as tasks_mod
+    from api.search.dependencies import get_research_task
+    from xhs_food.contracts import ResearchOperation, ResearchTaskAdmission
 
     calls = _CallLog()
     storage = _Storage()
@@ -78,35 +79,64 @@ def search_http(
         },
     }
 
-    async def fake_new(session_id: str, query: str) -> None:
-        calls.new.append((session_id, query))
-
-    async def fake_refine(session_id: str, query: str) -> int:
-        calls.refine.append((session_id, query))
-        return 7
-
-    async def fake_load_state(session_id: str) -> dict[str, Any] | None:
-        return states.get(session_id)
-
-    async def fake_get_emitter(session_id: str) -> _Emitter:
-        assert session_id == "session-active"
-        return _Emitter()
-
     async def fake_get_storage() -> _Storage:
         return storage
 
-    monkeypatch.setattr(routes_mod.uuid, "uuid4", lambda: "fixed-session-id")
-    monkeypatch.setattr(routes_mod, "_kick_off_new_search", fake_new)
-    monkeypatch.setattr(routes_mod, "_kick_off_refine", fake_refine)
-    monkeypatch.setattr(routes_mod, "load_state", fake_load_state)
-    monkeypatch.setattr(routes_mod, "get_emitter", fake_get_emitter)
     monkeypatch.setattr(tasks_mod, "get_user_storage_service", fake_get_storage)
+
+    class _ResearchTaskFixture:
+        async def start_new(self, query: str) -> ResearchTaskAdmission:
+            session_id = "fixed-session-id"
+            calls.new.append((session_id, query))
+            return ResearchTaskAdmission(
+                task_id=session_id,
+                session_id=session_id,
+                operation=ResearchOperation.QUERY,
+                stream_ref=f"/v1/search/stream/{session_id}",
+                turn_id=1,
+            )
+
+        async def refine(self, session_id: str, query: str) -> ResearchTaskAdmission:
+            calls.refine.append((session_id, query))
+            return ResearchTaskAdmission(
+                task_id=session_id,
+                session_id=session_id,
+                operation=ResearchOperation.REFINE,
+                stream_ref=f"/v1/search/stream/{session_id}",
+                turn_id=7,
+            )
+
+        async def recover(self, session_id: str) -> dict[str, Any]:
+            return await tasks_mod.build_recovery_payload(session_id)
+
+        async def status(self, session_id: str) -> dict[str, Any] | None:
+            state = states.get(session_id)
+            if state is None:
+                return None
+            return {
+                "sessionId": session_id,
+                "status": state["status"],
+                "loadingSteps": _Emitter().steps,
+            }
+
+        async def results(self, session_id: str) -> dict[str, Any] | None:
+            state = states.get(session_id)
+            if state is None:
+                return None
+            return {
+                "sessionId": session_id,
+                "restaurants": state.get("restaurants", []),
+                "summary": state.get("summary", ""),
+            }
+
+    app.dependency_overrides[get_research_task] = _ResearchTaskFixture
 
     client = TestClient(app)
     try:
         yield client, calls, storage
     finally:
         client.close()
+        app.dependency_overrides.pop(get_research_task, None)
 
 
 def _assert_golden(response: Any, case: dict[str, Any]) -> None:

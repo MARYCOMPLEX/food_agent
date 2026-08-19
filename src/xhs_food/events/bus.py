@@ -13,6 +13,7 @@ Two backends are provided:
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncIterator
 from typing import AsyncGenerator, Dict, Optional, Protocol, Tuple
 
 from loguru import logger
@@ -33,11 +34,11 @@ class EventBus(Protocol):
     async def publish(self, session_id: str, event: SearchEvent) -> str:
         """Append ``event`` to the session stream. Returns the entry id."""
 
-    async def subscribe(
+    def subscribe(
         self,
         session_id: str,
         last_id: str = STREAM_START,
-    ) -> AsyncGenerator[Tuple[str, SearchEvent], None]:
+    ) -> AsyncIterator[Tuple[str, SearchEvent]]:
         """Yield ``(entry_id, event)`` tuples until a terminal event arrives."""
 
     async def close(self) -> None:

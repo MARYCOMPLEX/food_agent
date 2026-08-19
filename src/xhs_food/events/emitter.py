@@ -11,6 +11,7 @@ import asyncio
 from typing import Any, Dict, List, Optional
 
 from .bus import EventBus, get_event_bus
+from .step_projection import LegacySixStepProjection
 from .types import SearchEvent, SearchEventType
 
 
@@ -21,12 +22,16 @@ class SearchEventEmitter:
     It still tracks the pipeline ``steps`` for ``/v1/search/status``.
     """
 
-    def __init__(self, session_id: str, bus: EventBus) -> None:
+    def __init__(
+        self,
+        session_id: str,
+        bus: EventBus,
+        *,
+        step_projection: LegacySixStepProjection | None = None,
+    ) -> None:
         self._session_id = session_id
         self._bus = bus
-        self._steps: List[Dict[str, str]] = []
-        self._current_step: int = 0
-        self._total_steps: int = 6
+        self._step_projection = step_projection or LegacySixStepProjection()
         self._completed: bool = False
 
     @property
@@ -35,7 +40,7 @@ class SearchEventEmitter:
 
     @property
     def steps(self) -> List[Dict[str, str]]:
-        return self._steps
+        return self._step_projection.steps
 
     @property
     def is_completed(self) -> bool:
@@ -45,24 +50,15 @@ class SearchEventEmitter:
 
     @property
     def _steps_legacy(self) -> List[Dict[str, str]]:
-        return self._steps
+        return self._step_projection.steps
 
     def reset(self) -> None:
-        self._steps = []
-        self._current_step = 0
+        self._step_projection.reset()
         self._completed = False
 
     def init_steps(self, query: str) -> None:
         _ = query  # reserved for future per-query labels
-        self._steps = [
-            {"id": "step1", "label": "解析用户意图", "status": "pending"},
-            {"id": "step2", "label": "搜索小红书笔记", "status": "pending"},
-            {"id": "step3", "label": "分析评论内容", "status": "pending"},
-            {"id": "step4", "label": "交叉验证筛选", "status": "pending"},
-            {"id": "step5", "label": "补充 POI 信息", "status": "pending"},
-            {"id": "step6", "label": "生成推荐结果", "status": "pending"},
-        ]
-        self._current_step = 0
+        self._step_projection.initialize()
 
     # Core emit ---------------------------------------------------------------
 
@@ -75,17 +71,10 @@ class SearchEventEmitter:
     # Step helpers ------------------------------------------------------------
 
     def _update_step(self, step_id: str, status: str, message: str = "") -> None:
-        for step in self._steps:
-            if step["id"] == step_id:
-                step["status"] = status
-                if message:
-                    step["label"] = message
-                break
+        self._step_projection.update(step_id, status, message)
 
     def _progress(self) -> int:
-        if not self._total_steps:
-            return 0
-        return int((self._current_step / self._total_steps) * 100)
+        return self._step_projection.progress()
 
     async def step_start(self, step_id: str, message: str = "") -> None:
         self._update_step(step_id, "loading", message)
@@ -95,7 +84,7 @@ class SearchEventEmitter:
                 data={
                     "step": step_id,
                     "message": message,
-                    "steps": self._steps,
+                    "steps": self.steps,
                     "progress": self._progress(),
                 },
             )
@@ -108,11 +97,11 @@ class SearchEventEmitter:
         extra: Optional[Dict[str, Any]] = None,
     ) -> None:
         self._update_step(step_id, "done", message)
-        self._current_step += 1
+        self._step_projection.advance()
         data: Dict[str, Any] = {
             "step": step_id,
             "message": message,
-            "steps": self._steps,
+            "steps": self.steps,
             "progress": self._progress(),
         }
         if extra:
@@ -124,7 +113,7 @@ class SearchEventEmitter:
         await self.emit(
             SearchEvent(
                 type=SearchEventType.STEP_ERROR,
-                data={"step": step_id, "error": error, "steps": self._steps},
+                data={"step": step_id, "error": error, "steps": self.steps},
             )
         )
 
@@ -141,7 +130,7 @@ class SearchEventEmitter:
                     "summary": summary,
                     "total": total,
                     "filtered": filtered,
-                    "steps": self._steps,
+                    "steps": self.steps,
                 },
             )
         )

@@ -15,7 +15,7 @@
 - [ ] 1.13 将已批准的基础设施绑定写入 ADR：Temporal 承载 Research/Refresh/Media 三类 Task Queue，S3-compatible `ObjectStore` 使用 boto3 adapter、本地使用 MinIO；另行定义加密、保留、清理、重试耗尽和人工恢复策略。
 - [x] 1.14 将 Pydantic AI V2 固化为唯一 Agent runtime，保留 SiliconFlow/OpenAI/DeepSeek 的 provider adapters，官方 MCP SDK 只进入外部 interop adapter；Node signer/Playwright 缺失合同仍单独裁决。
 - [x] 1.15 将 Python 3.12 固化为主运行时和 blocking gate，并决定支持的 OS、CPU、浏览器、容器及其他 Python 版本的 blocking/probe 范围。
-- [ ] 1.16 调查现有部署的 `turn_id` migration、缺失 internal docs、CORS/Vite/env/容器差异和已知搜索状态缺陷，逐项标记“先修复”“characterize 保留”或“独立 change”。
+- [x] 1.16 调查现有部署的 `turn_id` migration、缺失 internal docs、CORS/Vite/env/容器差异和已知搜索状态缺陷，逐项标记“先修复”“characterize 保留”或“独立 change”。
 - [ ] 1.17 定义显式刷新 use-case/API 版本、普通/强制模式授权、in-flight 合并和稳定 SSE 映射；明确它是新行为而非既有兼容合同。
 - [x] 1.18 审批 ADR 索引，确认基础设施基线均标记为 accepted，剩余 Open Questions 只包含业务、兼容性和运维参数；未决项只阻塞其实际影响的里程碑。
 - [x] 1.19 复核 `dependency-research.md` 已批准裁决并在 ADR 索引引用：adopt Pydantic AI V2、Temporal、SQLAlchemy 2 Async、asyncpg、Alembic、PostgreSQL 16/pgvector/pg_trgm、Redis、S3/boto3/MinIO、OpenTelemetry/Prometheus；为许可证、升级和安全响应指定 owner。
@@ -59,15 +59,15 @@
 
 ## 4. S2 Experience And Task Facades
 
-- [ ] 4.1 在现有 search routes 前实现 ResearchTask use-case facade，默认完整委派 legacy workflow。
-- [ ] 4.2 为 legacy orchestrator 增加公开的结果/context snapshot adapter，替代 API 对 `orchestrator._context` 的私有读取。
-- [ ] 4.3 实现 Stable Event Mapper，将内部 TaskEvent 映射为已批准的现有 SSE 事件与 payload。
-- [ ] 4.4 实现 Stable Result Mapper，将内部结果映射为当前 Food HTTP/SSE/持久化 DTO，保持字段和默认值。
-- [ ] 4.5 让 new/refine/recover/status/results 路由只依赖 ResearchTask port，保持现有路径、包络、状态码和后台启动次数。
-- [ ] 4.6 把 emitter 的任务步骤元数据与平台调用解耦，并定义尚未暴露的显式刷新 use-case port；legacy compatibility version 仍只输出相同六步且不新增 refresh route。
-- [ ] 4.7 为 task facade 添加 legacy-policy 代理测试，逐字保持当前终态、持久化顺序、错误、恢复和已知缺陷；目标 exactly-once/persist-before-success 断言留到 B0。
-- [ ] 4.8 运行完整 HTTP/SSE/browser characterization，对任何差异生成失败而不是更新 golden。
-- [ ] 4.9 增加 `modular_core` 逻辑绑定和回旧 facade 的 runbook，默认仍走 legacy。
+- [x] 4.1 在现有 search routes 前实现 ResearchTask use-case facade，默认完整委派 legacy workflow。
+- [x] 4.2 为 legacy orchestrator 增加公开的结果/context snapshot adapter，替代 API 对 `orchestrator._context` 的私有读取。
+- [x] 4.3 实现 Stable Event Mapper，将内部 TaskEvent 映射为已批准的现有 SSE 事件与 payload。
+- [x] 4.4 实现 Stable Result Mapper，将内部结果映射为当前 Food HTTP/SSE/持久化 DTO，保持字段和默认值。
+- [x] 4.5 让 new/refine/recover/status/results 路由只依赖 ResearchTask port，保持现有路径、包络、状态码和后台启动次数。
+- [x] 4.6 把 emitter 的任务步骤元数据与平台调用解耦，并定义尚未暴露的显式刷新 use-case port；legacy compatibility version 仍只输出相同六步且不新增 refresh route。
+- [x] 4.7 为 task facade 添加 legacy-policy 代理测试，逐字保持当前终态、持久化顺序、错误、恢复和已知缺陷；目标 exactly-once/persist-before-success 断言留到 B0。
+- [x] 4.8 运行完整 HTTP/SSE/browser characterization，对任何差异生成失败而不是更新 golden。
+- [x] 4.9 增加 `modular_core` 逻辑绑定和回旧 facade 的 runbook，默认仍走 legacy。
 - [ ] 4.10 演练 binding 回退并确认无 schema/data 依赖；将 S2 作为独立提交。
 
 ## 5. S3 Gateways And Foundation Facades

@@ -11,12 +11,10 @@ Endpoints:
 """
 from __future__ import annotations
 
-import asyncio
-import uuid
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
+from typing import Annotated
 
-from fastapi import APIRouter, Header, HTTPException, Path
-from loguru import logger
+from fastapi import APIRouter, Depends, Header, HTTPException, Path
 from sse_starlette.sse import EventSourceResponse
 
 from api.schemas import (
@@ -24,17 +22,10 @@ from api.schemas import (
     SearchStatusResponse,
     UnifiedSearchRequest,
 )
-from xhs_food.events import get_emitter
+from xhs_food.contracts import ResearchTaskNotFoundError, ResearchTaskPort
 from xhs_food.events.bus import STREAM_START, get_event_bus
-from xhs_food.services import get_session_manager, get_user_storage_service
 
-from .state import (
-    get_orchestrator,
-    get_or_init_state,
-    load_state,
-    update_state,
-)
-from .tasks import run_stream_search, build_recovery_payload
+from .dependencies import get_research_task
 
 router = APIRouter()
 
@@ -43,31 +34,27 @@ def _stream_url(session_id: str) -> str:
     return f"/v1/search/stream/{session_id}"
 
 
-def _truncate(text: str | None, n: int = 30) -> str:
-    if not text:
-        return ""
-    return text[:n] + ("…" if len(text) > n else "")
-
-
 # ---------------------------------------------------------------------------
 # POST /v1/search (unified)
 # ---------------------------------------------------------------------------
 
 
 @router.post("/")
-async def unified_search(request: UnifiedSearchRequest):
+async def unified_search(
+    request: UnifiedSearchRequest,
+    tasks: Annotated[ResearchTaskPort, Depends(get_research_task)],
+):
     """Single entry point — branches on ``(sessionId, query)`` presence."""
     # Case 1: new search
     if not request.sessionId:
         if not request.query:
             raise HTTPException(400, "新查询必须提供 query 参数")
-        session_id = str(uuid.uuid4())
-        await _kick_off_new_search(session_id, request.query)
+        admission = await tasks.start_new(request.query)
         return {
             "success": True,
             "data": {
-                "sessionId": session_id,
-                "streamUrl": _stream_url(session_id),
+                "sessionId": admission.session_id,
+                "streamUrl": admission.stream_ref,
                 "action": "new_search",
             },
         }
@@ -76,116 +63,22 @@ async def unified_search(request: UnifiedSearchRequest):
 
     # Case 2: refine (sessionId + query)
     if request.query:
-        turn_id = await _kick_off_refine(session_id, request.query)
+        try:
+            admission = await tasks.refine(session_id, request.query)
+        except ResearchTaskNotFoundError as exc:
+            raise HTTPException(404, "Session not found") from exc
         return {
             "success": True,
             "data": {
                 "sessionId": session_id,
-                "streamUrl": _stream_url(session_id),
-                "turnId": turn_id,
+                "streamUrl": admission.stream_ref,
+                "turnId": admission.turn_id,
                 "action": "refine",
             },
         }
 
     # Case 3: recover (sessionId only)
-    return await build_recovery_payload(session_id)
-
-
-async def _kick_off_new_search(session_id: str, query: str) -> None:
-    await update_state(
-        session_id,
-        status="loading",
-        query=query,
-        turn_id=1,
-    )
-
-    emitter = await get_emitter(session_id)
-    emitter.reset()
-    emitter.init_steps(query)
-
-    try:
-        manager = await get_session_manager()
-        await manager.add_user_message(session_id, query)
-    except Exception as exc:
-        logger.warning(f"add_user_message failed: {exc}")
-
-    try:
-        storage = await get_user_storage_service()
-        await storage.create_search_history(
-            session_id=session_id,
-            query=query,
-            status="loading",
-        )
-    except Exception as exc:
-        logger.warning(f"create_search_history failed: {exc}")
-
-    asyncio.create_task(run_stream_search(session_id, query))
-
-
-async def _kick_off_refine(session_id: str, query: str) -> int:
-    # Restore orchestrator context lazily if memory cache evicted.
-    state = await load_state(session_id)
-    if state is None:
-        state = await _restore_state_from_storage(session_id)
-
-    turn_id = (state.get("turn_id") or 1) + 1
-    await update_state(
-        session_id,
-        status="loading",
-        query=query,
-        turn_id=turn_id,
-    )
-
-    try:
-        manager = await get_session_manager()
-        await manager.add_user_message(session_id, query)
-    except Exception as exc:
-        logger.warning(f"add_user_message failed: {exc}")
-
-    emitter = await get_emitter(session_id)
-    emitter.reset()
-    emitter.init_steps(query)
-
-    asyncio.create_task(run_stream_search(session_id, query))
-    return turn_id
-
-
-async def _restore_state_from_storage(session_id: str) -> dict:
-    """Repopulate orchestrator + state from persistent storage."""
-    storage = await get_user_storage_service()
-    first_result = await storage.get_first_search_result(session_id)
-    if not first_result:
-        raise HTTPException(404, "Session not found")
-
-    all_results = await storage.get_all_search_results(session_id)
-    state = await update_state(
-        session_id,
-        status="completed",
-        query=first_result.get("query", ""),
-        turn_id=len(all_results) if all_results else 1,
-        restaurants=first_result.get("restaurants", []),
-    )
-
-    orchestrator = get_orchestrator(session_id)
-    manager = await get_session_manager()
-    history = await manager.get_context(session_id)
-    if history:
-        for msg in history:
-            if msg["role"] == "user":
-                orchestrator._context.add_user_message(msg["content"])
-            elif msg["role"] == "assistant":
-                orchestrator._context.add_assistant_message(msg["content"])
-
-    for restaurant in first_result.get("restaurants", []):
-        name = restaurant.get("name")
-        if name:
-            orchestrator._context.last_recommendations[name] = restaurant
-
-    logger.info(
-        f"session restored: {len(first_result.get('restaurants', []))} restaurants, "
-        f"turn_id={state['turn_id']}"
-    )
-    return state
+    return await tasks.recover(session_id)
 
 
 # ---------------------------------------------------------------------------
@@ -222,19 +115,14 @@ async def search_stream(
 
 
 @router.get("/status/{sessionId}", response_model=SearchStatusResponse)
-async def search_status(sessionId: str = Path(..., description="会话ID")):
-    state = await load_state(sessionId)
-    if state is None:
+async def search_status(
+    tasks: Annotated[ResearchTaskPort, Depends(get_research_task)],
+    sessionId: str = Path(..., description="会话ID"),
+):
+    snapshot = await tasks.status(sessionId)
+    if snapshot is None:
         raise HTTPException(404, "Session not found")
-    emitter = await get_emitter(sessionId)
-    return SearchStatusResponse(
-        success=True,
-        data={
-            "sessionId": sessionId,
-            "status": state["status"],
-            "loadingSteps": emitter.steps,
-        },
-    )
+    return SearchStatusResponse(success=True, data=snapshot)
 
 
 # ---------------------------------------------------------------------------
@@ -243,15 +131,11 @@ async def search_status(sessionId: str = Path(..., description="会话ID")):
 
 
 @router.get("/results/{sessionId}", response_model=SearchResultsResponse)
-async def search_results(sessionId: str = Path(..., description="会话ID")):
-    state = await load_state(sessionId)
-    if state is None:
+async def search_results(
+    tasks: Annotated[ResearchTaskPort, Depends(get_research_task)],
+    sessionId: str = Path(..., description="会话ID"),
+):
+    snapshot = await tasks.results(sessionId)
+    if snapshot is None:
         raise HTTPException(404, "Session not found")
-    return SearchResultsResponse(
-        success=True,
-        data={
-            "sessionId": sessionId,
-            "restaurants": state.get("restaurants", []),
-            "summary": state.get("summary", ""),
-        },
-    )
+    return SearchResultsResponse(success=True, data=snapshot)

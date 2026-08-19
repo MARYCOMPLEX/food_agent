@@ -67,6 +67,8 @@ def test_duplicate_bindings_and_non_legacy_s1_bindings_are_rejected() -> None:
 
 
 async def test_legacy_composition_root_registers_only_current_factories() -> None:
+    from xhs_food.composition.legacy_research_task import LegacyResearchTaskFacade
+
     root = build_legacy_composition_root()
     try:
         assert root.state is RegistryState.ACTIVE
@@ -77,11 +79,21 @@ async def test_legacy_composition_root_registers_only_current_factories() -> Non
             "foundation": ["xhs_service"],
             "tools": ["xhs_tool_registry"],
             "orchestrators": ["xhs_food_orchestrator"],
+            "use_cases": ["research_task"],
         }
         assert all(
             binding.legacy
             for registry in root.registries.values()
             for binding in registry.bindings.values()
+        )
+        logical = root.logical_bindings["modular_core"]
+        assert (
+            logical.registry_name,
+            logical.binding_name,
+        ) == ("use_cases", "research_task")
+        assert isinstance(
+            await root.resolve_logical("modular_core"),
+            LegacyResearchTaskFacade,
         )
 
         tool_registry = await root.resolve("tools", "xhs_tool_registry")

@@ -104,7 +104,7 @@ from xhs_food.observability import (  # noqa: E402
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(application: FastAPI):
     logger.info("XHS Food Agent API starting…")
 
     if not settings.openai_api_key:
@@ -112,9 +112,14 @@ async def lifespan(_: FastAPI):
     if not settings.xhs_cookies and not settings.xhs_profile_dir:
         logger.warning("XHS auth not configured — spider requests will fail")
 
-    from xhs_food.services.user_storage import get_user_storage_service
-    from xhs_food.services import get_session_manager
+    from xhs_food.composition import build_legacy_composition_root
     from xhs_food.events.bus import get_event_bus, shutdown_event_bus
+    from xhs_food.services import get_session_manager
+    from xhs_food.services.user_storage import get_user_storage_service
+
+    composition_root = build_legacy_composition_root()
+    application.state.composition_root = composition_root
+    application.state.research_task = await composition_root.resolve_logical("modular_core")
 
     storage = await get_user_storage_service()
     if storage._initialized:
@@ -139,6 +144,7 @@ async def lifespan(_: FastAPI):
             await storage.close()
         await session_manager.close()
         await shutdown_event_bus()
+        await composition_root.close()
 
 
 # ---------------------------------------------------------------------------

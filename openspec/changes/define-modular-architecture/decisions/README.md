@@ -4,7 +4,7 @@ Status: Active
 
 Change: `define-modular-architecture`
 
-Last reviewed: 2026-08-19
+Last reviewed: 2026-08-20
 
 This index is the authority gate for the change. An unresolved question blocks only the milestones listed in its row. Owners are accountable roles; a named assignee can be added when implementation work is scheduled.
 
@@ -28,6 +28,7 @@ This index is the authority gate for the change. An unresolved question blocks o
 | ADR-0006 | Canonical Query, Family matching contract, freshness policy schema, and Evidence governance | Domain + Evidence + Data Governance | [ADR-0006](./ADR-0006-query-evidence-authority.md) |
 | ADR-0007 | Domain Contract method, discovery, version pinning, tools, output, and extension boundaries | Architecture + Domain + Integrations + QA | [ADR-0007](./ADR-0007-domain-contract-authority.md) |
 | ADR-0008 | Four-layer memory, identity isolation, consent, lifecycle, and feedback privacy | Product + Privacy + Security + Data Platform + QA | [ADR-0008](./ADR-0008-memory-privacy-authority.md) |
+| ADR-0009 | Disposition of legacy schema, task-state, persistence, deployment, and documentation gaps | Architecture + API + Data Platform + Platform + Frontend | [ADR-0009](./ADR-0009-legacy-gap-disposition.md) |
 
 ## Open Question Register
 
@@ -50,16 +51,16 @@ This index is the authority gate for the change. An unresolved question blocks o
 | 15 | Tenant, cohort, locale, visibility isolation, and anonymous-to-user migration | Security + Data | S1 | S1, B1, B2, B3 | Accepted | [ADR-0008](./ADR-0008-memory-privacy-authority.md) + [ADR-0006](./ADR-0006-query-evidence-authority.md) |
 | 16 | Authority and deprecation for unified search versus documented legacy routes | API | S0 | S2 | Accepted | [ADR-0004](./ADR-0004-http-sse-authority.md) |
 | 17 | Authority for envelopes, pagination, SSE replay, step IDs, and error fields | API + Frontend | S0 | S2 | Accepted | [ADR-0004](./ADR-0004-http-sse-authority.md) |
-| 18 | Versioning policy for mixed camelCase/snake_case DTOs | API + Domain | S0 | S2, S4 | Accepted | [ADR-0005](./ADR-0005-food-dto-identity-authority.md) |
-| 19 | Historical `turn_id` migration state and Alembic baseline/stamp | Data Platform | B1 | B1 | Investigating | [`migrate_turn_id.py`](../../../../scripts/migrate_turn_id.py) |
+| 18 | Versioning policy for mixed camelCase/snake_case DTOs | API + Domain | S0 | S2, S4 | Accepted | [ADR-0005](./ADR-0005-food-dto-identity-authority.md) + [ADR-0009 writer-path correction](./ADR-0009-legacy-gap-disposition.md) |
+| 19 | Historical `turn_id` migration state and Alembic baseline/stamp disposition | Data Platform | B1 | B1 | Accepted (disposition) | [ADR-0009](./ADR-0009-legacy-gap-disposition.md) + [schema fixtures](../../../../tests/fixtures/database/search_results_schema_contract.json) |
 | 20 | Restaurant entity/view/result ownership and stable identity | Domain + Data | S0 | S4, B1 | Accepted | [ADR-0005](./ADR-0005-food-dto-identity-authority.md) |
-| 21 | Disposition of known search history, terminal-state, and refine replay defects | API | S0 | S2, B0 | Investigating | [design compatibility ledger](../design.md#known-incompatible-current-expectations) |
+| 21 | Disposition of known search history, terminal-state, refine replay, and live persistence defects | API | S0 | S2, B0 | Accepted | [ADR-0009](./ADR-0009-legacy-gap-disposition.md) |
 | 22 | Legacy client mapping for source failure: error, partial, or empty success | API + Evidence | S3 | S3, B1 | Investigating | [core spec](../specs/modular-research-core/spec.md) |
 | 23 | Long-term support boundary for Python exports, injection points, and examples | Architecture + SDK | S0 | S1 | Accepted | [ADR-0005](./ADR-0005-food-dto-identity-authority.md) |
-| 24 | Target topology for CORS, frontend, SSE configuration, and container delivery | Platform + Frontend | B0 | B0, B4, Release gate | Investigating | [design compatibility ledger](../design.md#known-incompatible-current-expectations) |
+| 24 | Disposition of CORS, frontend, SSE configuration, and container delivery differences | Platform + Frontend | B0 | Release gate | Accepted (independent change) | [ADR-0009](./ADR-0009-legacy-gap-disposition.md) + [deployment fixture](../../../../tests/fixtures/characterization/configuration_deployment_contract.json) |
 | 25 | Supported macOS/arm64 and browser probe matrix | Build + QA | S0 | Release gate | Accepted | [ADR-0003](./ADR-0003-runtime-support-matrix.md) |
 | 26 | Food equivalence rule and approval of nondeterministic fixture updates | Domain + QA | S4 | S4, B2 | Accepted | [ADR-0005](./ADR-0005-food-dto-identity-authority.md) |
-| 27 | Recovery or replacement of missing `internal-docs/*` references | Architecture | S0 | S0 documentation gate | Investigating | [design Open Questions](../design.md#open-questions) |
+| 27 | Recovery or replacement of missing `internal-docs/*` references | Architecture | S0 | Documentation cleanup | Accepted (independent change) | [ADR-0009](./ADR-0009-legacy-gap-disposition.md) |
 | 28 | Explicit refresh API, authorization, in-flight merge, and SSE mapping | API + Evidence | B2 | B2 | Open | [core spec](../specs/modular-research-core/spec.md) |
 
 ## Accepted Infrastructure Is Not Open

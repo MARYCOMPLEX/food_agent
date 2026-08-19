@@ -376,7 +376,7 @@ Domain Pack implementation与 Foundation adapter 是核心端口的平级插件�
 | C-SSE-03 | 重放 | SSE `id`，服务器读取 `Last-Event-ID`；游标仍在窗口内时排他续传，游标已 trim/过期时返回稳定 `replay_expired/resync` 与 PostgreSQL 权威任务快照或终态，不创建新任务 | 断连、窗口内重连、游标过期/Redis restart、多订阅者、终态幂等测试 |
 | C-ID-01 | 标识和幂等 | session ID、turn ID、event ID、task state ID、匿名用户 UUID；restaurant ID 在电话为空时为 `sha256(trim(name).utf8)[:32]`，否则为 `sha256((trim(name) + ":" + trim(tel)).utf8)[:32]` | 旧数据 golden + 空/非空电话、Unicode、重试/重复事件测试 |
 | C-AUTH-01 | 用户识别 | `X-User-Id > X-Device-Id > anonymous`；浏览器持久化 `deviceId` | header 优先级、匿名隔离和迁移测试 |
-| C-RESULT-01 | Food 请求和结果 DTO | `FoodSearchIntent.to_dict/from_dict`、`RestaurantRecommendation.to_dict`、`XHSFoodResponse.to_dict`、`EnrichedRestaurant.to_dict`；`mustTry/blackList` 与其他 snake_case 混合 | 序列化 golden、空值、Unicode、旧记录回读 |
+| C-RESULT-01 | Food 请求和结果 DTO | `FoodSearchIntent.to_dict/from_dict`、`RestaurantRecommendation.to_dict`、`XHSFoodResponse.to_dict`、`EnrichedRestaurant.to_dict`；`mustTry/blackList` 与其他 snake_case 混合；live `search_results` writer 保存 recommendation mixed view + `id`，不同于构造的 `Restaurant.to_dict` camel-case fixture | 序列化 golden、writer-path side-effect、空值、Unicode、两类旧记录回读 |
 | C-RANK-01 | 当前 Food 行为 | 四阶段关键词、快速模式停止、note 去重、店名合并、网红过滤、`confidence/source count` 排序、追问语义 | 冻结来源和 LLM fixture 的 characterization |
 | C-PY-01 | Python 包与公开导出 | legacy current 为 Python `>=3.10`；目标 runtime 为 `>=3.12,<3.13`。wheel 包含 `xhs_food` 与 `api`；顶层及 `schemas/services/agents/events/protocols/di.__all__` | import smoke + signature snapshot；S0 只冻结旧声明，不把 3.10/3.11 延续为目标支持义务 |
 | C-PY-02 | Orchestrator public API | `XHSFoodOrchestrator.search/process/search_stream/context/reset_context` 及测试覆盖的构造注入点 | compatibility facade contract suite |
@@ -404,6 +404,11 @@ Domain Pack implementation与 Foundation adapter 是核心端口的平级插件�
 | SSE steps | `intent_parsing/xhs_search/...`，读取 `detail` | `step1..step6`，发送 `message/error` | Stable Event Mapper 版本决策 |
 | Frontend dev/CORS | Vite 端口 3000 | CORS 默认 5173，且方法清单不含 PUT | 环境合同决策，不能混入架构移动 |
 | SSE timeout config | `.env.example` 使用 `SSE_TIMEOUT` | Settings 暴露的名称/消费关系不同 | 配置兼容测试与命名决策 |
+| Search history side effect | 新搜索预期创建 `loading` history | route 调用不存在的 `create_search_history`，捕获异常后继续 | S2 按 characterization 保留；独立行为 change 定义用户身份、失败和幂等后修复 |
+| Task terminal/state | Orchestrator 异常发出 terminal `error` | 外层因正常返回仍可写 `completed`，且持久化失败只记录 warning | S2 按 characterization 保留；B0 以提交屏障和单一终态修复 |
+| Same-session refine replay | 新 turn 应继续接收新事件 | emitter reset 不清 EventBus，from-start replay 遇到旧 `done` 即停止 | S2 按 characterization 保留；B0/canonical v1 按 task+turn 修复 |
+| Search-result persistence view | ADR-0005 的 `persistedRestaurant` 是构造的 `Restaurant.to_dict` camel-case view | live writer 从 `last_recommendations` 保存 `RestaurantRecommendation.to_dict` mixed view + `id` | S2 mapper 保持 live writer；规范化/回填另立数据与 API change |
+| Container frontend delivery | 浏览器应用需要可交付静态资产 | 当前 image/Compose 仅交付 API:8000，没有 frontend service/bundle | 独立 release-topology change；结构里程碑保持 API-only image |
 | Frontend CI | CI 执行 `npm ci`、`tsc -b` | 缺 lockfile 和 tsconfig，且根 `*.json` ignore 会屏蔽 lockfile | 先修复可执行基线的独立 tooling change |
 
 ## Failure Isolation
@@ -586,13 +591,13 @@ Coordinator 负责总预算、超时、取消、重试和幂等；Gateway 负责
 16. 实际 `POST /v1/search/` 统一入口与文档 `/start`、`/refine`、`/recover` 中，哪套是兼容权威；历史部署是否有旧路由消费者？
 17. 搜索响应包络、history/favorites/FAQ 字段、SSE replay、step IDs 和 message/detail 差异中，前端、服务端或公开文档哪一侧是权威？
 18. 当前混合 camelCase/snake_case 的 Food/SSE/持久化 DTO 是否原样版本化，还是通过一个另立的迁移 API 统一？
-19. 哪些历史部署已执行 `scripts/migrate_turn_id.py`，其 schema 状态如何纳入 Alembic baseline/stamp？
+19. **Resolved by ADR-0009:** 仓库不能证明历史 fleet 状态；B1 必须先探测并分类 clean/pre/post/divergent schema，再执行 Alembic baseline/stamp，禁止假定脚本已运行。
 20. `Restaurant` 是公共实体、Evidence 派生视图还是用户结果？以 name/tel 生成的 ID 在补齐电话或实体合并后是否稳定？
-21. `routes.py` 调用的搜索历史创建方法与 schema/仓储实现不一致、搜索流捕获错误后可能仍标 completed、refine 可能重放旧终态等现有缺陷，应先单独修复还是按 characterization 保持到兼容 change？
+21. **Resolved by ADR-0009:** S2-S5 对搜索历史缺写、error 后 completed、refine 旧终态和 live persistence view 做 characterization 保留；B0 或独立版本化行为/数据 change 修复。
 22. 当前 source failure 被转换为空 notes；新的错误分类上线时，旧客户端应看到 error、partial 还是 empty success？
 23. Python public exports、构造注入点和 README 示例是否属于长期支持 API，还是只保证 HTTP/UI？
-24. 当前 CORS、Vite 端口、SSE timeout env、Docker 不包含前端等部署差异的目标交付拓扑是什么？
+24. **Disposition resolved by ADR-0009:** 当前 API-only image、CORS/Vite 和 timeout 名称差异仅作 characterization；目标交付、配置 alias 和前端托管由独立 release-topology change 决定，不混入结构里程碑。
 25. 正式支持的 macOS/arm64 和浏览器集合是什么？
 26. Food 新旧路径的结果等价采用精确顺序、Top-K 集合、评分容差还是人工相关性阈值？LLM 非确定性 fixture 如何审批更新？
-27. 五份 README 引用但缺失的 `internal-docs/*` 是否有外部权威副本，需要在冻结合同前找回？
+27. **Resolved by ADR-0009:** reachable Git history 无被跟踪副本，外部副本未知；五个链接不具合同权威，独立文档 change 删除或替换，后续发现的副本只作为待评审证据。
 28. 显式刷新通过哪个 use-case/API 版本暴露，普通与强制刷新如何授权、与同一 Temporal Workflow ID 合并并映射到现有 SSE？
