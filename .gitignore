@@ -144,3 +144,7 @@ bug-records/
 *.md
 *.tex
 *.db
+
+# OpenSpec project artifacts and Codex skills
+!openspec/**/*.md
+!.agents/skills/openspec-*/SKILL.md
