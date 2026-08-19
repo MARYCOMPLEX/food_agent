@@ -68,7 +68,7 @@
 - [x] 4.7 为 task facade 添加 legacy-policy 代理测试，逐字保持当前终态、持久化顺序、错误、恢复和已知缺陷；目标 exactly-once/persist-before-success 断言留到 B0。
 - [x] 4.8 运行完整 HTTP/SSE/browser characterization，对任何差异生成失败而不是更新 golden。
 - [x] 4.9 增加 `modular_core` 逻辑绑定和回旧 facade 的 runbook，默认仍走 legacy。
-- [ ] 4.10 演练 binding 回退并确认无 schema/data 依赖；将 S2 作为独立提交。
+- [x] 4.10 演练 binding 回退并确认无 schema/data 依赖；将 S2 作为独立提交。
 
 ## 5. S3 Gateways And Foundation Facades
 

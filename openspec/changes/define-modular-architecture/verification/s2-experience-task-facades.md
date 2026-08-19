@@ -10,8 +10,8 @@ event/result mappers, and separates the six-step presentation projection from
 orchestrator execution. It does not enable canonical SSE v1, explicit refresh,
 reliable task semantics, a new runtime, or any data/schema migration.
 
-The S1 base revision is `b610dde`. The implementation tip and detached-worktree
-revert evidence are recorded after the S2 implementation commit exists.
+The S1 base revision is `b610dde47635e2652c8ff9410b206af63c4fea9f` and the
+S2 implementation revision is `90ed9a9fea76ab373598a27916c6bd8f111a1f8b`.
 
 ## Compatibility And Policy Gates
 
@@ -105,6 +105,32 @@ not create a new terminal policy or persistence authority.
 
 ## Revert Drill
 
-Pending until the S2 implementation commit exists. The drill will revert the
-S2 range in a detached worktree, run the S1 baseline, confirm the tree matches
-`b610dde`, and record all commit/tree hashes here before task 4.10 is checked.
+The implementation revision was pushed, checked out in a detached temporary
+worktree, and reverted without conflict as
+`e4c91cac364bb74f584f34ddfec2c44a881394a8`. Git confirmed that the S1 base is
+its ancestor and that the S2 range contains no merge commit.
+
+The S1 base tree and the detached revert tree were both:
+
+```text
+d5fba9b2f8f1aafe512d6e58c80152d229a6dfc4
+```
+
+`git diff --exit-code --no-ext-diff b610dde HEAD --` returned zero before and
+after the test run. The frozen S1 `unit or integration` baseline produced:
+
+```text
+422 passed, 5 deselected, 2 warnings in 30.22s
+```
+
+The two warnings are the known `PytestReturnNotNoneWarning` cases in
+`tests/test_session.py`. An initial Windows checkout inherited `core.autocrlf`
+and normalized the two authority `.sse` fixtures to CRLF, so its two
+line-ending assertions were not valid fixture runs. That worktree was
+discarded; the successful drill used `core.autocrlf=false`, verified both
+fixtures were LF-only, and changed no Git tree content.
+
+The reverted S1 tree contained no S2 schema, migration, backfill, durable
+state, object, or data dependency. The detached worktree and isolated virtual
+environment were removed and the worktree registry was pruned after the clean
+post-test comparison.
