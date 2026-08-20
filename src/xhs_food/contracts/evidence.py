@@ -195,9 +195,7 @@ def _freeze_authority_value(value: object) -> object:
     if isinstance(value, AuthorityModel):
         return value
     if isinstance(value, Mapping):
-        return _FrozenDict(
-            {str(key): _freeze_authority_value(item) for key, item in value.items()}
-        )
+        return _FrozenDict({str(key): _freeze_authority_value(item) for key, item in value.items()})
     if isinstance(value, list):
         return _FrozenList(_freeze_authority_value(item) for item in value)
     if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
@@ -350,10 +348,7 @@ class PublicConstraint(AuthorityModel):
         if isinstance(self.value, (list, tuple)):
             if not self.value:
                 raise ValueError("public constraint arrays cannot be empty")
-            if any(
-                isinstance(item, (Mapping, list, tuple)) or item is None
-                for item in self.value
-            ):
+            if any(isinstance(item, (Mapping, list, tuple)) or item is None for item in self.value):
                 raise ValueError("public constraint arrays must contain JSON scalars")
             encoded = tuple(_canonical_json(item) for item in self.value)
             _ensure_unique(encoded, "public constraint array")
@@ -450,11 +445,23 @@ class MediaPolicy(StrEnum):
     SELECTED = "selected"
 
 
+class SourceQueryProjection(ContractModel):
+    """Public, source-ready text rendered before a Connector is selected."""
+
+    source_id: RegisteredSlug
+    text: NonEmptyStr
+    language: LanguageTag
+    renderer_id: RegisteredSlug
+    renderer_version: ContractVersion
+    locality: str = ""
+
+
 class CollectRequest(VersionedContract):
     """A connector-neutral collection command pinned to one canonical partition."""
 
     query: CanonicalQuery
     source_scope: tuple[RegisteredSlug, ...] = Field(min_length=1)
+    source_queries: dict[RegisteredSlug, SourceQueryProjection] = Field(default_factory=dict)
     depth: RegisteredSlug
     cursor: str | None = None
     media_policy: MediaPolicy = MediaPolicy.REFS_ONLY
@@ -462,7 +469,44 @@ class CollectRequest(VersionedContract):
     @model_validator(mode="after")
     def validate_source_scope(self) -> Self:
         _ensure_unique(self.source_scope, "source_scope")
+        unexpected = set(self.source_queries) - set(self.source_scope)
+        if unexpected:
+            raise ValueError(
+                f"source query projection is outside source_scope: {sorted(unexpected)}"
+            )
+        mismatched_sources = sorted(
+            source_id
+            for source_id, projection in self.source_queries.items()
+            if projection.source_id != source_id
+        )
+        if mismatched_sources:
+            raise ValueError(
+                "source query projection source_id must match its source_queries key: "
+                f"{mismatched_sources}"
+            )
+        mismatched_languages = sorted(
+            source_id
+            for source_id, projection in self.source_queries.items()
+            if projection.language != self.query.isolation.language
+        )
+        if mismatched_languages:
+            raise ValueError(
+                "source query projection language must match canonical isolation: "
+                f"{mismatched_languages}"
+            )
         return self
+
+    def source_query_for(self, source_id: str) -> SourceQueryProjection | None:
+        """Return a validated source projection while preserving legacy fallback."""
+
+        projection = self.source_queries.get(source_id)
+        if projection is None:
+            return None
+        if projection.source_id != source_id:
+            raise ValueError("source query projection does not belong to this source")
+        if projection.language != self.query.isolation.language:
+            raise ValueError("source query projection language does not match isolation")
+        return projection
 
 
 class MediaType(StrEnum):
@@ -524,6 +568,56 @@ class CanonicalMediaRef(AuthorityModel):
         return value
 
 
+class SourceAttemptOutcome(StrEnum):
+    """Observed result of one source/provider attempt, without policy thresholds."""
+
+    SUCCESS_NONEMPTY = "success_nonempty"
+    SUCCESS_EMPTY = "success_empty"
+    PARTIAL = "partial"
+    FAILURE = "failure"
+
+
+class SourceAttemptMetadata(AuthorityModel):
+    """Typed facts for one collection attempt within a source batch."""
+
+    attempt_id: NonEmptyStr
+    boundary_ref: NonEmptyStr
+    outcome: SourceAttemptOutcome
+    item_count: int = Field(ge=0)
+    watermark: str | None = None
+    error_indexes: tuple[Annotated[int, Field(ge=0)], ...] = ()
+
+    @model_validator(mode="after")
+    def validate_outcome(self) -> Self:
+        _ensure_unique(tuple(str(index) for index in self.error_indexes), "error_indexes")
+        has_items = self.item_count > 0
+        has_errors = bool(self.error_indexes)
+        expected = (
+            SourceAttemptOutcome.PARTIAL
+            if has_items and has_errors
+            else SourceAttemptOutcome.SUCCESS_NONEMPTY
+            if has_items
+            else SourceAttemptOutcome.FAILURE
+            if has_errors
+            else SourceAttemptOutcome.SUCCESS_EMPTY
+        )
+        if self.outcome is not expected:
+            raise ValueError("source attempt outcome must match its item_count and error_indexes")
+        return self
+
+
+class SourceCoverageMetadata(AuthorityModel):
+    """Observed attempts and eligible items; policy decides whether this is enough."""
+
+    eligible_item_count: int = Field(ge=0)
+    attempts: tuple[SourceAttemptMetadata, ...] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def validate_attempts(self) -> Self:
+        _ensure_unique(tuple(item.attempt_id for item in self.attempts), "attempts")
+        return self
+
+
 class CanonicalSourceBatch(VersionedContract):
     """Normalized source metadata; JSON typing intentionally excludes binary data."""
 
@@ -539,6 +633,7 @@ class CanonicalSourceBatch(VersionedContract):
     watermark: str | None
     next_cursor: str | None = None
     errors: tuple[ContractError, ...] = ()
+    coverage: SourceCoverageMetadata | None = None
 
     @model_validator(mode="after")
     def validate_source_partition(self) -> Self:
@@ -552,6 +647,16 @@ class CanonicalSourceBatch(VersionedContract):
             ("media_refs", self.media_refs),
         ):
             _ensure_unique(tuple(item.external_id for item in entries), name)
+        if self.coverage is not None:
+            if self.coverage.eligible_item_count != len(items):
+                raise ValueError("coverage eligible_item_count must match canonical batch items")
+            referenced_errors = tuple(
+                index for attempt in self.coverage.attempts for index in attempt.error_indexes
+            )
+            if tuple(sorted(referenced_errors)) != tuple(range(len(self.errors))):
+                raise ValueError(
+                    "coverage attempts must reference every batch error exactly by index"
+                )
         return self
 
 
@@ -769,10 +874,7 @@ def _visibility_is_at_least_as_restrictive(
     }
     if rank[candidate.scope] < rank[source.scope]:
         return False
-    if (
-        source.scope is not VisibilityScope.PUBLIC
-        and candidate.tenant_scope != source.tenant_scope
-    ):
+    if source.scope is not VisibilityScope.PUBLIC and candidate.tenant_scope != source.tenant_scope:
         return False
     if source.scope is VisibilityScope.ENTITLEMENT:
         return set(candidate.entitlement_ids).issubset(source.entitlement_ids)
@@ -964,13 +1066,9 @@ class EvidenceBundleManifest(AuthorityModel):
                     )
                 ):
                     raise ValueError("published Bundles require known, unexpired licenses")
-                if not _visibility_is_at_least_as_restrictive(
-                    bundle.visibility, item.visibility
-                ):
+                if not _visibility_is_at_least_as_restrictive(bundle.visibility, item.visibility):
                     raise ValueError("Bundles cannot broaden Evidence visibility")
-                if not _retention_is_at_least_as_restrictive(
-                    bundle.retention, item.retention
-                ):
+                if not _retention_is_at_least_as_restrictive(bundle.retention, item.retention):
                     raise ValueError("Bundles cannot shorten Evidence retention")
         return self
 
@@ -1014,6 +1112,10 @@ __all__ = [
     "PublicConstraint",
     "RegisteredSlug",
     "RetentionPolicy",
+    "SourceAttemptMetadata",
+    "SourceAttemptOutcome",
+    "SourceCoverageMetadata",
     "SourceLocator",
+    "SourceQueryProjection",
     "VisibilityScope",
 ]

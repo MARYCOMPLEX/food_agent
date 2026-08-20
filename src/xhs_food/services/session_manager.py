@@ -241,6 +241,12 @@ class SessionManager:
         """Get number of messages in Redis cache."""
         return self._redis.get_session_length(session_id)
 
+    @property
+    def session_window_backend(self) -> RedisMemory:
+        """Expose the existing short-term window to the Composition Root adapter."""
+
+        return self._redis
+
 
 # Singleton instance
 _session_manager: Optional[SessionManager] = None

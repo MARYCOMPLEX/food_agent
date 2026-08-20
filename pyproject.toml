@@ -9,28 +9,28 @@ dependencies = [
     "fastapi>=0.104.0",
     "uvicorn[standard]>=0.24.0",
     "sse-starlette>=1.8.0",
-    
-    # LangChain
-    "langchain>=0.1.0",
-    "langchain-openai>=0.0.5",
-    "langchain-core>=0.1.0",
-    
+
+    # Legacy LangChain model adapter (the Agent/LangGraph meta-package is excluded)
+    "langchain-openai==1.1.12",
+    "langchain-core==1.2.28",
+    "openai==2.31.0",
+
     # HTTP clients
     "httpx>=0.25.0",
     "requests>=2.31.0",
-    
+
     # Data validation
     "pydantic>=2.5.0",
     "pydantic-settings>=2.1.0",
     "jsonschema>=4.23.0,<5.0.0",
-    
+
     # Utilities
     "python-dotenv>=1.0.0",
     "loguru>=0.7.0",
-    
+
     # Crypto for XHS API
     "pycryptodome>=3.19.0",
-    
+
     # Session Management - Redis + PostgreSQL
     "redis>=5.0.0",
     "asyncpg>=0.29.0",
@@ -51,6 +51,19 @@ dependencies = [
 
     # XHS auth — browser-driven login (bypasses CLI 风控)
     "playwright>=1.40.0",
+
+    # Target modular runtime (disabled until its behavior milestone)
+    "pydantic-ai-slim[openai,temporal]>=2.5,<2.6",
+    "temporalio>=1.31,<2",
+    "sqlalchemy[asyncio]>=2.0.52,<3",
+    "alembic>=1.19.1,<2",
+    "boto3>=1.43.75,<2",
+    "opentelemetry-api>=1.44,<2",
+    "opentelemetry-sdk>=1.44,<2",
+    "opentelemetry-instrumentation-fastapi>=0.65b0,<0.66",
+    "opentelemetry-instrumentation-httpx>=0.65b0,<0.66",
+    "opentelemetry-instrumentation-redis>=0.65b0,<0.66",
+    "opentelemetry-instrumentation-sqlalchemy>=0.65b0,<0.66",
 ]
 
 [project.optional-dependencies]

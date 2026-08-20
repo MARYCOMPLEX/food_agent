@@ -7,17 +7,56 @@
 """
 
 import asyncio
-from dataclasses import dataclass
-from typing import Any, AsyncGenerator, Dict, List, Optional
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from typing import Any, AsyncGenerator, Dict, List, Optional, cast
 
 from loguru import logger
 
 from xhs_food.config import settings
-from xhs_food.spider.apis.amap_api import get_amap_api, AmapAPI
+from xhs_food.contracts import ContractPayload, PlaceCacheRepositoryPort, PlaceLookupPort
 from xhs_food.schemas import RestaurantRecommendation
-from xhs_food.services.user_storage import generate_restaurant_hash
 
 from .poi_search import POISearchMixin
+
+
+class _LegacyAmapInjectionAdapter:
+    """Keep the legacy constructor injection while exposing only the async port."""
+
+    def __init__(self, client: object) -> None:
+        search = getattr(client, "search_poi", None)
+        if not callable(search):
+            raise TypeError("amap_api must expose search_poi or implement PlaceLookupPort")
+        self._search: Callable[..., object] = search
+
+    async def lookup(
+        self, *, keywords: str, city: str = "", types: str = "050000"
+    ) -> ContractPayload | None:
+        result = await asyncio.to_thread(
+            self._search,
+            keywords=keywords,
+            city=city,
+            types=types,
+        )
+        return cast(ContractPayload | None, result)
+
+
+class _UnavailablePlaceLookup:
+    async def lookup(
+        self, *, keywords: str, city: str = "", types: str = "050000"
+    ) -> ContractPayload | None:
+        del keywords, city, types
+        raise RuntimeError("default place lookup is not configured")
+
+
+class _UnavailablePlaceCache:
+    async def get_cached_place_by_name(self, name: str) -> ContractPayload | None:
+        del name
+        return None
+
+
+_place_lookup_factory: Callable[[], PlaceLookupPort] | None = None
+_place_cache_factory: Callable[[], PlaceCacheRepositoryPort] | None = None
 
 
 @dataclass
@@ -47,21 +86,23 @@ class EnrichedRestaurant:
     # 展示信息
     trust_score: float = 7.0
     one_liner: str = ""
-    tags: List[str] = None
-    pros: List[str] = None
-    cons: List[str] = None
+    tags: List[str] = field(default_factory=list)
+    pros: List[str] = field(default_factory=list)
+    cons: List[str] = field(default_factory=list)
     warning: Optional[str] = None
 
     # 图片
-    photos: List[Dict[str, str]] = None
+    photos: List[Dict[str, str]] = field(default_factory=list)
 
     # 来源
-    source_notes: List[str] = None
+    source_notes: List[str] = field(default_factory=list)
 
     # 新增字段
-    must_try: List[Dict[str, str]] = None  # 必点推荐
-    black_list: List[Dict[str, str]] = None  # 避雷菜品
-    stats: Dict[str, str] = None  # 综合评级
+    must_try: List[Dict[str, str]] = field(default_factory=list)  # 必点推荐
+    black_list: List[Dict[str, str]] = field(default_factory=list)  # 避雷菜品
+    stats: Dict[str, str] = field(
+        default_factory=lambda: {"flavor": "", "cost": "", "wait": "", "env": ""}
+    )  # 综合评级
 
     def __post_init__(self):
         self.tags = self.tags or []
@@ -108,14 +149,40 @@ class EnrichedRestaurant:
 class POIEnricherAgent(POISearchMixin):
     """POI 信息补充 Agent（流式输出）."""
 
-    def __init__(self, amap_api: Optional[AmapAPI] = None):
+    def __init__(self, amap_api: object | None = None):
         """
         初始化 POI 补充 Agent.
 
         Args:
-            amap_api: 高德 API 实例，不传则使用默认单例
+            amap_api: 旧高德客户端注入点；也接受实现 ``PlaceLookupPort`` 的对象。
         """
-        self._amap = amap_api or get_amap_api()
+        default_cache: PlaceCacheRepositoryPort | None = None
+        self._uses_default_place_lookup = amap_api is None
+        if amap_api is None:
+            if _place_lookup_factory is not None:
+                self._place_lookup = _place_lookup_factory()
+            else:
+                from xhs_food.composition.legacy_poi import build_legacy_poi_ports
+
+                self._place_lookup, default_cache = build_legacy_poi_ports()
+        elif isinstance(amap_api, PlaceLookupPort):
+            self._place_lookup = amap_api
+        else:
+            self._place_lookup = _LegacyAmapInjectionAdapter(amap_api)
+        self._place_cache = (
+            _place_cache_factory()
+            if _place_cache_factory
+            else default_cache or _UnavailablePlaceCache()
+        )
+
+    def configure_default_place_lookup(self, place_lookup: PlaceLookupPort) -> None:
+        """Refresh only instances that were created from default composition wiring."""
+        if self._uses_default_place_lookup:
+            self._place_lookup = place_lookup
+
+    def configure_place_cache(self, place_cache: PlaceCacheRepositoryPort) -> None:
+        """Install the Composition Root-owned optional place-cache repository."""
+        self._place_cache = place_cache
 
     async def enrich_stream(
         self,
@@ -196,39 +263,10 @@ class POIEnricherAgent(POISearchMixin):
         使用名称模糊匹配，不依赖地址字段（因为地址可能为空或无效值如"未明确"）。
         """
         try:
-            from xhs_food.services import get_user_storage_service
-
-            storage = await get_user_storage_service()
-            if not storage._initialized or not storage._pool:
-                return None
-
-            async with storage._pool.acquire() as conn:
-                # 优先精确匹配
-                row = await conn.fetchrow(
-                    """
-                    SELECT * FROM restaurants
-                    WHERE name = $1
-                    LIMIT 1
-                    """,
-                    name,
-                )
-
-                # 如果精确匹配失败，尝试模糊匹配
-                if not row:
-                    row = await conn.fetchrow(
-                        """
-                        SELECT * FROM restaurants
-                        WHERE name ILIKE $1 OR name ILIKE $2
-                        ORDER BY updated_at DESC NULLS LAST
-                        LIMIT 1
-                        """,
-                        f"{name}%",  # 前缀匹配: "贡井清香园" → "贡井清香园(泰丰店)"
-                        f"%{name}",  # 后缀匹配: "清香园" → "贡井清香园"
-                    )
-
-                if row:
-                    return dict(row)
-            return None
+            return cast(
+                Optional[Dict[str, Any]],
+                await self._place_cache.get_cached_place_by_name(name),
+            )
         except Exception as e:
             logger.debug(f"[POIEnricher] 查询缓存失败: {e}")
             return None
@@ -289,6 +327,26 @@ class POIEnricherAgent(POISearchMixin):
 
 # 单例
 _poi_enricher: Optional[POIEnricherAgent] = None
+
+
+def configure_poi_place_lookup_factory(
+    factory: Callable[[], PlaceLookupPort],
+) -> None:
+    """Install the Composition Root-owned default Place lookup factory."""
+    global _place_lookup_factory
+    _place_lookup_factory = factory
+    if _poi_enricher is not None:
+        _poi_enricher.configure_default_place_lookup(factory())
+
+
+def configure_poi_place_cache_factory(
+    factory: Callable[[], PlaceCacheRepositoryPort],
+) -> None:
+    """Install the Composition Root-owned optional place-cache factory."""
+    global _place_cache_factory
+    _place_cache_factory = factory
+    if _poi_enricher is not None:
+        _poi_enricher.configure_place_cache(factory())
 
 
 def get_poi_enricher() -> POIEnricherAgent:

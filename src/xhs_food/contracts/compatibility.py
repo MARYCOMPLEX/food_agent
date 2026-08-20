@@ -615,11 +615,7 @@ def _properties(node: SchemaNode) -> dict[str, SchemaNode]:
     raw = node.get("properties")
     if not isinstance(raw, Mapping):
         return {}
-    return {
-        str(name): value
-        for name, value in raw.items()
-        if isinstance(value, Mapping)
-    }
+    return {str(name): value for name, value in raw.items() if isinstance(value, Mapping)}
 
 
 def _required(node: SchemaNode) -> set[str]:

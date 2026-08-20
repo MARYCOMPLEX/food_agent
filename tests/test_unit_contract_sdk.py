@@ -15,10 +15,12 @@ import pytest
 from pydantic import ValidationError
 
 from xhs_food.contracts import (
+    ActivityPort,
     CachePort,
     CanonicalQuery,
     CanonicalSourceBatch,
     CanonicalSourceDocument,
+    CollectRequest,
     ContractError,
     ErrorCategory,
     ErrorScope,
@@ -32,7 +34,10 @@ from xhs_food.contracts import (
     ResearchOperation,
     ResearchRequest,
     SchemaVersion,
+    SourceAttemptMetadata,
+    SourceAttemptOutcome,
     SourceConnector,
+    SourceCoverageMetadata,
     TaskProgressProjection,
     TaskStatus,
     ToolGateway,
@@ -98,9 +103,7 @@ def test_stable_error_classification_is_serializable() -> None:
 
 
 def test_canonical_query_signature_has_no_identity_or_personal_fields() -> None:
-    fixture = json.loads(
-        (AUTHORITY / "canonical_query_v1.json").read_text(encoding="utf-8")
-    )
+    fixture = json.loads((AUTHORITY / "canonical_query_v1.json").read_text(encoding="utf-8"))
     query = CanonicalQuery.model_validate(fixture)
     payload = query.model_dump(mode="json")
     assert {"user_id", "session_id", "preferences"}.isdisjoint(payload)
@@ -147,8 +150,144 @@ def test_canonical_source_batch_contains_metadata_but_rejects_binary() -> None:
         )
 
 
+def test_source_coverage_is_typed_without_claiming_a_business_threshold() -> None:
+    coverage = SourceCoverageMetadata(
+        eligible_item_count=0,
+        attempts=(
+            SourceAttemptMetadata(
+                attempt_id="fixture-empty",
+                boundary_ref="fixture.connector",
+                outcome=SourceAttemptOutcome.SUCCESS_EMPTY,
+                item_count=0,
+                watermark="source-watermark",
+            ),
+        ),
+    )
+    batch = CanonicalSourceBatch.model_validate(
+        {
+            "isolation": {
+                "tenant_scope": "public",
+                "language": "en",
+                "region": "US",
+            },
+            "source_id": "fixture-source",
+            "connector_id": "fixture.connector",
+            "connector_version": "fixture-connector/v1",
+            "normalizer_version": "fixture-normalizer/v1",
+            "watermark": "source-watermark",
+            "coverage": coverage,
+        }
+    )
+
+    payload = batch.model_dump(mode="json")
+    assert payload["coverage"] == {
+        "eligible_item_count": 0,
+        "attempts": [
+            {
+                "attempt_id": "fixture-empty",
+                "boundary_ref": "fixture.connector",
+                "outcome": "success_empty",
+                "item_count": 0,
+                "watermark": "source-watermark",
+                "error_indexes": [],
+            }
+        ],
+    }
+    assert {"minimum", "threshold", "satisfied", "ratio"}.isdisjoint(payload["coverage"])
+    assert CanonicalSourceBatch.model_validate(payload) == batch
+
+    with pytest.raises(ValidationError, match="eligible_item_count"):
+        CanonicalSourceBatch.model_validate(
+            {
+                **payload,
+                "coverage": {**payload["coverage"], "eligible_item_count": 1},
+            }
+        )
+
+    with pytest.raises(ValidationError, match="outcome"):
+        SourceAttemptMetadata(
+            attempt_id="invalid-empty",
+            boundary_ref="fixture.connector",
+            outcome=SourceAttemptOutcome.FAILURE,
+            item_count=0,
+        )
+
+
+def test_collect_request_accepts_only_in_scope_source_query_projections() -> None:
+    query = CanonicalQuery.model_validate(
+        json.loads((AUTHORITY / "canonical_query_v1.json").read_text(encoding="utf-8"))
+    )
+    request = CollectRequest.model_validate(
+        {
+            "query": query,
+            "source_scope": ["xhs"],
+            "source_queries": {
+                "xhs": {
+                    "source_id": "xhs",
+                    "text": "自贡 美食",
+                    "language": "zh-Hans",
+                    "renderer_id": "food.xhs",
+                    "renderer_version": "source-query/v1",
+                    "locality": "自贡",
+                }
+            },
+            "depth": "standard",
+        }
+    )
+
+    assert request.source_queries["xhs"].text == "自贡 美食"
+    assert request.source_queries["xhs"].language == "zh-Hans"
+    assert CollectRequest.model_validate_json(request.model_dump_json()) == request
+    with pytest.raises(ValidationError, match="outside source_scope"):
+        CollectRequest.model_validate(
+            {
+                **request.model_dump(),
+                "source_queries": {
+                    "amap": {
+                        "source_id": "amap",
+                        "text": "自贡 餐厅",
+                        "language": "zh-Hans",
+                        "renderer_id": "food.amap",
+                        "renderer_version": "source-query/v1",
+                    }
+                },
+            }
+        )
+    with pytest.raises(ValidationError, match="language must match"):
+        CollectRequest.model_validate(
+            {
+                **request.model_dump(),
+                "source_queries": {
+                    "xhs": {
+                        "source_id": "xhs",
+                        "text": "Zigong food",
+                        "language": "en",
+                        "renderer_id": "food.xhs",
+                        "renderer_version": "source-query/v1",
+                    }
+                },
+            }
+        )
+    with pytest.raises(ValidationError, match="source_id must match"):
+        CollectRequest.model_validate(
+            {
+                **request.model_dump(),
+                "source_queries": {
+                    "xhs": {
+                        "source_id": "amap",
+                        "text": "自贡 美食",
+                        "language": "zh-Hans",
+                        "renderer_id": "food.xhs",
+                        "renderer_version": "source-query/v1",
+                    }
+                },
+            }
+        )
+
+
 def test_contract_ports_are_structural_protocols() -> None:
     for port in (
+        ActivityPort,
         SourceConnector,
         ToolGateway,
         Repository,

@@ -125,6 +125,17 @@
 - 全局 service locator：隐藏依赖且容易跨越模块，拒绝。
 - 让 Orchestrator 直接导入 XHS/Amap/数据库：延续当前耦合，阻止跨领域复用，拒绝。
 
+S3 为冻结的 `POIEnricherAgent()` 零参数 Python facade 保留一个精确符号级
+compatibility resolver。该 resolver 由 Composition 构造并只返回
+`PlaceLookupPort` 与 `PlaceCacheRepositoryPort`；Agent 仍禁止导入 Amap、Spider、
+UserStorage 或任何客户端/连接池类型。架构策略只允许这一条源模块到 resolver
+符号的兼容边，不放宽 Orchestrator 到 Composition 的一般依赖方向。
+
+Source Connector 的目标输入使用可选的版本化 `SourceQueryProjection`：显式投影
+固定 source/language/renderer ID/version 及渲染文本，并在 provider 调用前验证。
+字段缺失时 S3 compatibility adapter 保留旧 fallback；后续 target dispatch 启用前
+必须由上游 renderer 提供，Connector 不成为领域词汇或本地化翻译的 owner。
+
 ### Decision 2a: Agent loop 与任务状态的唯一所有者
 
 每个研究任务只允许由 Research Orchestrator 持有一个 Pydantic AI V2 runtime 实例。只使用 `pydantic-ai>=2,<3` 的稳定核心 API、typed dependencies、typed tools 和 typed outputs；精确版本由 `uv.lock` 固定。Agent 只能通过版本化 typed Tool Gateway 请求能力；它不得直接创建后台队列、访问 Connector/Repository，或把领域 Pack 当成第二个 Agent runtime。确定性采集、证据校验、特征计算、评分、刷新所有权和恢复状态由普通服务/Coordinator 负责。每个任务的 `ResearchCoordinator` 是 `ResearchTask`/`TaskEvent` 状态的唯一写入者；体验层只做请求和事件投影，Foundation 只持久化/投递，不拥有业务状态迁移。
@@ -527,7 +538,7 @@ Coordinator 负责总预算、超时、取消、重试和幂等；Gateway 负责
 
 | Injection | Expected assertion | Data safety assertion |
 |---|---|---|
-| XHS/Amap timeout, 429, malformed payload | source-scoped error/circuit; coverage decides continue/fail | failure never becomes empty-success Evidence |
+| XHS/Amap timeout, 429, malformed payload | `ContractError` keeps `timeout`/`rate_limited`/`malformed_response`/`dependency_unavailable` distinct; XHS required-source coverage decides continue or legacy `step_error` + terminal `error`, while optional Amap/POI failure keeps the basic restaurant result and legacy `result` + `done` | failure is recorded in `CanonicalSourceBatch.errors` and coverage/provenance; it never becomes `success_empty` or published empty-success Evidence |
 | LLM timeout, bad JSON, partial item failure | bounded retry/stable error; other eligible items continue | no unvalidated Evidence published |
 | Redis unavailable/corrupt JSON/restart | 已运行 workflow 继续且已提交结果可读；新实时/SSE 请求返回稳定 `dependency-unavailable`；已有客户端若游标不可重放则获得 `replay_expired/resync` + 权威 snapshot；无跨会话数据 | PostgreSQL/Temporal 权威不变；生产多 worker 不切进程内 fallback，不作虚假恢复声明 |
 | PostgreSQL unavailable/transaction abort | no success terminal/new current Bundle | current pointer and old records unchanged |
@@ -594,7 +605,7 @@ Coordinator 负责总预算、超时、取消、重试和幂等；Gateway 负责
 19. **Resolved by ADR-0009:** 仓库不能证明历史 fleet 状态；B1 必须先探测并分类 clean/pre/post/divergent schema，再执行 Alembic baseline/stamp，禁止假定脚本已运行。
 20. `Restaurant` 是公共实体、Evidence 派生视图还是用户结果？以 name/tel 生成的 ID 在补齐电话或实体合并后是否稳定？
 21. **Resolved by ADR-0009:** S2-S5 对搜索历史缺写、error 后 completed、refine 旧终态和 live persistence view 做 characterization 保留；B0 或独立版本化行为/数据 change 修复。
-22. 当前 source failure 被转换为空 notes；新的错误分类上线时，旧客户端应看到 error、partial 还是 empty success？
+22. **Resolved by ADR-0010:** 内部严格区分 `success_empty`、source/provider `failure` 与聚合 `partial`；S3 legacy mapper 对 XHS all-empty/all-failed 保留 `step_error` + terminal `error` 及已表征的 outer `completed` 投影，对仍有结果的 XHS/analyzer 隐藏 `partial`，并把可选 Amap/POI 失败降级为 basic restaurant `result` + `done`。
 23. Python public exports、构造注入点和 README 示例是否属于长期支持 API，还是只保证 HTTP/UI？
 24. **Disposition resolved by ADR-0009:** 当前 API-only image、CORS/Vite 和 timeout 名称差异仅作 characterization；目标交付、配置 alias 和前端托管由独立 release-topology change 决定，不混入结构里程碑。
 25. 正式支持的 macOS/arm64 和浏览器集合是什么？

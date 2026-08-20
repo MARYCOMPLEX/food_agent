@@ -71,6 +71,19 @@ class WorkflowRun(_PortVersionedContract):
     status: NonEmptyStr
 
 
+class ActivityCall(_PortVersionedContract):
+    activity_id: NonEmptyStr
+    activity_type: NonEmptyStr
+    task_queue: NonEmptyStr
+    input: ContractPayload
+    idempotency_key: NonEmptyStr
+
+
+class ActivityResult(_PortVersionedContract):
+    activity_id: NonEmptyStr
+    output: ContractPayload
+
+
 class EventEnvelope(_PortVersionedContract):
     event_id: NonEmptyStr
     topic: NonEmptyStr
@@ -173,9 +186,16 @@ class SourceConnector(Protocol):
         self, document_ref: SourceLocator, cursor: str | None = None
     ) -> CanonicalSourceBatch: ...
 
-    async def list_media_refs(
-        self, owner_ref: SourceLocator
-    ) -> tuple[CanonicalMediaRef, ...]: ...
+    async def list_media_refs(self, owner_ref: SourceLocator) -> tuple[CanonicalMediaRef, ...]: ...
+
+
+@runtime_checkable
+class PlaceLookupPort(Protocol):
+    """Optional place enrichment exposed without a provider-specific client."""
+
+    async def lookup(
+        self, *, keywords: str, city: str = "", types: str = "050000"
+    ) -> ContractPayload | None: ...
 
 
 @runtime_checkable
@@ -206,12 +226,37 @@ class WorkflowPort(Protocol):
 
 
 @runtime_checkable
+class ActivityPort(Protocol):
+    async def execute(self, call: ActivityCall) -> ActivityResult: ...
+
+
+@runtime_checkable
 class CachePort(Protocol):
     async def get(self, key: str) -> JsonValue: ...
 
     async def set(self, key: str, value: JsonValue, ttl_seconds: int) -> None: ...
 
     async def delete(self, key: str) -> bool: ...
+
+
+@runtime_checkable
+class StateStorePort(Protocol):
+    """Short-lived rebuildable state; intentionally exposes no locks or leases."""
+
+    async def get(self, key: str) -> ContractPayload | None: ...
+
+    async def set(self, key: str, value: ContractPayload, ttl_seconds: int) -> None: ...
+
+    async def delete(self, key: str) -> bool: ...
+
+
+@runtime_checkable
+class SessionWindowPort(Protocol):
+    async def append(self, session_id: str, message: ContractPayload, ttl_seconds: int) -> None: ...
+
+    async def recent(self, session_id: str, limit: int) -> tuple[ContractPayload, ...]: ...
+
+    async def clear(self, session_id: str) -> bool: ...
 
 
 @runtime_checkable
@@ -252,6 +297,9 @@ class ModelGateway(Protocol):
 
 
 __all__ = [
+    "ActivityCall",
+    "ActivityPort",
+    "ActivityResult",
     "CachePort",
     "EventBusPort",
     "EventEnvelope",
@@ -266,8 +314,11 @@ __all__ = [
     "ObjectRef",
     "ObjectStat",
     "ObjectStore",
+    "PlaceLookupPort",
     "Repository",
+    "SessionWindowPort",
     "SourceConnector",
+    "StateStorePort",
     "ToolCall",
     "ToolGateway",
     "ToolResult",

@@ -102,6 +102,35 @@ class RepositoryMixin:
             logger.error(f"get_restaurant failed: {e}")
             return None
 
+    async def get_cached_restaurant_by_name(self, name: str) -> dict[str, Any] | None:
+        """Return the legacy POI cache projection without exposing the pool."""
+
+        initialized = bool(getattr(self, "_initialized", False))
+        pool = getattr(self, "_pool", None)
+        if not initialized or pool is None:
+            return None
+        try:
+            async with pool.acquire() as conn:
+                row = await conn.fetchrow(
+                    "SELECT * FROM restaurants WHERE name = $1 LIMIT 1",
+                    name,
+                )
+                if row is None:
+                    row = await conn.fetchrow(
+                        """
+                        SELECT * FROM restaurants
+                        WHERE name ILIKE $1 OR name ILIKE $2
+                        ORDER BY updated_at DESC NULLS LAST
+                        LIMIT 1
+                        """,
+                        f"{name}%",
+                        f"%{name}",
+                    )
+                return dict(row) if row else None
+        except Exception as exc:
+            logger.debug(f"get_cached_restaurant_by_name failed: {exc}")
+            return None
+
     async def get_favorites(self, user_id: str) -> List[Favorite]:
         """Get all favorites for a user with full restaurant details."""
         if not self._initialized or not self._pool:

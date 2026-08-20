@@ -117,9 +117,7 @@ class MediaAsset(AuthorityModel):
             self.media_ref.declared_content_type is not None
             and self.media_ref.declared_content_type != self.content_type
         ):
-            raise ValueError(
-                "MediaRef declared_content_type must match MediaAsset content_type"
-            )
+            raise ValueError("MediaRef declared_content_type must match MediaAsset content_type")
         if self.object_ref.content_hash != self.sha256:
             raise ValueError("ObjectRef content_hash must match MediaAsset sha256")
         if self.object_ref.size_bytes != self.size_bytes:
@@ -198,9 +196,7 @@ class MediaProcessor(Protocol):
 
     def supports(self, media_type: MediaType, content_type: str) -> bool: ...
 
-    async def process(
-        self, request: MediaProcessingRequest
-    ) -> tuple[DerivedArtifact, ...]: ...
+    async def process(self, request: MediaProcessingRequest) -> tuple[DerivedArtifact, ...]: ...
 
 
 @runtime_checkable
@@ -215,9 +211,7 @@ class EvidenceExtractor(Protocol):
 
     def supports(self, request: EvidenceExtractionRequest) -> bool: ...
 
-    async def extract(
-        self, request: EvidenceExtractionRequest
-    ) -> tuple[EvidenceItem, ...]: ...
+    async def extract(self, request: EvidenceExtractionRequest) -> tuple[EvidenceItem, ...]: ...
 
 
 __all__ = [

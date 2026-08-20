@@ -29,9 +29,7 @@ JSON_SCHEMA_DIALECT = "https://json-schema.org/draft/2020-12/schema"
 MANIFEST_DIGEST_PREIMAGE_VERSION = "domain-manifest-digest-preimage/v1"
 
 _DIGEST_PATTERN = r"^[0-9a-f]{64}$"
-_SEMVER_PRERELEASE_IDENTIFIER = (
-    r"(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)"
-)
+_SEMVER_PRERELEASE_IDENTIFIER = r"(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)"
 _SEMVER_PATTERN = (
     r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
     rf"(?:-{_SEMVER_PRERELEASE_IDENTIFIER}"
@@ -688,9 +686,9 @@ def validate_domain_pack_registration(
             )
 
     method_schema_names = tuple(item.method for item in manifest.method_schemas)
-    if len(set(method_schema_names)) != len(method_schema_names) or set(
-        method_schema_names
-    ) != set(REQUIRED_DOMAIN_METHODS):
+    if len(set(method_schema_names)) != len(method_schema_names) or set(method_schema_names) != set(
+        REQUIRED_DOMAIN_METHODS
+    ):
         return _rejected(
             DomainRegistrationFailureCode.INVALID_SCHEMA_BUNDLE,
             "every required method needs exactly one input/output schema pin",
@@ -729,9 +727,7 @@ def validate_domain_pack_registration(
             path="$.domainSchemas",
         )
 
-    build_output_id = REQUIRED_METHOD_SCHEMA_IDS[
-        DomainContractMethod.BUILD_FINAL_OUTPUT
-    ][1]
+    build_output_id = REQUIRED_METHOD_SCHEMA_IDS[DomainContractMethod.BUILD_FINAL_OUTPUT][1]
     build_output_schema = bundled_by_id[build_output_id].schema_document
     if _schema_without_identity(build_output_schema) != _schema_without_identity(
         manifest.final_output_schema
@@ -773,10 +769,7 @@ def validate_domain_pack_registration(
                 _validate_json_schema_value_in_context(
                     document.schema_document,
                     example,
-                    path=(
-                        f"$.schemaBundle.schemas[{document_index}]"
-                        f".examples[{example_index}]"
-                    ),
+                    path=(f"$.schemaBundle.schemas[{document_index}].examples[{example_index}]"),
                     context=bundle_registry_context,
                 )
     except ValueError as exc:
@@ -915,7 +908,9 @@ def validate_domain_pack_registration(
             path="$.implementation.describe",
         )
     try:
-        describe_schema = bundled_by_id[REQUIRED_METHOD_SCHEMA_IDS[DomainContractMethod.DESCRIBE][1]]
+        describe_schema = bundled_by_id[
+            REQUIRED_METHOD_SCHEMA_IDS[DomainContractMethod.DESCRIBE][1]
+        ]
         _validate_json_schema_value_in_context(
             describe_schema.schema_document,
             described.model_dump(mode="json", by_alias=True),

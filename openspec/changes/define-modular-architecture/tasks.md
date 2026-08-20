@@ -72,22 +72,22 @@
 
 ## 5. S3 Gateways And Foundation Facades
 
-- [ ] 5.1 用 SourceConnector compatibility adapter 包装 XHS search/note/batch providers，保持 MCP 调用参数、顺序和注册名。
-- [ ] 5.2 用 Place Source/Tool adapter 包装 Amap/POI，并移除对 UserStorage pool/internal flags 的直接访问。
-- [ ] 5.3 实现 Tool Gateway allow-list、schema、budget、health 和 ToolResult compatibility adapter。
-- [ ] 5.4 用 Pydantic AI V2 provider port 包装旧 `LLMService` 和 SiliconFlow/OpenAI/DeepSeek 配置；旧服务仅作为迁移期 adapter，结构阶段不改变模型选择、请求参数或错误语义。
-- [ ] 5.5 为 session、user、history、favorites、search results 和 public evidence 定义独立 Repository ports；新增 SQLAlchemy 2 Async + asyncpg adapter 骨架，明确每个 unit of work 的 `AsyncSession` 所有权，结构阶段仍绑定旧实现且不双写。
-- [ ] 5.6 用 StateStore/EventBus ports 包装现有 Memory/Redis backends 并冻结 legacy key、TTL、replay 和 fallback；另定义目标 Redis contract：最近 20 条会话窗口 TTL 24 小时、SSE Stream TTL 1 小时且 `MAXLEN 1000`、热点缓存、短期幂等和限流，所有内容均可重建。
-- [ ] 5.7 定义 Temporal workflow/activity/Task Queue adapter 与 Composition Root 绑定点；Research/Refresh/Media 使用独立 Task Queue，结构阶段只注册禁用的目标 adapter，不以 Redis、ARQ、Celery 或 LangGraph 补充第二套 durable runtime。
-- [ ] 5.8 定义 S3-compatible ObjectStore adapter，使用 boto3 实现受控并发的 async 边界并提供本地 MinIO binding；Domain Pack 和核心合同不得导入 boto3/MinIO 类型。
-- [ ] 5.9 接入 OpenTelemetry 的 FastAPI/httpx/Redis/PostgreSQL/Temporal instrumentation 和既有 Prometheus `/metrics` adapter，统一脱敏 correlation attributes，结构阶段不改变既有指标名称和语义。
-- [ ] 5.10 集中配置 facade，按 owner 暴露只读配置，同时保留所有旧 env 名称、默认值和 import 路径；新增配置必须由 Pydantic Settings 解析且不得在模块导入时创建客户端。
-- [ ] 5.11 统一 Source/Provider/Foundation failure taxonomy adapter，使结构阶段仍能映射到当前 empty/error 结果而不改变 wire 行为。
-- [ ] 5.12 为每个 port 运行同一 consumer-driven suite，覆盖 success/empty/timeout/malformed、客户端生命周期、取消和 legacy fallback。
-- [ ] 5.13 添加目标 adapter 合同测试：SQLAlchemy transaction rollback、Redis TTL/MAXLEN、Temporal deterministic payload、S3 multipart/内容哈希、OTel 脱敏和 Prometheus label cardinality。
-- [ ] 5.14 更新架构检查，禁止 Orchestrator 导入 spider/Amap/数据库/Redis/Temporal/boto3，禁止 Foundation 导入 Food 类型，并禁止 Agent、Pack 或 repository 绕过 owner port。
-- [ ] 5.15 扫描依赖图并拒绝核心路径出现 ARQ、Celery、LangGraph、OpenAI Agents SDK、LiteLLM、Mem0、Zep 或第二套数据库连接池。
-- [ ] 5.16 验证目标 Redis contract 不暴露分布式锁/Redlock、租约或 durable task-state API；single-flight 必须由 Temporal Workflow ID 表达，事实提交竞争由 PostgreSQL CAS 处理。
+- [x] 5.1 用 SourceConnector compatibility adapter 包装 XHS search/note/batch providers，保持 MCP 调用参数、顺序和注册名。
+- [x] 5.2 用 Place Source/Tool adapter 包装 Amap/POI，并移除对 UserStorage pool/internal flags 的直接访问。
+- [x] 5.3 实现 Tool Gateway allow-list、schema、budget、health 和 ToolResult compatibility adapter。
+- [x] 5.4 用 Pydantic AI V2 provider port 包装旧 `LLMService` 和 SiliconFlow/OpenAI/DeepSeek 配置；旧服务仅作为迁移期 adapter，结构阶段不改变模型选择、请求参数或错误语义。
+- [x] 5.5 为 session、user、history、favorites、search results 和 public evidence 定义独立 Repository ports；新增 SQLAlchemy 2 Async + asyncpg adapter 骨架，明确每个 unit of work 的 `AsyncSession` 所有权，结构阶段仍绑定旧实现且不双写。
+- [x] 5.6 用 StateStore/EventBus ports 包装现有 Memory/Redis backends 并冻结 legacy key、TTL、replay 和 fallback；另定义目标 Redis contract：最近 20 条会话窗口 TTL 24 小时、SSE Stream TTL 1 小时且 `MAXLEN 1000`、热点缓存、短期幂等和限流，所有内容均可重建。
+- [x] 5.7 定义 Temporal workflow/activity/Task Queue adapter 与 Composition Root 绑定点；Research/Refresh/Media 使用独立 Task Queue，结构阶段只注册禁用的目标 adapter，不以 Redis、ARQ、Celery 或 LangGraph 补充第二套 durable runtime。
+- [x] 5.8 定义 S3-compatible ObjectStore adapter，使用 boto3 实现受控并发的 async 边界并提供本地 MinIO binding；Domain Pack 和核心合同不得导入 boto3/MinIO 类型。
+- [x] 5.9 接入 OpenTelemetry 的 FastAPI/httpx/Redis/PostgreSQL/Temporal instrumentation 和既有 Prometheus `/metrics` adapter，统一脱敏 correlation attributes，结构阶段不改变既有指标名称和语义。
+- [x] 5.10 集中配置 facade，按 owner 暴露只读配置，同时保留所有旧 env 名称、默认值和 import 路径；新增配置必须由 Pydantic Settings 解析且不得在模块导入时创建客户端。
+- [x] 5.11 统一 Source/Provider/Foundation failure taxonomy adapter：区分 `success_empty`、source/provider `failure` 和聚合 `partial`，映射 `ErrorCategory`/`ErrorScope`/retryability，并使结构阶段继续映射到当前 XHS empty/error、analyzer partial 和 Amap/POI basic-result 行为而不改变 wire 行为；按 ADR-0010 保留 XHS hanging/loading characterization，不得在本阶段新增 timeout。
+- [x] 5.12 为每个 port 运行同一 consumer-driven suite，覆盖 true-empty、timeout、429/rate-limit、malformed、dependency unavailable、exception、partial item、all-empty/all-failed、hanging/cancel、可选 POI fallback、客户端生命周期和 legacy fallback；断言 `CanonicalSourceBatch.errors`/coverage 与 ADR-0010 的 SSE、direct Python、status/results/recover 投影逐项一致。
+- [x] 5.13 添加目标 adapter 合同测试：SQLAlchemy transaction rollback、Redis TTL/MAXLEN、Temporal deterministic payload、S3 multipart/内容哈希、OTel 脱敏和 Prometheus label cardinality。
+- [x] 5.14 更新架构检查，禁止 Orchestrator 导入 spider/Amap/数据库/Redis/Temporal/boto3，禁止 Foundation 导入 Food 类型，并禁止 Agent、Pack 或 repository 绕过 owner port。
+- [x] 5.15 扫描依赖图并拒绝核心路径出现 ARQ、Celery、LangGraph、OpenAI Agents SDK、LiteLLM、Mem0、Zep 或第二套数据库连接池。
+- [x] 5.16 验证目标 Redis contract 不暴露分布式锁/Redlock、租约或 durable task-state API；single-flight 必须由 Temporal Workflow ID 表达，事实提交竞争由 PostgreSQL CAS 处理。
 - [ ] 5.17 演练 Composition Root 逐 adapter 回绑旧实现；将 S3 作为独立提交且不迁移 schema、不启用目标 runtime。
 
 ## 6. S4 Food Pack And Decision Extraction

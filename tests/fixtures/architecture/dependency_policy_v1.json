@@ -2,8 +2,11 @@
   "schema_version": "architecture-dependencies/v1",
   "module_layers": [
     {"prefix": "api.main", "layer": "composition", "mode": "target", "match": "exact"},
+    {"prefix": "xhs_food.composition.adapters", "layer": "compatibility_adapter", "mode": "target"},
     {"prefix": "xhs_food.composition", "layer": "composition", "mode": "target"},
     {"prefix": "xhs_food.experience", "layer": "experience", "mode": "target"},
+    {"prefix": "xhs_food.gateways", "layer": "gateway", "mode": "target"},
+    {"prefix": "xhs_food.foundation", "layer": "target_foundation", "mode": "target"},
     {"prefix": "xhs_food.contracts", "layer": "contracts", "mode": "target"},
     {"prefix": "xhs_food.orchestrator", "layer": "orchestrator", "mode": "legacy"},
     {"prefix": "xhs_food.agents", "layer": "orchestrator", "mode": "legacy"},
@@ -26,9 +29,12 @@
     {"prefix": "api", "layer": "experience", "mode": "legacy"}
   ],
   "allowed_internal_edges": {
-    "composition": ["*"],
+    "composition": ["composition", "compatibility_adapter", "contracts", "experience", "gateway", "target_foundation", "orchestrator", "connector", "domain", "foundation", "legacy_composition", "legacy_shell"],
+    "compatibility_adapter": ["compatibility_adapter", "contracts", "gateway", "target_foundation", "connector", "foundation", "legacy_composition", "legacy_shell"],
     "contracts": ["contracts"],
     "experience": ["contracts", "experience"],
+    "gateway": ["contracts", "gateway"],
+    "target_foundation": ["contracts", "target_foundation"],
     "orchestrator": ["contracts", "orchestrator"],
     "connector": ["connector", "contracts"],
     "domain": ["contracts", "domain"],
@@ -37,10 +43,120 @@
     "legacy_shell": ["contracts", "legacy_shell"],
     "legacy_script": ["contracts", "legacy_script"]
   },
+  "allowed_compatibility_imports": [
+    "xhs_food.agents.poi_enricher|xhs_food.composition.legacy_poi.build_legacy_poi_ports"
+  ],
   "target_third_party_allowlist": {
     "contracts": ["jsonschema", "pydantic", "pydantic_core", "referencing"],
-    "composition": ["*"]
+    "composition": ["dotenv", "fastapi", "loguru", "slowapi", "uvicorn"],
+    "compatibility_adapter": ["langchain_core", "pydantic"],
+    "gateway": ["pydantic"],
+    "target_foundation": ["boto3", "botocore", "opentelemetry", "pydantic", "pydantic_settings", "redis", "sqlalchemy", "temporalio"]
   },
+  "owner_port_consumer_module_prefixes": [
+    "xhs_food.agents",
+    "xhs_food.domain_packs",
+    "xhs_food.orchestrator",
+    "xhs_food.repositories"
+  ],
+  "owner_port_forbidden_import_prefixes": [
+    "asyncpg",
+    "boto3",
+    "botocore",
+    "psycopg",
+    "psycopg2",
+    "psycopg_pool",
+    "redis",
+    "sqlalchemy",
+    "temporalio",
+    "xhs_food.foundation",
+    "xhs_food.gateways",
+    "xhs_food.services.postgres_storage",
+    "xhs_food.services.redis_memory",
+    "xhs_food.services.user_storage",
+    "xhs_food.spider"
+  ],
+  "owner_port_forbidden_import_symbols": [
+    "AmapAPI",
+    "get_amap_api",
+    "get_user_storage_service"
+  ],
+  "foundation_module_prefixes": ["xhs_food.foundation"],
+  "foundation_forbidden_food_import_prefixes": [
+    "xhs_food.agents",
+    "xhs_food.domain_packs",
+    "xhs_food.orchestrator",
+    "xhs_food.prompts",
+    "xhs_food.schemas"
+  ],
+  "forbidden_dependency_packages": [
+    "arq",
+    "celery",
+    "langgraph",
+    "openai-agents",
+    "litellm",
+    "mem0",
+    "mem0ai",
+    "zep",
+    "zep-cloud",
+    "zep-python"
+  ],
+  "forbidden_import_roots": [
+    "agents",
+    "arq",
+    "celery",
+    "langgraph",
+    "litellm",
+    "mem0",
+    "zep",
+    "zep_cloud",
+    "zep_python"
+  ],
+  "database_pool_factories": {
+    "sqlalchemy.ext.asyncio.create_async_engine": "xhs_food.foundation.database"
+  },
+  "forbidden_target_database_pool_factories": [
+    "asyncpg.create_pool",
+    "psycopg.connect",
+    "psycopg2.connect",
+    "psycopg_pool.AsyncConnectionPool",
+    "psycopg_pool.ConnectionPool",
+    "sqlalchemy.create_engine"
+  ],
+  "forbidden_target_runtime_import_roots": ["alembic"],
+  "forbidden_runtime_schema_calls": ["create_all", "drop_all"],
+  "redis_hot_state_module": "xhs_food.foundation.redis",
+  "redis_allowed_client_methods": [
+    "delete",
+    "eval",
+    "expire",
+    "get",
+    "lrange",
+    "ltrim",
+    "rpush",
+    "set",
+    "xadd",
+    "xread"
+  ],
+  "redis_allowed_key_prefixes": [
+    "events",
+    "idempotency",
+    "rate_limit",
+    "session",
+    "state"
+  ],
+  "redis_allowed_command_keyword_sites": {
+    "nx": ["RedisIdempotencyWindow.claim"]
+  },
+  "redis_forbidden_surface_tokens": [
+    "checkpoint",
+    "durable",
+    "lease",
+    "lock",
+    "redlock",
+    "task",
+    "workflow"
+  ],
   "legacy_import_violations": [
     "api.deps|experience->foundation|xhs_food.services.user_storage.User",
     "api.deps|experience->foundation|xhs_food.services.user_storage.UserStorageService",
@@ -77,11 +193,7 @@
     "xhs_food.agents.intent_parser|orchestrator->domain|xhs_food.schemas.FollowUpType",
     "xhs_food.agents.intent_parser|orchestrator->domain|xhs_food.schemas.FoodSearchIntent",
     "xhs_food.agents.intent_parser|orchestrator->foundation|xhs_food.services.llm_service.LLMService",
-    "xhs_food.agents.poi_enricher|orchestrator->connector|xhs_food.spider.apis.amap_api.AmapAPI",
-    "xhs_food.agents.poi_enricher|orchestrator->connector|xhs_food.spider.apis.amap_api.get_amap_api",
     "xhs_food.agents.poi_enricher|orchestrator->domain|xhs_food.schemas.RestaurantRecommendation",
-    "xhs_food.agents.poi_enricher|orchestrator->foundation|xhs_food.services.get_user_storage_service",
-    "xhs_food.agents.poi_enricher|orchestrator->foundation|xhs_food.services.user_storage.generate_restaurant_hash",
     "xhs_food.agents.poi_enricher|orchestrator->legacy_shell|xhs_food.config.settings",
     "xhs_food.agents.poi_search|orchestrator->domain|xhs_food.schemas.RestaurantRecommendation",
     "xhs_food.auth.browser_login|foundation->legacy_shell|xhs_food.exceptions.XHSAuthError",
@@ -135,8 +247,6 @@
   "legacy_private_access_violations": [
     "api.main|lifespan|session_manager._initialized",
     "api.main|lifespan|storage._initialized",
-    "xhs_food.agents.poi_enricher|POIEnricherAgent._get_cached_poi|storage._initialized",
-    "xhs_food.agents.poi_enricher|POIEnricherAgent._get_cached_poi|storage._pool",
     "xhs_food.auth.browser_login|<module>|xhs_food.auth.paths._profile_dir",
     "xhs_food.auth.cli|<module>|xhs_food.auth._is_pid_alive",
     "xhs_food.auth.cli|<module>|xhs_food.auth._log_path",

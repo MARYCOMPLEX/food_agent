@@ -5,12 +5,13 @@ POI 搜索 Mixin - 高德地图 POI 搜索相关功能.
 从 poi_enricher.py 拆分，包含搜索策略、结果构建和地址处理。
 """
 
-import asyncio
 import re
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from loguru import logger
 
+from xhs_food.contracts import PlaceLookupPort
 from xhs_food.schemas import RestaurantRecommendation
 
 if TYPE_CHECKING:
@@ -20,8 +21,10 @@ if TYPE_CHECKING:
 class POISearchMixin:
     """POI 搜索相关方法的 Mixin 类.
 
-    依赖主类提供 self._amap (AmapAPI 实例)。
+    依赖主类提供异步 ``PlaceLookupPort``，不感知具体地图客户端。
     """
+
+    _place_lookup: PlaceLookupPort
 
     async def _search_poi(self, name: str, city: str = "") -> Optional[Dict[str, Any]]:
         """
@@ -109,22 +112,22 @@ class POISearchMixin:
     async def _do_poi_search(self, keywords: str, city: str) -> Optional[Dict[str, Any]]:
         """执行单次 POI 搜索."""
         try:
-            result = await asyncio.to_thread(
-                self._amap.search_poi,
+            result = await self._place_lookup.lookup(
                 keywords=keywords,
                 city=city,
                 types="050000",  # 餐饮服务
             )
 
-            if "error" in result:
+            if not isinstance(result, Mapping) or "error" in result:
                 return None
 
             pois = result.get("pois", [])
-            if not pois:
+            if not isinstance(pois, list) or not pois:
                 return None
 
             # 只取第一个（最匹配的）
-            return pois[0]
+            first = pois[0]
+            return dict(first) if isinstance(first, Mapping) else None
 
         except Exception as e:
             logger.debug(f"POI search failed: {e}")

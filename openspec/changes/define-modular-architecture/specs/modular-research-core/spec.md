@@ -156,12 +156,44 @@
 - **WHEN** 同一冻结输入、固定时钟、固定随机种子和相同来源夹具分别经过迁移前路径与新路径
 - **THEN** 合同规范化后的 REST 响应、SSE 事件流、持久化副作用和错误分类 MUST 满足已批准的等价规则
 
+#### Scenario: 显式来源查询投影在调用前验证
+- **WHEN** 上游为某个 `source_scope` 成员提供 source-ready query projection
+- **THEN** 投影 MUST 固定 source ID、language、renderer ID/version、查询文本和可选 locality，source/language 与请求隔离不匹配时 MUST 在调用 provider 前失败；Connector MUST NOT 把 Canonical Query 的枚举标识自行翻译为目标领域查询
+
+#### Scenario: S3 旧 CollectRequest 未提供来源查询投影
+- **WHEN** 兼容适配器接收一个在 S1 合同上创建且没有 `source_queries` 的旧请求
+- **THEN** S3 MUST 仅使用已表征的 legacy fallback 并保持原输入行为；该 additive 字段的缺失不得成为新的 failure，后续目标行为启用前 MUST 由版本化 renderer 显式提供投影
+
 #### Scenario: 读取迁移前数据
 - **WHEN** 新版本读取由迁移前版本创建的会话、历史、收藏或搜索结果
 - **THEN** 系统 MUST 在不要求用户重建数据的情况下恢复其既有含义
 
 ### Requirement: 模块级失败隔离
 单一 Connector、Domain Pack、媒体处理器、Evidence Extractor、刷新任务、持久任务 worker、热状态后端、对象存储或非权威派生索引的失败 MUST 被限制在其所属边界内。系统 MUST 产生稳定错误分类和可关联的观测记录；如果兼容性合同允许降级，则 MUST 返回明确的降级状态而非伪装成完整结果。
+
+#### Scenario: 有效来源返回真实空结果
+- **WHEN** 一个 Source Connector 成功完成、返回通过 schema 验证的 payload，且其中没有任何 canonical item
+- **THEN** 系统 MUST 将其记录为 `success_empty` 而不是 failure，MUST 保留成功尝试及 payload 已返回的来源水位，并 MUST 由声明的 coverage policy 评估该空尝试，而不得因空 item 列表生成伪造的 failure 或自动声称已满足覆盖度
+
+#### Scenario: 来源失败与真实空结果保持可区分
+- **WHEN** Source Connector 超时、被限流、依赖不可用、返回 malformed payload 或在边界抛出异常
+- **THEN** 系统 MUST 产生带有稳定 `ErrorCategory` 和 `ErrorScope.SOURCE`（适配器在形成来源结果前失败时为 `PROVIDER`）的 `ContractError`，MUST 将该失败写入 `CanonicalSourceBatch.errors` 或等价来源错误端口，并 MUST NOT 将其编码为 `success_empty`
+
+#### Scenario: 部分来源或条目失败时保留可用结果
+- **WHEN** 同一研究聚合中至少一个来源尝试或条目分析/可选丰富步骤失败，但仍有一个或多个合格 canonical item 或可用餐厅结果
+- **THEN** 系统 MUST 返回 surviving items，并以来源级错误与 coverage 元数据表达 `partial`；`partial` MUST NOT 成为新的 `TaskStatus`，且失败不得污染已验证的 Evidence 或阻止其他隔离来源继续
+
+#### Scenario: 必需 XHS 来源耗尽时保持 legacy 投影
+- **WHEN** 所有 XHS keyword attempts 都是 `success_empty` 或 failure，聚合中没有 notes
+- **THEN** 内部 MUST 保留空与失败的区分并禁止把失败发布为成功 Evidence；S3 legacy streaming mapper MUST 输出 `step_error(step2)`、终端 `error` 和现有消息 `未找到相关笔记`，而不得新增 `partial` 字段，且已知 outer background projection 的 `completed` 行为 MUST 继续由 legacy policy 表征，直到 B0 版本化修复
+
+#### Scenario: 直接 Python legacy 入口保留不同的无笔记投影
+- **WHEN** 相同的无 notes 聚合通过 legacy `SearchExecutor.handle_new_search` 入口返回
+- **THEN** compatibility mapper MUST 保留现有 `status="ok"`、空 recommendations 与既有 summary，不得在 S3 为统一 streaming 行为而把该 Python 合同改成 terminal error
+
+#### Scenario: 可选 Amap/POI 失败降级为基础结果
+- **WHEN** restaurant recommendations 已产生，但 Amap/POI 超时、限流、malformed、依赖不可用、空结果或单项丰富抛出异常
+- **THEN** 系统 MUST 把通过验证的空 POI 结果记录为 `success_empty`，把其他条件记录为 optional-source failure/partial coverage，并保留基础餐厅 recommendation；S3 legacy mapper MUST 继续发送基本 restaurant、`result` 和 `done`，不得把可选丰富失败变成任务级 error
 
 #### Scenario: 单一来源失败
 - **WHEN** 一个可选 Source Connector 超时而其他合格来源仍可用
