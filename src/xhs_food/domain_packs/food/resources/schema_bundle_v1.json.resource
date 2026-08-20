@@ -1,0 +1,1810 @@
+{
+  "bundleVersion": "domain-contract-schema-bundle/v1",
+  "schemas": [
+    {
+      "schemaId": "urn:food-agent:domain-method:describe-input:v1",
+      "schemaDigest": "c67a3ef58bea90053d76251c9f9b7d72513a473ac3b493a776f871b694ebdc4c",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:food-agent:domain-method:describe-input:v1",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [],
+        "properties": {}
+      },
+      "examples": [
+        {}
+      ]
+    },
+    {
+      "schemaId": "urn:food-agent:domain-pack-manifest:v1",
+      "schemaDigest": "cf18f7372cdf8cc103748c7a39e72258810a910db4a70783b7facf52335eb29c",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:food-agent:domain-pack-manifest:v1",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "manifestVersion",
+          "domainId",
+          "packVersion",
+          "contractApi",
+          "coreVersionRange",
+          "manifestDigest",
+          "methods",
+          "domainSchemas",
+          "methodSchemas",
+          "allowedTools",
+          "finalOutputSchemaDigest",
+          "finalOutputSchema",
+          "finalOutputExample",
+          "scoringPolicy",
+          "domainSources",
+          "policyProfiles"
+        ],
+        "properties": {
+          "manifestVersion": {
+            "const": "domain-pack-manifest/v1"
+          },
+          "domainId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "packVersion": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
+          },
+          "contractApi": {
+            "const": "domain-contract/v1"
+          },
+          "coreVersionRange": {
+            "type": "string",
+            "pattern": "^\\s*(?:>=|<=|>|<|==)?\\s*(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?\\s*(?:,\\s*(?:>=|<=|>|<|==)?\\s*(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?\\s*)*$"
+          },
+          "manifestDigest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "methods": {
+            "type": "array",
+            "minItems": 7,
+            "maxItems": 7,
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "describe",
+                "classify_constraints",
+                "validate_evidence",
+                "compute_features",
+                "score_public",
+                "build_final_output",
+                "map_error"
+              ]
+            }
+          },
+          "domainSchemas": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "entities",
+              "relations",
+              "evidenceTypes",
+              "featureSet",
+              "personalizationSlots"
+            ],
+            "properties": {
+              "entities": {
+                "type": "string",
+                "pattern": "^urn:food-agent:"
+              },
+              "relations": {
+                "type": "string",
+                "pattern": "^urn:food-agent:"
+              },
+              "evidenceTypes": {
+                "type": "string",
+                "pattern": "^urn:food-agent:"
+              },
+              "featureSet": {
+                "type": "string",
+                "pattern": "^urn:food-agent:"
+              },
+              "personalizationSlots": {
+                "type": "string",
+                "pattern": "^urn:food-agent:"
+              }
+            }
+          },
+          "methodSchemas": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "method",
+                "inputSchemaId",
+                "inputSchemaDigest",
+                "outputSchemaId",
+                "outputSchemaDigest"
+              ],
+              "properties": {
+                "method": {
+                  "enum": [
+                    "describe",
+                    "classify_constraints",
+                    "validate_evidence",
+                    "compute_features",
+                    "score_public",
+                    "build_final_output",
+                    "map_error"
+                  ]
+                },
+                "inputSchemaId": {
+                  "type": "string",
+                  "pattern": "^urn:food-agent:"
+                },
+                "inputSchemaDigest": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "outputSchemaId": {
+                  "type": "string",
+                  "pattern": "^urn:food-agent:"
+                },
+                "outputSchemaDigest": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              }
+            }
+          },
+          "allowedTools": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "toolId",
+                "toolVersion",
+                "permission",
+                "timeoutMs",
+                "errorCodes",
+                "inputSchemaDigest",
+                "outputSchemaDigest",
+                "inputSchema",
+                "inputExample",
+                "outputSchema",
+                "outputExample"
+              ],
+              "properties": {
+                "toolId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "toolVersion": {
+                  "type": "string",
+                  "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
+                },
+                "permission": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "timeoutMs": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "errorCodes": {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "inputSchemaDigest": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "outputSchemaDigest": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "inputSchema": {
+                  "type": "object"
+                },
+                "inputExample": {},
+                "outputSchema": {
+                  "type": "object"
+                },
+                "outputExample": {}
+              }
+            }
+          },
+          "finalOutputSchemaDigest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "finalOutputSchema": {
+            "type": "object"
+          },
+          "finalOutputExample": {},
+          "scoringPolicy": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "policyId",
+              "policyVersion",
+              "mode",
+              "inputs",
+              "forbiddenInputs",
+              "forbiddenEffects"
+            ],
+            "properties": {
+              "policyId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "policyVersion": {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
+              },
+              "mode": {
+                "const": "pure_deterministic"
+              },
+              "inputs": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "forbiddenInputs": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "forbiddenEffects": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          },
+          "domainSources": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability",
+                "versionRange",
+                "required"
+              ],
+              "properties": {
+                "capability": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "versionRange": {
+                  "type": "string",
+                  "pattern": "^\\s*(?:>=|<=|>|<|==)?\\s*(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?\\s*(?:,\\s*(?:>=|<=|>|<|==)?\\s*(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?\\s*)*$"
+                },
+                "required": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "policyProfiles": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "workflow",
+              "freshness",
+              "coverage",
+              "stopping",
+              "refreshJob"
+            ],
+            "properties": {
+              "workflow": {
+                "type": "string",
+                "minLength": 1
+              },
+              "freshness": {
+                "type": "string",
+                "minLength": 1
+              },
+              "coverage": {
+                "type": "string",
+                "minLength": 1
+              },
+              "stopping": {
+                "type": "string",
+                "minLength": 1
+              },
+              "refreshJob": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      },
+      "examples": [
+        {
+          "manifestVersion": "domain-pack-manifest/v1",
+          "domainId": "food",
+          "packVersion": "1.0.0",
+          "contractApi": "domain-contract/v1",
+          "coreVersionRange": ">=1.0.0,<2.0.0",
+          "manifestDigest": "0000000000000000000000000000000000000000000000000000000000000000",
+          "methods": [
+            "describe",
+            "classify_constraints",
+            "validate_evidence",
+            "compute_features",
+            "score_public",
+            "build_final_output",
+            "map_error"
+          ],
+          "domainSchemas": {
+            "entities": "urn:food-agent:food:entities:v1",
+            "relations": "urn:food-agent:food:relations:v1",
+            "evidenceTypes": "urn:food-agent:food:evidence-types:v1",
+            "featureSet": "urn:food-agent:food:feature-set:v1",
+            "personalizationSlots": "urn:food-agent:food:personalization-slots:v1"
+          },
+          "methodSchemas": [],
+          "allowedTools": [],
+          "finalOutputSchemaDigest": "0000000000000000000000000000000000000000000000000000000000000000",
+          "finalOutputSchema": {},
+          "finalOutputExample": null,
+          "scoringPolicy": {
+            "policyId": "food.public-score",
+            "policyVersion": "1.0.0",
+            "mode": "pure_deterministic",
+            "inputs": [
+              "declared_public_feature_set"
+            ],
+            "forbiddenInputs": [
+              "user_memory"
+            ],
+            "forbiddenEffects": [
+              "network"
+            ]
+          },
+          "domainSources": [],
+          "policyProfiles": {
+            "workflow": "research-standard/v1",
+            "freshness": "food-freshness/v1",
+            "coverage": "food-coverage/v1",
+            "stopping": "food-stopping/v1",
+            "refreshJob": "food-refresh-declaration/v1"
+          }
+        }
+      ]
+    },
+    {
+      "schemaId": "urn:food-agent:domain-method:classify-constraints-input:v1",
+      "schemaDigest": "019cdb9754bdbf064e03cf206d7584f3269b3e59e3b627ee84e661cbcaaae0a9",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:food-agent:domain-method:classify-constraints-input:v1",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schema_version",
+          "classifier_version",
+          "constraints"
+        ],
+        "properties": {
+          "schema_version": {
+            "const": "domain-classify-constraints-input/v1"
+          },
+          "classifier_version": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]*/v[1-9][0-9]*$"
+          },
+          "constraints": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "constraint_id",
+                "key",
+                "operator",
+                "value"
+              ],
+              "properties": {
+                "constraint_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "key": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "operator": {
+                  "enum": [
+                    "eq",
+                    "in",
+                    "range",
+                    "exists"
+                  ]
+                },
+                "value": {}
+              }
+            }
+          }
+        }
+      },
+      "examples": [
+        {
+          "schema_version": "domain-classify-constraints-input/v1",
+          "classifier_version": "food-constraints/v1",
+          "constraints": [
+            {
+              "constraint_id": "constraint-1",
+              "key": "diet",
+              "operator": "eq",
+              "value": "vegetarian"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "schemaId": "urn:food-agent:domain-method:classify-constraints-output:v1",
+      "schemaDigest": "483114a40fb6d8469fa36edabab3de30c1afe5a9f99365f43e4cdcfeea48a75e",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:food-agent:domain-method:classify-constraints-output:v1",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schema_version",
+          "classifier_version",
+          "results"
+        ],
+        "properties": {
+          "schema_version": {
+            "const": "domain-classify-constraints-output/v1"
+          },
+          "classifier_version": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]*/v[1-9][0-9]*$"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "constraint_id",
+                "classification",
+                "rule_id",
+                "rule_version",
+                "projection",
+                "reason_code",
+                "action"
+              ],
+              "properties": {
+                "constraint_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "classification": {
+                  "enum": [
+                    "public",
+                    "personal",
+                    "unresolved"
+                  ]
+                },
+                "rule_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "rule_version": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_-]*/v[1-9][0-9]*$"
+                },
+                "projection": {},
+                "reason_code": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "action": {
+                  "enum": [
+                    "shared",
+                    "personalize",
+                    "clarify",
+                    "non_shared_research"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "examples": [
+        {
+          "schema_version": "domain-classify-constraints-output/v1",
+          "classifier_version": "food-constraints/v1",
+          "results": [
+            {
+              "constraint_id": "constraint-1",
+              "classification": "personal",
+              "rule_id": "diet.personal",
+              "rule_version": "food-constraints/v1",
+              "projection": {
+                "key": "diet",
+                "value": "vegetarian"
+              },
+              "reason_code": null,
+              "action": "personalize"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "schemaId": "urn:food-agent:domain-method:validate-evidence-input:v1",
+      "schemaDigest": "282060148fe54aff339d706de15f6296db479a051450a6700c53666808e793f2",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:food-agent:domain-method:validate-evidence-input:v1",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "evidence_id",
+          "evidence_type",
+          "claim_type",
+          "claim_value",
+          "confidence",
+          "source_locator_id",
+          "media_ref_ids",
+          "derived_artifact_ids",
+          "extractor_version",
+          "schema_version",
+          "content_hash",
+          "status",
+          "visibility",
+          "license",
+          "retention"
+        ],
+        "properties": {
+          "evidence_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidence_type": {
+            "type": "string",
+            "minLength": 1
+          },
+          "claim_type": {
+            "type": "string",
+            "minLength": 1
+          },
+          "claim_value": {},
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "source_locator_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "media_ref_ids": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "derived_artifact_ids": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "extractor_version": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]*/v[1-9][0-9]*$"
+          },
+          "schema_version": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]*/v[1-9][0-9]*$"
+          },
+          "content_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "status": {
+            "enum": [
+              "candidate",
+              "accepted",
+              "quarantined",
+              "tombstoned"
+            ]
+          },
+          "visibility": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "scope",
+              "tenant_scope",
+              "entitlement_ids"
+            ],
+            "properties": {
+              "scope": {
+                "enum": [
+                  "public",
+                  "tenant",
+                  "entitlement"
+                ]
+              },
+              "tenant_scope": {
+                "type": "string",
+                "minLength": 1
+              },
+              "entitlement_ids": {
+                "type": "array",
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          },
+          "license": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "license_id",
+              "status",
+              "allowed_use",
+              "attribution_required",
+              "expires_at",
+              "policy_version"
+            ],
+            "properties": {
+              "license_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "status": {
+                "enum": [
+                  "known",
+                  "unknown",
+                  "expired",
+                  "revoked"
+                ]
+              },
+              "allowed_use": {
+                "enum": [
+                  "extract_only",
+                  "internal_reuse",
+                  "redistributable"
+                ]
+              },
+              "attribution_required": {
+                "type": "boolean"
+              },
+              "expires_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "policy_version": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_-]*/v[1-9][0-9]*$"
+              }
+            }
+          },
+          "retention": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "retention_class",
+              "duration_seconds",
+              "legal_hold"
+            ],
+            "properties": {
+              "retention_class": {
+                "type": "string",
+                "minLength": 1
+              },
+              "duration_seconds": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "legal_hold": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      },
+      "examples": [
+        {
+          "evidence_id": "evidence.restaurant.name.123",
+          "evidence_type": "restaurant",
+          "claim_type": "restaurant_name",
+          "claim_value": "fixture restaurant",
+          "confidence": 0.98,
+          "source_locator_id": "source.note.123",
+          "media_ref_ids": [],
+          "derived_artifact_ids": [],
+          "extractor_version": "text-normalizer/v1",
+          "schema_version": "food-evidence/v1",
+          "content_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "status": "accepted",
+          "visibility": {
+            "scope": "public",
+            "tenant_scope": "public",
+            "entitlement_ids": []
+          },
+          "license": {
+            "license_id": "source-internal-reuse",
+            "status": "known",
+            "allowed_use": "internal_reuse",
+            "attribution_required": true,
+            "expires_at": null,
+            "policy_version": "evidence-license/v1"
+          },
+          "retention": {
+            "retention_class": "evidence_default",
+            "duration_seconds": null,
+            "legal_hold": false
+          }
+        }
+      ]
+    },
+    {
+      "schemaId": "urn:food-agent:domain-method:validate-evidence-output:v1",
+      "schemaDigest": "651bb0bda11b0b60bbba677b7ed8a5267f81883ad781b80074d00806a49590e4",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:food-agent:domain-method:validate-evidence-output:v1",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schema_version",
+          "evidence_id",
+          "valid",
+          "errors"
+        ],
+        "properties": {
+          "schema_version": {
+            "const": "domain-validate-evidence-output/v1"
+          },
+          "evidence_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "valid": {
+            "type": "boolean"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "urn:food-agent:stable-error:v1"
+            }
+          }
+        }
+      },
+      "examples": [
+        {
+          "schema_version": "domain-validate-evidence-output/v1",
+          "evidence_id": "evidence.restaurant.name.123",
+          "valid": true,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "schemaId": "urn:food-agent:domain-method:compute-features-input:v1",
+      "schemaDigest": "7eef327d351a18492f10c0f04352f059de7d4b4ee877954a8d810023f15598c9",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:food-agent:domain-method:compute-features-input:v1",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schema_version",
+          "bundle",
+          "evidence_items"
+        ],
+        "properties": {
+          "schema_version": {
+            "const": "domain-compute-features-input/v1"
+          },
+          "bundle": {
+            "$ref": "#/$defs/bundle"
+          },
+          "evidence_items": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "urn:food-agent:domain-method:validate-evidence-input:v1"
+            }
+          }
+        },
+        "$defs": {
+          "bundle": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "bundle_id",
+              "family_id",
+              "bundle_version",
+              "parent_bundle_version",
+              "state",
+              "evidence_ids",
+              "coverage",
+              "watermarks",
+              "verified_at",
+              "freshness_policy_id",
+              "freshness_policy_version",
+              "provenance_hash",
+              "content_hash",
+              "visibility",
+              "retention"
+            ],
+            "properties": {
+              "bundle_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "family_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "bundle_version": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "parent_bundle_version": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1
+              },
+              "state": {
+                "enum": [
+                  "candidate",
+                  "published",
+                  "rejected",
+                  "tombstoned"
+                ]
+              },
+              "evidence_ids": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "coverage": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                }
+              },
+              "watermarks": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "verified_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "freshness_policy_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "freshness_policy_version": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_-]*/v[1-9][0-9]*$"
+              },
+              "provenance_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "content_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "visibility": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "scope",
+                  "tenant_scope",
+                  "entitlement_ids"
+                ],
+                "properties": {
+                  "scope": {
+                    "enum": [
+                      "public",
+                      "tenant",
+                      "entitlement"
+                    ]
+                  },
+                  "tenant_scope": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "entitlement_ids": {
+                    "type": "array",
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                }
+              },
+              "retention": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "retention_class",
+                  "duration_seconds",
+                  "legal_hold"
+                ],
+                "properties": {
+                  "retention_class": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "duration_seconds": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 0
+                  },
+                  "legal_hold": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "examples": [
+        {
+          "schema_version": "domain-compute-features-input/v1",
+          "bundle": {
+            "bundle_id": "bundle.food.fixture.v1",
+            "family_id": "family.food.fixture",
+            "bundle_version": 1,
+            "parent_bundle_version": null,
+            "state": "published",
+            "evidence_ids": [
+              "evidence.restaurant.name.123"
+            ],
+            "coverage": {
+              "identity": 1
+            },
+            "watermarks": {
+              "source": "2026-08-19T00:00:00Z"
+            },
+            "verified_at": "2026-08-19T01:00:00Z",
+            "freshness_policy_id": "food.default",
+            "freshness_policy_version": "food-freshness/v1",
+            "provenance_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "content_hash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "visibility": {
+              "scope": "public",
+              "tenant_scope": "public",
+              "entitlement_ids": []
+            },
+            "retention": {
+              "retention_class": "bundle_default",
+              "duration_seconds": null,
+              "legal_hold": false
+            }
+          },
+          "evidence_items": [
+            {
+              "evidence_id": "evidence.restaurant.name.123",
+              "evidence_type": "restaurant",
+              "claim_type": "restaurant_name",
+              "claim_value": "fixture restaurant",
+              "confidence": 0.98,
+              "source_locator_id": "source.note.123",
+              "media_ref_ids": [],
+              "derived_artifact_ids": [],
+              "extractor_version": "text-normalizer/v1",
+              "schema_version": "food-evidence/v1",
+              "content_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "status": "accepted",
+              "visibility": {
+                "scope": "public",
+                "tenant_scope": "public",
+                "entitlement_ids": []
+              },
+              "license": {
+                "license_id": "source-internal-reuse",
+                "status": "known",
+                "allowed_use": "internal_reuse",
+                "attribution_required": true,
+                "expires_at": null,
+                "policy_version": "evidence-license/v1"
+              },
+              "retention": {
+                "retention_class": "evidence_default",
+                "duration_seconds": null,
+                "legal_hold": false
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "schemaId": "urn:food-agent:domain-method:compute-features-output:v1",
+      "schemaDigest": "1c54963e6e3b7ab68227c85316ebac54562cac12858f1c5cb5f342ee0b382f86",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:food-agent:domain-method:compute-features-output:v1",
+        "$ref": "urn:food-agent:food:feature-set:v1"
+      },
+      "examples": [
+        {
+          "schema_version": "food-feature-set/v1",
+          "bundle_id": "bundle.food.fixture.v1",
+          "features": [
+            {
+              "entity_id": "restaurant-001",
+              "values": {
+                "locality": 0.9,
+                "trust": 0.8
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "schemaId": "urn:food-agent:domain-method:score-public-input:v1",
+      "schemaDigest": "b693f9a6beb436169d5dc5bb909a36a09bd4d3417b9db1baa73318e0b273c4fc",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:food-agent:domain-method:score-public-input:v1",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schema_version",
+          "features",
+          "policy_id",
+          "policy_version",
+          "config_version",
+          "config"
+        ],
+        "properties": {
+          "schema_version": {
+            "const": "domain-score-public-input/v1"
+          },
+          "features": {
+            "$ref": "urn:food-agent:food:feature-set:v1"
+          },
+          "policy_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "policy_version": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
+          },
+          "config_version": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]*/v[1-9][0-9]*$"
+          },
+          "config": {
+            "type": "object"
+          }
+        }
+      },
+      "examples": [
+        {
+          "schema_version": "domain-score-public-input/v1",
+          "features": {
+            "schema_version": "food-feature-set/v1",
+            "bundle_id": "bundle.food.fixture.v1",
+            "features": [
+              {
+                "entity_id": "restaurant-001",
+                "values": {
+                  "locality": 0.9,
+                  "trust": 0.8
+                }
+              }
+            ]
+          },
+          "policy_id": "food.public-score",
+          "policy_version": "1.0.0",
+          "config_version": "food-score-config/v1",
+          "config": {
+            "locality_weight": 0.5,
+            "trust_weight": 0.5
+          }
+        }
+      ]
+    },
+    {
+      "schemaId": "urn:food-agent:domain-method:score-public-output:v1",
+      "schemaDigest": "ca3e9da31b4c2dcbcc22f50a55fd638c1fc6ab0c51935aa8f01c566e9746c664",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:food-agent:domain-method:score-public-output:v1",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schema_version",
+          "policy_id",
+          "policy_version",
+          "bundle_id",
+          "scores"
+        ],
+        "properties": {
+          "schema_version": {
+            "const": "domain-score-public-output/v1"
+          },
+          "policy_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "policy_version": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
+          },
+          "bundle_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "scores": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "entity_id",
+                "score",
+                "explanation_refs"
+              ],
+              "properties": {
+                "entity_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "score": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "explanation_refs": {
+                  "type": "array",
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "examples": [
+        {
+          "schema_version": "domain-score-public-output/v1",
+          "policy_id": "food.public-score",
+          "policy_version": "1.0.0",
+          "bundle_id": "bundle.food.fixture.v1",
+          "scores": [
+            {
+              "entity_id": "restaurant-001",
+              "score": 0.85,
+              "explanation_refs": [
+                "evidence.restaurant.name.123"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "schemaId": "urn:food-agent:domain-method:build-final-output-input:v1",
+      "schemaDigest": "6af85cf0fe2403472b0e134dafcedb00784568be90db7fc08e6d4fb5e57e7737",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:food-agent:domain-method:build-final-output-input:v1",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schema_version",
+          "query",
+          "bundle",
+          "features",
+          "public_scores"
+        ],
+        "properties": {
+          "schema_version": {
+            "const": "domain-build-final-output-input/v1"
+          },
+          "query": {
+            "type": "object"
+          },
+          "bundle": {
+            "$ref": "urn:food-agent:domain-method:compute-features-input:v1#/$defs/bundle"
+          },
+          "features": {
+            "$ref": "urn:food-agent:food:feature-set:v1"
+          },
+          "public_scores": {
+            "$ref": "urn:food-agent:domain-method:score-public-output:v1"
+          }
+        }
+      },
+      "examples": [
+        {
+          "schema_version": "domain-build-final-output-input/v1",
+          "query": {
+            "domain": "food",
+            "geo": "CN-SC-Zigong"
+          },
+          "bundle": {
+            "bundle_id": "bundle.food.fixture.v1",
+            "family_id": "family.food.fixture",
+            "bundle_version": 1,
+            "parent_bundle_version": null,
+            "state": "published",
+            "evidence_ids": [
+              "evidence.restaurant.name.123"
+            ],
+            "coverage": {
+              "identity": 1
+            },
+            "watermarks": {
+              "source": "2026-08-19T00:00:00Z"
+            },
+            "verified_at": "2026-08-19T01:00:00Z",
+            "freshness_policy_id": "food.default",
+            "freshness_policy_version": "food-freshness/v1",
+            "provenance_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "content_hash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "visibility": {
+              "scope": "public",
+              "tenant_scope": "public",
+              "entitlement_ids": []
+            },
+            "retention": {
+              "retention_class": "bundle_default",
+              "duration_seconds": null,
+              "legal_hold": false
+            }
+          },
+          "features": {
+            "schema_version": "food-feature-set/v1",
+            "bundle_id": "bundle.food.fixture.v1",
+            "features": [
+              {
+                "entity_id": "restaurant-001",
+                "values": {
+                  "locality": 0.9,
+                  "trust": 0.8
+                }
+              }
+            ]
+          },
+          "public_scores": {
+            "schema_version": "domain-score-public-output/v1",
+            "policy_id": "food.public-score",
+            "policy_version": "1.0.0",
+            "bundle_id": "bundle.food.fixture.v1",
+            "scores": [
+              {
+                "entity_id": "restaurant-001",
+                "score": 0.85,
+                "explanation_refs": [
+                  "evidence.restaurant.name.123"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "schemaId": "urn:food-agent:domain-method:build-final-output-output:v1",
+      "schemaDigest": "9c034f3eff03c535891876717eaa18e8cb91c4341720d3bb482d987bb461e78e",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:food-agent:domain-method:build-final-output-output:v1",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schemaVersion",
+          "summary",
+          "recommendations"
+        ],
+        "properties": {
+          "schemaVersion": {
+            "const": "food-agent-final-output/v1"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "recommendations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "entityId",
+                "publicScore",
+                "explanationRefs"
+              ],
+              "properties": {
+                "entityId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "publicScore": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "explanationRefs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "examples": [
+        {
+          "schemaVersion": "food-agent-final-output/v1",
+          "summary": "Found one public candidate.",
+          "recommendations": [
+            {
+              "entityId": "restaurant-001",
+              "publicScore": 0.85,
+              "explanationRefs": [
+                "evidence.restaurant.name.123"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "schemaId": "urn:food-agent:domain-method:map-error-input:v1",
+      "schemaDigest": "01ae2d7e4ec811204bf099839eb4e9f670981e7892e9a2bff3a5948474d8a674",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:food-agent:domain-method:map-error-input:v1",
+        "$ref": "urn:food-agent:stable-error:v1"
+      },
+      "examples": [
+        {
+          "schema_version": "1.0",
+          "code": "dependency_unavailable",
+          "category": "dependency_unavailable",
+          "scope": "source",
+          "retryable": true,
+          "terminal": false,
+          "message": null,
+          "boundary_ref": "source.fixture",
+          "details": {}
+        }
+      ]
+    },
+    {
+      "schemaId": "urn:food-agent:stable-error:v1",
+      "schemaDigest": "d5f01b2f63a02aba36561c5a9248ca65f60c6cb73fcbc7deff6acb8c4fad6e51",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:food-agent:stable-error:v1",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schema_version",
+          "code",
+          "category",
+          "scope",
+          "retryable",
+          "terminal",
+          "message",
+          "boundary_ref",
+          "details"
+        ],
+        "properties": {
+          "schema_version": {
+            "const": "1.0"
+          },
+          "code": {
+            "type": "string",
+            "minLength": 1
+          },
+          "category": {
+            "enum": [
+              "validation",
+              "policy_denied",
+              "not_found",
+              "conflict",
+              "dependency_unavailable",
+              "timeout",
+              "rate_limited",
+              "malformed_response",
+              "budget_exhausted",
+              "replay_expired",
+              "cancelled",
+              "internal"
+            ]
+          },
+          "scope": {
+            "enum": [
+              "request",
+              "task",
+              "plan",
+              "tool",
+              "source",
+              "provider",
+              "repository",
+              "workflow",
+              "cache",
+              "event_bus",
+              "object_store",
+              "domain_pack"
+            ]
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "terminal": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "boundary_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "details": {
+            "type": "object"
+          }
+        }
+      },
+      "examples": [
+        {
+          "schema_version": "1.0",
+          "code": "dependency_unavailable",
+          "category": "dependency_unavailable",
+          "scope": "source",
+          "retryable": true,
+          "terminal": false,
+          "message": null,
+          "boundary_ref": "source.fixture",
+          "details": {}
+        }
+      ]
+    },
+    {
+      "schemaId": "urn:food-agent:food:entities:v1",
+      "schemaDigest": "4eb56b78f0608f52da2920f2a0cde711c7d0d4bfa259bedab46e6cbac87b7602",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:food-agent:food:entities:v1",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schema_version",
+          "entity_types"
+        ],
+        "properties": {
+          "schema_version": {
+            "const": "food-entities/v1"
+          },
+          "entity_types": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "restaurant",
+                "dish",
+                "cuisine",
+                "place"
+              ]
+            }
+          }
+        }
+      },
+      "examples": [
+        {
+          "schema_version": "food-entities/v1",
+          "entity_types": [
+            "restaurant",
+            "dish",
+            "cuisine",
+            "place"
+          ]
+        }
+      ]
+    },
+    {
+      "schemaId": "urn:food-agent:food:relations:v1",
+      "schemaDigest": "abc015227544851584280e05d5cea3bbc2eeea0892980ed467b4800d9da0267c",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:food-agent:food:relations:v1",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schema_version",
+          "relation_types"
+        ],
+        "properties": {
+          "schema_version": {
+            "const": "food-relations/v1"
+          },
+          "relation_types": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "serves",
+                "located_at",
+                "belongs_to_cuisine",
+                "mentioned_by"
+              ]
+            }
+          }
+        }
+      },
+      "examples": [
+        {
+          "schema_version": "food-relations/v1",
+          "relation_types": [
+            "serves",
+            "located_at",
+            "belongs_to_cuisine",
+            "mentioned_by"
+          ]
+        }
+      ]
+    },
+    {
+      "schemaId": "urn:food-agent:food:evidence-types:v1",
+      "schemaDigest": "97c8f31e6373aa9d93af761d15adce0e0044321256f3e828b5ae1d22ef436b22",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:food-agent:food:evidence-types:v1",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schema_version",
+          "evidence_types"
+        ],
+        "properties": {
+          "schema_version": {
+            "const": "food-evidence-types/v1"
+          },
+          "evidence_types": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "restaurant_identity",
+                "menu",
+                "price",
+                "locality",
+                "review_trust",
+                "advertising_risk"
+              ]
+            }
+          }
+        }
+      },
+      "examples": [
+        {
+          "schema_version": "food-evidence-types/v1",
+          "evidence_types": [
+            "restaurant_identity",
+            "menu",
+            "price",
+            "locality",
+            "review_trust",
+            "advertising_risk"
+          ]
+        }
+      ]
+    },
+    {
+      "schemaId": "urn:food-agent:food:feature-set:v1",
+      "schemaDigest": "916d70f93213eb909452f0fd75fa96ed2bdb081c1844a93fcae3f02fc2b312eb",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:food-agent:food:feature-set:v1",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schema_version",
+          "bundle_id",
+          "features"
+        ],
+        "properties": {
+          "schema_version": {
+            "const": "food-feature-set/v1"
+          },
+          "bundle_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "features": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "entity_id",
+                "values"
+              ],
+              "properties": {
+                "entity_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "values": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "examples": [
+        {
+          "schema_version": "food-feature-set/v1",
+          "bundle_id": "bundle.food.fixture.v1",
+          "features": [
+            {
+              "entity_id": "restaurant-001",
+              "values": {
+                "locality": 0.9,
+                "trust": 0.8
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "schemaId": "urn:food-agent:food:personalization-slots:v1",
+      "schemaDigest": "423863ea8a1c7f1956bb1fc845797f20a5dd36dacb2a60e71011ecae0efb6727",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:food-agent:food:personalization-slots:v1",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schema_version",
+          "slots"
+        ],
+        "properties": {
+          "schema_version": {
+            "const": "food-personalization-slots/v1"
+          },
+          "slots": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "slot_id",
+                "value_type",
+                "personal_only"
+              ],
+              "properties": {
+                "slot_id": {
+                  "enum": [
+                    "taste",
+                    "dietary_restriction",
+                    "budget",
+                    "accessibility",
+                    "travel_style"
+                  ]
+                },
+                "value_type": {
+                  "enum": [
+                    "string",
+                    "string_array",
+                    "number_range"
+                  ]
+                },
+                "personal_only": {
+                  "const": true
+                }
+              }
+            }
+          }
+        }
+      },
+      "examples": [
+        {
+          "schema_version": "food-personalization-slots/v1",
+          "slots": [
+            {
+              "slot_id": "taste",
+              "value_type": "string_array",
+              "personal_only": true
+            },
+            {
+              "slot_id": "dietary_restriction",
+              "value_type": "string_array",
+              "personal_only": true
+            },
+            {
+              "slot_id": "budget",
+              "value_type": "number_range",
+              "personal_only": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+

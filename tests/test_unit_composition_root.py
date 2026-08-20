@@ -13,6 +13,7 @@ from xhs_food.composition import (
     RegistryState,
     build_legacy_composition_root,
 )
+from xhs_food.protocols.mcp import MCPToolRegistry
 
 
 class _Closable:
@@ -221,16 +222,24 @@ def test_duplicate_bindings_and_non_legacy_s1_bindings_are_rejected() -> None:
         root.assert_legacy_only()
 
 
-async def test_s3_composition_root_registers_only_legacy_enabled_factories() -> None:
+async def test_s4_composition_root_registers_validated_food_pack_and_legacy_fallback() -> None:
+    from xhs_food.composition.domain_packs import RegisteredDomainPack
     from xhs_food.composition.legacy_research_task import LegacyResearchTaskFacade
+    from xhs_food.domain_packs.food import FoodPack
 
     root = build_legacy_composition_root()
     try:
         assert root.state is RegistryState.ACTIVE
         assert {name: list(registry.bindings) for name, registry in root.registries.items()} == {
             "foundation": ["xhs_service"],
-            "tools": ["xhs_tool_registry", "schema_tool_gateway"],
-            "sources": ["xhs_compat", "place_compat", "place_tool_compat"],
+            "tools": ["xhs_tool_registry", "food_tool_gateway", "schema_tool_gateway"],
+            "sources": [
+                "xhs_compat",
+                "food_place_capability",
+                "food_reviews_capability",
+                "place_compat",
+                "place_tool_compat",
+            ],
             "models": ["legacy_llm_provider"],
             "repositories": [
                 "session_legacy",
@@ -255,13 +264,21 @@ async def test_s3_composition_root_registers_only_legacy_enabled_factories() -> 
                 "observability",
             ],
             "orchestrators": ["xhs_food_orchestrator"],
+            "domain_packs": ["registry", "food_1_0_0", "food_legacy"],
             "use_cases": ["research_task"],
         }
-        assert all(
-            binding.legacy or not binding.enabled
+        assert {
+            f"{registry.name}.{binding.name}"
             for registry in root.registries.values()
             for binding in registry.bindings.values()
-        )
+            if binding.enabled and not binding.legacy
+        } == {
+            "domain_packs.food_1_0_0",
+            "domain_packs.registry",
+            "sources.food_place_capability",
+            "sources.food_reviews_capability",
+            "tools.food_tool_gateway",
+        }
         logical = root.logical_bindings["modular_core"]
         assert (
             logical.registry_name,
@@ -271,11 +288,49 @@ async def test_s3_composition_root_registers_only_legacy_enabled_factories() -> 
             await root.resolve_logical("modular_core"),
             LegacyResearchTaskFacade,
         )
+        food_binding = root.logical_bindings["food_pack"]
+        assert (food_binding.registry_name, food_binding.binding_name) == (
+            "domain_packs",
+            "food_1_0_0",
+        )
+        registered_food = await root.resolve_logical("food_pack")
+        assert isinstance(registered_food, RegisteredDomainPack)
+        assert isinstance(registered_food.implementation, FoodPack)
 
         tool_registry = await root.resolve("tools", "xhs_tool_registry")
+        assert isinstance(tool_registry, MCPToolRegistry)
         assert tool_registry.list_tools() == ["xhs_search", "xhs_note", "xhs_batch"]
     finally:
         await root.close()
+
+
+async def test_food_pack_selection_is_isolated_between_coexisting_roots(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from xhs_food.composition.adapters.legacy_food import LegacyFoodPackAdapter
+    from xhs_food.composition.domain_packs import RegisteredDomainPack
+
+    monkeypatch.setenv("MODULAR_FOOD_PACK_VERSION", "1.0.0")
+    registered_root = build_legacy_composition_root()
+    monkeypatch.setenv("MODULAR_FOOD_PACK_VERSION", "legacy/v1")
+    legacy_root = build_legacy_composition_root()
+
+    try:
+        registered_pack = await registered_root.resolve_logical("food_pack")
+        legacy_pack = await legacy_root.resolve_logical("food_pack")
+        registered_orchestrator = await registered_root.resolve(
+            "orchestrators", "xhs_food_orchestrator"
+        )
+        legacy_orchestrator = await legacy_root.resolve("orchestrators", "xhs_food_orchestrator")
+
+        registered_executor = getattr(registered_orchestrator, "_search_executor")
+        legacy_executor = getattr(legacy_orchestrator, "_search_executor")
+        assert isinstance(registered_pack, RegisteredDomainPack)
+        assert isinstance(legacy_pack, LegacyFoodPackAdapter)
+        assert getattr(registered_executor, "_food_pack") is registered_pack
+        assert getattr(legacy_executor, "_food_pack") is legacy_pack
+    finally:
+        await asyncio.gather(registered_root.close(), legacy_root.close())
 
 
 async def test_root_closes_registry_instances_in_reverse_registry_order() -> None:

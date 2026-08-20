@@ -7,6 +7,7 @@
     {"prefix": "xhs_food.experience", "layer": "experience", "mode": "target"},
     {"prefix": "xhs_food.gateways", "layer": "gateway", "mode": "target"},
     {"prefix": "xhs_food.foundation", "layer": "target_foundation", "mode": "target"},
+    {"prefix": "xhs_food.domain_packs", "layer": "domain_pack", "mode": "target"},
     {"prefix": "xhs_food.contracts", "layer": "contracts", "mode": "target"},
     {"prefix": "xhs_food.orchestrator", "layer": "orchestrator", "mode": "legacy"},
     {"prefix": "xhs_food.agents", "layer": "orchestrator", "mode": "legacy"},
@@ -29,16 +30,17 @@
     {"prefix": "api", "layer": "experience", "mode": "legacy"}
   ],
   "allowed_internal_edges": {
-    "composition": ["composition", "compatibility_adapter", "contracts", "experience", "gateway", "target_foundation", "orchestrator", "connector", "domain", "foundation", "legacy_composition", "legacy_shell"],
-    "compatibility_adapter": ["compatibility_adapter", "contracts", "gateway", "target_foundation", "connector", "foundation", "legacy_composition", "legacy_shell"],
+    "composition": ["composition", "compatibility_adapter", "contracts", "domain_pack", "experience", "gateway", "target_foundation", "orchestrator", "connector", "domain", "foundation", "legacy_composition", "legacy_shell"],
+    "compatibility_adapter": ["compatibility_adapter", "contracts", "domain_pack", "gateway", "target_foundation", "connector", "domain", "foundation", "legacy_composition", "legacy_shell"],
     "contracts": ["contracts"],
+    "domain_pack": ["contracts", "domain_pack"],
     "experience": ["contracts", "experience"],
     "gateway": ["contracts", "gateway"],
     "target_foundation": ["contracts", "target_foundation"],
-    "orchestrator": ["contracts", "orchestrator"],
+    "orchestrator": ["compatibility_adapter", "contracts", "domain_pack", "orchestrator"],
     "connector": ["connector", "contracts"],
-    "domain": ["contracts", "domain"],
-    "foundation": ["contracts", "foundation"],
+    "domain": ["contracts", "domain", "domain_pack"],
+    "foundation": ["contracts", "domain_pack", "foundation"],
     "legacy_composition": ["contracts", "legacy_composition"],
     "legacy_shell": ["contracts", "legacy_shell"],
     "legacy_script": ["contracts", "legacy_script"]
@@ -50,6 +52,7 @@
     "contracts": ["jsonschema", "pydantic", "pydantic_core", "referencing"],
     "composition": ["dotenv", "fastapi", "loguru", "slowapi", "uvicorn"],
     "compatibility_adapter": ["langchain_core", "pydantic"],
+    "domain_pack": [],
     "gateway": ["pydantic"],
     "target_foundation": ["boto3", "botocore", "opentelemetry", "pydantic", "pydantic_settings", "redis", "sqlalchemy", "temporalio"]
   },
@@ -89,6 +92,7 @@
     "xhs_food.prompts",
     "xhs_food.schemas"
   ],
+  "domain_pack_module_prefix": "xhs_food.domain_packs",
   "forbidden_dependency_packages": [
     "arq",
     "celery",

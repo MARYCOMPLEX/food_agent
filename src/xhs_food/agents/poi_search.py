@@ -1,17 +1,16 @@
-# -*- coding: utf-8 -*-
 """
 POI 搜索 Mixin - 高德地图 POI 搜索相关功能.
 
 从 poi_enricher.py 拆分，包含搜索策略、结果构建和地址处理。
 """
 
-import re
-from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from contextlib import suppress
+from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
 from xhs_food.contracts import PlaceLookupPort
+from xhs_food.domain_packs.food.place import FoodPlacePolicy
 from xhs_food.schemas import RestaurantRecommendation
 
 if TYPE_CHECKING:
@@ -25,8 +24,9 @@ class POISearchMixin:
     """
 
     _place_lookup: PlaceLookupPort
+    _food_place_policy = FoodPlacePolicy()
 
-    async def _search_poi(self, name: str, city: str = "") -> Optional[Dict[str, Any]]:
+    async def _search_poi(self, name: str, city: str = "") -> dict[str, Any] | None:
         """
         搜索店铺 POI 信息（多策略广撒网模式）.
 
@@ -48,68 +48,24 @@ class POISearchMixin:
         logger.debug(f"[POI] 所有策略都未找到: {name}")
         return None
 
-    def _generate_search_variants(self, name: str, city: str) -> List[tuple]:
+    def _generate_search_variants(self, name: str, city: str) -> list[tuple]:
         """
         生成多种搜索变体.
 
         Returns:
             List of (keyword, city, strategy_name)
         """
-        variants = []
-
-        # 策略1: 原始店名 + 指定城市
-        variants.append((name, city, "exact_with_city"))
-
-        # 策略2: 去掉城市前缀（如 "成都贡井清香园" → "贡井清香园"）
-        name_no_city = self._remove_city_prefix(name, city)
-        if name_no_city != name:
-            variants.append((name_no_city, city, "no_city_prefix"))
-
-        # 策略3: 去掉分店后缀（如 "清香园(泰丰店)" → "清香园"）
-        name_no_suffix = self._remove_branch_suffix(name)
-        if name_no_suffix != name:
-            variants.append((name_no_suffix, city, "no_branch_suffix"))
-
-        # 策略4: 去掉城市前缀和分店后缀
-        clean_name = self._remove_branch_suffix(name_no_city)
-        if clean_name != name and clean_name not in [v[0] for v in variants]:
-            variants.append((clean_name, city, "clean_name"))
-
-        # 策略5: 不限城市广搜（最后的兜底）
-        if city:
-            variants.append((name, "", "no_city_limit"))
-
-        return variants
+        return self._food_place_policy.search_variants(name, city)
 
     def _remove_city_prefix(self, name: str, city: str) -> str:
         """去掉店名中的城市前缀."""
-        if not city:
-            return name
-
-        # 常见城市名
-        cities = [
-            city,
-            "北京", "上海", "广州", "深圳", "成都", "重庆", "杭州", "武汉",
-            "西安", "南京", "天津", "苏州", "郑州", "长沙", "东莞", "沈阳",
-            "达州", "自贡", "泸州", "绵阳", "德阳", "宜宾", "南充", "乐山",
-            "蒙自", "昆明", "大理", "丽江",
-        ]
-
-        for c in cities:
-            if name.startswith(c):
-                return name[len(c):]
-
-        return name
+        return self._food_place_policy.remove_city_prefix(name, city)
 
     def _remove_branch_suffix(self, name: str) -> str:
         """去掉分店后缀，如 (泰丰店)、（总店）."""
-        # 匹配括号内的分店名
-        clean = re.sub(r'[\(（][^)）]*[店分部号馆][\)）]$', '', name)
-        # 也处理不带括号的情况，如 "xx总店"
-        clean = re.sub(r'[总分新老][店]$', '', clean)
-        return clean.strip()
+        return self._food_place_policy.remove_branch_suffix(name)
 
-    async def _do_poi_search(self, keywords: str, city: str) -> Optional[Dict[str, Any]]:
+    async def _do_poi_search(self, keywords: str, city: str) -> dict[str, Any] | None:
         """执行单次 POI 搜索."""
         try:
             result = await self._place_lookup.lookup(
@@ -118,16 +74,7 @@ class POISearchMixin:
                 types="050000",  # 餐饮服务
             )
 
-            if not isinstance(result, Mapping) or "error" in result:
-                return None
-
-            pois = result.get("pois", [])
-            if not isinstance(pois, list) or not pois:
-                return None
-
-            # 只取第一个（最匹配的）
-            first = pois[0]
-            return dict(first) if isinstance(first, Mapping) else None
+            return self._food_place_policy.select_place(result)
 
         except Exception as e:
             logger.debug(f"POI search failed: {e}")
@@ -137,7 +84,7 @@ class POISearchMixin:
         self,
         rec: RestaurantRecommendation,
         idx: int,
-        poi: Optional[Dict[str, Any]],
+        poi: dict[str, Any] | None,
     ) -> "EnrichedRestaurant":
         """构建格式化结果."""
         from .poi_enricher import EnrichedRestaurant
@@ -145,7 +92,9 @@ class POISearchMixin:
         # 从 rec 获取新字段
         must_try = [item.to_dict() for item in rec.must_try] if rec.must_try else []
         black_list = [item.to_dict() for item in rec.black_list] if rec.black_list else []
-        stats = rec.stats.to_dict() if rec.stats else {"flavor": "", "cost": "", "wait": "", "env": ""}
+        stats = (
+            rec.stats.to_dict() if rec.stats else {"flavor": "", "cost": "", "wait": "", "env": ""}
+        )
 
         # 使用 LLM 提取的 pros/cons/tags，如果为空则 fallback 到 features
         pros = rec.pros if rec.pros else rec.features[:5] if rec.features else []
@@ -183,10 +132,8 @@ class POISearchMixin:
 
             # 评分
             if poi.get("rating"):
-                try:
+                with suppress(ValueError, TypeError):
                     enriched.rating = float(poi["rating"])
-                except (ValueError, TypeError):
-                    pass
 
             # 图片
             if poi.get("photos"):
@@ -195,13 +142,9 @@ class POISearchMixin:
             # 用高德 POI 数据补充 stats.cost（如果 LLM 没有提取到）
             if poi.get("cost") and not enriched.stats.get("cost"):
                 try:
-                    cost_num = float(poi["cost"])
-                    if cost_num < 30:
-                        enriched.stats["cost"] = "$"
-                    elif cost_num < 80:
-                        enriched.stats["cost"] = "$$"
-                    else:
-                        enriched.stats["cost"] = "$$$"
+                    cost_band = self._food_place_policy.cost_band(poi["cost"])
+                    if cost_band is not None:
+                        enriched.stats["cost"] = cost_band
                 except (ValueError, TypeError):
                     pass
         else:
@@ -217,7 +160,9 @@ class POISearchMixin:
         # 从 rec 获取新字段
         must_try = [item.to_dict() for item in rec.must_try] if rec.must_try else []
         black_list = [item.to_dict() for item in rec.black_list] if rec.black_list else []
-        stats = rec.stats.to_dict() if rec.stats else {"flavor": "", "cost": "", "wait": "", "env": ""}
+        stats = (
+            rec.stats.to_dict() if rec.stats else {"flavor": "", "cost": "", "wait": "", "env": ""}
+        )
 
         # 使用 LLM 提取的 pros/cons/tags
         pros = rec.pros if rec.pros else rec.features[:5] if rec.features else []
@@ -241,28 +186,10 @@ class POISearchMixin:
             stats=stats,
         )
 
-    def _build_address(self, poi: Dict[str, Any]) -> str:
+    def _build_address(self, poi: dict[str, Any]) -> str:
         """构建完整地址."""
-        parts = []
-        for key in ["pname", "cityname", "adname", "address"]:
-            val = poi.get(key)
-            if val and val not in parts:
-                parts.append(val)
-        return "".join(parts)
+        return self._food_place_policy.build_address(poi)
 
-    def _extract_city(self, location: Optional[str]) -> str:
+    def _extract_city(self, location: str | None) -> str:
         """从位置描述提取城市."""
-        if not location:
-            return ""
-
-        cities = [
-            "北京", "上海", "广州", "深圳", "成都", "重庆", "杭州", "武汉",
-            "西安", "南京", "天津", "苏州", "郑州", "长沙", "东莞", "沈阳",
-            "达州", "自贡", "泸州", "绵阳", "德阳", "宜宾", "南充", "乐山",
-        ]
-
-        for city in cities:
-            if city in location:
-                return city
-
-        return ""
+        return self._food_place_policy.extract_city(location)

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -19,6 +21,7 @@ class TargetSettings(BaseSettings):
 
     target_adapters_enabled: bool = False
     database_url: str | None = None
+    food_pack_version: Literal["1.0.0", "legacy/v1"] = "1.0.0"
 
     temporal_address: str = "localhost:7233"
     temporal_namespace: str = "default"

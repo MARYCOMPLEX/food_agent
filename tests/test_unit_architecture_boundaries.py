@@ -359,6 +359,29 @@ def _scan_owner_port_boundary_violations(source_root: Path, policy: dict[str, An
     return violations
 
 
+def _scan_domain_pack_boundary_violations(source_root: Path, policy: dict[str, Any]) -> set[str]:
+    prefix = policy["domain_pack_module_prefix"]
+    violations: set[str] = set()
+
+    for path in sorted(source_root.rglob("*.py")):
+        module = _module_name(path, source_root)
+        if not module.startswith(f"{prefix}."):
+            continue
+        source_pack = module.removeprefix(f"{prefix}.").partition(".")[0]
+        tree = _parse_module(path)
+        for node in ast.walk(tree):
+            for target in _import_targets(module, path, node):
+                if target.module == prefix:
+                    violations.add(f"{module}|domain-pack-aggregate-import|{target.identity}")
+                    continue
+                if not target.module.startswith(f"{prefix}."):
+                    continue
+                target_pack = target.module.removeprefix(f"{prefix}.").partition(".")[0]
+                if target_pack != source_pack:
+                    violations.add(f"{module}|cross-pack-import|{target.identity}")
+    return violations
+
+
 def _import_aliases(module: str, path: Path, tree: ast.Module) -> dict[str, str]:
     aliases: dict[str, str] = {}
     for node in ast.walk(tree):
@@ -578,6 +601,66 @@ def test_s3_target_layers_and_third_party_allowlists_are_explicit() -> None:
     for layer in target_layers:
         assert "*" not in policy["allowed_internal_edges"][layer]
         assert "*" not in policy["target_third_party_allowlist"].get(layer, [])
+
+
+def test_s4_domain_pack_layer_and_boundaries_are_explicit(tmp_path: Path) -> None:
+    policy = _load_policy()
+    rules_by_prefix = {item["prefix"]: item for item in policy["module_layers"]}
+
+    assert rules_by_prefix["xhs_food.domain_packs"] == {
+        "prefix": "xhs_food.domain_packs",
+        "layer": "domain_pack",
+        "mode": "target",
+    }
+    assert set(policy["allowed_internal_edges"]["domain_pack"]) == {
+        "contracts",
+        "domain_pack",
+    }
+    assert "domain_pack" in policy["allowed_internal_edges"]["composition"]
+    assert policy["target_third_party_allowlist"]["domain_pack"] == []
+    assert not _scan_domain_pack_boundary_violations(SRC, policy)
+
+    allowed = tmp_path / "xhs_food/domain_packs/food/model.py"
+    allowed.parent.mkdir(parents=True)
+    allowed.write_text(
+        "from xhs_food.contracts import DomainPackManifest\n"
+        "from .resources import load_food_manifest\n",
+        encoding="utf-8",
+    )
+    assert not _scan_import_violations(tmp_path, policy)
+    assert not _scan_domain_pack_boundary_violations(tmp_path, policy)
+
+    forbidden = tmp_path / "xhs_food/domain_packs/food/bad.py"
+    forbidden.write_text(
+        "import pydantic\n"
+        "from xhs_food.foundation import RedisStateStore\n"
+        "from xhs_food.gateways import XHSSourceConnector\n"
+        "from xhs_food.orchestrator import XHSFoodOrchestrator\n"
+        "from xhs_food.services import LLMService\n",
+        encoding="utf-8",
+    )
+    assert _scan_import_violations(tmp_path, policy) == {
+        "xhs_food.domain_packs.food.bad|domain_pack->foundation|xhs_food.services.LLMService",
+        "xhs_food.domain_packs.food.bad|domain_pack->gateway|xhs_food.gateways.XHSSourceConnector",
+        "xhs_food.domain_packs.food.bad|domain_pack->orchestrator|"
+        "xhs_food.orchestrator.XHSFoodOrchestrator",
+        "xhs_food.domain_packs.food.bad|domain_pack->target_foundation|"
+        "xhs_food.foundation.RedisStateStore",
+        "xhs_food.domain_packs.food.bad|domain_pack->third_party|pydantic",
+    }
+
+    cross_pack = tmp_path / "xhs_food/domain_packs/food/cross_pack.py"
+    cross_pack.write_text(
+        "from xhs_food.domain_packs.travel import TravelPack\n"
+        "from xhs_food.domain_packs import load_travel_manifest\n",
+        encoding="utf-8",
+    )
+    assert _scan_domain_pack_boundary_violations(tmp_path, policy) == {
+        "xhs_food.domain_packs.food.cross_pack|cross-pack-import|"
+        "xhs_food.domain_packs.travel.TravelPack",
+        "xhs_food.domain_packs.food.cross_pack|domain-pack-aggregate-import|"
+        "xhs_food.domain_packs.load_travel_manifest",
+    }
 
 
 def test_forbidden_frameworks_are_not_declared_locked_or_imported(

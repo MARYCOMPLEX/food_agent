@@ -76,6 +76,9 @@ dev = [
     "pyright>=1.1.350",
 ]
 
+[project.entry-points."food_agent.domain_packs"]
+food = "xhs_food.domain_packs.food:create_food_pack"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

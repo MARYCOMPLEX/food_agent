@@ -12,9 +12,19 @@ AnalyzerAgent - 内容分析代理 (重构版).
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from xhs_food.common import extract_json
+from xhs_food.domain_packs.food.decision import FoodDecisionPolicy
+from xhs_food.domain_packs.food.preprocessing import (
+    format_comments_for_llm,
+    preprocess_comments,
+)
+from xhs_food.domain_packs.food.scoring import (
+    ShopScore,
+    calculate_scores,
+    get_top_shops,
+)
 from xhs_food.prompts import (
     COMMENT_ANALYSIS_SYSTEM_PROMPT,
     COMMENT_ANALYSIS_USER_PROMPT,
@@ -24,28 +34,21 @@ from xhs_food.schemas import (
     WanghongAnalysis,
     WanghongScore,
 )
-from xhs_food.services.preprocessing import (
-    preprocess_comments,
-    format_comments_for_llm,
-)
-from xhs_food.services.scoring import (
-    ShopScore,
-    calculate_scores,
-    get_top_shops,
-)
 
 logger = logging.getLogger(__name__)
+_FOOD_DECISION = FoodDecisionPolicy()
 
 
 class AnalyzeResult:
     """分析结果."""
+
     def __init__(
         self,
         success: bool,
-        restaurants: Optional[List[RestaurantRecommendation]] = None,
-        shop_scores: Optional[Dict[str, ShopScore]] = None,
+        restaurants: list[RestaurantRecommendation] | None = None,
+        shop_scores: dict[str, ShopScore] | None = None,
         raw_output: str = "",
-        error: Optional[str] = None,
+        error: str | None = None,
     ):
         self.success = success
         self.restaurants = restaurants or []
@@ -64,13 +67,14 @@ class AnalyzerAgent:
     3. calculate_scores()   -> ShopScore[] (精确计算)
     """
 
-    def __init__(self, llm_service: Optional[Any] = None) -> None:
+    def __init__(self, llm_service: Any | None = None) -> None:
         self._llm_service = llm_service
 
     async def _get_llm_service(self) -> Any:
         """懒加载 LLM 服务."""
         if self._llm_service is None:
             from xhs_food.services.llm_service import LLMService
+
             self._llm_service = LLMService()
         return self._llm_service
 
@@ -78,21 +82,19 @@ class AnalyzerAgent:
         self,
         title: str,
         content: str,
-        comments: List[Any],
-        exclude_keywords: List[str],
+        comments: list[Any],
+        exclude_keywords: list[str],
         note_id: str = "",
     ) -> AnalyzeResult:
         """分析笔记内容和评论 (入口方法)."""
-        return await self._analyze_pipeline(
-            title, content, comments, exclude_keywords, note_id
-        )
+        return await self._analyze_pipeline(title, content, comments, exclude_keywords, note_id)
 
     async def _analyze_pipeline(
         self,
         title: str,
         content: str,
-        comments: List[Any],
-        exclude_keywords: List[str],
+        comments: list[Any],
+        exclude_keywords: list[str],
         note_id: str = "",
     ) -> AnalyzeResult:
         """
@@ -126,17 +128,15 @@ class AnalyzerAgent:
             # 格式化评论供 LLM 分析
             comments_text = format_comments_for_llm(processed)
 
-            from langchain_core.messages import SystemMessage, HumanMessage
+            from langchain_core.messages import HumanMessage, SystemMessage
 
             messages = [
                 SystemMessage(content=COMMENT_ANALYSIS_SYSTEM_PROMPT),
-                HumanMessage(content=COMMENT_ANALYSIS_USER_PROMPT.format(
-                    comments=comments_text
-                )),
+                HumanMessage(content=COMMENT_ANALYSIS_USER_PROMPT.format(comments=comments_text)),
             ]
 
             response = await llm.call(messages)
-            raw_output = response.content if hasattr(response, 'content') else str(response)
+            raw_output = response.content if hasattr(response, "content") else str(response)
 
             parsed = extract_json(raw_output)
             if parsed is None:
@@ -158,12 +158,12 @@ class AnalyzerAgent:
             # 不限制数量，返回所有满足条件的店铺
             top_shops = get_top_shops(shop_scores, min_mentions=1, top_n=999)
 
-            logger.info(f"Stage 3: 计分完成, 识别 {len(shop_scores)} 家店铺, 返回 {len(top_shops)} 家")
+            logger.info(
+                f"Stage 3: 计分完成, 识别 {len(shop_scores)} 家店铺, 返回 {len(top_shops)} 家"
+            )
 
             # 转换为 RestaurantRecommendation 格式
-            restaurants = self._convert_to_recommendations(
-                top_shops, note_id, exclude_keywords
-            )
+            restaurants = self._convert_to_recommendations(top_shops, note_id, exclude_keywords)
 
             return AnalyzeResult(
                 success=True,
@@ -179,7 +179,7 @@ class AnalyzerAgent:
                 error=str(e),
             )
 
-    def _normalize_comments(self, comments: List[Any]) -> List[Dict[str, Any]]:
+    def _normalize_comments(self, comments: list[Any]) -> list[dict[str, Any]]:
         """将评论统一转换为字典格式."""
         normalized = []
         for c in comments:
@@ -193,65 +193,34 @@ class AnalyzerAgent:
 
     def _convert_to_recommendations(
         self,
-        shops: List[ShopScore],
+        shops: list[ShopScore],
         note_id: str,
-        exclude_keywords: List[str],
-    ) -> List[RestaurantRecommendation]:
+        exclude_keywords: list[str],
+    ) -> list[RestaurantRecommendation]:
         """将 ShopScore 转换为 RestaurantRecommendation."""
         recommendations = []
 
         for shop in shops:
-            # 检查是否应被排除
-            should_exclude = any(
-                kw.lower() in shop.name.lower()
-                for kw in exclude_keywords
-            )
-
-            # 基于得分判断网红程度
-            if shop.local_signal_count >= 2 and shop.total_score > 10:
-                wh_score = WanghongScore.DEFINITELY_LOCAL
-                confidence = 0.9
-            elif shop.local_signal_count >= 1 and shop.total_score > 5:
-                wh_score = WanghongScore.LIKELY_LOCAL
-                confidence = 0.75
-            elif shop.negative_count > shop.positive_count:
-                wh_score = WanghongScore.LIKELY_WANGHONG
-                confidence = 0.6
-            else:
-                wh_score = WanghongScore.UNKNOWN
-                confidence = 0.5
+            decision = _FOOD_DECISION.assess_shop(shop, exclude_keywords)
+            wh_score = WanghongScore(decision.score)
 
             wanghong = WanghongAnalysis(
                 score=wh_score,
-                confidence=confidence,
-                reasons=shop.reasons,
-                has_local_mentions=shop.local_signal_count > 0,
+                confidence=decision.confidence,
+                reasons=list(decision.reasons),
+                has_local_mentions=decision.has_local_mentions,
                 has_years_mentioned=False,  # 暂不支持
             )
-
-            is_recommended = (
-                not should_exclude and
-                wh_score not in (
-                    WanghongScore.DEFINITELY_WANGHONG,
-                    WanghongScore.LIKELY_WANGHONG,
-                )
-            )
-
-            filter_reason = None
-            if should_exclude:
-                filter_reason = "匹配用户排除关键词"
-            elif not is_recommended:
-                filter_reason = f"判定为网红店: {', '.join(shop.reasons[:2])}"
 
             rec = RestaurantRecommendation(
                 name=shop.name,
                 location=None,
                 features=[f"评论权重得分: {shop.total_score:.1f}"] + shop.reasons,
                 source_notes=[note_id] if note_id else [],
-                confidence=confidence,
+                confidence=decision.confidence,
                 wanghong_analysis=wanghong,
-                is_recommended=is_recommended,
-                filter_reason=filter_reason,
+                is_recommended=decision.is_recommended,
+                filter_reason=decision.filter_reason,
             )
             recommendations.append(rec)
 

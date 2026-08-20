@@ -12,6 +12,7 @@ from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from types import MappingProxyType
+from typing import cast
 
 AdapterFactory = Callable[[], object | Awaitable[object]]
 
@@ -203,12 +204,14 @@ class CompositionRoot:
             raise KeyError(f"unknown logical binding: {name}") from exc
         return await self.resolve(binding.registry_name, binding.binding_name)
 
-    def assert_legacy_only(self) -> None:
+    def assert_legacy_only(self, allowed_non_legacy: frozenset[str] = frozenset()) -> None:
         non_legacy = [
             f"{registry.name}.{binding.name}"
             for registry in self._registries.values()
             for binding in registry.bindings.values()
-            if binding.enabled and not binding.legacy
+            if binding.enabled
+            and not binding.legacy
+            and f"{registry.name}.{binding.name}" not in allowed_non_legacy
         ]
         if non_legacy:
             raise RuntimeError(f"enabled non-legacy bindings are forbidden in S3: {non_legacy}")
@@ -241,7 +244,7 @@ class DisabledBindingError(RuntimeError):
 
 
 def build_legacy_composition_root() -> CompositionRoot:
-    """Create the S3 root with legacy behavior and disabled target adapters."""
+    """Create the compatibility root with an atomically validated Food Pack."""
 
     from xhs_food.agents.poi_enricher import (
         configure_poi_place_cache_factory,
@@ -264,9 +267,19 @@ def build_legacy_composition_root() -> CompositionRoot:
         build_place_tool,
         build_xhs_source_connector,
     )
+    from xhs_food.composition.adapters.food_tools import build_food_tool_gateway
+    from xhs_food.composition.adapters.legacy_food import LegacyFoodPackAdapter
+    from xhs_food.composition.domain_packs import (
+        DomainPackRegistry,
+        capability_snapshots,
+        discover_allowlisted_domain_packs,
+    )
     from xhs_food.composition.legacy_research_task import LegacyResearchTaskFacade
     from xhs_food.config import get_settings
+    from xhs_food.contracts import DomainContract
     from xhs_food.di import factories as legacy
+    from xhs_food.domain_packs.food import load_food_contract_resources
+    from xhs_food.domain_packs.food.pack import FoodBehavior
     from xhs_food.foundation import (
         Boto3ObjectStore,
         ObservabilityBootstrap,
@@ -280,10 +293,48 @@ def build_legacy_composition_root() -> CompositionRoot:
     from xhs_food.gateways import SchemaToolGateway
     from xhs_food.services import LLMService, get_session_manager, get_user_storage_service
 
+    discovered_food_factories = discover_allowlisted_domain_packs(("food",))
+    if len(discovered_food_factories) != 1:
+        raise RuntimeError(
+            "Food Domain Pack discovery must return exactly one allow-listed factory; "
+            f"found {len(discovered_food_factories)}"
+        )
+    food_pack_factory = discovered_food_factories[0]
+    if not callable(food_pack_factory):
+        raise RuntimeError("Food Domain Pack entry point must load a callable factory")
+    food_pack_candidate = food_pack_factory()
+
     place_cache_repository = LegacyPlaceCacheRepositoryAdapter(get_user_storage_service)
     configure_poi_place_lookup_factory(build_place_tool)
     configure_poi_place_cache_factory(lambda: place_cache_repository)
-    owner_config = build_owner_config(get_settings(), TargetSettings())
+    target_settings = TargetSettings()
+    owner_config = build_owner_config(get_settings(), target_settings)
+
+    food_gateway, food_providers = build_food_tool_gateway(
+        build_place_tool(),
+        legacy.get_xhs_tool_registry().get_required("xhs_search"),
+    )
+    tool_capabilities, source_capabilities = capability_snapshots(food_providers)
+    domain_pack_registry = DomainPackRegistry(
+        core_version="1.0.0",
+        tool_capabilities=tool_capabilities,
+        source_capabilities=source_capabilities,
+    )
+    food_manifest, food_schema_bundle = load_food_contract_resources()
+    registered_food = domain_pack_registry.register_or_raise(
+        food_manifest,
+        cast(DomainContract, food_pack_candidate),
+        food_schema_bundle,
+    )
+    food_implementation = registered_food.implementation
+    if not isinstance(food_implementation, FoodBehavior):
+        raise RuntimeError("registered Food Pack does not expose Food behavior policies")
+    legacy_food_behavior = LegacyFoodPackAdapter()
+    selected_food_behavior: FoodBehavior = (
+        cast(FoodBehavior, registered_food)
+        if target_settings.food_pack_version == food_manifest.pack_version
+        else legacy_food_behavior
+    )
 
     def legacy_llm_provider() -> LegacyLLMProviderAdapter:
         view = owner_config.model
@@ -394,6 +445,14 @@ def build_legacy_composition_root() -> CompositionRoot:
     )
     root.registry("tools").register(
         AdapterBinding(
+            name="food_tool_gateway",
+            contract_version="food-tools/v1",
+            factory=lambda: food_gateway,
+            legacy=False,
+        )
+    )
+    root.registry("tools").register(
+        AdapterBinding(
             name="schema_tool_gateway",
             contract_version="tool-gateway/v1",
             factory=lambda: SchemaToolGateway(()),
@@ -408,6 +467,22 @@ def build_legacy_composition_root() -> CompositionRoot:
             contract_version="xhs-connector/v1",
             factory=build_xhs_source_connector,
             legacy=True,
+        )
+    )
+    sources.register(
+        AdapterBinding(
+            name="food_place_capability",
+            contract_version="1.0.0",
+            factory=lambda: food_providers[0],
+            legacy=False,
+        )
+    )
+    sources.register(
+        AdapterBinding(
+            name="food_reviews_capability",
+            contract_version="1.0.0",
+            factory=lambda: food_providers[1],
+            legacy=False,
         )
     )
     sources.register(
@@ -500,7 +575,32 @@ def build_legacy_composition_root() -> CompositionRoot:
         AdapterBinding(
             name="xhs_food_orchestrator",
             contract_version="legacy/v1",
-            factory=legacy.get_xhs_food_orchestrator,
+            factory=lambda: legacy.get_xhs_food_orchestrator(food_pack=selected_food_behavior),
+            legacy=True,
+        )
+    )
+    packs = root.registry("domain_packs")
+    packs.register(
+        AdapterBinding(
+            name="registry",
+            contract_version="domain-pack-registry/v1",
+            factory=lambda: domain_pack_registry,
+            legacy=False,
+        )
+    )
+    packs.register(
+        AdapterBinding(
+            name="food_1_0_0",
+            contract_version="1.0.0",
+            factory=lambda: registered_food,
+            legacy=False,
+        )
+    )
+    packs.register(
+        AdapterBinding(
+            name="food_legacy",
+            contract_version="legacy/v1",
+            factory=lambda: legacy_food_behavior,
             legacy=True,
         )
     )
@@ -517,7 +617,26 @@ def build_legacy_composition_root() -> CompositionRoot:
         registry_name="use_cases",
         binding_name="research_task",
     )
-    root.assert_legacy_only()
+    root.bind_logical(
+        "food_pack",
+        registry_name="domain_packs",
+        binding_name=(
+            "food_1_0_0"
+            if target_settings.food_pack_version == food_manifest.pack_version
+            else "food_legacy"
+        ),
+    )
+    root.assert_legacy_only(
+        frozenset(
+            {
+                "domain_packs.food_1_0_0",
+                "domain_packs.registry",
+                "sources.food_place_capability",
+                "sources.food_reviews_capability",
+                "tools.food_tool_gateway",
+            }
+        )
+    )
     root.activate()
     return root
 

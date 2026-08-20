@@ -1,24 +1,33 @@
-"""Stable prompt imports backed by the Food Domain Pack."""
+"""Prompts module exports.
 
-from xhs_food.domain_packs.food.prompts import (
+Public surface is preserved across the per-agent split:
+    from xhs_food.prompts import INTENT_PARSER_SYSTEM_PROMPT_ZH, ...
+all still resolve via re-exports below.
+"""
+
+from __future__ import annotations
+
+from .analyzer import (
     ANALYZER_INSTRUCTION_ZH,
     ANALYZER_SYSTEM_PROMPT_ZH,
     ANALYZER_USER_PROMPT_TEMPLATE,
     COMMENT_ANALYSIS_SYSTEM_PROMPT,
     COMMENT_ANALYSIS_USER_PROMPT,
-    COMMENT_WEIGHT_SYSTEM,
+)
+from .follow_up import FOLLOW_UP_PROCESSING_PROMPT
+from .intent import INTENT_PARSER_INSTRUCTION_ZH, INTENT_PARSER_SYSTEM_PROMPT_ZH
+from .methodology import (
     CORE_METHODOLOGY,
-    CROSS_VALIDATION_STANDARDS,
     EXECUTION_CHECKLIST,
-    FOLLOW_UP_PROCESSING_PROMPT,
-    INTENT_PARSER_INSTRUCTION_ZH,
-    INTENT_PARSER_SYSTEM_PROMPT_ZH,
     LOCAL_SIGNAL_PATTERNS,
-    ORCHESTRATOR_SYSTEM_PROMPT,
-    REPORT_GENERATION_PROMPT,
-    SEARCH_STRATEGY_4_STAGES,
     SPECIAL_SCENARIOS,
     WANGHONG_SIGNAL_PATTERNS,
+)
+from .orchestrator import ORCHESTRATOR_SYSTEM_PROMPT, REPORT_GENERATION_PROMPT
+from .strategy import (
+    COMMENT_WEIGHT_SYSTEM,
+    CROSS_VALIDATION_STANDARDS,
+    SEARCH_STRATEGY_4_STAGES,
 )
 
 __all__ = [

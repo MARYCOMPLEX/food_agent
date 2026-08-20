@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import time
 from copy import deepcopy
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 from xhs_food.agents.analyzer import AnalyzerAgent
 from xhs_food.agents.intent_parser import IntentParserAgent
@@ -36,6 +36,7 @@ from xhs_food.schemas import (
 )
 
 if TYPE_CHECKING:
+    from xhs_food.domain_packs.food.pack import FoodBehavior
     from xhs_food.events.emitter import SearchEventEmitter
 
 logger = logging.getLogger(__name__)
@@ -44,6 +45,7 @@ logger = logging.getLogger(__name__)
 def _build_default_xhs_registry() -> MCPToolRegistry:
     """Lazy import to avoid pulling the di package into module-load order."""
     from xhs_food.di.factories import get_xhs_tool_registry
+
     return get_xhs_tool_registry()
 
 
@@ -53,14 +55,14 @@ class XHSFoodOrchestrator:
     def __init__(
         self,
         *,
-        xhs_registry: Optional[MCPToolRegistry] = None,
+        xhs_registry: MCPToolRegistry | None = None,
         llm_service: Any = None,
-        intent_parser: Optional[IntentParserAgent] = None,
-        analyzer: Optional[AnalyzerAgent] = None,
-        follow_up_handler: Optional[FollowUpHandler] = None,
-        search_executor: Optional[SearchExecutor] = None,
-        deep_search: Optional[bool] = None,
-        fast_mode_limit: Optional[int] = None,
+        intent_parser: IntentParserAgent | None = None,
+        analyzer: AnalyzerAgent | None = None,
+        follow_up_handler: FollowUpHandler | None = None,
+        search_executor: SearchExecutor | None = None,
+        deep_search: bool | None = None,
+        fast_mode_limit: int | None = None,
     ) -> None:
         self._llm_service = llm_service
         self._deep_search = settings.search_deep_mode if deep_search is None else deep_search
@@ -71,7 +73,11 @@ class XHSFoodOrchestrator:
         self._max_restaurants = settings.search_max_restaurants
         self._analyze_concurrency = settings.analyze_concurrency
         self._poi_concurrency = settings.poi_concurrency
-        self._context = ConversationContext()
+        self._context = (
+            search_executor.context
+            if isinstance(search_executor, SearchExecutor)
+            else ConversationContext()
+        )
 
         # Eager dependency wiring with caller overrides.
         self._xhs_registry: MCPToolRegistry = (
@@ -83,9 +89,7 @@ class XHSFoodOrchestrator:
             else IntentParserAgent(llm_service=self._llm_service)
         )
         self._analyzer: AnalyzerAgent = (
-            analyzer
-            if analyzer is not None
-            else AnalyzerAgent(llm_service=self._llm_service)
+            analyzer if analyzer is not None else AnalyzerAgent(llm_service=self._llm_service)
         )
         self._follow_up_handler: FollowUpHandler = (
             follow_up_handler
@@ -105,6 +109,34 @@ class XHSFoodOrchestrator:
                 max_restaurants=self._max_restaurants,
                 analyze_concurrency=self._analyze_concurrency,
             )
+        )
+
+    @classmethod
+    def with_food_pack(
+        cls,
+        *,
+        xhs_registry: MCPToolRegistry,
+        food_pack: FoodBehavior,
+    ) -> XHSFoodOrchestrator:
+        """Construct an orchestrator whose executor is pinned to one Food Pack."""
+
+        context = ConversationContext()
+        analyzer = AnalyzerAgent()
+        executor = SearchExecutor(
+            xhs_registry=xhs_registry,
+            analyzer=analyzer,
+            context=context,
+            deep_search=settings.search_deep_mode,
+            fast_mode_limit=settings.search_note_limit,
+            notes_per_keyword=settings.search_notes_per_keyword,
+            max_restaurants=settings.search_max_restaurants,
+            analyze_concurrency=settings.analyze_concurrency,
+            food_pack=food_pack,
+        )
+        return cls(
+            xhs_registry=xhs_registry,
+            analyzer=analyzer,
+            search_executor=executor,
         )
 
     def reset_context(self) -> None:
@@ -185,7 +217,7 @@ class XHSFoodOrchestrator:
         response = await self.process(user_input)
         return self._record_response(response)
 
-    async def search_stream(self, user_input: str, emitter: "SearchEventEmitter") -> None:
+    async def search_stream(self, user_input: str, emitter: SearchEventEmitter) -> None:
         """流式搜索（支持 SSE 推送），通过 emitter 发射中间步骤和结果。"""
         self._context.add_user_message(user_input)
         emitter.init_steps(user_input)
@@ -212,12 +244,18 @@ class XHSFoodOrchestrator:
                 await emitter.step_error("step1", parse_result.error or "意图解析失败")
                 await emitter.emit_error(parse_result.error or "意图解析失败")
                 return
-            self._context.target_city = parse_result.intent.location
-            await emitter.step_done("step1", f"意图: {parse_result.intent.location} {parse_result.intent.food_type or ''}", {
-                "intent": parse_result.intent.to_dict() if parse_result.intent else None,
-            })
-            await emitter.step_start("step2", "搜索小红书笔记...")
             intent = parse_result.intent
+            if intent is None:
+                raise IntentError("意图解析成功但缺少结构化结果")
+            self._context.target_city = intent.location
+            await emitter.step_done(
+                "step1",
+                f"意图: {intent.location} {intent.food_type or ''}",
+                {
+                    "intent": intent.to_dict(),
+                },
+            )
+            await emitter.step_start("step2", "搜索小红书笔记...")
             self._search_executor.reset_cache()
 
             all_notes = await self._search_executor.execute_4_stage_search(intent)
@@ -234,9 +272,9 @@ class XHSFoodOrchestrator:
                 f"分析评论内容（{len(all_notes)} 篇，并发 {self._analyze_concurrency}）...",
             )
 
-            all_restaurants: List[RestaurantRecommendation] = (
-                await self._search_executor.analyze_notes_concurrent(all_notes, intent)
-            )
+            all_restaurants: list[
+                RestaurantRecommendation
+            ] = await self._search_executor.analyze_notes_concurrent(all_notes, intent)
 
             await emitter.step_done("step3", f"识别到 {len(all_restaurants)} 家店铺")
 
@@ -253,8 +291,10 @@ class XHSFoodOrchestrator:
                     filtered_count += 1
 
             if len(recommendations) > self._max_restaurants:
-                logger.info(f"  店铺数量 {len(recommendations)} 超过上限 {self._max_restaurants}，截取")
-                recommendations = recommendations[:self._max_restaurants]
+                logger.info(
+                    f"  店铺数量 {len(recommendations)} 超过上限 {self._max_restaurants}，截取"
+                )
+                recommendations = recommendations[: self._max_restaurants]
 
             await emitter.step_done("step4", f"筛选出 {len(recommendations)} 家推荐")
 
@@ -278,7 +318,9 @@ class XHSFoodOrchestrator:
             )
 
             await emitter.step_done("step6", response.summary)
-            await emitter.emit_result(response.summary, len(recommendations), response.filtered_count)
+            await emitter.emit_result(
+                response.summary, len(recommendations), response.filtered_count
+            )
             await emitter.emit_done()
 
             self._record_response(response)
@@ -312,7 +354,7 @@ class XHSFoodOrchestrator:
     async def _stream_poi_enrich(
         self,
         recommendations: list,
-        emitter: "SearchEventEmitter",
+        emitter: SearchEventEmitter,
     ) -> None:
         """流式 POI 补充（已弃用，保留兼容）."""
         from xhs_food.agents import get_poi_enricher
@@ -339,7 +381,7 @@ class XHSFoodOrchestrator:
         self,
         user_input: str,
         *,
-        conversation_history: Optional[List[Dict[str, Any]]] = None,
+        conversation_history: list[dict[str, Any]] | None = None,
     ) -> XHSFoodResponse:
         """处理用户请求，返回美食推荐（主入口方法）."""
         self._context.add_user_message(user_input)

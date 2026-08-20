@@ -92,15 +92,15 @@
 
 ## 6. S4 Food Pack And Decision Extraction
 
-- [ ] 6.1 根据已批准 Domain Contract 创建 Food Pack manifest，并声明实体、关系、证据、特征、评分、Agent final output、来源、allowed tools 及其 input/output schema、覆盖度和停止条件。
-- [ ] 6.2 把 Food intent schema、领域词汇和相关 prompts 放到 Food Pack 后，同时保留 `FoodSearchIntent` compatibility facade。
-- [ ] 6.3 把四阶段关键词和 Food 停止规则放到 Pack/workflow adapter 后，保持调用序列和 fast/deep 结果。
-- [ ] 6.4 把评论有效性、网红识别、本地性特征和评分策略从通用 Orchestrator 分离到 Food Pack/Decision ports。
-- [ ] 6.5 将 POI 网络采集保持在 Place SourceConnector/Evidence 边界，只把 POI Evidence 的店名匹配、实体消歧和公共 Food feature 投影放到 Knowledge & Decision facade，不改变当前排序。
-- [ ] 6.6 实现 Food OutputSchema adapter 到旧 Restaurant/XHSFoodResponse DTO 和前端 renderer contract。
-- [ ] 6.7 注册 Food Pack allowed tools，验证 malformed tool input/output/final-output schema 会阻止激活或执行，并验证 Pack 无 Agent、queue、storage driver 或平台内部依赖。
-- [ ] 6.8 对旧 workflow 与 Food Pack facade 运行固定 fixture differential tests，要求批准的关键词、Top-K、评分和 DTO 等价。
-- [ ] 6.9 增加按 Pack version 回绑 legacy Food adapter 的开关和 runbook。
+- [x] 6.1 根据已批准 Domain Contract 创建 Food Pack manifest，并声明实体、关系、证据、特征、评分、Agent final output、来源、allowed tools 及其 input/output schema、覆盖度和停止条件。
+- [x] 6.2 把 Food intent schema、领域词汇和相关 prompts 放到 Food Pack 后，同时保留 `FoodSearchIntent` compatibility facade。
+- [x] 6.3 把四阶段关键词和 Food 停止规则放到 Pack/workflow adapter 后，保持调用序列和 fast/deep 结果。
+- [x] 6.4 把评论有效性、网红识别、本地性特征和评分策略从通用 Orchestrator 分离到 Food Pack/Decision ports。
+- [x] 6.5 将 POI 网络采集保持在 Place SourceConnector/Evidence 边界，只把 POI Evidence 的店名匹配、实体消歧和公共 Food feature 投影放到 Knowledge & Decision facade，不改变当前排序。
+- [x] 6.6 实现 Food OutputSchema adapter 到旧 Restaurant/XHSFoodResponse DTO 和前端 renderer contract。
+- [x] 6.7 注册 Food Pack allowed tools，验证 malformed tool input/output/final-output schema 会阻止激活或执行，并验证 Pack 无 Agent、queue、storage driver 或平台内部依赖。
+- [x] 6.8 对旧 workflow 与 Food Pack facade 运行固定 fixture differential tests，要求批准的关键词、Top-K、评分和 DTO 等价。
+- [x] 6.9 增加按 Pack version 回绑 legacy Food adapter 的开关和 runbook。
 - [ ] 6.10 演练 Food Pack 注销/回绑且其他 facade 不变；将 S4 作为独立提交。
 
 ## 7. S5 Shared Research Skeleton
