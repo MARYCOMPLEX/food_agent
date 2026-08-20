@@ -88,7 +88,7 @@
 - [x] 5.14 更新架构检查，禁止 Orchestrator 导入 spider/Amap/数据库/Redis/Temporal/boto3，禁止 Foundation 导入 Food 类型，并禁止 Agent、Pack 或 repository 绕过 owner port。
 - [x] 5.15 扫描依赖图并拒绝核心路径出现 ARQ、Celery、LangGraph、OpenAI Agents SDK、LiteLLM、Mem0、Zep 或第二套数据库连接池。
 - [x] 5.16 验证目标 Redis contract 不暴露分布式锁/Redlock、租约或 durable task-state API；single-flight 必须由 Temporal Workflow ID 表达，事实提交竞争由 PostgreSQL CAS 处理。
-- [ ] 5.17 演练 Composition Root 逐 adapter 回绑旧实现；将 S3 作为独立提交且不迁移 schema、不启用目标 runtime。
+- [x] 5.17 演练 Composition Root 逐 adapter 回绑旧实现；将 S3 作为独立提交且不迁移 schema、不启用目标 runtime。
 
 ## 6. S4 Food Pack And Decision Extraction
 

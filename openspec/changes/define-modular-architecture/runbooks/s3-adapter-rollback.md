@@ -124,7 +124,7 @@ isolated detached worktree with LF-preserving checkout settings:
 
 ```powershell
 $S2_BASE = "82bce06932a6689d61f7d64c054f84acbc57f7ad"
-$S3_IMPLEMENTATION_COMMIT = "PENDING_ROOT_AGENT_FILL"
+$S3_IMPLEMENTATION_COMMIT = "65c9cc978b9a3225e2f48c4587820ebb52a8edfb"
 $repo = (git -c core.autocrlf=false rev-parse --show-toplevel).Trim()
 if ($LASTEXITCODE -ne 0) { throw "cannot resolve repository root" }
 $drill = Join-Path (Split-Path $repo -Parent) "food-agent-s3-revert-drill"

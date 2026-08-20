@@ -2,9 +2,9 @@
 
 Date: 2026-08-21
 
-Evidence status: implementation gates complete; the implementation commit and
-detached-worktree revert evidence remain pending and must be filled in before
-task `5.17` is closed.
+Evidence status: complete. The implementation commit is pushed and the
+detached-worktree revert restored the exact S2 tree with all required checks
+passing.
 
 ## Scope
 
@@ -23,8 +23,9 @@ import or root construction, or enable a new Redis/OTel runtime.
 The S2 base revision is
 `82bce06932a6689d61f7d64c054f84acbc57f7ad`.
 
-- S3 implementation revision: **PENDING ROOT AGENT FILL**
-- Detached revert revision: **PENDING ROOT AGENT FILL**
+- S3 implementation revision:
+  `65c9cc978b9a3225e2f48c4587820ebb52a8edfb`
+- Detached revert revision: `05f158a1331558f94f3056222c463b3cca3e06b9`
 
 ## Adapter And Binding Inventory
 
@@ -168,6 +169,7 @@ and therefore do not justify closing task `1.13` from S3 evidence alone.
 | Redis idempotency/rate-limit contention and expiry | Exactly one idempotency claim wins; fixed-window allowed/remaining/retry-after values and key expiry are stable without exposing a lease | `tests/test_unit_s3_redis_contract.py` |
 | Temporal duplicate queue names, disabled connect/start, unordered nested input | Duplicate queues fail validation; disabled calls perform no client I/O; serialized input is deterministic | `tests/test_unit_s3_foundation_adapters.py` |
 | Object missing, upload contention, lazy lifecycle, invalid object key | Stable missing behavior, bounded upload concurrency, content hash, explicit close, and opaque key validation | `tests/test_unit_object_store_adapter.py` |
+| Concurrent registry first resolve, factory failure, resolve/close race, and close failure | First construction is single-flight, failed construction remains retryable, close waits for in-flight construction, independent close failures are aggregated without skipping later instances/registries, and a later close retries only failed instances. | `tests/test_unit_composition_root.py` |
 | Sensitive/high-cardinality observability attributes | IDs are hashed, private/free text is dropped, unapproved metric labels are rejected, and instrumentation is idempotent | `tests/test_unit_s3_foundation_adapters.py` |
 | No-note direct/stream/read-view divergence and optional POI failure | ADR-0010 projections remain exactly separated through direct Python, streaming, outer status/results/recover, and result events | `tests/test_unit_s3_legacy_projection_matrix.py` |
 
@@ -257,12 +259,12 @@ the final S3 implementation tree.
 |---|---|
 | Python/uv runtime and `uv sync --frozen --extra dev --python 3.12` | Passed on Windows x86_64 with Python 3.12.0 and uv 0.11.14; 115 installed packages checked |
 | `uv lock --check` and locked package count | Passed; 117 locked packages resolved |
-| Focused S3 suite count/duration | 153 passed in 27.41s |
-| Complete non-live S0-S3 suite count/deselections/warnings/duration | 652 passed, 5 deselected, 2 pre-existing `PytestReturnNotNoneWarning` warnings in 64.75s |
-| Ruff check and format check | Passed; all checks passed and 45 files already formatted |
+| Focused S3 suite count/duration | 158 passed in 15.84s |
+| Complete non-live S0-S3 suite count/deselections/warnings/duration | 657 passed, 5 deselected, 2 pre-existing `PytestReturnNotNoneWarning` warnings in 41.41s |
+| Ruff check and format check | Passed; all checks passed and 45 scoped files plus 2 lifecycle files already formatted |
 | Pyright error/warning count | Blocking S3 scope: 0 errors, 0 warnings, 0 informations |
 | Full-repository Pyright baseline (informational) | Pyright 1.1.409 analyzed 142 files: 210 errors, 5 warnings, 0 informations; non-blocking legacy baseline |
-| Architecture/dependency gates | 11 passed in 17.11s |
+| Architecture/dependency gates | 11 passed in 5.85s |
 | `openspec validate ... --strict --json` | Passed; 1/1 change valid with no issues |
 | `git -c core.autocrlf=false diff --check` | Passed; all S3 intent files also verified LF-only |
 
@@ -274,13 +276,14 @@ after the S3 implementation commit has been pushed:
 
 | Revert evidence | Final value |
 |---|---|
-| S3 implementation commit | **PENDING ROOT AGENT FILL** |
-| Detached revert commit | **PENDING ROOT AGENT FILL** |
-| S2 base tree hash | **PENDING ROOT AGENT FILL** |
-| Reverted tree hash | **PENDING ROOT AGENT FILL** |
-| `git diff --exit-code` comparison | **PENDING ROOT AGENT FILL** |
-| Reverted S2 baseline command/result | **PENDING ROOT AGENT FILL** |
-| Worktree cleanup/prune result | **PENDING ROOT AGENT FILL** |
+| S3 implementation commit | `65c9cc978b9a3225e2f48c4587820ebb52a8edfb` (pushed) |
+| Detached revert commit | `05f158a1331558f94f3056222c463b3cca3e06b9` |
+| S2 base tree hash | `75381dd23774107dc387d6f014a9fe2d0849b42b` |
+| Reverted tree hash | `75381dd23774107dc387d6f014a9fe2d0849b42b` |
+| `git diff --exit-code` comparison | Passed with exit 0 and no content difference |
+| Reverted S2 baseline command/result | `uv --directory $drill run --frozen pytest -q -m "unit or integration"`: 518 passed, 5 deselected, 2 pre-existing warnings in 39.74s |
+| Authority SSE LF check | Passed; 2/2 fixtures contain no CR bytes |
+| Worktree cleanup/prune result | Clean before removal; worktree removed and metadata pruned |
 
 The drill must use `core.autocrlf=false` so the authority `.sse` fixtures remain
 LF-only. A successful drill removes only the S3 structural commit, restores the
