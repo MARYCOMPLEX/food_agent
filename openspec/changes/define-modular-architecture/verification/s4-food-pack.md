@@ -2,8 +2,8 @@
 
 Date: 2026-08-21
 
-Evidence status: implementation gates complete; detached revert evidence is
-pending the pushed S4 implementation commit.
+Evidence status: complete; implementation gates and detached revert evidence
+were verified against the pushed S4 implementation commit.
 
 ## Scope
 
@@ -105,11 +105,11 @@ The procedure is defined in `runbooks/s4-food-pack-rollback.md`.
 
 | Revert evidence | Final value |
 |---|---|
-| S4 implementation commit | Pending |
-| Detached revert commit | Pending |
-| S3 base tree hash | Pending |
-| Reverted tree hash | Pending |
-| Reverted S3 regression | Pending |
-| Diff and clean-worktree result | Pending |
-| Authority SSE LF check | Pending |
-| Worktree cleanup/prune result | Pending |
+| S4 implementation commit | `6abca19ae71473696a62c7a8b446e5e1ecfad5ec` (pushed) |
+| Detached revert commit | `9273fd48cb7ce5a1796bf09b119580503fb69741` |
+| S3 base tree hash | `efed2dd3b1d0fccd497497162d52573d2be6c9f4` |
+| Reverted tree hash | `efed2dd3b1d0fccd497497162d52573d2be6c9f4` |
+| Reverted S3 regression | `uv --directory $drill run --frozen pytest -q -m "unit or integration"`: 657 passed, 5 deselected, 2 pre-existing warnings in 52.03s (after `uv sync --frozen --extra dev --python 3.12`) |
+| Diff and clean-worktree result | Passed; `git diff --exit-code 9519e2f..HEAD --` returned 0 and detached worktree status was clean |
+| Authority SSE LF check | Passed; 2/2 fixtures contain no CR bytes |
+| Worktree cleanup/prune result | Passed; temporary detached worktree removed and metadata pruned |

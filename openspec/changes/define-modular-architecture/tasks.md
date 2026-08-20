@@ -101,7 +101,7 @@
 - [x] 6.7 注册 Food Pack allowed tools，验证 malformed tool input/output/final-output schema 会阻止激活或执行，并验证 Pack 无 Agent、queue、storage driver 或平台内部依赖。
 - [x] 6.8 对旧 workflow 与 Food Pack facade 运行固定 fixture differential tests，要求批准的关键词、Top-K、评分和 DTO 等价。
 - [x] 6.9 增加按 Pack version 回绑 legacy Food adapter 的开关和 runbook。
-- [ ] 6.10 演练 Food Pack 注销/回绑且其他 facade 不变；将 S4 作为独立提交。
+- [x] 6.10 演练 Food Pack 注销/回绑且其他 facade 不变；将 S4 作为独立提交。
 
 ## 7. S5 Shared Research Skeleton
 
