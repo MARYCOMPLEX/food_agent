@@ -26,6 +26,7 @@ from .evidence import (
     CollectRequest,
     SourceLocator,
 )
+from .tasks import RecoverView, TaskProgressProjection
 
 
 class _PortValue(AuthorityModel):
@@ -296,6 +297,27 @@ class ModelGateway(Protocol):
     async def generate(self, request: ModelRequest) -> ModelResponse: ...
 
 
+@runtime_checkable
+class TaskProgressProjectionPort(Protocol):
+    """Query-only task projection storage; never an execution checkpoint."""
+
+    async def get(self, task_id: str) -> TaskProgressProjection | None: ...
+
+    async def put(self, projection: TaskProgressProjection) -> TaskProgressProjection: ...
+
+    async def delete(self, task_id: str) -> bool: ...
+
+
+@runtime_checkable
+class RecoverViewPort(Protocol):
+    """Read-only recovery view; it never exposes an executable checkpoint."""
+
+    async def recover_view(self, task_id: str) -> RecoverView: ...
+
+
+TaskProgressProjectionStore = TaskProgressProjectionPort
+
+
 __all__ = [
     "ActivityCall",
     "ActivityPort",
@@ -316,9 +338,12 @@ __all__ = [
     "ObjectStore",
     "PlaceLookupPort",
     "Repository",
+    "RecoverViewPort",
     "SessionWindowPort",
     "SourceConnector",
     "StateStorePort",
+    "TaskProgressProjectionPort",
+    "TaskProgressProjectionStore",
     "ToolCall",
     "ToolGateway",
     "ToolResult",

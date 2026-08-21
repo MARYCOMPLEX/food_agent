@@ -301,10 +301,11 @@ async def test_pack_version_switch_rebinds_only_food_and_keeps_other_facades(
             "food_legacy",
         )
         assert isinstance(await root.resolve_logical("food_pack"), LegacyFoodPackAdapter)
-        assert isinstance(
-            await root.resolve_logical("modular_core"),
-            LegacyResearchTaskFacade,
-        )
+        from xhs_food.orchestrator.coordinator import ResearchCoordinator
+
+        coordinator = await root.resolve_logical("modular_core")
+        assert isinstance(coordinator, ResearchCoordinator)
+        assert isinstance(coordinator.legacy_policy, LegacyResearchTaskFacade)
         assert await root.resolve("tools", "food_tool_gateway") is not None
         assert await root.resolve("sources", "food_place_capability") is not None
         assert await root.resolve("sources", "food_reviews_capability") is not None

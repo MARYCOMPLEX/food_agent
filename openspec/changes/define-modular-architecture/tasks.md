@@ -105,16 +105,16 @@
 
 ## 7. S5 Shared Research Skeleton
 
-- [ ] 7.1 实现 typed DAG ResearchPlan、step dependencies/status/budget/evidence refs 和 plan schema version。
-- [ ] 7.2 实现 ResearchCoordinator 生命周期 facade；legacy policy 继续委派当前调度、取消、重试和终态行为，目标可靠策略只注册接口且保持未启用。
-- [ ] 7.3 在 Coordinator 内注册唯一的 Pydantic AI V2 Agent runtime adapter，定义 typed dependencies、typed tools 和 typed output，并预留官方 Temporal durable execution integration binding；开关关闭时不调用该 runtime，Domain Pack 不得创建第二个 Agent。
-- [ ] 7.4 实现 Step Scheduler 和 Tool Gateway 调用，默认计划仍代理现有 Food workflow；Pydantic AI tool 只能调用 Gateway，不能直接访问 Connector、Repository、Redis、Temporal 或对象存储。
-- [ ] 7.5 实现 Evidence Review/replan shell 和停止条件端口，在所有新行为开关关闭时不改变 legacy 决策。
-- [ ] 7.6 实现非执行型 `task_progress_projection` 与 recover-view 端口，保持现有 session/turn/event identity 和 SSE mapper；该投影只供查询，B0 的 Workflow 恢复不得依赖它。
-- [ ] 7.7 将 Experience facade 路由到共享 Coordinator 的 legacy plan，并保持旧 `XHSFoodOrchestrator` public API adapter。
-- [ ] 7.8 添加 Pydantic AI model/provider fake、tool schema、output validation、budget 和 provider failure contracts，不访问实时模型。
-- [ ] 7.9 添加并发、重复启动、终态和业务进度投影的 legacy differential tests，证明 S5 保持当前成功与失败行为；目标 executable checkpoint/replay tests 留到 B0。
-- [ ] 7.10 运行 S0 differential suite 和架构依赖检查，确认 Food 结果与 wire 行为零差异。
+- [x] 7.1 实现 typed DAG ResearchPlan、step dependencies/status/budget/evidence refs 和 plan schema version。
+- [x] 7.2 实现 ResearchCoordinator 生命周期 facade；legacy policy 继续委派当前调度、取消、重试和终态行为，目标可靠策略只注册接口且保持未启用。
+- [x] 7.3 在 Coordinator 内注册唯一的 Pydantic AI V2 Agent runtime adapter，定义 typed dependencies、typed tools 和 typed output，并预留官方 Temporal durable execution integration binding；开关关闭时不调用该 runtime，Domain Pack 不得创建第二个 Agent。
+- [x] 7.4 实现 Step Scheduler 和 Tool Gateway 调用，默认计划仍代理现有 Food workflow；Pydantic AI tool 只能调用 Gateway，不能直接访问 Connector、Repository、Redis、Temporal 或对象存储。
+- [x] 7.5 实现 Evidence Review/replan shell 和停止条件端口，在所有新行为开关关闭时不改变 legacy 决策。
+- [x] 7.6 实现非执行型 `task_progress_projection` 与 recover-view 端口，保持现有 session/turn/event identity 和 SSE mapper；该投影只供查询，B0 的 Workflow 恢复不得依赖它。
+- [x] 7.7 将 Experience facade 路由到共享 Coordinator 的 legacy plan，并保持旧 `XHSFoodOrchestrator` public API adapter。
+- [x] 7.8 添加 Pydantic AI model/provider fake、tool schema、output validation、budget 和 provider failure contracts，不访问实时模型。
+- [x] 7.9 添加并发、重复启动、终态和业务进度投影的 legacy differential tests，证明 S5 保持当前成功与失败行为；目标 executable checkpoint/replay tests 留到 B0。
+- [x] 7.10 运行 S0 differential suite 和架构依赖检查，确认 Food 结果与 wire 行为零差异。
 - [ ] 7.11 演练 `modular_core` 路由回旧 Orchestrator；将 S5 作为最后一个纯结构独立提交。
 
 ## 8. B0 Reliable Task Semantics

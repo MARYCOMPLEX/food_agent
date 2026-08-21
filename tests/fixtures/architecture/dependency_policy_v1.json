@@ -9,6 +9,11 @@
     {"prefix": "xhs_food.foundation", "layer": "target_foundation", "mode": "target"},
     {"prefix": "xhs_food.domain_packs", "layer": "domain_pack", "mode": "target"},
     {"prefix": "xhs_food.contracts", "layer": "contracts", "mode": "target"},
+    {"prefix": "xhs_food.orchestrator.agent_runtime", "layer": "orchestrator", "mode": "target", "match": "exact"},
+    {"prefix": "xhs_food.orchestrator.coordinator", "layer": "orchestrator", "mode": "target", "match": "exact"},
+    {"prefix": "xhs_food.orchestrator.projections", "layer": "orchestrator", "mode": "target", "match": "exact"},
+    {"prefix": "xhs_food.orchestrator.review", "layer": "orchestrator", "mode": "target", "match": "exact"},
+    {"prefix": "xhs_food.orchestrator.scheduler", "layer": "orchestrator", "mode": "target", "match": "exact"},
     {"prefix": "xhs_food.orchestrator", "layer": "orchestrator", "mode": "legacy"},
     {"prefix": "xhs_food.agents", "layer": "orchestrator", "mode": "legacy"},
     {"prefix": "xhs_food.providers", "layer": "connector", "mode": "legacy"},
@@ -54,6 +59,7 @@
     "compatibility_adapter": ["langchain_core", "pydantic"],
     "domain_pack": [],
     "gateway": ["pydantic"],
+    "orchestrator": ["jsonschema", "pydantic", "pydantic_ai"],
     "target_foundation": ["boto3", "botocore", "opentelemetry", "pydantic", "pydantic_settings", "redis", "sqlalchemy", "temporalio"]
   },
   "owner_port_consumer_module_prefixes": [

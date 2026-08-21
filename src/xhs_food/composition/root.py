@@ -291,6 +291,9 @@ def build_legacy_composition_root() -> CompositionRoot:
         TemporalWorkflowAdapter,
     )
     from xhs_food.gateways import SchemaToolGateway
+    from xhs_food.orchestrator.agent_runtime import PydanticAIAgentRuntime
+    from xhs_food.orchestrator.coordinator import ResearchCoordinator
+    from xhs_food.orchestrator.scheduler import StepScheduler
     from xhs_food.services import LLMService, get_session_manager, get_user_storage_service
 
     discovered_food_factories = discover_allowlisted_domain_packs(("food",))
@@ -424,6 +427,20 @@ def build_legacy_composition_root() -> CompositionRoot:
             bucket=object_store.bucket,
             max_concurrency=object_store.max_concurrency,
             multipart_threshold=object_store.multipart_threshold,
+        )
+
+    def shared_research_coordinator() -> ResearchCoordinator:
+        runtime = PydanticAIAgentRuntime(
+            tool_gateway=food_gateway,
+            enabled=False,
+        )
+        return ResearchCoordinator(
+            LegacyResearchTaskFacade(),
+            agent_runtime=runtime,
+            scheduler=StepScheduler(food_gateway),
+            agent_runtime_enabled=False,
+            scheduler_enabled=False,
+            reliable_policy_enabled=False,
         )
 
     root = CompositionRoot()
@@ -607,8 +624,16 @@ def build_legacy_composition_root() -> CompositionRoot:
     root.registry("use_cases").register(
         AdapterBinding(
             name="research_task",
-            contract_version="legacy/v1",
-            factory=LegacyResearchTaskFacade,
+            contract_version=(
+                "research-coordinator/v1"
+                if target_settings.research_core_version == "shared/v1"
+                else "legacy/v1"
+            ),
+            factory=(
+                shared_research_coordinator
+                if target_settings.research_core_version == "shared/v1"
+                else LegacyResearchTaskFacade
+            ),
             legacy=True,
         )
     )

@@ -224,8 +224,8 @@ def test_duplicate_bindings_and_non_legacy_s1_bindings_are_rejected() -> None:
 
 async def test_s4_composition_root_registers_validated_food_pack_and_legacy_fallback() -> None:
     from xhs_food.composition.domain_packs import RegisteredDomainPack
-    from xhs_food.composition.legacy_research_task import LegacyResearchTaskFacade
     from xhs_food.domain_packs.food import FoodPack
+    from xhs_food.orchestrator.coordinator import ResearchCoordinator
 
     root = build_legacy_composition_root()
     try:
@@ -286,7 +286,7 @@ async def test_s4_composition_root_registers_validated_food_pack_and_legacy_fall
         ) == ("use_cases", "research_task")
         assert isinstance(
             await root.resolve_logical("modular_core"),
-            LegacyResearchTaskFacade,
+            ResearchCoordinator,
         )
         food_binding = root.logical_bindings["food_pack"]
         assert (food_binding.registry_name, food_binding.binding_name) == (
@@ -300,6 +300,21 @@ async def test_s4_composition_root_registers_validated_food_pack_and_legacy_fall
         tool_registry = await root.resolve("tools", "xhs_tool_registry")
         assert isinstance(tool_registry, MCPToolRegistry)
         assert tool_registry.list_tools() == ["xhs_search", "xhs_note", "xhs_batch"]
+    finally:
+        await root.close()
+
+
+async def test_s5_modular_core_can_rebind_to_the_legacy_facade(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from xhs_food.composition.legacy_research_task import LegacyResearchTaskFacade
+
+    monkeypatch.setenv("MODULAR_RESEARCH_CORE_VERSION", "legacy/v1")
+    root = build_legacy_composition_root()
+    try:
+        binding = root.registries["use_cases"].bindings["research_task"]
+        assert binding.contract_version == "legacy/v1"
+        assert isinstance(await root.resolve_logical("modular_core"), LegacyResearchTaskFacade)
     finally:
         await root.close()
 

@@ -22,6 +22,7 @@ class TargetSettings(BaseSettings):
     target_adapters_enabled: bool = False
     database_url: str | None = None
     food_pack_version: Literal["1.0.0", "legacy/v1"] = "1.0.0"
+    research_core_version: Literal["shared/v1", "legacy/v1"] = "shared/v1"
 
     temporal_address: str = "localhost:7233"
     temporal_namespace: str = "default"
