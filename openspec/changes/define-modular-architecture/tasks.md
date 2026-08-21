@@ -115,7 +115,7 @@
 - [x] 7.8 添加 Pydantic AI model/provider fake、tool schema、output validation、budget 和 provider failure contracts，不访问实时模型。
 - [x] 7.9 添加并发、重复启动、终态和业务进度投影的 legacy differential tests，证明 S5 保持当前成功与失败行为；目标 executable checkpoint/replay tests 留到 B0。
 - [x] 7.10 运行 S0 differential suite 和架构依赖检查，确认 Food 结果与 wire 行为零差异。
-- [ ] 7.11 演练 `modular_core` 路由回旧 Orchestrator；将 S5 作为最后一个纯结构独立提交。
+- [x] 7.11 演练 `modular_core` 路由回旧 Orchestrator；将 S5 作为最后一个纯结构独立提交。
 
 ## 8. B0 Reliable Task Semantics
 

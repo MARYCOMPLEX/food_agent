@@ -2,8 +2,8 @@
 
 Date: 2026-08-21
 
-Evidence status: implementation gates passed; detached S4 revert evidence is
-recorded below after the pushed implementation commit.
+Evidence status: complete; implementation gates and detached S4 revert
+evidence were verified against the pushed S5 implementation commit.
 
 ## Scope
 
@@ -83,13 +83,11 @@ Procedure: `runbooks/s5-research-skeleton-rollback.md`.
 | Revert evidence | Final value |
 |---|---|
 | S4 base revision | `67e2e71b9836886215f66f3c7bb338443b9dd423` |
-| S5 implementation revision | `<fill after pushed implementation commit>` |
-| Detached revert revision | `<fill after detached drill>` |
-| S4 base tree | `<fill after detached drill>` |
-| Reverted tree | `<fill after detached drill>` |
-| Reverted S4 regression | `<fill exact test count/duration after detached drill>` |
-| Diff and clean-worktree result | `<fill after detached drill>` |
-| Worktree cleanup/prune result | `<fill after detached drill>` |
-
-The placeholders above are release blockers and must be replaced with command
-evidence before task 7.11 is checked.
+| S5 implementation revision | `359a72f2982435f15993671ea478715c6f5ce679` |
+| Detached revert revision | `e5afbe7a19f73f8ee59e7d544d1006e6794156a3` |
+| S4 base tree | `3b170489c3f3d1215d544e9e8b58fd052ad8ec2b` |
+| Reverted tree | `3b170489c3f3d1215d544e9e8b58fd052ad8ec2b` |
+| Reverted S4 regression | `684 passed, 5 deselected, 2 warnings in 55.49s` |
+| Diff and clean-worktree result | Passed; `git diff --exit-code 67e2e71..HEAD --` returned 0 and status was empty |
+| Authority SSE LF check | Passed; `sse_v1_replay_expired.sse` and `sse_v1_window_replay.sse` contain no CR bytes |
+| Worktree cleanup/prune result | Passed; temporary detached worktree removed and metadata pruned |
