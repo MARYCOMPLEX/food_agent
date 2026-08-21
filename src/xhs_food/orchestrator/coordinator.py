@@ -125,6 +125,7 @@ class ResearchCoordinator:
         self._clock = clock or (lambda: datetime.now(UTC))
         self._tasks: dict[str, ResearchTask] = {}
         self._plans: dict[str, ResearchPlan] = {}
+        self._plans_by_id: dict[str, ResearchPlan] = {}
         self._events: dict[str, list[TaskEvent]] = {}
         self._state_lock = asyncio.Lock()
 
@@ -280,15 +281,18 @@ class ResearchCoordinator:
         if not self._agent_runtime_enabled or self._agent_runtime is None:
             raise RuntimeError("Agent runtime is registered but disabled under S5 legacy policy")
         async with self._state_lock:
-            plan = self._plans.get(request.dependencies.plan_id)
-        if plan is not None:
-            scoped_dependencies = request.dependencies.model_copy(
-                update={
-                    "allowed_step_ids": plan.ready_step_ids(),
-                    "allowed_evidence_refs": plan.evidence_refs,
-                }
-            )
-            request = request.model_copy(update={"dependencies": scoped_dependencies})
+            plan = self._plans_by_id.get(request.dependencies.plan_id)
+        if plan is None:
+            raise LookupError(f"unknown Agent plan: {request.dependencies.plan_id}")
+        if plan.task_id != request.dependencies.task_id:
+            raise ValueError("Agent request task_id does not match the requested plan task_id")
+        scoped_dependencies = request.dependencies.model_copy(
+            update={
+                "allowed_step_ids": plan.ready_step_ids(),
+                "allowed_evidence_refs": plan.evidence_refs,
+            }
+        )
+        request = request.model_copy(update={"dependencies": scoped_dependencies})
         return await self._agent_runtime.run(request)
 
     async def execute_plan(self, plan: ResearchPlan) -> ScheduleResult:
@@ -309,6 +313,15 @@ class ResearchCoordinator:
         replanned = await self._replanner.replan(
             ReplanRequest(task_id=request.task_id, current_plan=plan, review=review)
         )
+        if replanned.task_id != request.task_id:
+            raise ValueError("replanned plan task_id must match the reviewed task")
+        async with self._state_lock:
+            self._remember_plan(replanned)
+            task = self._tasks.get(request.task_id)
+            if task is not None:
+                self._tasks[request.task_id] = task.model_copy(
+                    update={"plan_id": replanned.plan_id, "updated_at": _safe_now(self._clock)}
+                )
         return review, replanned
 
     async def should_stop(self, context: StoppingContext) -> StoppingDecision:
@@ -380,7 +393,7 @@ class ResearchCoordinator:
         )
         async with self._state_lock:
             self._tasks[admission.task_id] = task
-            self._plans[admission.task_id] = plan
+            self._remember_plan(plan)
             self._events.setdefault(admission.task_id, []).append(event)
         await self._projection_store.put(projection)
 
@@ -423,15 +436,15 @@ class ResearchCoordinator:
                 "updated_at": _safe_now(self._clock),
             }
         )
-        await self._projection_store.put(updated)
+        effective = await self._projection_store.put(updated)
         async with self._state_lock:
             task = self._tasks.get(task_id)
             if task is not None:
                 self._tasks[task_id] = task.model_copy(
                     update={
-                        "status": status,
-                        "progress_projection": updated,
-                        "updated_at": updated.updated_at,
+                        "status": effective.status,
+                        "progress_projection": effective,
+                        "updated_at": effective.updated_at,
                     }
                 )
 
@@ -472,19 +485,30 @@ class ResearchCoordinator:
             last_event_id=current.last_event_id if current else None,
             updated_at=now,
         )
+        effective = await self._projection_store.put(projection)
+        accepted = effective == projection
         async with self._state_lock:
-            self._plans[result.plan.task_id] = result.plan
+            if accepted:
+                self._remember_plan(result.plan)
             task = self._tasks.get(result.plan.task_id)
-            if task is not None:
+            if task is not None and accepted:
                 self._tasks[result.plan.task_id] = task.model_copy(
                     update={
                         "status": status,
-                        "progress_projection": projection,
+                        "progress_projection": effective,
                         "updated_at": now,
                         "terminal_error": result.error,
                     }
                 )
-        await self._projection_store.put(projection)
+
+    def _remember_plan(self, plan: ResearchPlan) -> None:
+        """Update task and plan-id indexes atomically under ``_state_lock``."""
+
+        previous = self._plans.get(plan.task_id)
+        if previous is not None and previous.plan_id != plan.plan_id:
+            self._plans_by_id.pop(previous.plan_id, None)
+        self._plans[plan.task_id] = plan
+        self._plans_by_id[plan.plan_id] = plan
 
 
 def _legacy_task_snapshot(

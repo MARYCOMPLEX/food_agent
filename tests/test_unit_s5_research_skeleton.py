@@ -45,6 +45,7 @@ from xhs_food.orchestrator.agent_runtime import (
 from xhs_food.orchestrator.coordinator import ResearchCoordinator
 from xhs_food.orchestrator.projections import InMemoryTaskProgressProjectionStore
 from xhs_food.orchestrator.review import (
+    EvidenceReviewDecision,
     EvidenceReviewRequest,
     EvidenceReviewShell,
     ReplanRequest,
@@ -82,6 +83,28 @@ class _Gateway:
 
     async def health(self, tool_name: str) -> bool:
         return True
+
+
+class _CapturingAgentRuntime:
+    def __init__(self) -> None:
+        self.requests: list[AgentRunRequest] = []
+
+    async def run(self, request: AgentRunRequest) -> AgentRunResult:
+        self.requests.append(request)
+        return AgentRunResult(
+            request_id=request.request_id,
+            output=AgentOutput(summary="captured", final_output={}),
+        )
+
+
+class _ReplanReviewer:
+    async def review(self, request: EvidenceReviewRequest) -> EvidenceReviewDecision:
+        return EvidenceReviewDecision(accepted=True, replan_required=True)
+
+
+class _GoalReplanner:
+    async def replan(self, request: ReplanRequest) -> ResearchPlan:
+        return request.current_plan.model_copy(update={"goal": "replanned"})
 
 
 class _LegacyPort:
@@ -340,6 +363,87 @@ async def test_projection_store_is_query_only_and_monotonic() -> None:
             {**projection.model_dump(), "executable_checkpoint": True}
         )
 
+    completed = projection.model_copy(update={"status": TaskStatus.COMPLETED, "progress": 1.0})
+    assert await store.put(completed) == completed
+    stale_terminal = completed.model_copy(update={"status": TaskStatus.FAILED, "progress": 0.0})
+    assert await store.put(stale_terminal) == completed
+
+    next_turn = completed.model_copy(
+        update={"turn_id": "2", "status": TaskStatus.RUNNING, "progress": 0.0}
+    )
+    assert await store.put(next_turn) == next_turn
+    assert await store.put(completed) == next_turn
+
+
+@pytest.mark.unit
+async def test_refine_starts_a_new_projection_turn_after_terminal_state() -> None:
+    legacy = _LegacyPort()
+    coordinator = ResearchCoordinator(legacy, clock=lambda: NOW)
+    await coordinator.start_new("first")
+    legacy.status_value = "completed"
+    await coordinator.status("session-1")
+
+    admission = await coordinator.refine("session-1", "second")
+    projection = await coordinator.progress("session-1")
+
+    assert admission.turn_id == 2
+    assert projection is not None
+    assert projection.turn_id == "2"
+    assert projection.status is TaskStatus.RUNNING
+    assert projection.progress == 0.0
+
+
+@pytest.mark.unit
+async def test_schedule_cannot_overwrite_completed_projection_with_failure() -> None:
+    coordinator = ResearchCoordinator(_LegacyPort(), clock=lambda: NOW)
+    admission = await coordinator.start_new("fixture")
+    completed_plan = ResearchPlan(
+        plan_id="completed-plan",
+        task_id=admission.task_id,
+        goal="fixture",
+        status=PlanStatus.COMPLETED,
+        steps=(
+            ResearchPlanStep(
+                step_id="one",
+                capability="tool.one",
+                status=PlanStepStatus.COMPLETED,
+            ),
+        ),
+    )
+    failed_plan = completed_plan.model_copy(
+        update={
+            "plan_id": "failed-plan",
+            "status": PlanStatus.FAILED,
+            "steps": (
+                ResearchPlanStep(
+                    step_id="one",
+                    capability="tool.one",
+                    status=PlanStepStatus.FAILED,
+                ),
+            ),
+        }
+    )
+    await coordinator._record_schedule(  # noqa: SLF001 - projection regression fixture
+        ScheduleResult(plan=completed_plan)
+    )
+    await coordinator._record_schedule(  # noqa: SLF001 - projection regression fixture
+        ScheduleResult(
+            plan=failed_plan,
+            error=ContractError(
+                code="FAILED",
+                category=ErrorCategory.INTERNAL,
+                scope=ErrorScope.PLAN,
+            ),
+        )
+    )
+    projection = await coordinator.progress(admission.task_id)
+    assert projection is not None
+    assert projection.status is TaskStatus.COMPLETED
+    task = await coordinator.task(admission.task_id)
+    assert task is not None and task.status is TaskStatus.COMPLETED
+    stored_plan = await coordinator.plan(admission.task_id)
+    assert stored_plan is not None and stored_plan.status is PlanStatus.COMPLETED
+
 
 @pytest.mark.unit
 async def test_coordinator_delegates_legacy_operations_and_records_projection() -> None:
@@ -425,6 +529,55 @@ async def test_projection_does_not_regress_after_terminal_status() -> None:
     assert projection is not None
     assert projection.status is TaskStatus.COMPLETED
     assert projection.progress == 1.0
+
+
+@pytest.mark.unit
+async def test_agent_scope_uses_plan_id_index_and_rejects_cross_task_requests() -> None:
+    legacy = _LegacyPort()
+    runtime = _CapturingAgentRuntime()
+    coordinator = ResearchCoordinator(
+        legacy,
+        agent_runtime=runtime,
+        agent_runtime_enabled=True,
+        clock=lambda: NOW,
+    )
+    admission = await coordinator.start_new("fixture")
+    plan = await coordinator.plan(admission.task_id)
+    assert plan is not None
+
+    request = AgentRunRequest(
+        request_id="agent-request",
+        prompt="fixture",
+        dependencies=AgentDependencies(
+            task_id=admission.task_id,
+            plan_id=plan.plan_id,
+            domain="food",
+        ),
+        output_schema={"type": "object"},
+    )
+    await coordinator.run_agent(request)
+    assert runtime.requests[0].dependencies.allowed_step_ids == plan.ready_step_ids()
+    assert runtime.requests[0].dependencies.allowed_step_ids is not None
+    assert runtime.requests[0].dependencies.allowed_evidence_refs == ()
+
+    with pytest.raises(ValueError, match="task_id"):
+        await coordinator.run_agent(
+            request.model_copy(
+                update={
+                    "request_id": "cross-task",
+                    "dependencies": request.dependencies.model_copy(update={"task_id": "other"}),
+                }
+            )
+        )
+    with pytest.raises(LookupError, match="unknown Agent plan"):
+        await coordinator.run_agent(
+            request.model_copy(
+                update={
+                    "request_id": "unknown-plan",
+                    "dependencies": request.dependencies.model_copy(update={"plan_id": "missing"}),
+                }
+            )
+        )
 
 
 @pytest.mark.unit
@@ -845,3 +998,26 @@ async def test_review_and_stopping_shells_preserve_legacy_when_disabled() -> Non
         )
         == _plan()
     )
+
+
+@pytest.mark.unit
+async def test_coordinator_publishes_replanned_plan_to_queries() -> None:
+    coordinator = ResearchCoordinator(
+        _LegacyPort(),
+        evidence_review=EvidenceReviewShell(_ReplanReviewer(), enabled=True),
+        replanner=ReplanShell(_GoalReplanner(), enabled=True),
+        clock=lambda: NOW,
+    )
+    admission = await coordinator.start_new("fixture")
+    current = await coordinator.plan(admission.task_id)
+    assert current is not None
+
+    _review, replanned = await coordinator.review_and_replan(
+        EvidenceReviewRequest(
+            task_id=admission.task_id,
+            plan_id=current.plan_id,
+        )
+    )
+
+    assert replanned.goal == "replanned"
+    assert await coordinator.plan(admission.task_id) == replanned
