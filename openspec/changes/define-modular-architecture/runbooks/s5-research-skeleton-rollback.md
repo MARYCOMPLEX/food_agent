@@ -101,24 +101,35 @@ classified at the contract boundary.
 
 ## Independent Git Revert Drill
 
-Run this drill only after the S5 implementation commit is pushed. Use a clean,
-detached worktree and preserve LF line endings:
+Run this drill after every commit in the recorded S5 rollback set is pushed.
+The evidence-only commit that records the completed drill is created afterward
+and is not part of that already-verified set. Use a clean detached worktree,
+preserve LF line endings, and revert newest-to-oldest:
 
 ```powershell
 $S4_BASE = "67e2e71b9836886215f66f3c7bb338443b9dd423"
-$S5_IMPLEMENTATION_COMMIT = "<record pushed S5 implementation commit>"
+$S5_HEAD = "<record pushed final S5 commit>"
+$S5_COMMITS_NEWEST_FIRST = @(
+    "<S5 correction commit>",
+    "<S5 verification commit>",
+    "<S5 implementation commit>"
+)
 $repo = (git -c core.autocrlf=false rev-parse --show-toplevel).Trim()
 $drill = Join-Path (Split-Path $repo -Parent) "food-agent-s5-revert-drill"
 if (Test-Path -LiteralPath $drill) { throw "revert drill path already exists: $drill" }
-git -c core.autocrlf=false merge-base --is-ancestor $S4_BASE $S5_IMPLEMENTATION_COMMIT
-if ($LASTEXITCODE -ne 0) { throw "S4 is not an ancestor of the S5 implementation" }
-$merges = @(git -c core.autocrlf=false rev-list --merges "$S4_BASE..$S5_IMPLEMENTATION_COMMIT")
-if ($merges.Count -ne 0) { throw "S5 implementation range contains a merge commit" }
-git -c core.autocrlf=false worktree add --detach $drill $S5_IMPLEMENTATION_COMMIT
+git -c core.autocrlf=false merge-base --is-ancestor $S4_BASE $S5_HEAD
+if ($LASTEXITCODE -ne 0) { throw "S4 is not an ancestor of the final S5 revision" }
+$merges = @(git -c core.autocrlf=false rev-list --merges "$S4_BASE..$S5_HEAD")
+if ($merges.Count -ne 0) { throw "S5 range contains a merge commit" }
+git -c core.autocrlf=false worktree add --detach $drill $S5_HEAD
 if ($LASTEXITCODE -ne 0) { throw "cannot create detached drill worktree" }
-git -c core.autocrlf=false -C $drill revert --no-edit $S5_IMPLEMENTATION_COMMIT
-if ($LASTEXITCODE -ne 0) { throw "S5 revert failed; preserve the worktree for diagnosis" }
-$revertCommit = (git -c core.autocrlf=false -C $drill rev-parse HEAD).Trim()
+foreach ($commit in $S5_COMMITS_NEWEST_FIRST) {
+    git -c core.autocrlf=false -C $drill revert --no-edit $commit
+    if ($LASTEXITCODE -ne 0) {
+        throw "S5 revert failed for $commit; preserve the worktree for diagnosis"
+    }
+}
+$revertHead = (git -c core.autocrlf=false -C $drill rev-parse HEAD).Trim()
 $s4Tree = (git -c core.autocrlf=false rev-parse "$S4_BASE^{tree}").Trim()
 $revertedTree = (git -c core.autocrlf=false -C $drill rev-parse "HEAD^{tree}").Trim()
 if ($s4Tree -ne $revertedTree) { throw "reverted tree does not equal S4 tree" }
@@ -134,10 +145,10 @@ git -c core.autocrlf=false worktree remove $drill
 git -c core.autocrlf=false worktree prune
 ```
 
-Record the implementation commit, generated revert commit, both tree hashes,
-test count/duration, empty diff, clean status, and cleanup result in the S5
-verification record. Do not mark the revert task complete without those exact
-values.
+Record the S5 commit list, generated revert commits and final revert head, both
+tree hashes, test count/duration, empty diff, clean status, and cleanup result
+in the S5 verification record. Do not mark the revert task complete without
+those exact values.
 
 ## Recovery If Verification Fails
 

@@ -2,8 +2,8 @@
 
 Date: 2026-08-21
 
-Evidence status: complete; implementation gates and detached S4 revert
-evidence were verified against the pushed S5 implementation commit.
+Evidence status: complete; implementation gates, post-audit corrections, and
+detached S4 revert evidence were verified against the final pushed S5 range.
 
 ## Scope
 
@@ -61,14 +61,18 @@ budget/deadline enforcement, and separate provider-failure classification.
 | Malformed tool input/output | `TOOL_INPUT_INVALID`/`TOOL_OUTPUT_INVALID`; Gateway/provider boundary stops |
 | Malformed final output or out-of-scope step/evidence refs | `AGENT_OUTPUT_INVALID`/scope error before result publication |
 | Provider `ValueError` or runtime exception | `AGENT_PROVIDER_FAILURE`, retryable dependency category |
+| Unknown plan ID or plan/task mismatch | Coordinator rejects before Agent runtime dispatch |
 | Projection/admission bookkeeping failure | Legacy payload, status, and recovery behavior remain unchanged |
+| Late failed/cancelled schedule after completed | Same-turn terminal projection, task, and plan remain completed |
+| New refine turn after terminal | Higher numeric turn starts a new running projection; old-turn writes are rejected |
 | Duplicate/concurrent submit | Stable task identity; no duplicate legacy admission |
 
 ## Gate Record
 
 | Gate | Result |
 |---|---|
-| `uv run --frozen pytest -q -m "unit or integration"` | Passed: 724 passed, 5 deselected, 2 pre-existing warnings, 45.69s |
+| Focused S5 correction suite | Passed: 54 tests in 13.23s with `-W error` |
+| `uv run --frozen pytest -q -m "unit or integration"` | Passed: 728 passed, 5 deselected, 2 pre-existing warnings, 58.57s |
 | Scoped Ruff check | Passed |
 | Scoped Ruff format check | Passed after normalizing `orchestrator/__init__.py` to LF |
 | Scoped Pyright | Passed: 0 errors, 0 warnings, 0 informations |
@@ -84,10 +88,17 @@ Procedure: `runbooks/s5-research-skeleton-rollback.md`.
 |---|---|
 | S4 base revision | `67e2e71b9836886215f66f3c7bb338443b9dd423` |
 | S5 implementation revision | `359a72f2982435f15993671ea478715c6f5ce679` |
-| Detached revert revision | `e5afbe7a19f73f8ee59e7d544d1006e6794156a3` |
+| S5 verification revision | `405b1e648a0f82d5203877e8a5af990580d4a65e` |
+| Final S5 correction/head | `0f331feb2e1c356fd2819b6cf677d60178485524` |
+| Detached revert revisions | `26ee527cff7f00c0da481b1bb7f6811f249d41b9`, `7eceab1fcacce8ba73899119eec2f2d79c661302`, `9a4bc447df06769d92a65040abdb526cc3f1bc47` |
+| Final detached revert head | `9a4bc447df06769d92a65040abdb526cc3f1bc47` |
 | S4 base tree | `3b170489c3f3d1215d544e9e8b58fd052ad8ec2b` |
 | Reverted tree | `3b170489c3f3d1215d544e9e8b58fd052ad8ec2b` |
-| Reverted S4 regression | `684 passed, 5 deselected, 2 warnings in 55.49s` |
+| Reverted S4 regression | `684 passed, 5 deselected, 2 warnings in 64.87s` |
 | Diff and clean-worktree result | Passed; `git diff --exit-code 67e2e71..HEAD --` returned 0 and status was empty |
 | Authority SSE LF check | Passed; `sse_v1_replay_expired.sse` and `sse_v1_window_replay.sse` contain no CR bytes |
 | Worktree cleanup/prune result | Passed; temporary detached worktree removed and metadata pruned |
+
+The tested rollback set ends at the final S5 code revision `0f331fe`; this
+evidence-only update records that completed drill and does not alter runtime
+behavior.
