@@ -76,6 +76,28 @@ class _Workflow:
         return self.runs.get(workflow_id)
 
 
+class _BlockingWorkflow(_Workflow):
+    def __init__(self) -> None:
+        super().__init__()
+        self.started = asyncio.Event()
+        self.release = asyncio.Event()
+
+    async def start(self, command: Any) -> WorkflowRun:
+        self.starts.append(command)
+        self.started.set()
+        await self.release.wait()
+        existing = self.runs.get(command.workflow_id)
+        if existing is not None and existing.status not in {"completed", "failed", "cancelled"}:
+            return existing
+        run = WorkflowRun(
+            workflow_id=command.workflow_id,
+            run_id=f"run-{len(self.starts)}",
+            status="running",
+        )
+        self.runs[command.workflow_id] = run
+        return run
+
+
 class _Rows:
     def __init__(self, row: dict[str, Any] | None) -> None:
         self._row = row
@@ -155,6 +177,28 @@ async def test_duplicate_submission_returns_one_task_and_one_temporal_identity()
     assert len(workflow.starts) == 1
     assert workflow.starts[0].input["task_id"] == first.task_id
     assert workflow.starts[0].input["request"]["query"] == "成都火锅"
+
+
+@pytest.mark.unit
+async def test_concurrent_equivalent_admission_waits_for_one_workflow_attach() -> None:
+    workflow = _BlockingWorkflow()
+    policy = TemporalReliableResearchPolicy(workflow)
+    coordinator = ResearchCoordinator(
+        _LegacyPort(), reliable_policy=policy, reliable_policy_enabled=True
+    )
+    policy.bind_owner(coordinator)
+
+    first_request = asyncio.create_task(coordinator.submit(_request("request-1")))
+    await workflow.started.wait()
+    second_request = asyncio.create_task(coordinator.submit(_request("request-2")))
+    await asyncio.sleep(0)
+    workflow.release.set()
+    first, second = await asyncio.gather(first_request, second_request)
+
+    assert first.task_id == second.task_id
+    assert first.workflow_id == second.workflow_id
+    assert first.run_id == second.run_id
+    assert len(workflow.starts) == 1
 
 
 @pytest.mark.unit

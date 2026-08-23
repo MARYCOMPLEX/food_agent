@@ -1137,6 +1137,11 @@ class TemporalReliableResearchPolicy:
         self._workflow = workflow_port
         self._owner = owner
         self._config = config or ReliableTaskConfig()
+        # This coalesces callers sharing one policy instance. Temporal
+        # Workflow ID and the PostgreSQL admission/CAS boundary remain the
+        # cross-worker authorities.
+        self._admission_lock = asyncio.Lock()
+        self._inflight_admissions: dict[str, asyncio.Future[ResearchTask]] = {}
 
     def bind_owner(self, owner: ReliableTaskOwner) -> None:
         """Bind the Coordinator after Composition Root construction."""
@@ -1170,46 +1175,76 @@ class TemporalReliableResearchPolicy:
             )
             raise ReliableTaskConflict(error)
 
+        return await self._submit_query(request, owner)
+
+    async def _submit_query(
+        self, request: ResearchRequest, owner: ReliableTaskOwner
+    ) -> ResearchTask:
+        """Coalesce equivalent admissions before calling the Workflow port."""
+
         task_id = stable_research_task_id(request)
         workflow_id = stable_research_workflow_id(task_id)
-        existing = await owner.reliable_task(task_id)
-        if existing is not None:
-            # A task identity is single-flight even if Temporal is briefly
-            # unavailable for a describe call.  Returning the projection is
-            # safer than starting a second workflow.
-            return existing
+        loop = asyncio.get_running_loop()
+        async with self._admission_lock:
+            future = self._inflight_admissions.get(task_id)
+            if future is None:
+                future = loop.create_future()
+                self._inflight_admissions[task_id] = future
+                leader = True
+            else:
+                leader = False
+        if not leader:
+            return await asyncio.shield(future)
 
-        task = await owner.admit_reliable_task(
-            request,
-            task_id=task_id,
-            workflow_id=workflow_id,
-        )
-        command = build_workflow_start(
-            request,
-            task_id=task_id,
-            plan_id=task.plan_id or f"plan:{task_id}",
-            turn_id=task.turn_id or "1",
-            config=self._config,
-        )
         try:
-            run = await self._workflow.start(command)
-        except Exception as exc:
-            error = _lifecycle_error(
-                code="RESEARCH_WORKFLOW_START_FAILED",
-                category=ErrorCategory.DEPENDENCY_UNAVAILABLE,
-                scope=ErrorScope.WORKFLOW,
-                message=str(exc),
-                retryable=True,
-            )
-            await owner.finalize_reliable_task(
-                task_id,
-                workflow_id=workflow_id,
-                run_id="unstarted",
-                status=TaskStatus.FAILED,
-                error=error,
-            )
-            raise ReliableDependencyUnavailable(error) from exc
-        return await owner.attach_reliable_run(task_id, run)
+            existing = await owner.reliable_task(task_id)
+            if existing is not None and (existing.run_id or existing.status.is_terminal):
+                result = existing
+            else:
+                task = existing or await owner.admit_reliable_task(
+                    request,
+                    task_id=task_id,
+                    workflow_id=workflow_id,
+                )
+                command = build_workflow_start(
+                    request,
+                    task_id=task_id,
+                    plan_id=task.plan_id or f"plan:{task_id}",
+                    turn_id=task.turn_id or "1",
+                    config=self._config,
+                )
+                try:
+                    run = await self._workflow.start(command)
+                except Exception as exc:
+                    error = _lifecycle_error(
+                        code="RESEARCH_WORKFLOW_START_FAILED",
+                        category=ErrorCategory.DEPENDENCY_UNAVAILABLE,
+                        scope=ErrorScope.WORKFLOW,
+                        message=str(exc),
+                        retryable=True,
+                    )
+                    await owner.finalize_reliable_task(
+                        task_id,
+                        workflow_id=workflow_id,
+                        run_id="unstarted",
+                        status=TaskStatus.FAILED,
+                        error=error,
+                    )
+                    raise ReliableDependencyUnavailable(error) from exc
+                result = await owner.attach_reliable_run(task_id, run)
+            future.set_result(result)
+            return result
+        except BaseException as exc:
+            if not future.done():
+                future.set_exception(exc)
+                # Mark the exception as observed for the no-waiter case while
+                # keeping it available to any concurrent waiter.
+                future.exception()
+            raise
+        finally:
+            async with self._admission_lock:
+                if self._inflight_admissions.get(task_id) is future:
+                    self._inflight_admissions.pop(task_id, None)
 
     async def cancel(self, task_id: str, reason: str | None = None) -> bool:
         owner = self._require_owner()
