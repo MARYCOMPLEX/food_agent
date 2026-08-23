@@ -141,7 +141,7 @@
 - [x] 9.6 为 shadow 写生成稳定的确定性 Family identity 和匹配依据；本阶段不启用相似匹配、Family read reuse 或响应切换。
 - [x] 9.7 实现 CanonicalSourceBatch normalizers，确保 source/external ID、canonical URL、captured time、watermark 和无二进制约束。
 - [x] 9.8 实现 SourceLocator、EvidenceItem 和 provenance 验证，缺来源链或 schema 不符的 item 进入隔离区。
-- [ ] 9.9 实现绑定 shadow Family identity 的不可变 candidate Bundle repository、parent version 和内容哈希去重，但不切换当前读路径。
+- [x] 9.9 实现绑定 shadow Family identity 的不可变 candidate Bundle repository、parent version 和内容哈希去重，但不切换当前读路径。
 - [ ] 9.10 让 XHS/Place adapters 在保持 legacy 输出的同时 shadow 生成标准来源 batch 和 Evidence。
 - [ ] 9.11 实现 `evidence_shadow` 开关、抽样率、写预算，以及包含 task/family/bundle/profile version 的 OTel spans 和 Prometheus 指标；默认关闭且不得改变 HTTP/SSE。
 - [ ] 9.12 添加公共 Canonical Query/Evidence 不含 user/session/personal constraints 的信息流测试、OTel/日志脱敏测试和 Prometheus label-cardinality gate。

@@ -146,6 +146,12 @@ backfill_cursors = Table(
 Index("ix_canonical_queries_family", canonical_queries.c.family_id)
 Index("ix_evidence_items_locator", evidence_items.c.source_locator_id)
 Index("ix_evidence_bundles_family", evidence_bundles.c.family_id)
+Index(
+    "uq_evidence_bundles_family_content",
+    evidence_bundles.c.family_id,
+    evidence_bundles.c.content_hash,
+    unique=True,
+)
 
 B1_SHADOW_TABLES = (
     canonical_queries,
