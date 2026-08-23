@@ -44,12 +44,12 @@ runtime environment in the table below.
 | Reliable cancellation | Reliable Research signal reaches cancellation Activity, commits a receipt, maps `task.cancelled`, and publishes one idempotent terminal event | PASS |
 | Cancellation race | Cancel versus slow Activity yields exactly one terminal history event | PASS |
 | Deployment patch | Old history replays under `workflow.patched()` and new execution selects the new branch | PASS |
-| Application duplicate start | Temporal `WorkflowAlreadyStartedError` resolves to the existing run; no Redis lock path | PENDING |
+| Application duplicate start | Temporal adapter concurrent starts resolve to the existing run; no Redis lock path | PASS (SDK adapter) |
 | PG commit/reconcile | Commit receipt is idempotent; crash-after-commit republish uses the same terminal ID | PENDING |
 | SSE retained cursor | `Last-Event-ID` resumes exclusively without creating a task | PENDING |
 | SSE expired cursor | Trim/TTL/restart returns `replay_expired/resync` and the PG snapshot | PENDING |
 
-The first eight observations are implemented by seven isolated SDK/application tests. The worker
+The first nine observations are implemented by eight isolated SDK/application tests. The worker
 row intentionally does not claim an in-flight process crash: the Windows
 Temporal test server's clean shutdown/restart path is the reproducible SDK
 check, while a process-level crash harness remains a deployment gate. The
@@ -75,8 +75,8 @@ Fill this section from the command output, preserving failures verbatim:
 | Pydantic AI | `2.5.1` |
 | Test server mode | `time-skipping` |
 | Command | `uv run --frozen pytest -q -m live tests/test_temporal_qualification.py -ra` |
-| Result | `7 passed` |
-| Duration | `34.43s` (current HEAD frozen-lockfile run with reliable cancellation; prior runs `10.25s`-`39.42s`) |
+| Result | `8 passed` |
+| Duration | `36.56s` (current HEAD frozen-lockfile run with adapter duplicate-start qualification; prior runs `10.25s`-`39.42s`) |
 | Failure output | `none for the seven SDK/application cases; process-crash and external PostgreSQL/Redis/SSE integration remain out of scope` |
 
 If a future environment blocks the test server download, mark `Result` as

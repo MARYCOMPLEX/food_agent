@@ -54,7 +54,7 @@ flag without an explicitly injected Temporal/PostgreSQL policy.
 | 8.4 | Pydantic AI Temporal integration, bounded Activities, retry/timeout/heartbeat/cancel policy | PASS (SDK qualification) | Factory, plugin, JSON boundary, policy constants, and the official live model/tool Activity replay and determinism suite pass; production worker/provider rollout remains a separate gate. |
 | 8.5 | Separate Research queue and reserved Refresh/Media queues | PASS (structural) | `TemporalTaskQueues` enforces three distinct names; worker quota/isolation smoke is pending with the target service. |
 | 8.6 | PG projection + Temporal history + Redis replay/resync | PARTIAL | Fake `xrange` contract proves exact retained-cursor validation, exclusive continuation, and `replay_expired` for trimmed or unknown cursors; PostgreSQL projection adapter exists without runtime DDL. Live PostgreSQL snapshot wiring and HTTP/SSE resync integration remain pending. |
-| 8.7 | Failure-injection and differential suite | PARTIAL | Seven live SDK/application tests pass: determinism/replay, model/tool Activities, retry/exhaustion, clean worker restart+replay, SDK cancellation race, reliable cancellation receipt, and patch replay. Offline failed-receipt ordering, same-run terminal competition, commit failure, reconciliation, late-run, and Redis replay contracts also pass. Process-level in-flight crash, duplicate Activity against a live worker, live duplicate Workflow start, PG/Temporal integration, and SSE/HTTP cases remain pending. |
+| 8.7 | Failure-injection and differential suite | PARTIAL | Eight live SDK/application tests pass: determinism/replay, adapter duplicate start, model/tool Activities, retry/exhaustion, clean worker restart+replay, SDK cancellation race, reliable cancellation receipt, and patch replay. Offline failed-receipt ordering, same-run terminal competition, commit failure, reconciliation, late-run, and Redis replay contracts also pass. Process-level in-flight crash, duplicate Activity against a live worker, PG/Temporal integration, and SSE/HTTP cases remain pending. |
 | 8.8 | Redis outage semantics | PENDING | Verify started Workflow/committed result survives Redis outage; new live SSE/realtime admission returns `dependency-unavailable`; no process-local production fallback. |
 | 8.9 | HTTP/SSE compatibility and post-commit terminal publication | PARTIAL | Offline completed and failed commit-before-terminal tests plus terminal event-type tests pass; run route/mapper tests for completed/error/cancelled, replay-expired, same task/turn, and legacy differential behavior. |
 | 8.10 | Dependency/runtime prohibition gate | PASS (static, needs final scan) | No B0 code introduces Redis lock/lease, ARQ, Celery, LangGraph, or second scheduler. Re-run import/dependency scan before commit. |
@@ -121,7 +121,7 @@ AI `TestModel`; it does not contact a real provider or write application data.
 uv run --frozen pytest -q -m live tests/test_temporal_qualification.py
 ```
 
-Recorded SDK result: `7 passed` in `34.43s` on Python `3.12.0`, Temporal SDK
+Recorded SDK result: `8 passed` in `36.56s` on Python `3.12.0`, Temporal SDK
 `1.31.0`, Pydantic AI `2.5.1`, Windows 11 build `22631`, UTC
 `2026-08-24`. The first eight qualification observations are implemented by
 seven isolated tests. The worker case is clean stop/restart plus explicit
@@ -202,7 +202,7 @@ unexecuted command.
 | PostgreSQL / Redis | `16 / 7.4` |
 | Focused unit count/duration | `14 passed in 6.07s` |
 | Redis contract count/duration | `8 passed in 3.08s` |
-| Live qualification count/duration | `7 passed in 34.43s` |
+| Live qualification count/duration | `8 passed in 36.56s` |
 | Full non-live count/duration | `745 passed, 12 deselected, 2 warnings in 65.62s` |
 | `uv lock --check` | `pass` |
 | Ruff / Pyright | `targeted changed-file Ruff pass; targeted Pyright 0 errors; legacy full-tree baseline remains noisy` |

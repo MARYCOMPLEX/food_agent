@@ -38,6 +38,7 @@ from xhs_food.contracts import (
     ResearchOperation,
     ResearchRequest,
     WorkflowRun,
+    WorkflowStart,
 )
 from xhs_food.orchestrator import (
     InMemoryReliableTaskAuthority,
@@ -268,6 +269,39 @@ async def test_temporal_workflow_history_is_deterministic_and_replayable(tempora
     counts = _event_counts(history)
     assert counts["ACTIVITY_TASK_SCHEDULED"] == 1
     assert counts["ACTIVITY_TASK_COMPLETED"] == 1
+
+
+@pytest.mark.live
+async def test_temporal_adapter_duplicate_start_reuses_existing_workflow(temporal_env: Any) -> None:
+    from xhs_food.foundation import TemporalTaskQueues, TemporalWorkflowAdapter
+
+    command = WorkflowStart(
+        workflow_id="b0-duplicate-admission-1",
+        workflow_type="B0QualificationWorkflow",
+        task_queue=QUEUE,
+        input={"id": "duplicate-1", "value": "same", "revision": "v1"},
+        idempotency_key="b0-duplicate-admission-1",
+    )
+    adapter = TemporalWorkflowAdapter(
+        temporal_env.client,
+        task_queues=TemporalTaskQueues(research=QUEUE, refresh="refresh", media="media"),
+        enabled=True,
+    )
+    async with Worker(
+        temporal_env.client,
+        task_queue=QUEUE,
+        workflows=[_QualificationWorkflowV1],
+        activities=_basic_activities(),
+        plugins=[PydanticAIPlugin()],
+    ):
+        first, second = await asyncio.gather(
+            adapter.start(command),
+            adapter.start(command),
+        )
+        assert first.workflow_id == second.workflow_id == command.workflow_id
+        assert first.run_id == second.run_id
+        handle = temporal_env.client.get_workflow_handle(command.workflow_id)
+        assert await handle.result() == "same:v1"
 
 
 @pytest.mark.live
