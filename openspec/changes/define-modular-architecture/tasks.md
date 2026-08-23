@@ -16,7 +16,7 @@
 - [x] 1.14 将 Pydantic AI V2 固化为唯一 Agent runtime，保留 SiliconFlow/OpenAI/DeepSeek 的 provider adapters，官方 MCP SDK 只进入外部 interop adapter；Node signer/Playwright 缺失合同仍单独裁决。
 - [x] 1.15 将 Python 3.12 固化为主运行时和 blocking gate，并决定支持的 OS、CPU、浏览器、容器及其他 Python 版本的 blocking/probe 范围。
 - [x] 1.16 调查现有部署的 `turn_id` migration、缺失 internal docs、CORS/Vite/env/容器差异和已知搜索状态缺陷，逐项标记“先修复”“characterize 保留”或“独立 change”。
-- [ ] 1.17 定义显式刷新 use-case/API 版本、普通/强制模式授权、in-flight 合并和稳定 SSE 映射；明确它是新行为而非既有兼容合同。
+- [x] 1.17 定义显式刷新 use-case/API 版本、普通/强制模式授权、in-flight 合并和稳定 SSE 映射；明确它是新行为而非既有兼容合同。
 - [x] 1.18 审批 ADR 索引，确认基础设施基线均标记为 accepted，剩余 Open Questions 只包含业务、兼容性和运维参数；未决项只阻塞其实际影响的里程碑。
 - [x] 1.19 复核 `dependency-research.md` 已批准裁决并在 ADR 索引引用：adopt Pydantic AI V2、Temporal、SQLAlchemy 2 Async、asyncpg、Alembic、PostgreSQL 16/pgvector/pg_trgm、Redis、S3/boto3/MinIO、OpenTelemetry/Prometheus；为许可证、升级和安全响应指定 owner。
 - [ ] 1.20 对 Temporal Python SDK 及 Pydantic AI 官方 Temporal durable execution integration 运行 workflow determinism、模型/工具 Activity replay、worker crash、取消竞争、重试耗尽和部署升级 qualification suite；记录 ARQ、Celery、LangGraph、OpenAI Agents SDK 及 Redis job facade 不作为第二套核心 runtime 的架构禁令。

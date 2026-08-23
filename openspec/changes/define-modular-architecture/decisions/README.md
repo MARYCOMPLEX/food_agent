@@ -4,7 +4,7 @@ Status: Active
 
 Change: `define-modular-architecture`
 
-Last reviewed: 2026-08-21
+Last reviewed: 2026-08-24
 
 This index is the authority gate for the change. An unresolved question blocks only the milestones listed in its row. Owners are accountable roles; a named assignee can be added when implementation work is scheduled.
 
@@ -31,6 +31,7 @@ This index is the authority gate for the change. An unresolved question blocks o
 | ADR-0009 | Disposition of legacy schema, task-state, persistence, deployment, and documentation gaps | Architecture + API + Data Platform + Platform + Frontend | [ADR-0009](./ADR-0009-legacy-gap-disposition.md) |
 | ADR-0010 | Source outcome taxonomy, source-ready query projection, and legacy client projection | Evidence + API + Architecture + QA | [ADR-0010](./ADR-0010-source-outcome-legacy-projection.md) |
 | ADR-0012 | Temporal Research/Refresh/Media queues and boto3/MinIO ObjectStore operational binding | Platform Runtime + Storage + Security + SRE | [ADR-0012](./ADR-0012-task-queues-object-store-operations.md) |
+| ADR-0013 | Explicit refresh request, authorization, single-flight identity, and mapping boundary | API + Evidence | [ADR-0013](./ADR-0013-explicit-refresh-authority.md) |
 
 ## Pending B0 Decision Records
 
@@ -107,7 +108,7 @@ not reopen ADR-0002 or permit a second implementation for the same role.
 | 25 | Supported macOS/arm64 and browser probe matrix | Build + QA | S0 | Release gate | Accepted | [ADR-0003](./ADR-0003-runtime-support-matrix.md) |
 | 26 | Food equivalence rule and approval of nondeterministic fixture updates | Domain + QA | S4 | S4, B2 | Accepted | [ADR-0005](./ADR-0005-food-dto-identity-authority.md) |
 | 27 | Recovery or replacement of missing `internal-docs/*` references | Architecture | S0 | Documentation cleanup | Accepted (independent change) | [ADR-0009](./ADR-0009-legacy-gap-disposition.md) |
-| 28 | Explicit refresh API, authorization, in-flight merge, and SSE mapping | API + Evidence | B2 | B2 | Open | [core spec](../specs/modular-research-core/spec.md) |
+| 28 | Explicit refresh API, authorization, in-flight merge, and SSE mapping | API + Evidence | B2 | B2 | Accepted | [ADR-0013](./ADR-0013-explicit-refresh-authority.md) |
 
 ## Accepted Infrastructure Is Not Open
 
