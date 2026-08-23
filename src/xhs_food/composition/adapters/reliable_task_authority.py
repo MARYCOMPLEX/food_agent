@@ -15,7 +15,13 @@ from typing import Any
 
 from sqlalchemy import text
 
-from xhs_food.contracts import ContractPayload, ResultCommitReceipt, TaskProgressProjection
+from xhs_food.contracts import (
+    ContractError,
+    ContractPayload,
+    ResultCommitReceipt,
+    TaskProgressProjection,
+    TaskStatus,
+)
 
 _IDENTIFIER = re.compile(r"^[a-z_][a-z0-9_]*$")
 
@@ -58,6 +64,35 @@ class PostgresReliableTaskAuthority:
                 workflow_id=workflow_id,
                 run_id=run_id,
                 status="completed",
+                payload=payload,
+                idempotency_key=idempotency_key,
+            )
+            _assert_identity(row, task_id, workflow_id, run_id)
+            await unit.commit()
+        return _receipt(row, task_id, workflow_id, run_id, already_committed=already_committed)
+
+    async def commit_failed(
+        self,
+        task_id: str,
+        workflow_id: str,
+        run_id: str,
+        error: ContractError,
+        *,
+        idempotency_key: str,
+    ) -> ResultCommitReceipt:
+        payload = json.dumps(
+            {"status": TaskStatus.FAILED.value, "error": error.model_dump(mode="json")},
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        async with self._unit_of_work_factory() as unit:
+            row, already_committed = await self._insert_or_read(
+                unit.session_for_adapter(),
+                task_id=task_id,
+                workflow_id=workflow_id,
+                run_id=run_id,
+                status=TaskStatus.FAILED.value,
                 payload=payload,
                 idempotency_key=idempotency_key,
             )
@@ -116,8 +151,9 @@ class PostgresReliableTaskAuthority:
                 parsed = dict(value)
             else:
                 parsed = {}
-            if str(row.get("status")) == "cancelled":
-                parsed.setdefault("status", "cancelled")
+            row_status = str(row.get("status"))
+            if row_status in {"completed", "failed", "cancelled"}:
+                parsed.setdefault("status", row_status)
             return parsed
 
     async def _insert_or_read(
@@ -137,7 +173,7 @@ class PostgresReliableTaskAuthority:
                 "(task_id, workflow_id, run_id, status, payload, idempotency_key, committed_at) "
                 "VALUES (:task_id, :workflow_id, :run_id, :status, CAST(:payload AS JSONB), "
                 ":idempotency_key, CURRENT_TIMESTAMP) "
-                "ON CONFLICT (idempotency_key) DO NOTHING "
+                "ON CONFLICT DO NOTHING "
                 "RETURNING task_id, workflow_id, run_id, status, payload, "
                 "idempotency_key, committed_at, result_version"
             ),
@@ -157,9 +193,16 @@ class PostgresReliableTaskAuthority:
             text(
                 f"SELECT task_id, workflow_id, run_id, status, payload, "
                 f"idempotency_key, committed_at, result_version FROM {self._result_table} "
-                "WHERE idempotency_key = :idempotency_key"
+                "WHERE idempotency_key = :idempotency_key OR ("
+                "task_id = :task_id AND workflow_id = :workflow_id AND run_id = :run_id) "
+                "ORDER BY (idempotency_key = :idempotency_key) DESC LIMIT 1"
             ),
-            {"idempotency_key": idempotency_key},
+            {
+                "idempotency_key": idempotency_key,
+                "task_id": task_id,
+                "workflow_id": workflow_id,
+                "run_id": run_id,
+            },
         )
         row = existing.mappings().first()
         if row is None:
@@ -270,7 +313,16 @@ def _receipt(
         committed=True,
         already_committed=already_committed,
         result_version=(str(row["result_version"]) if row.get("result_version") else None),
+        terminal_status=_terminal_status(row.get("status")),
     )
+
+
+def _terminal_status(value: object) -> TaskStatus | None:
+    try:
+        status = TaskStatus(str(value))
+    except ValueError:
+        return None
+    return status if status.is_terminal else None
 
 
 def _projection_is_older(

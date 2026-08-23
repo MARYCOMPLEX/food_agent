@@ -313,32 +313,92 @@ class ResearchCoordinator:
             return self._reliable_requests.get(task_id)
 
     async def attach_reliable_run(self, task_id: str, workflow_run: WorkflowRun) -> ResearchTask:
-        """Attach Temporal's stable run identity without changing task status."""
+        """Attach a Temporal run and open a new turn for an explicit retry."""
 
+        retry_projection: TaskProgressProjection | None = None
         async with self._state_lock:
             task = self._tasks.get(task_id)
             if task is None:
                 raise LookupError(task_id)
             projection = task.progress_projection
-            if projection is not None:
+            is_new_retry = task.status.is_terminal and task.run_id != workflow_run.run_id
+            now = _safe_now(self._clock)
+            if is_new_retry:
+                next_turn = _next_turn_value(task.turn_id)
+                plan = self._plans.get(task_id)
+                query = plan.goal if plan is not None else "research"
+                from xhs_food.orchestrator.reliable_task import reliable_plan
+
+                retry_plan = reliable_plan(task_id=task_id, query=query, turn_id=next_turn)
+                retry_projection = TaskProgressProjection(
+                    task_id=task_id,
+                    session_id=projection.session_id if projection else None,
+                    turn_id=str(next_turn),
+                    status=TaskStatus.RUNNING,
+                    progress=0.0,
+                    current_step_id="research.execute",
+                    workflow_id=workflow_run.workflow_id,
+                    run_id=workflow_run.run_id,
+                    updated_at=now,
+                )
+                updated = task.model_copy(
+                    update={
+                        "status": TaskStatus.RUNNING,
+                        "turn_id": str(next_turn),
+                        "plan_id": retry_plan.plan_id,
+                        "workflow_id": workflow_run.workflow_id,
+                        "run_id": workflow_run.run_id,
+                        "progress_projection": retry_projection,
+                        "terminal_error": None,
+                        "updated_at": now,
+                    }
+                )
+                self._remember_plan(retry_plan)
+                self._events.setdefault(task_id, []).append(
+                    TaskEvent(
+                        event_id=f"{task_id}:{next_turn}:accepted",
+                        task_id=task_id,
+                        event_type="task.accepted",
+                        occurred_at=now,
+                        turn_id=str(next_turn),
+                        status=TaskStatus.RUNNING,
+                        progress=0.0,
+                        step_id="research.execute",
+                        payload={
+                            "policyVersion": "reliable-task/v1",
+                            "workflowId": workflow_run.workflow_id,
+                            "retry": True,
+                        },
+                    )
+                )
+            elif projection is not None:
                 projection = projection.model_copy(
                     update={
                         "workflow_id": workflow_run.workflow_id,
                         "run_id": workflow_run.run_id,
-                        "updated_at": _safe_now(self._clock),
+                        "updated_at": now,
                     }
                 )
-            updated = task.model_copy(
-                update={
-                    "workflow_id": workflow_run.workflow_id,
-                    "run_id": workflow_run.run_id,
-                    "progress_projection": projection,
-                    "updated_at": _safe_now(self._clock),
-                }
-            )
+                updated = task.model_copy(
+                    update={
+                        "workflow_id": workflow_run.workflow_id,
+                        "run_id": workflow_run.run_id,
+                        "progress_projection": projection,
+                        "updated_at": now,
+                    }
+                )
+            else:
+                updated = task.model_copy(
+                    update={
+                        "workflow_id": workflow_run.workflow_id,
+                        "run_id": workflow_run.run_id,
+                        "updated_at": now,
+                    }
+                )
             self._tasks[task_id] = updated
-        if projection is not None:
-            await self._projection_store.put(projection)
+        projection_to_store = retry_projection or projection
+        if projection_to_store is not None:
+            await self._projection_store.put(projection_to_store)
         return updated
 
     async def record_reliable_progress(
@@ -771,6 +831,13 @@ def _safe_now(clock: Clock) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
     return value
+
+
+def _next_turn_value(turn_id: str | None) -> int:
+    try:
+        return int(turn_id or "0") + 1
+    except ValueError:
+        return 1
 
 
 def _legacy_plan(admission: ResearchTaskAdmission, *, query: str) -> ResearchPlan:

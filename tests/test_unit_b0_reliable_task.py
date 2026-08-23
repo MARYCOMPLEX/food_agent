@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import pytest
@@ -9,6 +10,7 @@ import pytest
 from xhs_food.composition.adapters import PostgresReliableTaskAuthority
 from xhs_food.composition.adapters.reliable_task_authority import _projection_is_older
 from xhs_food.contracts import (
+    ContractError,
     RequestIdentity,
     RequestPolicy,
     ResearchOperation,
@@ -54,7 +56,7 @@ class _Workflow:
     async def start(self, command: Any) -> WorkflowRun:
         self.starts.append(command)
         existing = self.runs.get(command.workflow_id)
-        if existing is not None:
+        if existing is not None and existing.status not in {"completed", "failed", "cancelled"}:
             return existing
         run = WorkflowRun(
             workflow_id=command.workflow_id,
@@ -296,6 +298,38 @@ async def test_postgres_authority_uses_one_transaction_and_idempotent_receipt() 
 
 
 @pytest.mark.unit
+async def test_postgres_failed_receipt_preserves_terminal_status() -> None:
+    row = {
+        "task_id": "task-1",
+        "workflow_id": "research:task-1",
+        "run_id": "run-1",
+        "status": "failed",
+        "payload": {"error": {"code": "RESEARCH_EXECUTION_FAILED"}},
+        "idempotency_key": "task-1:run-1:failed",
+        "result_version": "failure-1",
+    }
+    session = _Session([row])
+    unit = _UnitOfWork(session)
+    authority = PostgresReliableTaskAuthority(lambda: unit)
+    receipt = await authority.commit_failed(
+        "task-1",
+        "research:task-1",
+        "run-1",
+        ContractError(
+            code="RESEARCH_EXECUTION_FAILED",
+            category="internal",
+            scope="task",
+            terminal=True,
+            message="provider failed",
+        ),
+        idempotency_key="task-1:run-1:failed",
+    )
+
+    assert receipt.committed is True
+    assert receipt.terminal_status is TaskStatus.FAILED
+
+
+@pytest.mark.unit
 async def test_pg_commit_failure_does_not_finalize_or_publish_terminal() -> None:
     workflow = _Workflow()
     authority = InMemoryReliableTaskAuthority()
@@ -456,6 +490,103 @@ async def test_terminal_event_type_matches_failed_and_cancelled_status() -> None
         "task.failed",
         "task.cancelled",
     ]
+
+
+@pytest.mark.unit
+async def test_failed_activity_uses_authority_barrier_before_terminal_publication() -> None:
+    workflow = _Workflow()
+    authority = InMemoryReliableTaskAuthority()
+    publisher = InMemoryReliableTaskEventPublisher()
+    policy = TemporalReliableResearchPolicy(workflow)
+    coordinator = ResearchCoordinator(
+        _LegacyPort(), reliable_policy=policy, reliable_policy_enabled=True
+    )
+    policy.bind_owner(coordinator)
+    task = await coordinator.submit(_request())
+    activities = ReliableResearchActivities(
+        owner=coordinator,
+        authority=authority,
+        executor=_result_payload,
+        publisher=publisher,
+    )
+    error = {
+        "code": "RESEARCH_EXECUTION_FAILED",
+        "category": "internal",
+        "scope": "task",
+        "terminal": True,
+        "message": "provider failed",
+    }
+    receipt = await activities.fail(
+        {
+            "task_id": task.task_id,
+            "workflow_id": task.workflow_id,
+            "run_id": task.run_id,
+            "error": error,
+            "idempotency_key": f"{task.task_id}:{task.run_id}:failed",
+        }
+    )
+    assert receipt["committed"] is True
+    current = await coordinator.task(task.task_id)
+    assert current is not None and current.status is TaskStatus.FAILED
+    assert publisher.events == {}
+    assert await activities.publish_terminal(
+        {
+            "event_id": f"{task.task_id}:{task.run_id}:failed",
+            "task_id": task.task_id,
+            "workflow_id": task.workflow_id,
+            "run_id": task.run_id,
+            "turn_id": task.turn_id,
+            "status": "failed",
+            "result": {"error": error},
+            "idempotency_key": f"{task.task_id}:{task.run_id}:failed",
+        }
+    ) is True
+    assert len(publisher.events) == 1
+
+
+@pytest.mark.unit
+async def test_same_run_terminal_race_keeps_one_authoritative_status() -> None:
+    workflow = _Workflow()
+    authority = InMemoryReliableTaskAuthority()
+    policy = TemporalReliableResearchPolicy(workflow)
+    coordinator = ResearchCoordinator(
+        _LegacyPort(), reliable_policy=policy, reliable_policy_enabled=True
+    )
+    policy.bind_owner(coordinator)
+    task = await coordinator.submit(_request())
+    completed, cancelled = await asyncio.gather(
+        authority.commit_result(
+            task.task_id,
+            task.workflow_id or "",
+            task.run_id or "",
+            {"answer": "ok"},
+            idempotency_key=f"{task.task_id}:{task.run_id}:result",
+        ),
+        authority.commit_cancelled(
+            task.task_id,
+            task.workflow_id or "",
+            task.run_id or "",
+            idempotency_key=f"{task.task_id}:{task.run_id}:cancel",
+        ),
+    )
+    assert completed.terminal_status is cancelled.terminal_status
+    assert completed.already_committed != cancelled.already_committed
+
+
+@pytest.mark.unit
+async def test_reliable_refine_is_rejected_until_identity_contract_is_approved() -> None:
+    workflow = _Workflow()
+    policy = TemporalReliableResearchPolicy(workflow)
+    coordinator = ResearchCoordinator(
+        _LegacyPort(), reliable_policy=policy, reliable_policy_enabled=True
+    )
+    policy.bind_owner(coordinator)
+    request = _request(query="换个口味", session="session-1")
+    request = request.model_copy(
+        update={"operation": ResearchOperation.REFINE, "target_task_id": "task-existing"}
+    )
+    with pytest.raises(Exception, match="refine identity"):
+        await coordinator.submit(request)
 async def _result_payload(value: Any, key: str) -> dict[str, Any]:
     del key
     return {"task_id": value.task_id, "answer": "ok"}

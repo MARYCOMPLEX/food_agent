@@ -54,19 +54,18 @@ terminal is not implied by a normal Python return: it requires an authoritative
 PostgreSQL result receipt. Legacy status/event anomalies remain observable only
 when the legacy policy is selected.
 
-`REFRESH` remains owned by B2. B0 handles query, refine identity already
-represented by the request contract, recover, cancellation, and retry of a
-failed/cancelled reliable task. It does not invent an external refresh or
-cancel wire route.
+`REFRESH` remains owned by B2. B0 handles query, recover, cancellation, and
+retry of a failed/cancelled reliable task. It does not invent an external
+refresh or cancel wire route.
 
 B0 only guarantees single-flight for equivalent derived identities. A refine
 request whose query or target changes can currently derive a different task
 hash; it MUST NOT be presented as the same task/turn until a dedicated refine
-identity contract is approved. The current policy rejects `REFRESH` but does
-not yet enforce this refine guard, so reliable refine admission is an explicit
-qualification gap, not an approved rollout behavior. Until that decision is
-made, refine requests must remain on the legacy policy and the B0
-qualification suite covers only equivalent-request deduplication.
+identity contract is approved. The current policy enforces this boundary by
+rejecting reliable refine admission with
+`RELIABLE_REFINE_IDENTITY_UNAPPROVED`. Until that decision is made, refine
+requests remain on the legacy policy and the B0 qualification suite covers
+only equivalent-request deduplication.
 
 ## Decision 2: Stable Identity And Temporal Single-Flight
 
@@ -111,17 +110,31 @@ admit -> start/attach Workflow -> progress projection
       -> terminal EventBus/SSE publication
 ```
 
-The terminal EventBus publication is rebuildable hot state. If publication
-fails after the PostgreSQL receipt, reconciliation republishes the same event
-ID. If the PostgreSQL commit fails, the Coordinator MUST NOT publish a
-successful terminal; the Workflow follows its retry/non-retryable policy. A
-worker crash between commit and publication MUST be recoverable without a
-second result or terminal event. A late progress or terminal operation from an
-older `run_id` MUST NOT move a newer projection backwards.
+The terminal EventBus publication is rebuildable hot state. Completed,
+cancelled, and failed terminals each require an authoritative PostgreSQL
+receipt before the Coordinator terminal projection and EventBus publication.
+If execution fails before the result barrier, the failure Activity commits a
+failed receipt and only then publishes `task.failed`. If publication fails
+after any terminal receipt, reconciliation republishes the same deterministic
+event ID.
 
-The PostgreSQL adapter must make result commit and its idempotency receipt
-transactional with the business result. The in-memory authority in
-`reliable_task.py` is a test double and is not a production authority.
+All terminal writes for one `(task_id, workflow_id, run_id)` compete at one
+idempotency/CAS boundary. The first receipt wins; later completed, cancelled,
+or failed attempts return that receipt and its terminal status instead of
+creating a second terminal. If the PostgreSQL result commit itself fails, the
+Coordinator MUST NOT publish success or create a competing failed receipt; the
+Workflow follows its retry/non-retryable policy. A worker crash between commit
+and publication MUST be recoverable without a second result or terminal event.
+A late progress or terminal operation from an older `run_id` MUST NOT move a
+newer projection backwards.
+
+The PostgreSQL adapter must make result/failure/cancellation commit and its
+idempotency receipt transactional with the business fact. The current
+SQLAlchemy adapter uses `ON CONFLICT DO NOTHING` and reads the existing row by
+idempotency key or complete run identity; its required Alembic uniqueness
+constraint and transaction semantics remain a live PostgreSQL qualification
+gate. The in-memory authority in `reliable_task.py` is a test double and is not
+a production authority.
 
 ## Decision 4: Activities, Agent Runtime, And Determinism
 
@@ -169,10 +182,11 @@ Cancellation is a Temporal command. The API/policy MUST NOT fabricate a
 terminal projection at request time. A cancellation Activity commits a
 cancelled result receipt and only then asks the Coordinator to apply the
 `cancelled` terminal transition. A cancellation racing with completion is
-resolved by the authoritative idempotency/CAS boundary and yields exactly one
+resolved together with failed-terminal races by the authoritative
+`(task_id, workflow_id, run_id)` idempotency/CAS boundary and yields exactly one
 terminal status. A retry of a failed/cancelled task reuses the stable task
-identity but receives a new Temporal `run_id`; old-run events are ignored for
-current projection updates.
+identity but receives a new Temporal `run_id` and a new turn; old-run events
+are ignored for current projection updates.
 
 Reconciliation is keyed by `(task_id, workflow_id, run_id)` and MUST classify
 at least these cases:
@@ -180,8 +194,8 @@ at least these cases:
 | Observed state | Required action |
 |---|---|
 | Temporal running, no PG result | continue/retry Workflow; do not publish success |
-| PG result committed, terminal event absent | finalize/reconcile and republish deterministic event |
-| PG result absent, Workflow failed/exhausted | expose stable failed state and operator retry/terminate choice |
+| PG completed/cancelled/failed receipt committed, terminal event absent | finalize/reconcile and republish deterministic event |
+| PG receipt absent because Workflow or commit Activity failed/exhausted | expose Workflow failure and operator retry/terminate choice; do not invent a terminal business fact |
 | Old run sends progress after new run attached | ignore for current projection |
 | Event stream unavailable after commit | preserve PG/Temporal state; rebuild Redis/SSE projection later |
 
@@ -216,10 +230,13 @@ facts are retained for audit and reconciliation.
 ## Evidence And Open Gates
 
 The offline contract evidence currently covers stable identity, duplicate
-submission, commit-before-publication, duplicate Activity delivery,
-cancellation command semantics, and versioned Workflow input:
+submission, completed and failed commit-before-publication, duplicate Activity
+delivery, same-run terminal competition, cancellation command semantics,
+reliable refine rejection, versioned Workflow input, and retained/unknown
+Redis cursor classification:
 
 - `tests/test_unit_b0_reliable_task.py`;
+- `tests/test_unit_s3_redis_contract.py`;
 - `tests/fixtures/authority/sse_v1_contract.json`;
 - `tests/fixtures/authority/sse_v1_replay_expired.sse`; and
 - [reliable_task_semantics_v1.json](../fixtures/reliable_task_semantics_v1.json).
@@ -232,12 +249,14 @@ not prove an in-flight process crash or external PG/Redis/SSE integration;
 those remain explicit gates in the verification record.
 
 The following remain qualification gates before changing this ADR to fully
-accepted implementation status: a real PostgreSQL authority adapter and
-concurrent admission constraint, explicit cross-turn refine identity, Temporal/
-Pydantic AI live replay and process-level worker failure suite, PostgreSQL
-reconciliation/snapshot wiring, HTTP/SSE mapper integration, Redis-outage
-behavior, and the independent B0 revert drill. The Redis `xrange` retained /
-expired cursor unit contract is now covered by the S3 foundation test suite.
+accepted implementation status: live PostgreSQL transaction/uniqueness and a
+durable task owner, concurrent admission and live duplicate Workflow start,
+approval of any cross-turn reliable refine identity, a process-level in-flight
+worker failure harness, PostgreSQL/Temporal reconciliation and snapshot wiring,
+HTTP/SSE mapper/resync integration, Redis-outage behavior, and the independent
+B0 revert drill. The Redis `xrange` retained, trimmed, and unknown-cursor unit
+contract is covered by the S3 foundation test suite; it does not replace the
+HTTP/SSE integration gate.
 
 Rejected alternatives are Redis locks/leases, a second queue runtime, using
 `task_progress_projection` as a checkpoint, publishing terminal success before

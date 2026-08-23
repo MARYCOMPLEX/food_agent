@@ -389,16 +389,22 @@ class RedisEventBusAdapter:
             Callable[..., Awaitable[list[object]]],
             range_reader,
         )
+        # ``XRANGE min=cursor`` is inclusive.  A valid browser cursor must
+        # therefore be returned as the first entry; a later entry means the
+        # cursor was trimmed or was never produced by this stream.  Checking
+        # only the stream's oldest ID would incorrectly accept unknown IDs
+        # between two retained entries and silently skip events.
+        _stream_id_is_after(cursor, "0-0")
         with foundation_failure_boundary(
             scope=ErrorScope.EVENT_BUS,
             operation="event_bus.subscribe.replay_window",
         ):
-            first = await typed_range_reader(key, min="-", max="+", count=1)
+            first = await typed_range_reader(key, min=cursor, max="+", count=1)
         if not first:
             raise RedisReplayExpiredError(topic=topic, cursor=cursor)
         first_item = cast(tuple[object, object], first[0])
         first_id = _text(first_item[0])  # redis-py returns (entry_id, fields)
-        if _stream_id_is_after(first_id, cursor):
+        if first_id != cursor:
             raise RedisReplayExpiredError(topic=topic, cursor=cursor)
 
     async def delete_topic(self, topic: str) -> bool:

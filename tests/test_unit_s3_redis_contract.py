@@ -258,8 +258,15 @@ class ReplayEventRedis(FakeRedis):
         max: str = "+",
         count: int | None = None,
     ) -> list[object]:
-        del key, min, max
-        values = self.entries[:count] if count is not None else self.entries
+        del key, max
+        minimum = (0, 0) if min == "-" else tuple(int(part) for part in min.split("-"))
+        values = [
+            item
+            for item in self.entries
+            if tuple(int(part) for part in item[0].split("-")) >= minimum
+        ]
+        if count is not None:
+            values = values[:count]
         return list(values)
 
     async def xread(
@@ -317,3 +324,19 @@ async def test_sse_cursor_outside_window_is_replay_expired() -> None:
         await anext(iterator)
     assert caught.value.error.code == "SSE_REPLAY_EXPIRED"
     assert caught.value.error.details["recovery"] == "resync"
+
+
+@pytest.mark.unit
+async def test_sse_unknown_cursor_inside_window_is_replay_expired() -> None:
+    client = ReplayEventRedis()
+    event = EventEnvelope(
+        event_id="event-2",
+        topic="search",
+        payload={"status": "done"},
+        published_at=datetime(2026, 8, 21, tzinfo=UTC),
+    )
+    client.entries = [("11-0", {"payload": event.model_dump_json()})]
+
+    iterator = RedisEventBusAdapter(client).subscribe("search", after="10-0")
+    with pytest.raises(RedisReplayExpiredError):
+        await anext(iterator)

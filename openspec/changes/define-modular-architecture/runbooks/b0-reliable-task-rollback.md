@@ -204,10 +204,16 @@ foreach ($commit in $B0_COMMITS_NEWEST_FIRST) {
 $baseTree = (git -c core.autocrlf=false rev-parse "$B0_BASE^{tree}").Trim()
 $revertedTree = (git -c core.autocrlf=false -C $drill rev-parse "HEAD^{tree}").Trim()
 if ($baseTree -ne $revertedTree) { throw "reverted tree differs from B0 base" }
-uv --directory $drill sync --frozen --python 3.12
-if ($LASTEXITCODE -ne 0) { throw "base dependency sync failed" }
-uv --directory $drill run --frozen pytest -q -m "unit or integration"
-if ($LASTEXITCODE -ne 0) { throw "reverted base regression failed" }
+Push-Location $drill
+try {
+    uv sync --frozen --extra dev --python 3.12
+    if ($LASTEXITCODE -ne 0) { throw "base dependency sync failed" }
+    uv run --frozen pytest -q -m "unit or integration"
+    if ($LASTEXITCODE -ne 0) { throw "reverted base regression failed" }
+}
+finally {
+    Pop-Location
+}
 git -c core.autocrlf=false -C $drill diff --exit-code --no-ext-diff $B0_BASE HEAD --
 if ($LASTEXITCODE -ne 0) { throw "reverted content differs from base" }
 $status = @(git -c core.autocrlf=false -C $drill status --short)
@@ -224,13 +230,13 @@ artifact.
 
 | Revert evidence | Value |
 |---|---|
-| Base commit/tree | `<SHA> / <tree>` |
-| B0 head/tree | `<SHA> / <tree>` |
-| Generated revert commits | `<newest-to-oldest list>` |
-| Reverted tree equals base | `pass/fail` |
-| Reverted test count/duration | `<exact output>` |
-| Empty diff and clean status | `pass/fail` |
-| Worktree cleanup/prune | `pass/fail` |
+| Base commit/tree | `aee493dd3a29c8c2364cfd9badb71b32615d8b6c / b64d0c0076bf4503dbfec13c3fcaf3f9c62e08d8` |
+| B0 head/tree | `1c12ceb9cb2f9dc8f16059d8a5b36f0eb441faaf / b1d25b2bc31a778c38bca9b4a6a676facab07072` |
+| Generated revert commits | `1c12ceb` reverted in the detached drill worktree; generated revert commit removed with worktree cleanup |
+| Reverted tree equals base | `pass` |
+| Reverted test count/duration | `728 passed, 5 deselected, 2 warnings in 67.26s` |
+| Empty diff and clean status | `pass` |
+| Worktree cleanup/prune | `pass` |
 
 ## Recovery If Rollback Verification Fails
 

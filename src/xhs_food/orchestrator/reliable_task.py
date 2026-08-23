@@ -19,7 +19,7 @@ import json
 from collections.abc import Awaitable, Callable, Mapping
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Protocol, cast, runtime_checkable
 
 from pydantic import Field, TypeAdapter
 from temporalio import activity, workflow
@@ -344,92 +344,119 @@ class TemporalResearchWorkflow:
         run_id = workflow.info().run_id
         config = value.activity_policy
 
-        await workflow.execute_activity(
-            RESEARCH_PROGRESS_ACTIVITY,
-            args=[
-                {
-                    "task_id": value.task_id,
-                    "workflow_id": value.workflow_id,
-                    "run_id": run_id,
-                    "turn_id": value.turn_id,
-                    "progress": 0.0,
-                    "current_step_id": "research.execute",
-                }
-            ],
-            **config.activity_config(timeout_seconds=30),
-        )
-        if self._cancel_requested:
-            return await _cancel_research_workflow(value, run_id, config)
-        result = await workflow.execute_activity(
-            RESEARCH_EXECUTE_ACTIVITY,
-            args=[value.model_dump(mode="json"), RESEARCH_ACTIVITY_VERSION],
-            **config.activity_config(),
-        )
-        if not isinstance(result, Mapping):
-            raise ApplicationError(
-                "research activity returned a non-object", type="ValidationError"
+        try:
+            return await _run_research_workflow(
+                value, run_id, config, cancel_requested=lambda: self._cancel_requested
             )
-        result_payload = {str(key): item for key, item in result.items()}
-        if self._cancel_requested:
-            return await _cancel_research_workflow(value, run_id, config)
-        await workflow.execute_activity(
-            RESEARCH_PROGRESS_ACTIVITY,
-            args=[
-                {
-                    "task_id": value.task_id,
-                    "workflow_id": value.workflow_id,
-                    "run_id": run_id,
-                    "turn_id": value.turn_id,
-                    "progress": 0.8,
-                    "current_step_id": "research.commit",
-                }
-            ],
-            **config.activity_config(timeout_seconds=30),
-        )
-        receipt = await workflow.execute_activity(
-            RESEARCH_COMMIT_ACTIVITY,
-            args=[
-                {
-                    "task_id": value.task_id,
-                    "workflow_id": value.workflow_id,
-                    "run_id": run_id,
-                    "result": result_payload,
-                    "idempotency_key": f"{value.task_id}:{run_id}:result",
-                }
-            ],
-            **config.activity_config(),
-        )
-        if not isinstance(receipt, Mapping) or not bool(receipt.get("committed")):
-            raise ApplicationError(
-                "authoritative result commit was not confirmed", type="ResultCommitRejected"
-            )
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            # A result-commit failure must remain a Workflow failure/retry.  A
+            # failed terminal is only written for work that never crossed the
+            # result commit barrier; otherwise the authority would receive a
+            # second, competing terminal write.
+            if _is_commit_barrier_failure(exc):
+                raise
+            if self._cancel_requested:
+                return await _cancel_research_workflow(value, run_id, config)
+            return await _fail_research_workflow(value, run_id, config, exc)
 
-        event_id = f"{value.task_id}:{run_id}:completed"
-        published = await workflow.execute_activity(
-            RESEARCH_PUBLISH_ACTIVITY,
-            args=[
-                {
-                    "event_id": event_id,
-                    "task_id": value.task_id,
-                    "workflow_id": value.workflow_id,
-                    "run_id": run_id,
-                    "turn_id": value.turn_id,
-                    "status": TaskStatus.COMPLETED.value,
-                    "progress": 1.0,
-                    "result": result_payload,
-                    "idempotency_key": event_id,
-                }
-            ],
-            **config.activity_config(timeout_seconds=30),
+
+async def _run_research_workflow(
+    value: ResearchWorkflowInput,
+    run_id: str,
+    config: ReliableTaskConfig,
+    *,
+    cancel_requested: Callable[[], bool],
+) -> ResearchWorkflowOutput:
+    """Execute the deterministic control path behind the public Workflow."""
+
+    await workflow.execute_activity(
+        RESEARCH_PROGRESS_ACTIVITY,
+        args=[
+            {
+                "task_id": value.task_id,
+                "workflow_id": value.workflow_id,
+                "run_id": run_id,
+                "turn_id": value.turn_id,
+                "progress": 0.0,
+                "current_step_id": "research.execute",
+            }
+        ],
+        **config.activity_config(timeout_seconds=30),
+    )
+    if cancel_requested():
+        return await _cancel_research_workflow(value, run_id, config)
+    result = await workflow.execute_activity(
+        RESEARCH_EXECUTE_ACTIVITY,
+        args=[value.model_dump(mode="json"), RESEARCH_ACTIVITY_VERSION],
+        **config.activity_config(),
+    )
+    if not isinstance(result, Mapping):
+        raise ApplicationError("research activity returned a non-object", type="ValidationError")
+    result_payload = {str(key): item for key, item in result.items()}
+    # Signals are delivered between Workflow tasks.  Checking after every
+    # external Activity gives cancellation a deterministic precedence point.
+    if cancel_requested():
+        return await _cancel_research_workflow(value, run_id, config)
+    await workflow.execute_activity(
+        RESEARCH_PROGRESS_ACTIVITY,
+        args=[
+            {
+                "task_id": value.task_id,
+                "workflow_id": value.workflow_id,
+                "run_id": run_id,
+                "turn_id": value.turn_id,
+                "progress": 0.8,
+                "current_step_id": "research.commit",
+            }
+        ],
+        **config.activity_config(timeout_seconds=30),
+    )
+    receipt = await workflow.execute_activity(
+        RESEARCH_COMMIT_ACTIVITY,
+        args=[
+            {
+                "task_id": value.task_id,
+                "workflow_id": value.workflow_id,
+                "run_id": run_id,
+                "result": result_payload,
+                "idempotency_key": f"{value.task_id}:{run_id}:result",
+            }
+        ],
+        **config.activity_config(),
+    )
+    if not isinstance(receipt, Mapping) or not bool(receipt.get("committed")):
+        raise ApplicationError(
+            "authoritative result commit was not confirmed", type="ResultCommitRejected"
         )
-        return ResearchWorkflowOutput(
-            task_id=value.task_id,
-            workflow_id=value.workflow_id,
-            run_id=run_id,
-            committed=True,
-            published=bool(published),
-            result=result_payload,
-        )
+
+    event_id = f"{value.task_id}:{run_id}:completed"
+    published = await workflow.execute_activity(
+        RESEARCH_PUBLISH_ACTIVITY,
+        args=[
+            {
+                "event_id": event_id,
+                "task_id": value.task_id,
+                "workflow_id": value.workflow_id,
+                "run_id": run_id,
+                "turn_id": value.turn_id,
+                "status": TaskStatus.COMPLETED.value,
+                "progress": 1.0,
+                "result": result_payload,
+                "idempotency_key": event_id,
+            }
+        ],
+        **config.activity_config(timeout_seconds=30),
+    )
+    return ResearchWorkflowOutput(
+        task_id=value.task_id,
+        workflow_id=value.workflow_id,
+        run_id=run_id,
+        committed=True,
+        published=bool(published),
+        result=result_payload,
+    )
 
 
 async def _cancel_research_workflow(
@@ -451,7 +478,8 @@ async def _cancel_research_workflow(
     )
     if not isinstance(receipt, Mapping) or not bool(receipt.get("committed")):
         raise ApplicationError("authoritative cancellation was not confirmed", type="ResultCommitRejected")
-    event_id = f"{value.task_id}:{run_id}:cancelled"
+    terminal_status = _receipt_terminal_status(receipt, TaskStatus.CANCELLED)
+    event_id = f"{value.task_id}:{run_id}:{terminal_status.value}"
     published = await workflow.execute_activity(
         RESEARCH_PUBLISH_ACTIVITY,
         args=[
@@ -461,8 +489,8 @@ async def _cancel_research_workflow(
                 "workflow_id": value.workflow_id,
                 "run_id": run_id,
                 "turn_id": value.turn_id,
-                "status": TaskStatus.CANCELLED.value,
-                "result": {"status": TaskStatus.CANCELLED.value},
+                "status": terminal_status.value,
+                "result": {"status": terminal_status.value},
                 "idempotency_key": event_id,
             }
         ],
@@ -474,8 +502,126 @@ async def _cancel_research_workflow(
         run_id=run_id,
         committed=True,
         published=bool(published),
-        result={"status": TaskStatus.CANCELLED.value},
+        result={"status": terminal_status.value},
     )
+
+
+async def _fail_research_workflow(
+    value: ResearchWorkflowInput,
+    run_id: str,
+    config: ReliableTaskConfig,
+    exc: Exception,
+) -> ResearchWorkflowOutput:
+    """Persist a failed execution before exposing its terminal event."""
+
+    error = _error_from_workflow_exception(exc)
+    receipt = await workflow.execute_activity(
+        RESEARCH_FAIL_ACTIVITY,
+        args=[
+            {
+                "task_id": value.task_id,
+                "workflow_id": value.workflow_id,
+                "run_id": run_id,
+                "error": error.model_dump(mode="json"),
+                "idempotency_key": f"{value.task_id}:{run_id}:failed",
+            }
+        ],
+        **config.activity_config(timeout_seconds=30),
+    )
+    if not isinstance(receipt, Mapping) or not bool(receipt.get("committed")):
+        raise ApplicationError("authoritative failure was not confirmed", type="ResultCommitRejected")
+    terminal_status = _receipt_terminal_status(receipt, TaskStatus.FAILED)
+    event_id = f"{value.task_id}:{run_id}:{terminal_status.value}"
+    published = await workflow.execute_activity(
+        RESEARCH_PUBLISH_ACTIVITY,
+        args=[
+            {
+                "event_id": event_id,
+                "task_id": value.task_id,
+                "workflow_id": value.workflow_id,
+                "run_id": run_id,
+                "turn_id": value.turn_id,
+                "status": terminal_status.value,
+                "progress": 1.0,
+                "result": {"error": error.model_dump(mode="json")},
+                "idempotency_key": event_id,
+            }
+        ],
+        **config.activity_config(timeout_seconds=30),
+    )
+    return ResearchWorkflowOutput(
+        task_id=value.task_id,
+        workflow_id=value.workflow_id,
+        run_id=run_id,
+        committed=True,
+        published=bool(published),
+        result={"status": terminal_status.value, "error": error.model_dump(mode="json")},
+    )
+
+
+def _is_commit_barrier_failure(exc: BaseException) -> bool:
+    """Identify an exception raised by the authoritative commit Activity."""
+
+    pending: list[BaseException] = [exc]
+    seen: set[int] = set()
+    while pending:
+        current = pending.pop()
+        if id(current) in seen:
+            continue
+        seen.add(id(current))
+        if isinstance(current, ApplicationError):
+            error_type = getattr(current, "type", None)
+            if error_type in {"ResultCommitRejected", "POSTGRES_RESULT_COMMIT_UNAVAILABLE"}:
+                return True
+        name = type(current).__name__.casefold()
+        message = str(current).casefold()
+        if "commit" in name or "commit" in message and "activity" in message:
+            return True
+        cause = getattr(current, "cause", None) or current.__cause__
+        if isinstance(cause, BaseException):
+            pending.append(cause)
+    return False
+
+
+def _error_from_workflow_exception(exc: BaseException) -> ContractError:
+    error_type = getattr(exc, "type", None) or type(exc).__name__
+    message = str(exc).strip() or error_type
+    category = ErrorCategory.INTERNAL
+    if str(error_type).casefold() in {"validationerror", "validation"}:
+        category = ErrorCategory.VALIDATION
+    elif "timeout" in str(error_type).casefold() or "timeout" in message.casefold():
+        category = ErrorCategory.TIMEOUT
+    return ContractError(
+        code="RESEARCH_EXECUTION_FAILED",
+        category=category,
+        scope=ErrorScope.TASK,
+        retryable=False,
+        terminal=True,
+        message=message[:500],
+        details={"exceptionType": str(error_type)},
+    )
+
+
+def _status_from_reconciled_payload(payload: Mapping[str, Any]) -> TaskStatus:
+    raw = payload.get("status")
+    if isinstance(raw, str):
+        try:
+            status = TaskStatus(raw)
+        except ValueError:
+            status = TaskStatus.COMPLETED
+        if status.is_terminal:
+            return status
+    return TaskStatus.COMPLETED
+
+
+def _error_from_reconciled_payload(payload: Mapping[str, Any]) -> ContractError | None:
+    raw = payload.get("error")
+    if not isinstance(raw, Mapping):
+        return None
+    try:
+        return ContractError.model_validate(raw)
+    except Exception:
+        return None
 
 
 def build_pydantic_ai_research_workflow(
@@ -650,14 +796,15 @@ class ReliableResearchActivities:
             raise ApplicationError(
                 "authoritative result commit was rejected", type="ResultCommitRejected"
             )
+        effective_status = receipt.terminal_status or TaskStatus.COMPLETED
         await self._owner.finalize_reliable_task(
             task_id,
             workflow_id=workflow_id,
             run_id=run_id,
-            status=TaskStatus.COMPLETED,
+            status=effective_status,
             result={str(key): item for key, item in result.items()},
         )
-        return receipt.model_dump(mode="json")
+        return _receipt_payload(receipt)
 
     @activity.defn(name=RESEARCH_PUBLISH_ACTIVITY)
     async def publish_terminal(self, raw: Mapping[str, Any]) -> bool:
@@ -715,13 +862,46 @@ class ReliableResearchActivities:
         )
         if not receipt.committed:
             raise ApplicationError("cancel commit was rejected", type="ResultCommitRejected")
+        effective_status = receipt.terminal_status or TaskStatus.CANCELLED
         await self._owner.finalize_reliable_task(
             task_id,
             workflow_id=workflow_id,
             run_id=run_id,
-            status=TaskStatus.CANCELLED,
+            status=effective_status,
         )
-        return receipt.model_dump(mode="json")
+        return _receipt_payload(receipt)
+
+    @activity.defn(name=RESEARCH_FAIL_ACTIVITY)
+    async def fail(self, raw: Mapping[str, Any]) -> ContractPayload:
+        task_id = _required_text(raw, "task_id")
+        workflow_id = _required_text(raw, "workflow_id")
+        run_id = _required_text(raw, "run_id")
+        raw_error = raw.get("error")
+        if not isinstance(raw_error, Mapping):
+            raise ApplicationError("failure error must be an object", type="ValidationError")
+        try:
+            error = ContractError.model_validate(raw_error)
+        except Exception as exc:
+            raise ApplicationError("failure error has an invalid contract", type="ValidationError") from exc
+        receipt = await self._authority.commit_failed(
+            task_id,
+            workflow_id,
+            run_id,
+            error,
+            idempotency_key=_required_text(raw, "idempotency_key"),
+        )
+        if not receipt.committed:
+            raise ApplicationError("failure commit was rejected", type="ResultCommitRejected")
+        effective_status = receipt.terminal_status or TaskStatus.FAILED
+        await self._owner.finalize_reliable_task(
+            task_id,
+            workflow_id=workflow_id,
+            run_id=run_id,
+            status=effective_status,
+            error=error,
+            result={"error": error.model_dump(mode="json")},
+        )
+        return _receipt_payload(receipt)
 
     @activity.defn(name=RESEARCH_RECONCILE_ACTIVITY)
     async def reconcile(self, raw: Mapping[str, Any]) -> bool:
@@ -741,24 +921,31 @@ class ReliableResearchActivities:
         task = await self._owner.reliable_task(task_id)
         if task is None:
             return False
+        status = _status_from_reconciled_payload(result)
+        error = _error_from_reconciled_payload(result) if status is TaskStatus.FAILED else None
         if not task.status.is_terminal:
             await self._owner.finalize_reliable_task(
                 task_id,
                 workflow_id=workflow_id,
                 run_id=run_id,
-                status=TaskStatus.COMPLETED,
+                status=status,
                 result=result,
+                error=error,
             )
+        current = await self._owner.reliable_task(task_id)
+        if current is not None and current.status.is_terminal:
+            status = current.status
+        event_suffix = status.value
         return await self.publish_terminal(
             {
-                "event_id": f"{task_id}:{run_id}:completed",
+                "event_id": f"{task_id}:{run_id}:{event_suffix}",
                 "task_id": task_id,
                 "workflow_id": workflow_id,
                 "run_id": run_id,
-                "turn_id": task.turn_id,
-                "status": TaskStatus.COMPLETED.value,
+                "turn_id": current.turn_id if current is not None else task.turn_id,
+                "status": status.value,
                 "result": result,
-                "idempotency_key": f"{task_id}:{run_id}:completed",
+                "idempotency_key": f"{task_id}:{run_id}:{event_suffix}",
             }
         )
 
@@ -769,6 +956,7 @@ class ReliableResearchActivities:
             self.execute,
             self.progress,
             self.commit,
+            self.fail,
             self.publish_terminal,
             self.cancel,
             self.reconcile,
@@ -785,9 +973,12 @@ class InMemoryReliableTaskAuthority:
 
     def __init__(self) -> None:
         self.results: dict[str, ContractPayload] = {}
+        self._results_by_run: dict[tuple[str, str, str], ContractPayload] = {}
         self.receipts: dict[str, ResultCommitReceipt] = {}
+        self._terminal_by_run: dict[tuple[str, str, str], ResultCommitReceipt] = {}
         self.cancelled: set[str] = set()
         self.fail_commits = False
+        self._lock = asyncio.Lock()
 
     async def commit_result(
         self,
@@ -808,19 +999,27 @@ class InMemoryReliableTaskAuthority:
                     retryable=True,
                 )
             )
-        previous = self.receipts.get(idempotency_key)
-        if previous is not None:
-            return previous.model_copy(update={"already_committed": True})
-        self.results[task_id] = dict(result)
-        receipt = ResultCommitReceipt(
-            task_id=task_id,
-            workflow_id=workflow_id,
-            run_id=run_id,
-            committed=True,
-            result_version=f"result:{task_id}:{run_id}",
-        )
-        self.receipts[idempotency_key] = receipt
-        return receipt
+        async with self._lock:
+            previous = self.receipts.get(idempotency_key)
+            if previous is not None:
+                return previous.model_copy(update={"already_committed": True})
+            identity = (task_id, workflow_id, run_id)
+            existing = self._terminal_by_run.get(identity)
+            if existing is not None:
+                return existing.model_copy(update={"already_committed": True})
+            self.results[task_id] = dict(result)
+            self._results_by_run[identity] = dict(result)
+            receipt = ResultCommitReceipt(
+                task_id=task_id,
+                workflow_id=workflow_id,
+                run_id=run_id,
+                committed=True,
+                result_version=f"result:{task_id}:{run_id}",
+                terminal_status=TaskStatus.COMPLETED,
+            )
+            self.receipts[idempotency_key] = receipt
+            self._terminal_by_run[identity] = receipt
+            return receipt
 
     async def commit_cancelled(
         self,
@@ -830,25 +1029,85 @@ class InMemoryReliableTaskAuthority:
         *,
         idempotency_key: str,
     ) -> ResultCommitReceipt:
-        previous = self.receipts.get(idempotency_key)
-        if previous is not None:
-            return previous.model_copy(update={"already_committed": True})
-        self.cancelled.add(task_id)
-        receipt = ResultCommitReceipt(
-            task_id=task_id,
-            workflow_id=workflow_id,
-            run_id=run_id,
-            committed=True,
-            result_version=None,
-        )
-        self.receipts[idempotency_key] = receipt
-        return receipt
+        async with self._lock:
+            previous = self.receipts.get(idempotency_key)
+            if previous is not None:
+                return previous.model_copy(update={"already_committed": True})
+            identity = (task_id, workflow_id, run_id)
+            existing = self._terminal_by_run.get(identity)
+            if existing is not None:
+                return existing.model_copy(update={"already_committed": True})
+            self.cancelled.add(task_id)
+            receipt = ResultCommitReceipt(
+                task_id=task_id,
+                workflow_id=workflow_id,
+                run_id=run_id,
+                committed=True,
+                result_version=None,
+                terminal_status=TaskStatus.CANCELLED,
+            )
+            self.receipts[idempotency_key] = receipt
+            self._terminal_by_run[identity] = receipt
+            return receipt
+
+    async def commit_failed(
+        self,
+        task_id: str,
+        workflow_id: str,
+        run_id: str,
+        error: ContractError,
+        *,
+        idempotency_key: str,
+    ) -> ResultCommitReceipt:
+        async with self._lock:
+            previous = self.receipts.get(idempotency_key)
+            if previous is not None:
+                return previous.model_copy(update={"already_committed": True})
+            identity = (task_id, workflow_id, run_id)
+            existing = self._terminal_by_run.get(identity)
+            if existing is not None:
+                return existing.model_copy(update={"already_committed": True})
+            failed_result = cast(
+                ContractPayload,
+                {"error": error.model_dump(mode="json")},
+            )
+            self.results[task_id] = failed_result
+            self._results_by_run[identity] = failed_result
+            receipt = ResultCommitReceipt(
+                task_id=task_id,
+                workflow_id=workflow_id,
+                run_id=run_id,
+                committed=True,
+                result_version=f"failure:{task_id}:{run_id}",
+                terminal_status=TaskStatus.FAILED,
+            )
+            self.receipts[idempotency_key] = receipt
+            self._terminal_by_run[identity] = receipt
+            return receipt
 
     async def reconcile(
         self, task_id: str, workflow_id: str, run_id: str
     ) -> ContractPayload | None:
-        del workflow_id, run_id
-        return self.results.get(task_id)
+        receipt = self._terminal_by_run.get((task_id, workflow_id, run_id))
+        result = self._results_by_run.get((task_id, workflow_id, run_id))
+        if result is None:
+            result = self.results.get(task_id)
+        if result is None:
+            return None
+        # A few offline fixtures seed ``results`` directly to model a crash
+        # after a database commit.  The production PostgreSQL adapter always
+        # requires the transactional receipt; this compatibility branch is
+        # intentionally confined to the explicit in-memory test double.
+        if receipt is None:
+            return result
+        if receipt.terminal_status is TaskStatus.CANCELLED:
+            return {"status": TaskStatus.CANCELLED.value}
+        if receipt.terminal_status is TaskStatus.FAILED:
+            return {
+                "status": TaskStatus.FAILED.value,
+                **result,
+            }
+        return result
 
 
 class InMemoryReliableTaskEventPublisher:
@@ -901,6 +1160,15 @@ class TemporalReliableResearchPolicy:
             return task
         if request.operation is ResearchOperation.REFRESH:
             raise RuntimeError("explicit refresh remains owned by B2")
+        if request.operation is ResearchOperation.REFINE:
+            error = _lifecycle_error(
+                code="RELIABLE_REFINE_IDENTITY_UNAPPROVED",
+                category=ErrorCategory.CONFLICT,
+                scope=ErrorScope.REQUEST,
+                message="reliable refine identity is not approved; use the legacy policy",
+                retryable=False,
+            )
+            raise ReliableTaskConflict(error)
 
         task_id = stable_research_task_id(request)
         workflow_id = stable_research_workflow_id(task_id)
@@ -962,11 +1230,12 @@ class TemporalReliableResearchPolicy:
             raise LookupError(task_id)
         if task.status not in {TaskStatus.FAILED, TaskStatus.CANCELLED}:
             return task
+        next_turn = _next_retry_turn(task.turn_id)
         command = build_workflow_start(
             request,
             task_id=task_id,
-            plan_id=task.plan_id or f"plan:{task_id}",
-            turn_id=task.turn_id or "1",
+            plan_id=f"plan:{task_id}:turn:{next_turn}",
+            turn_id=str(next_turn),
             config=self._config,
         )
         run = await self._workflow.start(command)
@@ -985,8 +1254,36 @@ def _required_text(value: Mapping[str, Any], key: str) -> str:
     return raw
 
 
+def _receipt_terminal_status(
+    receipt: Mapping[str, Any], fallback: TaskStatus
+) -> TaskStatus:
+    raw = receipt.get("terminal_status")
+    if isinstance(raw, TaskStatus):
+        return raw
+    if isinstance(raw, str):
+        try:
+            value = TaskStatus(raw)
+        except ValueError:
+            return fallback
+        return value if value.is_terminal else fallback
+    return fallback
+
+
+def _receipt_payload(receipt: ResultCommitReceipt) -> ContractPayload:
+    """Serialize an authority receipt at the Activity JSON boundary."""
+
+    return cast(ContractPayload, receipt.model_dump(mode="json"))
+
+
 def _optional_text(value: object) -> str | None:
     return value if isinstance(value, str) and value else None
+
+
+def _next_retry_turn(turn_id: str | None) -> int:
+    try:
+        return int(turn_id or "0") + 1
+    except ValueError:
+        return 1
 
 
 def _lifecycle_error(
@@ -1015,6 +1312,7 @@ __all__ = [
     "RESEARCH_CANCEL_SIGNAL",
     "RESEARCH_COMMIT_ACTIVITY",
     "RESEARCH_EXECUTE_ACTIVITY",
+    "RESEARCH_FAIL_ACTIVITY",
     "RESEARCH_PROGRESS_ACTIVITY",
     "RESEARCH_PUBLISH_ACTIVITY",
     "RESEARCH_RECONCILE_ACTIVITY",

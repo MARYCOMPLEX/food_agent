@@ -10,6 +10,7 @@ from typing import Any
 
 from temporalio import exceptions as temporal_errors
 from temporalio.client import Client
+from temporalio.common import WorkflowIDConflictPolicy, WorkflowIDReusePolicy
 from temporalio.contrib.opentelemetry import TracingInterceptor
 from temporalio.service import RPCError, RPCStatusCode
 
@@ -101,6 +102,11 @@ class TemporalWorkflowAdapter:
                 payload["input"],
                 id=command.workflow_id,
                 task_queue=command.task_queue,
+                # Equivalent active submissions attach to the existing run;
+                # after a terminal run, an explicit retry may reuse the same
+                # stable Workflow ID and receive a new run ID.
+                id_conflict_policy=WorkflowIDConflictPolicy.USE_EXISTING,
+                id_reuse_policy=WorkflowIDReusePolicy.ALLOW_DUPLICATE,
             )
             return _run_from_handle(handle, status="running")
         except temporal_errors.WorkflowAlreadyStartedError as duplicate:

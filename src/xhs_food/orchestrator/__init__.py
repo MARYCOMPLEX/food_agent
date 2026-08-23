@@ -13,6 +13,7 @@ from typing import Any
 
 __all__ = [
     "LEGACY_TASK_POLICY_VERSION",
+    "RESEARCH_FAIL_ACTIVITY",
     "RESEARCH_RECONCILE_ACTIVITY",
     "InMemoryReliableTaskAuthority",
     "InMemoryReliableTaskEventPublisher",
