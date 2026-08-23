@@ -137,6 +137,16 @@ def test_reliable_mapper_projects_failed_and_cancelled_to_stable_error() -> None
         "retryable": True,
     }
 
+    nested_failed = mapper.map(
+        _event(
+            "task.failed",
+            status=TaskStatus.FAILED,
+            payload={"result": {"error": error.model_dump(mode="json")}},
+        ),
+        session_id="session-1",
+    )
+    assert nested_failed.data["error"] == failed.data["error"]
+
     cancelled = mapper.map(
         _event("task.cancelled", status=TaskStatus.CANCELLED),
         session_id="session-1",

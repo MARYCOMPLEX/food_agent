@@ -35,6 +35,10 @@ def _error_payload(event: TaskEvent, *, cancelled: bool) -> ContractPayload:
     raw_error: object = event.error.model_dump(mode="json") if event.error else None
     if raw_error is None:
         raw_error = event.payload.get("error")
+    if raw_error is None:
+        result = event.payload.get("result")
+        if isinstance(result, Mapping):
+            raw_error = result.get("error")
     if isinstance(raw_error, Mapping):
         code = raw_error.get("code")
         message = raw_error.get("message")
