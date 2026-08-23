@@ -30,6 +30,7 @@ This index is the authority gate for the change. An unresolved question blocks o
 | ADR-0008 | Four-layer memory, identity isolation, consent, lifecycle, and feedback privacy | Product + Privacy + Security + Data Platform + QA | [ADR-0008](./ADR-0008-memory-privacy-authority.md) |
 | ADR-0009 | Disposition of legacy schema, task-state, persistence, deployment, and documentation gaps | Architecture + API + Data Platform + Platform + Frontend | [ADR-0009](./ADR-0009-legacy-gap-disposition.md) |
 | ADR-0010 | Source outcome taxonomy, source-ready query projection, and legacy client projection | Evidence + API + Architecture + QA | [ADR-0010](./ADR-0010-source-outcome-legacy-projection.md) |
+| ADR-0012 | Temporal Research/Refresh/Media queues and boto3/MinIO ObjectStore operational binding | Platform Runtime + Storage + Security + SRE | [ADR-0012](./ADR-0012-task-queues-object-store-operations.md) |
 
 ## Pending B0 Decision Records
 

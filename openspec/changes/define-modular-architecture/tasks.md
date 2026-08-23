@@ -12,7 +12,7 @@
 - [x] 1.10 定义 Domain Contract 方法、发现与版本协商、allowed tools、输出模式，并裁决 Fixed Workflow、Scoring Policy、Domain Sources 和 Refresh Coordinator 是否是公开扩展点。
 - [x] 1.11 定义四层记忆 schema、用户/匿名身份迁移、同意、过期、纠正、导出、删除和反馈聚合隐私阈值。
 - [x] 1.12 将已批准的数据权威写入 ADR：PostgreSQL 16 保存业务事实与 `task_progress_projection`，Temporal history 是唯一 executable checkpoint，Redis 只保存可重建热状态；目标多 worker 模式禁止进程内静默 fallback、Redis lock/Redlock 和 Redis durable task state。
-- [ ] 1.13 将已批准的基础设施绑定写入 ADR：Temporal 承载 Research/Refresh/Media 三类 Task Queue，S3-compatible `ObjectStore` 使用 boto3 adapter、本地使用 MinIO；另行定义加密、保留、清理、重试耗尽和人工恢复策略。
+- [x] 1.13 将已批准的基础设施绑定写入 ADR：Temporal 承载 Research/Refresh/Media 三类 Task Queue，S3-compatible `ObjectStore` 使用 boto3 adapter、本地使用 MinIO；另行定义加密、保留、清理、重试耗尽和人工恢复策略。
 - [x] 1.14 将 Pydantic AI V2 固化为唯一 Agent runtime，保留 SiliconFlow/OpenAI/DeepSeek 的 provider adapters，官方 MCP SDK 只进入外部 interop adapter；Node signer/Playwright 缺失合同仍单独裁决。
 - [x] 1.15 将 Python 3.12 固化为主运行时和 blocking gate，并决定支持的 OS、CPU、浏览器、容器及其他 Python 版本的 blocking/probe 范围。
 - [x] 1.16 调查现有部署的 `turn_id` migration、缺失 internal docs、CORS/Vite/env/容器差异和已知搜索状态缺陷，逐项标记“先修复”“characterize 保留”或“独立 change”。
