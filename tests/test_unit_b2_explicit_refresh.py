@@ -45,6 +45,16 @@ class _Repository:
         return self.claim
 
 
+class _SequenceRepository(_Repository):
+    def __init__(self, claims: list[RefreshClaim]) -> None:
+        super().__init__(claims[0])
+        self.claims = claims
+
+    async def claim_refresh(self, key: object) -> RefreshClaim:
+        del key
+        return self.claims.pop(0)
+
+
 class _Workflow:
     def __init__(self) -> None:
         self.started: list[object] = []
@@ -147,6 +157,24 @@ async def test_duplicate_refresh_reuses_workflow_without_starting_another() -> N
     assert workflow.started == []
     assert len(workflow.described) == 1
     assert publisher.events[0].payload["reused"] is True
+
+
+@pytest.mark.unit
+async def test_compatible_refreshes_share_task_and_event_identity() -> None:
+    request = _request()
+    repository = _SequenceRepository([_claim(request, acquired=True), _claim(request, acquired=False)])
+    workflow = _Workflow()
+    publisher = _Publisher()
+    service = ExplicitRefreshService(repository, workflow, _Builder(), publisher=publisher)
+
+    first = await service.submit(request)
+    second = await service.submit(request.model_copy(update={"request_id": "request-refresh-2"}))
+
+    assert first.task_id == second.task_id
+    assert first.workflow_id == second.workflow_id
+    assert len(workflow.started) == 1
+    assert len(publisher.events) == 2
+    assert publisher.events[0].event_id == publisher.events[1].event_id
 
 
 @pytest.mark.unit

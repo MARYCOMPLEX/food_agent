@@ -158,12 +158,12 @@
 - [x] 10.5 实现按最大陈旧时间/最低覆盖度返回旧 Bundle 的明确 stale/partial 状态。
 - [x] 10.6 按 ADR 实现显式普通/强制刷新 use-case 和 API mapper，复用同一 Family/活动 task、执行授权并发出稳定任务事件。
 - [x] 10.7 实现 `query_reuse_read` shadow compare 和小流量 canary，不同时启用 personalization 或 background refresh scheduler。
-- [ ] 10.8 添加示例自贡两问、公共/个人约束分类、确定性键/trigram/vector 各级命中、低置信度、显式刷新、并发命中、Temporal worker failure replay/reschedule 和 pointer rollback tests。
-- [ ] 10.9 添加固定 BGE-M3 embedding fixture，验证 1024 维、cosine operator/index、profile 回填质量门禁、read pointer 原子切换/回滚、跨 profile 查询拒绝、模型版本变化拒绝静默复用，以及禁用 embedding 时确定性键/`pg_trgm` 路径可用。
-- [ ] 10.10 注入 Evidence 写入、feature recompute、vector/trigram index update 和 activation transaction failure，证明旧 Bundle 连续可用。
-- [ ] 10.11 验证未授权强制刷新不调用 Connector，兼容刷新请求合并到同一 Temporal workflow/task/event stream。
+- [x] 10.8 添加示例自贡两问、公共/个人约束分类、确定性键/trigram/vector 各级命中、低置信度、显式刷新、并发命中、Temporal worker failure replay/reschedule 和 pointer rollback tests。
+- [x] 10.9 添加固定 BGE-M3 embedding fixture，验证 1024 维、cosine operator/index、profile 回填质量门禁、read pointer 原子切换/回滚、跨 profile 查询拒绝、模型版本变化拒绝静默复用，以及禁用 embedding 时确定性键/`pg_trgm` 路径可用。
+- [x] 10.10 注入 Evidence 写入、feature recompute、vector/trigram index update 和 activation transaction failure，证明旧 Bundle 连续可用。
+- [x] 10.11 验证未授权强制刷新不调用 Connector，兼容刷新请求合并到同一 Temporal workflow/task/event stream。
 - [ ] 10.12 运行结果等价/相关性、各检索层召回/延迟、来源请求减少率和错误分类 gate，记录 canary 审批。
-- [ ] 10.13 关闭 explicit refresh/read reuse、恢复 legacy realtime research 或上一 Bundle pointer；将 B2 作为独立提交。
+- [x] 10.13 关闭 explicit refresh/read reuse、恢复 legacy realtime research 或上一 Bundle pointer；将 B2 作为独立提交。
 
 ## 11. B3 Personalization Memory
 

@@ -46,9 +46,10 @@ def _job(base: EvidenceBundle) -> RefreshJob:
 
 
 class _CandidateRepository:
-    def __init__(self, bundle: EvidenceBundle, items: tuple[EvidenceItem, ...]) -> None:
+    def __init__(self, bundle: EvidenceBundle, items: tuple[EvidenceItem, ...], *, fail: bool = False) -> None:
         self.bundle = bundle
         self.items = items
+        self.fail = fail
         self.saved: EvidenceBundle | None = None
 
     async def get_bundle(self, bundle_id: str) -> EvidenceBundle | None:
@@ -60,14 +61,17 @@ class _CandidateRepository:
     async def save_candidate(
         self, bundle: EvidenceBundle, items: tuple[EvidenceItem, ...]
     ) -> EvidenceBundle:
+        if self.fail:
+            raise RuntimeError("candidate evidence write failed")
         validate_candidate_bundle(bundle, items)
         self.saved = bundle
         return bundle
 
 
 class _ActivationRepository:
-    def __init__(self, bundle: EvidenceBundle) -> None:
+    def __init__(self, bundle: EvidenceBundle, *, activated: bool = True) -> None:
         self.bundle = bundle
+        self.activated = activated
         self.calls: list[tuple[object, ...]] = []
 
     async def get_current_bundle(self, family_id: str):
@@ -93,7 +97,7 @@ class _ActivationRepository:
         self.calls.append(
             (family_id, expected_bundle_version, bundle_id, bundle_version, expected_profile_id, profile)
         )
-        return True
+        return self.activated
 
 
 class _Collector:
@@ -152,15 +156,24 @@ class _IndexBuilder:
         )
 
 
+class _FailingDerivationRepository(InMemoryBundleDerivationRepository):
+    async def save_candidate_derivation(self, derivation) -> None:
+        del derivation
+        raise RuntimeError("derivation write failed")
+
+
 def _service(
     *,
     fail_index: bool = False,
+    fail_candidate: bool = False,
+    derivations: InMemoryBundleDerivationRepository | None = None,
+    activated: bool = True,
     profile: EmbeddingProfile = BGE_M3_PROFILE_V1,
     builder_profile: EmbeddingProfile | None = None,
 ) -> tuple[BundleRefreshService, _CandidateRepository, _ActivationRepository, InMemoryBundleDerivationRepository]:
     base, items = _base()
-    candidate = _CandidateRepository(base, items)
-    activation = _ActivationRepository(base)
+    candidate = _CandidateRepository(base, items, fail=fail_candidate)
+    activation = _ActivationRepository(base, activated=activated)
     delta = DeltaCollectionResult(
         family_id=base.family_id,
         base_bundle_version=base.bundle_version,
@@ -170,7 +183,7 @@ def _service(
         source_ids=("xhs",),
         verified_at=datetime(2026, 8, 24, 12, 0, tzinfo=UTC),
     )
-    derivations = InMemoryBundleDerivationRepository()
+    derivations = derivations or InMemoryBundleDerivationRepository()
     service = BundleRefreshService(
         candidate,
         activation,
@@ -229,3 +242,52 @@ async def test_refresh_rejects_cross_profile_index_before_candidate_write() -> N
     assert candidate.saved is None
     assert derivations.rows == {}
     assert activation.calls == []
+
+
+@pytest.mark.unit
+async def test_refresh_rejects_model_version_change_before_candidate_write() -> None:
+    changed = EmbeddingProfile(
+        profile_id="profile_v1",
+        model_id="bge-m3",
+        model_version="bge-m3/v2",
+        dimensions=1024,
+    )
+    service, candidate, activation, derivations = _service(builder_profile=changed)
+    base, _ = _base()
+
+    with pytest.raises(ValueError, match="profile-aware index"):
+        await service.refresh(_job(base))
+
+    assert candidate.saved is None
+    assert derivations.rows == {}
+    assert activation.calls == []
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("failure", ["candidate", "derivation", "activation"])
+async def test_refresh_failure_injection_never_replaces_old_pointer(failure: str) -> None:
+    derivations = _FailingDerivationRepository() if failure == "derivation" else None
+    service, candidate, activation, stored = _service(
+        fail_candidate=failure == "candidate",
+        derivations=derivations,
+        activated=failure != "activation",
+    )
+    base, _ = _base()
+
+    if failure == "candidate":
+        with pytest.raises(RuntimeError, match="candidate evidence"):
+            await service.refresh(_job(base))
+        assert activation.calls == []
+    elif failure == "derivation":
+        with pytest.raises(RuntimeError, match="derivation"):
+            await service.refresh(_job(base))
+        assert candidate.saved is not None
+        assert activation.calls == []
+    else:
+        result = await service.refresh(_job(base))
+        assert result.activated is False
+        assert candidate.saved is not None
+        assert stored.rows[result.bundle.bundle_id] == result.derivation
+
+    assert activation.bundle.bundle_id == base.bundle_id
+    assert activation.bundle.bundle_version == base.bundle_version

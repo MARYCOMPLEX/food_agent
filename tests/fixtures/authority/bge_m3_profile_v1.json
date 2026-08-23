@@ -1,0 +1,13 @@
+{
+  "schema_version": "embedding-profile/v1",
+  "profile_id": "profile_v1",
+  "model_id": "bge-m3",
+  "model_version": "bge-m3/v1",
+  "dimensions": 1024,
+  "distance": "cosine",
+  "normalized": true,
+  "canonical_key": "query.fixture.zigong",
+  "vector_first": 1.0,
+  "vector_rest": 0.0,
+  "vector_sha256": "2b34fa7bbd0833a529a5f7d4d22a2daf3277c7635ebccc964956e02abdc5f42c"
+}

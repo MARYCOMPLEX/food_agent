@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from xhs_food.contracts import (
+    BGE_M3_PROFILE_V1,
     BundleReadState,
     CurrentBundleRef,
     EvidenceBundle,
@@ -177,3 +178,53 @@ async def test_service_maps_current_freshness_to_read_decision() -> None:
     decision = await BundleLifecycleService(_Repository()).read_decision(current, policy, ref)
 
     assert decision.state is BundleReadState.STALE
+
+
+@pytest.mark.unit
+async def test_restore_pointer_uses_one_conditional_bundle_and_profile_cas() -> None:
+    repository = _Repository()
+    target = CurrentBundleRef(
+        family_id="family.zigong",
+        bundle_id="bundle.2",
+        bundle_version=2,
+    )
+
+    result = await BundleLifecycleService(repository).restore_pointer(
+        target,
+        expected_current_bundle_version=3,
+        expected_current_profile_id="profile_v2",
+        target_profile=BGE_M3_PROFILE_V1,
+    )
+
+    assert result.activated is True
+    assert result.bundle_id == "bundle.2"
+    assert repository.calls == [
+        (
+            "family.zigong",
+            3,
+            "bundle.2",
+            2,
+            "profile_v2",
+            BGE_M3_PROFILE_V1,
+        )
+    ]
+
+
+@pytest.mark.unit
+async def test_restore_pointer_rejects_non_older_target_before_repository_call() -> None:
+    repository = _Repository()
+    target = CurrentBundleRef(
+        family_id="family.zigong",
+        bundle_id="bundle.3",
+        bundle_version=3,
+    )
+
+    with pytest.raises(ValueError, match="older"):
+        await BundleLifecycleService(repository).restore_pointer(
+            target,
+            expected_current_bundle_version=3,
+            expected_current_profile_id="profile_v1",
+            target_profile=BGE_M3_PROFILE_V1,
+        )
+
+    assert repository.calls == []

@@ -40,7 +40,18 @@ def upgrade() -> None:
         Column("created_at", DateTime(timezone=True), nullable=False),
     )
     op.create_table(table.name, *table.columns, *table.constraints)
+    op.create_index(
+        "ix_canonical_query_embeddings_vector_cosine",
+        "canonical_query_embeddings",
+        ["vector"],
+        postgresql_using="hnsw",
+        postgresql_ops={"vector": "vector_cosine_ops"},
+    )
 
 
 def downgrade() -> None:
+    op.drop_index(
+        "ix_canonical_query_embeddings_vector_cosine",
+        table_name="canonical_query_embeddings",
+    )
     op.drop_table("evidence_bundle_derivations")

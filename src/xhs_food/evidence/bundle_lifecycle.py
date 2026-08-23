@@ -60,6 +60,34 @@ class BundleLifecycleService:
             activated=activated,
         )
 
+    async def restore_pointer(
+        self,
+        target: CurrentBundleRef,
+        *,
+        expected_current_bundle_version: int,
+        expected_current_profile_id: str,
+        target_profile: EmbeddingProfile,
+    ) -> BundleActivationResult:
+        """Conditionally restore an older Bundle/profile pair without deleting versions."""
+
+        if target.bundle_version >= expected_current_bundle_version:
+            raise ValueError("rollback target must be older than the current Bundle")
+        restored = await self._repository.activate_bundle_and_profile_if_current(
+            target.family_id,
+            expected_current_bundle_version,
+            target.bundle_id,
+            target.bundle_version,
+            expected_current_profile_id,
+            target_profile,
+        )
+        return BundleActivationResult(
+            family_id=target.family_id,
+            bundle_id=target.bundle_id,
+            bundle_version=target.bundle_version,
+            profile_id=target_profile.profile_id,
+            activated=restored,
+        )
+
     async def read_decision(
         self,
         current: FreshnessInput | None,

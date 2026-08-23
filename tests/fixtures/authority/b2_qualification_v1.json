@@ -1,0 +1,115 @@
+{
+  "schema_version": "b2-qualification/v1",
+  "approval": {
+    "schema_version": "b2-qualification/v1",
+    "approval_id": "b2-fixture-canary-20260824",
+    "owner": "QA + Evidence",
+    "approved_at": "2026-08-24T00:00:00Z",
+    "scope": "offline-fixed-fixture-only",
+    "input_digest": "a7b084469b935f602cb9ad457927e44acbb0b54c47bf7fd4d2056e97add477c6",
+    "decision": "approved",
+    "notes": "This approval is not a production target-stack approval."
+  },
+  "thresholds": {
+    "schema_version": "b2-qualification/v1",
+    "minimum_result_equivalence": 1.0,
+    "minimum_recall_by_layer": {
+      "deterministic": 1.0,
+      "trigram": 1.0,
+      "vector": 1.0
+    },
+    "maximum_p95_latency_ms_by_layer": {
+      "deterministic": 2.0,
+      "trigram": 5.0,
+      "vector": 10.0
+    },
+    "minimum_source_request_reduction": 0.8,
+    "minimum_error_classification_accuracy": 1.0
+  },
+  "observations": [
+    {
+      "schema_version": "b2-qualification/v1",
+      "case_id": "exact-1",
+      "layer": "deterministic",
+      "expected_family_id": "family.zigong",
+      "observed_family_id": "family.zigong",
+      "legacy_result_digest": "b78ce05f4dbe13adbf2f0b1f7fedcabf279182d76c98a756dd0911246efa8fc0",
+      "candidate_result_digest": "b78ce05f4dbe13adbf2f0b1f7fedcabf279182d76c98a756dd0911246efa8fc0",
+      "latency_ms": 1.2,
+      "legacy_source_requests": 4,
+      "reuse_source_requests": 0,
+      "expected_error": "none",
+      "observed_error": "none"
+    },
+    {
+      "schema_version": "b2-qualification/v1",
+      "case_id": "exact-2",
+      "layer": "deterministic",
+      "expected_family_id": "family.zigong",
+      "observed_family_id": "family.zigong",
+      "legacy_result_digest": "f2673d275958de6477c5bbff1cec584432637342e32d0851d497c4cfdec81c9e",
+      "candidate_result_digest": "f2673d275958de6477c5bbff1cec584432637342e32d0851d497c4cfdec81c9e",
+      "latency_ms": 1.8,
+      "legacy_source_requests": 3,
+      "reuse_source_requests": 0,
+      "expected_error": "none",
+      "observed_error": "none"
+    },
+    {
+      "schema_version": "b2-qualification/v1",
+      "case_id": "trigram-1",
+      "layer": "trigram",
+      "expected_family_id": "family.zigong",
+      "observed_family_id": "family.zigong",
+      "legacy_result_digest": "0d8da3a9eaf31ad05779d314ae08cdd6bfec53140a90ef8b1b8c741d5df45507",
+      "candidate_result_digest": "0d8da3a9eaf31ad05779d314ae08cdd6bfec53140a90ef8b1b8c741d5df45507",
+      "latency_ms": 4.1,
+      "legacy_source_requests": 4,
+      "reuse_source_requests": 0,
+      "expected_error": "none",
+      "observed_error": "none"
+    },
+    {
+      "schema_version": "b2-qualification/v1",
+      "case_id": "trigram-2",
+      "layer": "trigram",
+      "expected_family_id": "family.zigong",
+      "observed_family_id": "family.zigong",
+      "legacy_result_digest": "5c34cf68c5333acd7ce2649a940f8bff76dcac88d7f2e5fbab34a5392b53fdbb",
+      "candidate_result_digest": "5c34cf68c5333acd7ce2649a940f8bff76dcac88d7f2e5fbab34a5392b53fdbb",
+      "latency_ms": 4.8,
+      "legacy_source_requests": 3,
+      "reuse_source_requests": 1,
+      "expected_error": "none",
+      "observed_error": "none"
+    },
+    {
+      "schema_version": "b2-qualification/v1",
+      "case_id": "vector-1",
+      "layer": "vector",
+      "expected_family_id": "family.zigong",
+      "observed_family_id": "family.zigong",
+      "legacy_result_digest": "8642d14296b49f2576d80461f9ea60de2b10e87ed2b74a131b9d1ec048a8ac4d",
+      "candidate_result_digest": "8642d14296b49f2576d80461f9ea60de2b10e87ed2b74a131b9d1ec048a8ac4d",
+      "latency_ms": 8.2,
+      "legacy_source_requests": 4,
+      "reuse_source_requests": 1,
+      "expected_error": "none",
+      "observed_error": "none"
+    },
+    {
+      "schema_version": "b2-qualification/v1",
+      "case_id": "vector-2",
+      "layer": "vector",
+      "expected_family_id": "family.zigong",
+      "observed_family_id": "family.zigong",
+      "legacy_result_digest": "31105f95529e4ec0833649645cd7b953afbb70ab67b32e2012a8b3e49b231aba",
+      "candidate_result_digest": "31105f95529e4ec0833649645cd7b953afbb70ab67b32e2012a8b3e49b231aba",
+      "latency_ms": 9.4,
+      "legacy_source_requests": 4,
+      "reuse_source_requests": 1,
+      "expected_error": "connector_timeout",
+      "observed_error": "connector_timeout"
+    }
+  ]
+}
