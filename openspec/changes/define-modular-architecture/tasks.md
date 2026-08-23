@@ -142,12 +142,12 @@
 - [x] 9.7 实现 CanonicalSourceBatch normalizers，确保 source/external ID、canonical URL、captured time、watermark 和无二进制约束。
 - [x] 9.8 实现 SourceLocator、EvidenceItem 和 provenance 验证，缺来源链或 schema 不符的 item 进入隔离区。
 - [x] 9.9 实现绑定 shadow Family identity 的不可变 candidate Bundle repository、parent version 和内容哈希去重，但不切换当前读路径。
-- [ ] 9.10 让 XHS/Place adapters 在保持 legacy 输出的同时 shadow 生成标准来源 batch 和 Evidence。
-- [ ] 9.11 实现 `evidence_shadow` 开关、抽样率、写预算，以及包含 task/family/bundle/profile version 的 OTel spans 和 Prometheus 指标；默认关闭且不得改变 HTTP/SSE。
-- [ ] 9.12 添加公共 Canonical Query/Evidence 不含 user/session/personal constraints 的信息流测试、OTel/日志脱敏测试和 Prometheus label-cardinality gate。
-- [ ] 9.13 注入 Alembic interruption、transaction abort、profile/dimension mismatch、constraint 未分类、connector timeout、malformed item 和重复 shadow 写，验证无 current pointer 与 legacy 行为变化。
-- [ ] 9.14 对 shadow Query/Evidence/embedding 与 legacy source/result 建立差异报告和人工审批 fixture 更新流程。
-- [ ] 9.15 停用 shadow/profile dual-write、回旧 adapters 并确认附加表和 Alembic revision 可安全保留；将 B1 作为独立提交。
+- [x] 9.10 让 XHS/Place adapters 在保持 legacy 输出的同时 shadow 生成标准来源 batch 和 Evidence。
+- [x] 9.11 实现 `evidence_shadow` 开关、抽样率、写预算，以及包含 task/family/bundle/profile version 的 OTel spans 和 Prometheus 指标；默认关闭且不得改变 HTTP/SSE。
+- [x] 9.12 添加公共 Canonical Query/Evidence 不含 user/session/personal constraints 的信息流测试、OTel/日志脱敏测试和 Prometheus label-cardinality gate。
+- [x] 9.13 注入 Alembic interruption、transaction abort、profile/dimension mismatch、constraint 未分类、connector timeout、malformed item 和重复 shadow 写，验证无 current pointer 与 legacy 行为变化。
+- [x] 9.14 对 shadow Query/Evidence/embedding 与 legacy source/result 建立差异报告和人工审批 fixture 更新流程。
+- [x] 9.15 停用 shadow/profile dual-write、回旧 adapters 并确认附加表和 Alembic revision 可安全保留；将 B1 作为独立提交。
 
 ## 10. B2 Query Family, Explicit Refresh And Versioned Reuse
 

@@ -24,6 +24,9 @@ class TargetSettings(BaseSettings):
     # with durable Temporal/PostgreSQL adapters.  Legacy routing remains the
     # default for every existing deployment.
     reliable_task_lifecycle: bool = False
+    evidence_shadow_enabled: bool = False
+    evidence_shadow_sample_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    evidence_shadow_write_budget: int = Field(default=0, ge=0)
     database_url: str | None = None
     food_pack_version: Literal["1.0.0", "legacy/v1"] = "1.0.0"
     research_core_version: Literal["shared/v1", "legacy/v1"] = "shared/v1"
@@ -111,8 +114,15 @@ class ObservabilityConfigView(_OwnerView):
     exporter_endpoint: str | None
 
 
+class EvidenceShadowConfigView(_OwnerView):
+    enabled: bool
+    sample_rate: float
+    write_budget: int
+
+
 __all__ = [
     "ModelConfigView",
+    "EvidenceShadowConfigView",
     "ObjectStoreConfigView",
     "ObservabilityConfigView",
     "RedisConfigView",

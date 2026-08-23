@@ -2,6 +2,7 @@
 
 from .base import TargetAdapterDisabled
 from .config import (
+    EvidenceShadowConfigView,
     ModelConfigView,
     ObjectStoreConfigView,
     ObservabilityConfigView,
@@ -19,8 +20,10 @@ from .failures import (
 )
 from .object_store import Boto3ObjectStore, minio_s3_client_factory
 from .observability import (
+    EvidenceShadowTelemetry,
     ObservabilityBootstrap,
     correlation_attributes,
+    redact_log_context,
     prometheus_labels,
 )
 from .redis import (
@@ -44,6 +47,8 @@ __all__ = [
     "Boto3ObjectStore",
     "B1_SHADOW_TABLES",
     "FoundationAdapterError",
+    "EvidenceShadowTelemetry",
+    "EvidenceShadowConfigView",
     "ModelConfigView",
     "ObjectStoreConfigView",
     "ObservabilityBootstrap",
@@ -74,4 +79,5 @@ __all__ = [
     "foundation_failure_boundary",
     "minio_s3_client_factory",
     "prometheus_labels",
+    "redact_log_context",
 ]

@@ -1,0 +1,35 @@
+{
+  "schemaVersion": "evidence-shadow-approval/v1",
+  "cases": [
+    {
+      "fixtureId": "legacy-equivalent-v1",
+      "legacy": {
+        "source": "fixture",
+        "items": [
+          {"externalId": "note-1", "kind": "document"}
+        ]
+      },
+      "shadow": {
+        "source": "fixture",
+        "items": [
+          {"externalId": "note-1", "kind": "document"}
+        ]
+      },
+      "allowedPaths": [],
+      "expectedDecision": "match"
+    },
+    {
+      "fixtureId": "legacy-approved-score-v1",
+      "legacy": {
+        "source": "fixture",
+        "result": {"score": 0.8, "status": "ok"}
+      },
+      "shadow": {
+        "source": "fixture",
+        "result": {"score": 0.9, "status": "ok"}
+      },
+      "allowedPaths": ["root.result.score"],
+      "expectedDecision": "approved"
+    }
+  ]
+}

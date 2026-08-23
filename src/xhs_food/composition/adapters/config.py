@@ -8,6 +8,7 @@ from pydantic import SecretStr
 
 from xhs_food.config import Settings
 from xhs_food.foundation.config import (
+    EvidenceShadowConfigView,
     ModelConfigView,
     ObjectStoreConfigView,
     ObservabilityConfigView,
@@ -26,6 +27,7 @@ class OwnerConfigFacade:
     temporal: TemporalConfigView
     object_store: ObjectStoreConfigView
     observability: ObservabilityConfigView
+    evidence_shadow: EvidenceShadowConfigView
 
 
 def build_owner_config(
@@ -74,6 +76,11 @@ def build_owner_config(
             enabled=target.otel_enabled,
             service_name=target.otel_service_name,
             exporter_endpoint=target.otel_exporter_endpoint,
+        ),
+        evidence_shadow=EvidenceShadowConfigView(
+            enabled=target.evidence_shadow_enabled,
+            sample_rate=target.evidence_shadow_sample_rate,
+            write_budget=target.evidence_shadow_write_budget,
         ),
     )
 
