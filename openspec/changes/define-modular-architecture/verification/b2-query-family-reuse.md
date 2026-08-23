@@ -1,6 +1,6 @@
 # B2 Query Family Reuse Qualification
 
-Status: Partial implementation - tasks 10.1-10.6 qualified; 10.7-10.13 remain pending
+Status: Partial implementation - tasks 10.1-10.7 qualified; 10.8-10.13 remain pending
 
 ## Implemented boundary
 
@@ -34,6 +34,10 @@ Status: Partial implementation - tasks 10.1-10.6 qualified; 10.7-10.13 remain pe
   requires `refresh:force` authorization for force mode, reuses the stable
   Family/scope claim, starts only the first Temporal refresh workflow, and
   emits an idempotent accepted `TaskEvent` for both new and reused requests.
+- `QueryReuseReadService` is closed-world by default. Shadow mode compares
+  deterministic public digests while serving legacy output; canary mode uses a
+  deterministic request hash and returns an explicit `served_result`. Its
+  settings reject personalization and background-refresh bindings.
 
 ## Qualification commands
 
@@ -42,6 +46,7 @@ Offline contract and service tests:
 ```powershell
 uv run --frozen pytest -q tests/test_unit_b2_query_reuse.py tests/test_unit_b1_schema_and_embeddings.py tests/test_unit_b1_embedding_shadow.py
 uv run --frozen pytest -q tests/test_unit_b2_bundle_refresh.py
+uv run --frozen pytest -q tests/test_unit_b2_query_reuse_read.py
 ```
 
 Live PostgreSQL/pgvector/pg_trgm test:
@@ -53,8 +58,8 @@ uv run --frozen pytest -q -m live tests/test_live_b2_query_reuse.py -vv -s --tb=
 
 Observed on 2026-08-24 with PostgreSQL 16.14 and pgvector:
 
-- offline B2/B1 subset: `33 passed` (including Bundle lifecycle, refresh, and
-  delta derivation/pointer failure gates)
+- offline B2/B1 subset: `37 passed` (including Bundle lifecycle, refresh,
+  delta derivation/pointer failure, and read shadow/canary gates)
 - live B2 repository qualification: `1 passed in 6.40s`
 - Alembic head resolves through `20260824_0005_b2_derivations`; additive 0005
   upgrade/downgrade SQL smoke passed (live PostgreSQL migration rerun remains
@@ -64,7 +69,7 @@ Observed on 2026-08-24 with PostgreSQL 16.14 and pgvector:
 
 ## Deliberate non-claims
 
-Tasks 10.7-10.13 remain pending. This milestone does not activate query reuse
+Tasks 10.8-10.13 remain pending. This milestone does not activate query reuse
 reads, background refresh scheduling, personalization, or an external refresh
 API. Temporal worker crash replay and production canary gates remain part of
 the later B2 tasks.

@@ -31,6 +31,7 @@ from .embedding_shadow import (
 )
 from .explicit_refresh import ExplicitRefreshRequestMapper, ExplicitRefreshService
 from .query_reuse import QueryFamilyReuseService, RefreshSingleFlightService
+from .query_reuse_read import QueryReuseReadService
 from .shadow_writer import (
     EvidenceShadowGate,
     EvidenceShadowPolicy,
@@ -78,6 +79,7 @@ __all__ = [
     "ExplicitRefreshRequestMapper",
     "QueryFamilyReuseService",
     "RefreshSingleFlightService",
+    "QueryReuseReadService",
     "EvidenceShadowPolicy",
     "EvidenceShadowGate",
     "EvidenceShadowSettings",
