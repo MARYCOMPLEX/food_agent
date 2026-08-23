@@ -12,6 +12,9 @@ from sqlalchemy import select, text, update
 from sqlalchemy.dialects.postgresql import insert
 
 from xhs_food.contracts import (
+    EMBEDDING_PROFILE_VERSION,
+    CurrentBundleRef,
+    EmbeddingDistance,
     EmbeddingProfile,
     FreshnessInput,
     QueryFamilyMatch,
@@ -24,6 +27,7 @@ from xhs_food.contracts import (
 from xhs_food.foundation.database import SQLAlchemyUnitOfWork
 from xhs_food.foundation.evidence_schema import (
     canonical_queries,
+    embedding_profile_read_pointer,
     evidence_bundle_current,
     query_family_aliases,
     query_family_freshness,
@@ -260,6 +264,121 @@ class SQLAlchemyQueryFamilyRepository:
             result = await session.execute(statement)
             await unit.commit()
             return _rowcount(result) == 1
+
+    async def get_current_bundle(self, family_id: str) -> CurrentBundleRef | None:
+        statement = select(evidence_bundle_current).where(
+            evidence_bundle_current.c.family_id == family_id
+        )
+        async with self._unit_of_work_factory() as unit:
+            row = (await unit.session_for_adapter().execute(statement)).mappings().first()
+        if row is None:
+            return None
+        return CurrentBundleRef(
+            family_id=family_id,
+            bundle_id=str(row["bundle_id"]),
+            bundle_version=int(row["bundle_version"]),
+        )
+
+    async def activate_bundle_and_profile_if_current(
+        self,
+        family_id: str,
+        expected_bundle_version: int | None,
+        bundle_id: str,
+        bundle_version: int,
+        expected_profile_id: str | None,
+        profile: EmbeddingProfile,
+    ) -> bool:
+        """Conditionally move both authority pointers in one transaction."""
+
+        now = datetime.now(UTC)
+        async with self._unit_of_work_factory() as unit:
+            session = unit.session_for_adapter()
+            profile_row = (
+                await session.execute(
+                    select(embedding_profile_read_pointer)
+                    .where(embedding_profile_read_pointer.c.pointer_key == "canonical_query")
+                    .with_for_update()
+                )
+            ).mappings().first()
+            current_profile_id = str(profile_row["profile_id"]) if profile_row else None
+            if current_profile_id != expected_profile_id:
+                await unit.rollback()
+                return False
+
+            bundle_row = (
+                await session.execute(
+                    select(evidence_bundle_current)
+                    .where(evidence_bundle_current.c.family_id == family_id)
+                    .with_for_update()
+                )
+            ).mappings().first()
+            current_version = int(bundle_row["bundle_version"]) if bundle_row else None
+            if current_version != expected_bundle_version:
+                await unit.rollback()
+                return False
+
+            if profile_row is None:
+                await session.execute(
+                    insert(embedding_profile_read_pointer).values(
+                        pointer_key="canonical_query",
+                        profile_id=profile.profile_id,
+                        model_version=profile.model_version,
+                        updated_at=now,
+                    )
+                )
+            else:
+                await session.execute(
+                    update(embedding_profile_read_pointer)
+                    .where(embedding_profile_read_pointer.c.pointer_key == "canonical_query")
+                    .values(
+                        profile_id=profile.profile_id,
+                        model_version=profile.model_version,
+                        updated_at=now,
+                    )
+                )
+            if bundle_row is None:
+                await session.execute(
+                    insert(evidence_bundle_current).values(
+                        family_id=family_id,
+                        bundle_id=bundle_id,
+                        bundle_version=bundle_version,
+                        updated_at=now,
+                    )
+                )
+            else:
+                await session.execute(
+                    update(evidence_bundle_current)
+                    .where(evidence_bundle_current.c.family_id == family_id)
+                    .values(
+                        bundle_id=bundle_id,
+                        bundle_version=bundle_version,
+                        updated_at=now,
+                    )
+                )
+            await unit.commit()
+            return True
+
+    async def get_active_profile(self) -> EmbeddingProfile | None:
+        statement = text(
+            "SELECT ep.profile_id, ep.model_id, ep.model_version, ep.dimensions, "
+            "ep.distance, ep.normalized, ep.schema_version "
+            "FROM embedding_profile_read_pointer ptr "
+            "JOIN embedding_profiles ep ON ep.profile_id = ptr.profile_id "
+            "WHERE ptr.pointer_key = 'canonical_query'"
+        )
+        async with self._unit_of_work_factory() as unit:
+            row = (await unit.session_for_adapter().execute(statement)).mappings().first()
+        if row is None:
+            return None
+        return EmbeddingProfile(
+            profile_id=str(row["profile_id"]),
+            model_id=str(row["model_id"]),
+            model_version=str(row["model_version"]),
+            dimensions=int(row["dimensions"]),
+            distance=EmbeddingDistance(str(row["distance"])),
+            normalized=True,
+            schema_version=EMBEDDING_PROFILE_VERSION,
+        )
 
 
 def _alias_id(family_id: str, alias_text: str, language: str, region: str) -> str:

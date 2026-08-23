@@ -10,6 +10,7 @@ from xhs_food.contracts.evidence_shadow import (
     UnclassifiedConstraint,
 )
 
+from .bundle_lifecycle import BundleLifecycleService
 from .canonical import (
     CanonicalQueryNormalizer,
     UnclassifiedConstraintError,
@@ -63,6 +64,7 @@ __all__ = [
     "EmbeddingShadowRepository",
     "EmbeddingShadowRow",
     "EmbeddingShadowService",
+    "BundleLifecycleService",
     "QueryFamilyReuseService",
     "RefreshSingleFlightService",
     "EvidenceShadowPolicy",

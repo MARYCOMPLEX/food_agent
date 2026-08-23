@@ -1,6 +1,6 @@
 # B2 Query Family Reuse Qualification
 
-Status: Partial implementation - tasks 10.1-10.3 qualified; later B2 behavior remains disabled
+Status: Partial implementation - tasks 10.1-10.3 and 10.5 qualified; 10.4 remains partial
 
 ## Implemented boundary
 
@@ -15,6 +15,13 @@ Status: Partial implementation - tasks 10.1-10.3 qualified; later B2 behavior re
 - `RefreshSingleFlightKey` derives a stable Temporal Workflow ID and a
   PostgreSQL idempotency claim key. Bundle activation uses a PostgreSQL
   current-pointer compare-and-swap; Redis is not consulted.
+- Candidate Bundles are validated before the profile read pointer and Bundle
+  current pointer move in one row-lock/CAS transaction. A profile mismatch or
+  late Bundle writer leaves both pointers unchanged. Delta collection and
+  feature/score recomputation remain part of task 10.4.
+- Reads map a valid old Bundle to explicit `stale` or `partial` status when
+  the Freshness Gate reports time staleness or coverage deficit; a new Family
+  returns `unavailable` without fabricating a Bundle.
 
 ## Qualification commands
 
@@ -33,15 +40,15 @@ uv run --frozen pytest -q -m live tests/test_live_b2_query_reuse.py -vv -s --tb=
 
 Observed on 2026-08-24 with PostgreSQL 16.14 and pgvector:
 
-- offline B2/B1 subset: `15 passed`
-- live B2 repository qualification: `1 passed in 5.71s`
-- migration clean upgrade and B2 downgrade/upgrade: passed
+- offline B2/B1 subset: `22 passed` (including Bundle lifecycle)
+- live B2 repository qualification: `1 passed in 6.40s`
+- migration clean upgrade and B2 downgrade/upgrade through `20260824_0004_b2_activate`: passed
 - `uv lock --check`: passed
 - targeted Ruff check: passed
 
 ## Deliberate non-claims
 
-Tasks 10.4-10.13 remain pending. This milestone does not activate query reuse
+Tasks 10.4 and 10.6-10.13 remain pending. This milestone does not activate query reuse
 reads, background refresh scheduling, personalization, or an external refresh
 API. Temporal worker crash replay and production canary gates remain part of
 the later B2 tasks.

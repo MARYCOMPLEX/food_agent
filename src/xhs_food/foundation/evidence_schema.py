@@ -111,6 +111,20 @@ embedding_profiles = Table(
     Column("metadata", JSONB, nullable=False),
 )
 
+embedding_profile_read_pointer = Table(
+    "embedding_profile_read_pointer",
+    SHADOW_METADATA,
+    Column("pointer_key", String(64), primary_key=True),
+    Column(
+        "profile_id",
+        String(128),
+        ForeignKey("embedding_profiles.profile_id", name="fk_embedding_read_profile"),
+        nullable=False,
+    ),
+    Column("model_version", String(64), nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
+)
+
 query_embeddings = Table(
     "canonical_query_embeddings",
     SHADOW_METADATA,
@@ -215,6 +229,7 @@ B2_QUERY_REUSE_TABLES = (
     query_family_aliases,
     query_family_freshness,
     query_refresh_claims,
+    embedding_profile_read_pointer,
 )
 
 __all__ = [
@@ -224,6 +239,7 @@ __all__ = [
     "backfill_cursors",
     "canonical_queries",
     "embedding_profiles",
+    "embedding_profile_read_pointer",
     "evidence_bundle_current",
     "evidence_bundles",
     "evidence_items",

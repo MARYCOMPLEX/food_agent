@@ -141,6 +141,29 @@ async def test_b2_postgres_query_reuse_and_cas() -> None:
         assert await repository.activate_bundle_if_current(family_id, None, bundle_id, 1) is True
         assert await repository.activate_bundle_if_current(family_id, 1, bundle_id, 1) is True
         assert await repository.activate_bundle_if_current(family_id, 0, bundle_id, 1) is False
+        assert (
+            await repository.activate_bundle_and_profile_if_current(
+                family_id,
+                1,
+                bundle_id,
+                1,
+                None,
+                BGE_M3_PROFILE_V1,
+            )
+            is True
+        )
+        assert (await repository.get_active_profile()).profile_id == "profile_v1"  # type: ignore[union-attr]
+        assert (
+            await repository.activate_bundle_and_profile_if_current(
+                family_id,
+                1,
+                bundle_id,
+                1,
+                "wrong-profile",
+                BGE_M3_PROFILE_V1,
+            )
+            is False
+        )
     finally:
         async with database.unit_of_work() as unit:
             session = unit.session_for_adapter()
@@ -148,6 +171,7 @@ async def test_b2_postgres_query_reuse_and_cas() -> None:
                 text("DELETE FROM query_refresh_claims WHERE family_id = :family_id"),
                 {"family_id": family_id},
             )
+            await session.execute(text("DELETE FROM embedding_profile_read_pointer"))
             await session.execute(
                 text("DELETE FROM query_family_freshness WHERE family_id = :family_id"),
                 {"family_id": family_id},
