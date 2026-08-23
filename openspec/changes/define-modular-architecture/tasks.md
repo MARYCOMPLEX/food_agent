@@ -137,8 +137,8 @@
 - [ ] 9.2 使用 SQLAlchemy 2 Async declarative/Core metadata 与 asyncpg driver 实现新 repositories；每个 use case 只持有一个 `AsyncSession`/transaction，禁止与 legacy asyncpg pool 隐式双写或维护第二套 schema 定义。
 - [ ] 9.3 新增版本化 embedding profile 和独立向量存储结构，将 `bge-m3/profile_v1/1024/cosine` 固化为首个 profile；不得把现有 `VECTOR(4096)` 原地改维，也不得让不同 profile 在同一索引中混写。
 - [ ] 9.4 实现 profile-aware dual-write/backfill/shadow-read 工具及可重放 backfill cursor，验证中断可恢复、行数/内容哈希可核对、旧 chat embedding 继续可读，并在切换前保持新 profile 不参与响应。
-- [ ] 9.5 根据已批准合同实现 Canonical Query normalizer、公共/个人约束分类器和 schema/classifier version，拒绝 user/session/preference 进入公共 identity。
-- [ ] 9.6 为 shadow 写生成稳定的确定性 Family identity 和匹配依据；本阶段不启用相似匹配、Family read reuse 或响应切换。
+- [x] 9.5 根据已批准合同实现 Canonical Query normalizer、公共/个人约束分类器和 schema/classifier version，拒绝 user/session/preference 进入公共 identity。
+- [x] 9.6 为 shadow 写生成稳定的确定性 Family identity 和匹配依据；本阶段不启用相似匹配、Family read reuse 或响应切换。
 - [ ] 9.7 实现 CanonicalSourceBatch normalizers，确保 source/external ID、canonical URL、captured time、watermark 和无二进制约束。
 - [ ] 9.8 实现 SourceLocator、EvidenceItem 和 provenance 验证，缺来源链或 schema 不符的 item 进入隔离区。
 - [ ] 9.9 实现绑定 shadow Family identity 的不可变 candidate Bundle repository、parent version 和内容哈希去重，但不切换当前读路径。

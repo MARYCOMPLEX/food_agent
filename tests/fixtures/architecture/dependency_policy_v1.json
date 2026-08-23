@@ -6,6 +6,7 @@
     {"prefix": "xhs_food.composition", "layer": "composition", "mode": "target"},
     {"prefix": "xhs_food.experience", "layer": "experience", "mode": "target"},
     {"prefix": "xhs_food.gateways", "layer": "gateway", "mode": "target"},
+    {"prefix": "xhs_food.evidence", "layer": "evidence", "mode": "target"},
     {"prefix": "xhs_food.foundation", "layer": "target_foundation", "mode": "target"},
     {"prefix": "xhs_food.domain_packs", "layer": "domain_pack", "mode": "target"},
     {"prefix": "xhs_food.contracts", "layer": "contracts", "mode": "target"},
@@ -41,6 +42,7 @@
     "domain_pack": ["contracts", "domain_pack"],
     "experience": ["contracts", "experience"],
     "gateway": ["contracts", "gateway"],
+    "evidence": ["contracts", "domain_pack", "evidence"],
     "target_foundation": ["contracts", "target_foundation"],
     "orchestrator": ["compatibility_adapter", "contracts", "domain_pack", "orchestrator"],
     "connector": ["connector", "contracts"],
@@ -59,6 +61,7 @@
       "compatibility_adapter": ["langchain_core", "pydantic", "sqlalchemy"],
     "domain_pack": [],
     "gateway": ["pydantic"],
+    "evidence": ["pydantic"],
     "orchestrator": ["jsonschema", "pydantic", "pydantic_ai", "temporalio"],
     "target_foundation": ["boto3", "botocore", "opentelemetry", "pydantic", "pydantic_settings", "redis", "sqlalchemy", "temporalio"]
   },
