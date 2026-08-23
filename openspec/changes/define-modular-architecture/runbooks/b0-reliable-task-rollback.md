@@ -231,10 +231,10 @@ artifact.
 | Revert evidence | Value |
 |---|---|
 | Base commit/tree | `aee493dd3a29c8c2364cfd9badb71b32615d8b6c / b64d0c0076bf4503dbfec13c3fcaf3f9c62e08d8` |
-| B0 head/tree | `1c12ceb9cb2f9dc8f16059d8a5b36f0eb441faaf / b1d25b2bc31a778c38bca9b4a6a676facab07072` |
-| Generated revert commits | `1c12ceb` reverted in the detached drill worktree; generated revert commit removed with worktree cleanup |
+| B0 head/tree | `050890a / 92562300aa78f48c21c0764f3c51b954a994a81a` |
+| Generated revert commits | `5aa4365` (revert `050890a`), `72ceefa` (revert `1c12ceb`); detached worktree removed |
 | Reverted tree equals base | `pass` |
-| Reverted test count/duration | `728 passed, 5 deselected, 2 warnings in 67.26s` |
+| Reverted test count/duration | `728 passed, 5 deselected, 2 warnings in 65.80s` |
 | Empty diff and clean status | `pass` |
 | Worktree cleanup/prune | `pass` |
 
