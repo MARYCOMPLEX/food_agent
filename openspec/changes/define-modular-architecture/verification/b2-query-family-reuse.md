@@ -90,8 +90,10 @@ Observed on 2026-08-24 with PostgreSQL 16.14 and pgvector:
   profile/index, and failure-injection gates)
 - live B2 repository qualification: `1 passed in 6.40s`
 - Alembic head resolves through `20260824_0005_b2_derivations`; additive 0005
-  upgrade/downgrade SQL smoke passed (live PostgreSQL migration rerun remains
-  part of the target-stack gate)
+  upgrade was rerun against the local PostgreSQL 16 + pgvector fixture and the
+  live B2 repository qualification passed again: `1 passed in 6.02s` on
+  2026-08-24. The migration was applied with `DATABASE_URL` set only in the
+  local process and no credential was committed.
 - `uv lock --check`: passed
 - targeted Ruff check: passed
 
