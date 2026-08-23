@@ -121,7 +121,7 @@ AI `TestModel`; it does not contact a real provider or write application data.
 uv run --frozen pytest -q -m live tests/test_temporal_qualification.py
 ```
 
-Recorded SDK result: `7 passed` in `39.42s` on Python `3.12.0`, Temporal SDK
+Recorded SDK result: `7 passed` in `34.43s` on Python `3.12.0`, Temporal SDK
 `1.31.0`, Pydantic AI `2.5.1`, Windows 11 build `22631`, UTC
 `2026-08-24`. The first eight qualification observations are implemented by
 seven isolated tests. The worker case is clean stop/restart plus explicit
@@ -202,7 +202,7 @@ unexecuted command.
 | PostgreSQL / Redis | `16 / 7.4` |
 | Focused unit count/duration | `14 passed in 6.07s` |
 | Redis contract count/duration | `8 passed in 3.08s` |
-| Live qualification count/duration | `7 passed in 39.42s` |
+| Live qualification count/duration | `7 passed in 34.43s` |
 | Full non-live count/duration | `745 passed, 12 deselected, 2 warnings in 65.62s` |
 | `uv lock --check` | `pass` |
 | Ruff / Pyright | `targeted changed-file Ruff pass; targeted Pyright 0 errors; legacy full-tree baseline remains noisy` |

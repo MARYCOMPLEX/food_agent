@@ -19,7 +19,7 @@
 - [x] 1.17 定义显式刷新 use-case/API 版本、普通/强制模式授权、in-flight 合并和稳定 SSE 映射；明确它是新行为而非既有兼容合同。
 - [x] 1.18 审批 ADR 索引，确认基础设施基线均标记为 accepted，剩余 Open Questions 只包含业务、兼容性和运维参数；未决项只阻塞其实际影响的里程碑。
 - [x] 1.19 复核 `dependency-research.md` 已批准裁决并在 ADR 索引引用：adopt Pydantic AI V2、Temporal、SQLAlchemy 2 Async、asyncpg、Alembic、PostgreSQL 16/pgvector/pg_trgm、Redis、S3/boto3/MinIO、OpenTelemetry/Prometheus；为许可证、升级和安全响应指定 owner。
-- [ ] 1.20 对 Temporal Python SDK 及 Pydantic AI 官方 Temporal durable execution integration 运行 workflow determinism、模型/工具 Activity replay、worker crash、取消竞争、重试耗尽和部署升级 qualification suite；记录 ARQ、Celery、LangGraph、OpenAI Agents SDK 及 Redis job facade 不作为第二套核心 runtime 的架构禁令。
+- [x] 1.20 对 Temporal Python SDK 及 Pydantic AI 官方 Temporal durable execution integration 运行 workflow determinism、模型/工具 Activity replay、worker crash、取消竞争、重试耗尽和部署升级 qualification suite；记录 ARQ、Celery、LangGraph、OpenAI Agents SDK 及 Redis job facade 不作为第二套核心 runtime 的架构禁令。
 - [x] 1.21 固化数据库和检索方案：SQLAlchemy 2 Async 通过 asyncpg 访问 PostgreSQL 16，Alembic 是唯一 schema authority，检索使用确定性键、`pg_trgm` 与 pgvector；定义 BGE-M3 `profile_v1`（1024 维、cosine）的新增 profile/table、回填、切换和回滚边界。
 - [x] 1.22 固化 S3-compatible ObjectStore/boto3、本地 MinIO、OpenTelemetry SDK、Prometheus client、import-linter、Schemathesis/Hypothesis 和前端 OpenAPI client 的 adapter/tooling 边界及脱敏要求。
 - [ ] 1.23 将官方资料 URL、核验日期、精确版本、维护状态和 spike 结果写入 ADR 索引；用 Python 3.12 生成并提交 `uv.lock`，依赖状态变化必须显式评审并更新锁文件。
