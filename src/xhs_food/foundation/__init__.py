@@ -11,6 +11,7 @@ from .config import (
     TemporalConfigView,
 )
 from .database import RepositorySlot, SQLAlchemyDatabase, SQLAlchemyUnitOfWork
+from .evidence_schema import B1_SHADOW_TABLES, SHADOW_METADATA
 from .failures import (
     FoundationAdapterError,
     foundation_error_from_exception,
@@ -41,6 +42,7 @@ from .temporal import (
 
 __all__ = [
     "Boto3ObjectStore",
+    "B1_SHADOW_TABLES",
     "FoundationAdapterError",
     "ModelConfigView",
     "ObjectStoreConfigView",
@@ -59,6 +61,7 @@ __all__ = [
     "RepositorySlot",
     "SQLAlchemyDatabase",
     "SQLAlchemyUnitOfWork",
+    "SHADOW_METADATA",
     "TargetAdapterDisabled",
     "TargetSettings",
     "TemporalActivityAdapter",

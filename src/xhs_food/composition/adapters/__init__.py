@@ -1,6 +1,7 @@
 """Concrete and legacy framework adapters owned by Composition."""
 
 from .config import OwnerConfigFacade, build_owner_config
+from .evidence_shadow_repository import SQLAlchemyCanonicalQueryShadowRepository
 from .llm import LegacyLLMProviderAdapter, ProviderModelGateway
 from .reliable_task_authority import (
     PostgresReliableTaskAuthority,
@@ -28,6 +29,7 @@ from .state import (
 
 __all__ = [
     "DisabledPublicEvidenceRepository",
+    "SQLAlchemyCanonicalQueryShadowRepository",
     "LegacyFavoritesRepositoryAdapter",
     "LegacyHistoryRepositoryAdapter",
     "LegacyLLMProviderAdapter",

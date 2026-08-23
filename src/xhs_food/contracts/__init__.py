@@ -56,6 +56,18 @@ from .domain import (
     validate_json_schema_value,
     validate_schema_document,
 )
+from .embedding import (
+    BACKFILL_CURSOR_VERSION,
+    BGE_M3_PROFILE_V1,
+    EMBEDDING_PROFILE_VERSION,
+    BackfillRow,
+    EmbeddingBackfillCursor,
+    EmbeddingDistance,
+    EmbeddingProfile,
+    advance_backfill_cursor,
+    initial_backfill_cursor,
+    validate_embedding_vector,
+)
 from .errors import ContractError, ErrorCategory, ErrorScope
 from .evidence import (
     CANONICAL_QUERY_VERSION,
@@ -189,6 +201,7 @@ from .refresh_media import (
     WorkloadPort,
 )
 from .repositories import (
+    CanonicalQueryShadowRepositoryPort,
     FavoritesRepositoryPort,
     HistoryRepositoryPort,
     PlaceCacheRepositoryPort,
@@ -238,6 +251,9 @@ __all__ = [
     "REQUIRED_METHOD_SCHEMA_IDS",
     "RESEARCH_PLAN_SCHEMA_VERSION",
     "AllowedToolContract",
+    "BACKFILL_CURSOR_VERSION",
+    "BGE_M3_PROFILE_V1",
+    "BackfillRow",
     "BundledSchemaDocument",
     "AnonymousIsolationKey",
     "AuthorityModel",
@@ -250,6 +266,7 @@ __all__ = [
     "CanonicalQuery",
     "CANONICAL_QUERY_CLASSIFICATION_VERSION",
     "CanonicalQueryResult",
+    "CanonicalQueryShadowRepositoryPort",
     "CanonicalQueryValue",
     "CanonicalSourceBatch",
     "CanonicalSourceComment",
@@ -280,6 +297,10 @@ __all__ = [
     "DeletionGovernance",
     "DerivedArtifact",
     "EffectiveCapabilities",
+    "EMBEDDING_PROFILE_VERSION",
+    "EmbeddingBackfillCursor",
+    "EmbeddingDistance",
+    "EmbeddingProfile",
     "ErrorCategory",
     "ErrorScope",
     "ExplicitRefreshUseCase",
@@ -406,12 +427,15 @@ __all__ = [
     "WorkflowStart",
     "canonical_manifest_digest",
     "canonical_schema_digest",
+    "advance_backfill_cursor",
     "compare_contract_models",
     "compare_contract_schemas",
     "intersect_personalized_capabilities",
+    "initial_backfill_cursor",
     "isolation_key_for",
     "round_trip_contract",
     "validate_domain_pack_registration",
+    "validate_embedding_vector",
     "validate_json_schema_value",
     "validate_schema_document",
 ]

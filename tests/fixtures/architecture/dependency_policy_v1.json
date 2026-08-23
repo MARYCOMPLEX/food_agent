@@ -63,7 +63,7 @@
     "gateway": ["pydantic"],
     "evidence": ["pydantic"],
     "orchestrator": ["jsonschema", "pydantic", "pydantic_ai", "temporalio"],
-    "target_foundation": ["boto3", "botocore", "opentelemetry", "pydantic", "pydantic_settings", "redis", "sqlalchemy", "temporalio"]
+    "target_foundation": ["boto3", "botocore", "opentelemetry", "pgvector", "pydantic", "pydantic_settings", "redis", "sqlalchemy", "temporalio"]
   },
   "owner_port_consumer_module_prefixes": [
     "xhs_food.agents",

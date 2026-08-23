@@ -134,8 +134,8 @@
 ## 9. B1 Canonical Evidence Shadow
 
 - [ ] 9.1 只通过 Alembic 编写只增不删的 Query/Evidence/Provenance/Bundle migration；移除新 schema 的运行时 `CREATE TABLE IF NOT EXISTS` 和旁路迁移脚本，并验证 clean、N-1、pre-turn 和 current PostgreSQL 16 的幂等升级与 expand-phase 回退兼容。
-- [ ] 9.2 使用 SQLAlchemy 2 Async declarative/Core metadata 与 asyncpg driver 实现新 repositories；每个 use case 只持有一个 `AsyncSession`/transaction，禁止与 legacy asyncpg pool 隐式双写或维护第二套 schema 定义。
-- [ ] 9.3 新增版本化 embedding profile 和独立向量存储结构，将 `bge-m3/profile_v1/1024/cosine` 固化为首个 profile；不得把现有 `VECTOR(4096)` 原地改维，也不得让不同 profile 在同一索引中混写。
+- [x] 9.2 使用 SQLAlchemy 2 Async declarative/Core metadata 与 asyncpg driver 实现新 repositories；每个 use case 只持有一个 `AsyncSession`/transaction，禁止与 legacy asyncpg pool 隐式双写或维护第二套 schema 定义。
+- [x] 9.3 新增版本化 embedding profile 和独立向量存储结构，将 `bge-m3/profile_v1/1024/cosine` 固化为首个 profile；不得把现有 `VECTOR(4096)` 原地改维，也不得让不同 profile 在同一索引中混写。
 - [ ] 9.4 实现 profile-aware dual-write/backfill/shadow-read 工具及可重放 backfill cursor，验证中断可恢复、行数/内容哈希可核对、旧 chat embedding 继续可读，并在切换前保持新 profile 不参与响应。
 - [x] 9.5 根据已批准合同实现 Canonical Query normalizer、公共/个人约束分类器和 schema/classifier version，拒绝 user/session/preference 进入公共 identity。
 - [x] 9.6 为 shadow 写生成稳定的确定性 Family identity 和匹配依据；本阶段不启用相似匹配、Family read reuse 或响应切换。

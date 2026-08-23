@@ -7,6 +7,7 @@ from typing import Protocol, Self, runtime_checkable
 
 from .base import ContractPayload
 from .evidence import EvidenceBundle, EvidenceItem
+from .evidence_shadow import CanonicalQueryResult
 
 
 @runtime_checkable
@@ -103,6 +104,13 @@ class PublicEvidenceRepositoryPort(Protocol):
 
 
 @runtime_checkable
+class CanonicalQueryShadowRepositoryPort(Protocol):
+    """Write-only B1 shadow projection; it never serves a response read."""
+
+    async def save(self, result: CanonicalQueryResult) -> str: ...
+
+
+@runtime_checkable
 class RepositoryUnitOfWork(Protocol):
     """One use-case transaction; adapters keep driver sessions private."""
 
@@ -122,6 +130,7 @@ class RepositoryUnitOfWork(Protocol):
 
 __all__ = [
     "FavoritesRepositoryPort",
+    "CanonicalQueryShadowRepositoryPort",
     "HistoryRepositoryPort",
     "PlaceCacheRepositoryPort",
     "PublicEvidenceRepositoryPort",
