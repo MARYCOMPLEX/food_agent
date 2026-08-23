@@ -13,6 +13,8 @@ from pydantic import Field, model_validator
 from .base import ContractModel, NonEmptyStr, Timestamp, VersionedContract
 from .embedding import BGE_M3_PROFILE_V1, EmbeddingProfile
 from .evidence import ContractVersion, RegisteredSlug
+from .ports import WorkflowRun
+from .tasks import ResearchRequest, ResearchTask, TaskEvent
 
 QUERY_REUSE_VERSION = "query-reuse/v1"
 FRESHNESS_GATE_VERSION = "freshness-gate/v1"
@@ -152,6 +154,22 @@ class RefreshClaim(ContractModel):
     status: Literal["active", "completed", "failed", "cancelled"] = "active"
 
 
+class RefreshTaskBuilder(Protocol):
+    async def build(
+        self,
+        request: ResearchRequest,
+        task_id: str,
+        workflow_id: str,
+        run: WorkflowRun | None,
+        *,
+        reused: bool,
+    ) -> ResearchTask: ...
+
+
+class RefreshEventPublisher(Protocol):
+    async def publish(self, event: TaskEvent) -> None: ...
+
+
 class QueryFamilyRepository(Protocol):
     async def get_exact(self, canonical_key: str) -> QueryFamilyMatch | None: ...
 
@@ -200,6 +218,12 @@ def stable_refresh_claim_key(key: RefreshSingleFlightKey) -> str:
     """The database idempotency key is the same deterministic scope hash."""
 
     return stable_refresh_workflow_id(key).removeprefix("refresh.")
+
+
+def stable_refresh_task_id(workflow_id: str) -> str:
+    if not workflow_id:
+        raise ValueError("workflow_id must be non-empty")
+    return f"task-refresh-{hashlib.sha256(workflow_id.encode('utf-8')).hexdigest()[:32]}"
 
 
 def decide_freshness(
@@ -264,8 +288,11 @@ __all__ = [
     "QueryReuseDecision",
     "QueryReuseRequest",
     "RefreshClaim",
+    "RefreshEventPublisher",
     "RefreshSingleFlightKey",
+    "RefreshTaskBuilder",
     "decide_freshness",
     "stable_refresh_claim_key",
+    "stable_refresh_task_id",
     "stable_refresh_workflow_id",
 ]

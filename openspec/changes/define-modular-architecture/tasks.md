@@ -156,7 +156,7 @@
 - [x] 10.3 以稳定 Temporal Workflow ID 实现同 Family/范围/策略 single-flight，并由持久 history replay/reschedule 处理 worker 失效，以 PostgreSQL idempotency constraint/current-pointer CAS 阻止 late writer；不得使用 Redis lease、Redlock 或缓存值裁决权威提交。
 - [ ] 10.4 实现 delta collection、candidate Bundle 验证、公共 feature/score 重算和 profile-aware 索引构建；分别以权威条件事务激活 embedding profile read pointer 与 Bundle current pointer，禁止跨 profile 查询，并保留旧 profile/Bundle 原子回滚路径。
 - [x] 10.5 实现按最大陈旧时间/最低覆盖度返回旧 Bundle 的明确 stale/partial 状态。
-- [ ] 10.6 按 ADR 实现显式普通/强制刷新 use-case 和 API mapper，复用同一 Family/活动 task、执行授权并发出稳定任务事件。
+- [x] 10.6 按 ADR 实现显式普通/强制刷新 use-case 和 API mapper，复用同一 Family/活动 task、执行授权并发出稳定任务事件。
 - [ ] 10.7 实现 `query_reuse_read` shadow compare 和小流量 canary，不同时启用 personalization 或 background refresh scheduler。
 - [ ] 10.8 添加示例自贡两问、公共/个人约束分类、确定性键/trigram/vector 各级命中、低置信度、显式刷新、并发命中、Temporal worker failure replay/reschedule 和 pointer rollback tests。
 - [ ] 10.9 添加固定 BGE-M3 embedding fixture，验证 1024 维、cosine operator/index、profile 回填质量门禁、read pointer 原子切换/回滚、跨 profile 查询拒绝、模型版本变化拒绝静默复用，以及禁用 embedding 时确定性键/`pg_trgm` 路径可用。

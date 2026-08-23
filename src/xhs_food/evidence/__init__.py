@@ -24,6 +24,7 @@ from .embedding_shadow import (
     EmbeddingShadowRow,
     EmbeddingShadowService,
 )
+from .explicit_refresh import ExplicitRefreshRequestMapper, ExplicitRefreshService
 from .query_reuse import QueryFamilyReuseService, RefreshSingleFlightService
 from .shadow_writer import (
     EvidenceShadowGate,
@@ -65,6 +66,8 @@ __all__ = [
     "EmbeddingShadowRow",
     "EmbeddingShadowService",
     "BundleLifecycleService",
+    "ExplicitRefreshService",
+    "ExplicitRefreshRequestMapper",
     "QueryFamilyReuseService",
     "RefreshSingleFlightService",
     "EvidenceShadowPolicy",
