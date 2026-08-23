@@ -5,8 +5,10 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+from dataclasses import dataclass
+from datetime import datetime
 from enum import StrEnum
-from typing import Literal, Self
+from typing import Literal, Protocol, Self
 
 from pydantic import Field, model_validator
 
@@ -66,6 +68,38 @@ class EmbeddingBackfillCursor(ContractModel):
         if self.last_source_key is None and self.last_batch_hash is not None:
             raise ValueError("a batch hash requires a last source key")
         return self
+
+
+@dataclass(frozen=True, slots=True)
+class EmbeddingShadowRow:
+    """Profile-aware row crossing the repository/service boundary."""
+
+    canonical_key: str
+    profile_id: str
+    vector: tuple[float, ...]
+    content_hash: str
+    generated_at: datetime
+
+
+class EmbeddingShadowRepository(Protocol):
+    async def put_embedding(
+        self,
+        canonical_key: str,
+        profile: EmbeddingProfile,
+        vector: tuple[float, ...],
+        content_hash: str,
+        generated_at: datetime,
+    ) -> None: ...
+
+    async def get_embedding(
+        self, canonical_key: str, profile: EmbeddingProfile
+    ) -> EmbeddingShadowRow | None: ...
+
+    async def load_backfill_cursor(
+        self, profile: EmbeddingProfile
+    ) -> EmbeddingBackfillCursor | None: ...
+
+    async def save_backfill_cursor(self, cursor: EmbeddingBackfillCursor) -> None: ...
 
 
 def initial_backfill_cursor(
@@ -132,6 +166,8 @@ __all__ = [
     "EmbeddingBackfillCursor",
     "EmbeddingDistance",
     "EmbeddingProfile",
+    "EmbeddingShadowRepository",
+    "EmbeddingShadowRow",
     "advance_backfill_cursor",
     "initial_backfill_cursor",
     "validate_embedding_vector",

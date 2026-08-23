@@ -23,6 +23,12 @@ def upgrade() -> None:
     for table in tables:
         op.execute(CreateTable(table))
         for index in table.indexes:
+            # The immutable candidate dedupe index is deliberately introduced
+            # by revision 0002 after any existing candidate rows are checked.
+            # Keep it in shared metadata for repository contracts without
+            # creating it twice during an upgrade from a clean database.
+            if index.name == "uq_evidence_bundles_family_content":
+                continue
             op.execute(CreateIndex(index))
 
 
@@ -33,5 +39,7 @@ def downgrade() -> None:
     tables = tuple(table.to_metadata(migration_metadata) for table in B1_SHADOW_TABLES)
     for table in reversed(tables):
         for index in table.indexes:
+            if index.name == "uq_evidence_bundles_family_content":
+                continue
             op.execute(DropIndex(index))
         op.drop_table(table.name)

@@ -99,6 +99,7 @@ def test_alembic_b1_revision_is_additive_and_never_uses_runtime_create_if_not_ex
     assert "VECTOR(1024)" in sql
     assert "VECTOR(4096)" not in sql
     assert all(table in sql for table in SHADOW_METADATA.tables)
+    assert "uq_evidence_bundles_family_content" not in sql
 
     downgrade_sql = StringIO()
     downgrade_context = MigrationContext.configure(
@@ -107,6 +108,7 @@ def test_alembic_b1_revision_is_additive_and_never_uses_runtime_create_if_not_ex
     )
     with Operations.context(downgrade_context):
         migration.downgrade()
+    assert "uq_evidence_bundles_family_content" not in downgrade_sql.getvalue()
     assert "DROP TABLE chat_history" not in downgrade_sql.getvalue()
 
 

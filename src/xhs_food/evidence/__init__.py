@@ -15,6 +15,14 @@ from .canonical import (
     UnclassifiedConstraintError,
 )
 from .diff import ShadowDiffApproval, ShadowDifference, ShadowDiffReport, compare_shadow_legacy
+from .embedding_shadow import (
+    EmbeddingBackfillInput,
+    EmbeddingCompareStatus,
+    EmbeddingShadowComparison,
+    EmbeddingShadowRepository,
+    EmbeddingShadowRow,
+    EmbeddingShadowService,
+)
 from .shadow_writer import (
     EvidenceShadowGate,
     EvidenceShadowPolicy,
@@ -48,6 +56,12 @@ __all__ = [
     "ShadowDiffReport",
     "ShadowDifference",
     "EvidenceQuarantineError",
+    "EmbeddingBackfillInput",
+    "EmbeddingCompareStatus",
+    "EmbeddingShadowComparison",
+    "EmbeddingShadowRepository",
+    "EmbeddingShadowRow",
+    "EmbeddingShadowService",
     "EvidenceShadowPolicy",
     "EvidenceShadowGate",
     "EvidenceShadowSettings",
