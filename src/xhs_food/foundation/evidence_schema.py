@@ -143,7 +143,54 @@ backfill_cursors = Table(
     Column("schema_version", String(64), nullable=False),
 )
 
+query_family_aliases = Table(
+    "query_family_aliases",
+    SHADOW_METADATA,
+    Column("alias_id", String(256), primary_key=True),
+    Column("family_id", String(256), nullable=False),
+    Column("canonical_key", String(256), nullable=False),
+    Column("alias_text", Text, nullable=False),
+    Column("language", String(32), nullable=False),
+    Column("region", String(8), nullable=False),
+    Column("rule_version", String(64), nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    UniqueConstraint("family_id", "alias_text", name="uq_query_family_alias_text"),
+)
+
+query_family_freshness = Table(
+    "query_family_freshness",
+    SHADOW_METADATA,
+    Column("family_id", String(256), primary_key=True),
+    Column("bundle_version", Integer),
+    Column("verified_at", DateTime(timezone=True)),
+    Column("coverage", JSONB, nullable=False),
+    Column("watermarks", JSONB, nullable=False),
+    Column("active_refresh_workflow_id", String(256)),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
+)
+
+query_refresh_claims = Table(
+    "query_refresh_claims",
+    SHADOW_METADATA,
+    Column("claim_key", String(256), primary_key=True),
+    Column("family_id", String(256), nullable=False),
+    Column("scope_hash", String(64), nullable=False),
+    Column("policy_version", String(64), nullable=False),
+    Column("workflow_id", String(256), nullable=False),
+    Column("status", String(32), nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
+    UniqueConstraint(
+        "family_id",
+        "scope_hash",
+        "policy_version",
+        name="uq_query_refresh_claim_scope",
+    ),
+)
+
 Index("ix_canonical_queries_family", canonical_queries.c.family_id)
+Index("ix_query_family_aliases_family", query_family_aliases.c.family_id)
+Index("ix_query_family_aliases_canonical", query_family_aliases.c.canonical_key)
 Index("ix_evidence_items_locator", evidence_items.c.source_locator_id)
 Index("ix_evidence_bundles_family", evidence_bundles.c.family_id)
 Index(
@@ -164,8 +211,15 @@ B1_SHADOW_TABLES = (
     backfill_cursors,
 )
 
+B2_QUERY_REUSE_TABLES = (
+    query_family_aliases,
+    query_family_freshness,
+    query_refresh_claims,
+)
+
 __all__ = [
     "B1_SHADOW_TABLES",
+    "B2_QUERY_REUSE_TABLES",
     "SHADOW_METADATA",
     "backfill_cursors",
     "canonical_queries",
@@ -174,5 +228,8 @@ __all__ = [
     "evidence_bundles",
     "evidence_items",
     "query_embeddings",
+    "query_family_aliases",
+    "query_family_freshness",
+    "query_refresh_claims",
     "source_locators",
 ]

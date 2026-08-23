@@ -151,9 +151,9 @@
 
 ## 10. B2 Query Family, Explicit Refresh And Versioned Reuse
 
-- [ ] 10.1 基于 B1 Canonical Query 实现“确定性规范键 -> PostgreSQL `pg_trgm` -> 前两级未达到批准置信度时进入 pgvector BGE-M3 `profile_v1`”三级检索，记录命中层级、规则/profile 版本、置信度、alias 和 Family merge/split 审计依据。
-- [ ] 10.2 实现 Freshness Gate 的 fresh/incremental/new 三态及 verified time、coverage、watermark、active refresh 输入。
-- [ ] 10.3 以稳定 Temporal Workflow ID 实现同 Family/范围/策略 single-flight，并由持久 history replay/reschedule 处理 worker 失效，以 PostgreSQL idempotency constraint/current-pointer CAS 阻止 late writer；不得使用 Redis lease、Redlock 或缓存值裁决权威提交。
+- [x] 10.1 基于 B1 Canonical Query 实现“确定性规范键 -> PostgreSQL `pg_trgm` -> 前两级未达到批准置信度时进入 pgvector BGE-M3 `profile_v1`”三级检索，记录命中层级、规则/profile 版本、置信度、alias 和 Family merge/split 审计依据。
+- [x] 10.2 实现 Freshness Gate 的 fresh/incremental/new 三态及 verified time、coverage、watermark、active refresh 输入。
+- [x] 10.3 以稳定 Temporal Workflow ID 实现同 Family/范围/策略 single-flight，并由持久 history replay/reschedule 处理 worker 失效，以 PostgreSQL idempotency constraint/current-pointer CAS 阻止 late writer；不得使用 Redis lease、Redlock 或缓存值裁决权威提交。
 - [ ] 10.4 实现 delta collection、candidate Bundle 验证、公共 feature/score 重算和 profile-aware 索引构建；分别以权威条件事务激活 embedding profile read pointer 与 Bundle current pointer，禁止跨 profile 查询，并保留旧 profile/Bundle 原子回滚路径。
 - [ ] 10.5 实现按最大陈旧时间/最低覆盖度返回旧 Bundle 的明确 stale/partial 状态。
 - [ ] 10.6 按 ADR 实现显式普通/强制刷新 use-case 和 API mapper，复用同一 Family/活动 task、执行授权并发出稳定任务事件。

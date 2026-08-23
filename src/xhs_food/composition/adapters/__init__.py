@@ -5,6 +5,7 @@ from .embedding_shadow_repository import SQLAlchemyEmbeddingShadowRepository
 from .evidence_bundle_repository import SQLAlchemyCandidateBundleRepository
 from .evidence_shadow_repository import SQLAlchemyCanonicalQueryShadowRepository
 from .llm import LegacyLLMProviderAdapter, ProviderModelGateway
+from .query_family_repository import SQLAlchemyQueryFamilyRepository
 from .reliable_task_authority import (
     PostgresReliableTaskAuthority,
     PostgresTaskProgressProjectionStore,
@@ -34,6 +35,7 @@ __all__ = [
     "SQLAlchemyCandidateBundleRepository",
     "SQLAlchemyEmbeddingShadowRepository",
     "SQLAlchemyCanonicalQueryShadowRepository",
+    "SQLAlchemyQueryFamilyRepository",
     "LegacyFavoritesRepositoryAdapter",
     "LegacyHistoryRepositoryAdapter",
     "LegacyLLMProviderAdapter",

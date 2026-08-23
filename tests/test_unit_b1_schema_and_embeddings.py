@@ -25,7 +25,7 @@ from xhs_food.contracts import (
 )
 from xhs_food.domain_packs.food.pack import FoodPack
 from xhs_food.evidence import CanonicalQueryNormalizer
-from xhs_food.foundation.evidence_schema import SHADOW_METADATA
+from xhs_food.foundation.evidence_schema import B1_SHADOW_TABLES
 
 ROOT = Path(__file__).parents[1]
 FIXTURES = Path(__file__).parent / "fixtures" / "authority"
@@ -98,7 +98,7 @@ def test_alembic_b1_revision_is_additive_and_never_uses_runtime_create_if_not_ex
     assert "CREATE TABLE IF NOT EXISTS" not in sql
     assert "VECTOR(1024)" in sql
     assert "VECTOR(4096)" not in sql
-    assert all(table in sql for table in SHADOW_METADATA.tables)
+    assert all(table.name in sql for table in B1_SHADOW_TABLES)
     assert "uq_evidence_bundles_family_content" not in sql
 
     downgrade_sql = StringIO()

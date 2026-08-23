@@ -12,7 +12,7 @@ from .config import (
     TemporalConfigView,
 )
 from .database import RepositorySlot, SQLAlchemyDatabase, SQLAlchemyUnitOfWork
-from .evidence_schema import B1_SHADOW_TABLES, SHADOW_METADATA
+from .evidence_schema import B1_SHADOW_TABLES, B2_QUERY_REUSE_TABLES, SHADOW_METADATA
 from .failures import (
     FoundationAdapterError,
     foundation_error_from_exception,
@@ -23,8 +23,8 @@ from .observability import (
     EvidenceShadowTelemetry,
     ObservabilityBootstrap,
     correlation_attributes,
-    redact_log_context,
     prometheus_labels,
+    redact_log_context,
 )
 from .redis import (
     RateLimitDecision,
@@ -46,6 +46,7 @@ from .temporal import (
 __all__ = [
     "Boto3ObjectStore",
     "B1_SHADOW_TABLES",
+    "B2_QUERY_REUSE_TABLES",
     "FoundationAdapterError",
     "EvidenceShadowTelemetry",
     "EvidenceShadowConfigView",

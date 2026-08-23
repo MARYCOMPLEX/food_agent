@@ -23,6 +23,7 @@ from .embedding_shadow import (
     EmbeddingShadowRow,
     EmbeddingShadowService,
 )
+from .query_reuse import QueryFamilyReuseService, RefreshSingleFlightService
 from .shadow_writer import (
     EvidenceShadowGate,
     EvidenceShadowPolicy,
@@ -62,6 +63,8 @@ __all__ = [
     "EmbeddingShadowRepository",
     "EmbeddingShadowRow",
     "EmbeddingShadowService",
+    "QueryFamilyReuseService",
+    "RefreshSingleFlightService",
     "EvidenceShadowPolicy",
     "EvidenceShadowGate",
     "EvidenceShadowSettings",
