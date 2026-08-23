@@ -56,6 +56,12 @@ check, while a process-level crash harness remains a deployment gate. The
 remaining rows require the application integration harness and a real
 PostgreSQL/Redis test stack; the SDK suite alone cannot prove them.
 
+The reliable cancellation case uses graceful signal handling: a signal that
+arrives during an Activity waits for that Activity to finish, then the
+Workflow invokes the cancellation Activity at the next deterministic boundary.
+Only the committed cancellation receipt can produce the `task.cancelled`
+terminal event; the request path never fabricates one.
+
 ## Evidence Capture
 
 Fill this section from the command output, preserving failures verbatim:

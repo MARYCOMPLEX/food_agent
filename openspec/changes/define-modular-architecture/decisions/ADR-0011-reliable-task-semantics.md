@@ -188,6 +188,13 @@ terminal status. A retry of a failed/cancelled task reuses the stable task
 identity but receives a new Temporal `run_id` and a new turn; old-run events
 are ignored for current projection updates.
 
+Cancellation is graceful at the Workflow boundary: when a signal arrives
+while an Activity is running, the current Activity is allowed to finish. The
+Workflow observes the signal at the next deterministic Activity boundary,
+then runs the cancellation Activity and publishes the authoritative terminal
+event. This bounded wait is part of the reliable cancellation contract and
+does not create a request-time terminal projection.
+
 Reconciliation is keyed by `(task_id, workflow_id, run_id)` and MUST classify
 at least these cases:
 
