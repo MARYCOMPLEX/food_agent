@@ -119,7 +119,7 @@
 
 ## 8. B0 Reliable Task Semantics
 
-- [ ] 8.1 为 legacy task policy 与 Temporal-backed reliable policy 分配独立合同版本，明确 completed/error、旧终态重放、取消、持久化顺序和稳定 HTTP/SSE 映射。
+- [x] 8.1 为 legacy task policy 与 Temporal-backed reliable policy 分配独立合同版本，明确 completed/error、旧终态重放、取消、持久化顺序和稳定 HTTP/SSE 映射。
 - [ ] 8.2 在独立 `reliable_task_lifecycle` 开关后实现 Research Temporal Workflow；以稳定 Workflow ID 表达 task 幂等和同任务 single-flight，重复启动必须返回同一 task/workflow 而非获取 Redis 锁。
 - [ ] 8.3 保持 `ResearchCoordinator` 为语义状态迁移的唯一 owner；Temporal history 是唯一 executable checkpoint，PostgreSQL 只保存业务进度/结果投影。实现按 `workflow_id/run_id` 的固定 reconciliation、权威结果提交屏障与 PG commit 后唯一 terminal 投影。
 - [x] 8.4 使用 Pydantic AI 官方 Temporal durable execution integration 将每次模型与工具调用映射为有界 Activity，并将 Connector、Repository 和结果提交放入普通 Activities；定义版本化 timeout、retry、non-retryable failure、heartbeat 和 cancellation policy，禁止普通 Pydantic AI loop 或任何非确定性 I/O 直接运行在 Workflow sandbox 中。
