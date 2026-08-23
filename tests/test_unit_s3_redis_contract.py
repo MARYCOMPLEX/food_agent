@@ -17,6 +17,7 @@ from xhs_food.foundation import (
     RedisFixedWindowRateLimiter,
     RedisHotStateContract,
     RedisIdempotencyWindow,
+    RedisReplayExpiredError,
 )
 
 
@@ -243,3 +244,76 @@ async def test_event_publish_normalizes_bytes_entry_id() -> None:
 
     assert entry_id == "1-0"
     assert isinstance(entry_id, str)
+
+
+class ReplayEventRedis(FakeRedis):
+    def __init__(self) -> None:
+        super().__init__()
+        self.entries: list[tuple[str, dict[str, str]]] = []
+
+    async def xrange(
+        self,
+        key: str,
+        min: str = "-",
+        max: str = "+",
+        count: int | None = None,
+    ) -> list[object]:
+        del key, min, max
+        values = self.entries[:count] if count is not None else self.entries
+        return list(values)
+
+    async def xread(
+        self,
+        streams: Mapping[str, str],
+        *,
+        count: int,
+        block: int,
+    ) -> list[object]:
+        del count, block
+        key, cursor = next(iter(streams.items()))
+        entries = [
+            item
+            for item in self.entries
+            if tuple(int(part) for part in item[0].split("-"))
+            > tuple(int(part) for part in cursor.split("-"))
+        ]
+        return [(key, entries)] if entries else []
+
+
+@pytest.mark.unit
+async def test_sse_cursor_inside_window_replays_exclusively() -> None:
+    client = ReplayEventRedis()
+    first = EventEnvelope(
+        event_id="event-1",
+        topic="search",
+        payload={"status": "running"},
+        published_at=datetime(2026, 8, 21, tzinfo=UTC),
+    )
+    second = first.model_copy(update={"event_id": "event-2", "payload": {"status": "done"}})
+    client.entries = [
+        ("10-0", {"payload": first.model_dump_json()}),
+        ("11-0", {"payload": second.model_dump_json()}),
+    ]
+
+    iterator = RedisEventBusAdapter(client).subscribe("search", after="10-0")
+    event = await anext(iterator)
+    assert event.event_id == "event-2"
+    await iterator.aclose()
+
+
+@pytest.mark.unit
+async def test_sse_cursor_outside_window_is_replay_expired() -> None:
+    client = ReplayEventRedis()
+    event = EventEnvelope(
+        event_id="event-2",
+        topic="search",
+        payload={"status": "done"},
+        published_at=datetime(2026, 8, 21, tzinfo=UTC),
+    )
+    client.entries = [("11-0", {"payload": event.model_dump_json()})]
+
+    iterator = RedisEventBusAdapter(client).subscribe("search", after="9-0")
+    with pytest.raises(RedisReplayExpiredError) as caught:
+        await anext(iterator)
+    assert caught.value.error.code == "SSE_REPLAY_EXPIRED"
+    assert caught.value.error.details["recovery"] == "resync"

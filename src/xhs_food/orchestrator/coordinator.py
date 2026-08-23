@@ -13,6 +13,7 @@ from xhs_food.contracts import (
     AgentRunRequest,
     AgentRunResult,
     AgentRuntime,
+    ContractError,
     ContractPayload,
     PlanBudget,
     PlanStatus,
@@ -29,6 +30,7 @@ from xhs_food.contracts import (
     TaskProgressProjection,
     TaskProgressProjectionPort,
     TaskStatus,
+    WorkflowRun,
 )
 from xhs_food.orchestrator.projections import InMemoryTaskProgressProjectionStore
 from xhs_food.orchestrator.review import (
@@ -127,6 +129,10 @@ class ResearchCoordinator:
         self._plans: dict[str, ResearchPlan] = {}
         self._plans_by_id: dict[str, ResearchPlan] = {}
         self._events: dict[str, list[TaskEvent]] = {}
+        # Reliable-policy requests are retained by the coordinator so retry
+        # and reconciliation never need to reconstruct executable state from
+        # Redis or a query-only projection.
+        self._reliable_requests: dict[str, ResearchRequest] = {}
         self._state_lock = asyncio.Lock()
 
     @property
@@ -230,6 +236,233 @@ class ResearchCoordinator:
         if not self._reliable_policy_enabled:
             raise RuntimeError("retry is disabled under the S5 legacy task policy")
         return await self._reliable_policy.retry(task_id)
+
+    async def admit_reliable_task(
+        self,
+        request: ResearchRequest,
+        *,
+        task_id: str,
+        workflow_id: str,
+    ) -> ResearchTask:
+        """Create a reliable task and its query projection atomically.
+
+        This is intentionally a public owner operation used by the Temporal
+        policy.  No worker, EventBus, or Foundation adapter is allowed to
+        mutate ``ResearchTask`` directly.
+        """
+
+        from xhs_food.orchestrator.reliable_task import reliable_plan
+
+        now = _safe_now(self._clock)
+        async with self._state_lock:
+            existing = self._tasks.get(task_id)
+            if existing is not None:
+                return existing
+            turn_id = await self._next_reliable_turn_locked(request)
+            plan = reliable_plan(
+                task_id=task_id,
+                query=request.query or request.domain,
+                turn_id=turn_id,
+            )
+            projection = TaskProgressProjection(
+                task_id=task_id,
+                session_id=request.identity.session_ref,
+                turn_id=str(turn_id),
+                status=TaskStatus.RUNNING,
+                progress=0.0,
+                current_step_id="research.execute",
+                workflow_id=workflow_id,
+                updated_at=now,
+            )
+            task = ResearchTask(
+                task_id=task_id,
+                request_id=request.request_id,
+                operation=request.operation,
+                domain=request.domain,
+                status=TaskStatus.RUNNING,
+                turn_id=str(turn_id),
+                plan_id=plan.plan_id,
+                workflow_id=workflow_id,
+                progress_projection=projection,
+                created_at=now,
+                updated_at=now,
+            )
+            event = TaskEvent(
+                event_id=f"{task_id}:{turn_id}:accepted",
+                task_id=task_id,
+                event_type="task.accepted",
+                occurred_at=now,
+                turn_id=str(turn_id),
+                status=TaskStatus.RUNNING,
+                progress=0.0,
+                step_id="research.execute",
+                payload={"policyVersion": "reliable-task/v1", "workflowId": workflow_id},
+            )
+            self._tasks[task_id] = task
+            self._remember_plan(plan)
+            self._reliable_requests[task_id] = request
+            self._events.setdefault(task_id, []).append(event)
+        await self._projection_store.put(projection)
+        return task
+
+    async def reliable_task(self, task_id: str) -> ResearchTask | None:
+        return await self.task(task_id)
+
+    async def reliable_request(self, task_id: str) -> ResearchRequest | None:
+        async with self._state_lock:
+            return self._reliable_requests.get(task_id)
+
+    async def attach_reliable_run(self, task_id: str, workflow_run: WorkflowRun) -> ResearchTask:
+        """Attach Temporal's stable run identity without changing task status."""
+
+        async with self._state_lock:
+            task = self._tasks.get(task_id)
+            if task is None:
+                raise LookupError(task_id)
+            projection = task.progress_projection
+            if projection is not None:
+                projection = projection.model_copy(
+                    update={
+                        "workflow_id": workflow_run.workflow_id,
+                        "run_id": workflow_run.run_id,
+                        "updated_at": _safe_now(self._clock),
+                    }
+                )
+            updated = task.model_copy(
+                update={
+                    "workflow_id": workflow_run.workflow_id,
+                    "run_id": workflow_run.run_id,
+                    "progress_projection": projection,
+                    "updated_at": _safe_now(self._clock),
+                }
+            )
+            self._tasks[task_id] = updated
+        if projection is not None:
+            await self._projection_store.put(projection)
+        return updated
+
+    async def record_reliable_progress(
+        self,
+        task_id: str,
+        *,
+        workflow_id: str,
+        run_id: str,
+        progress: float,
+        current_step_id: str | None = None,
+    ) -> TaskProgressProjection:
+        if not 0 <= progress <= 1:
+            raise ValueError("reliable progress must be between 0 and 1")
+        current = await self._projection_store.get(task_id)
+        if current is None:
+            raise LookupError(task_id)
+        if current.workflow_id and current.workflow_id != workflow_id:
+            raise ValueError("workflow_id does not own the task projection")
+        if current.run_id and current.run_id != run_id:
+            # A late Activity from an older run is queryable but cannot move a
+            # newer run's projection backwards.
+            return current
+        updated = current.model_copy(
+            update={
+                "progress": max(current.progress, progress),
+                "current_step_id": current_step_id or current.current_step_id,
+                "workflow_id": workflow_id,
+                "run_id": run_id,
+                "updated_at": _safe_now(self._clock),
+            }
+        )
+        effective = await self._projection_store.put(updated)
+        async with self._state_lock:
+            task = self._tasks.get(task_id)
+            if task is not None:
+                self._tasks[task_id] = task.model_copy(
+                    update={
+                        "progress_projection": effective,
+                        "updated_at": effective.updated_at,
+                    }
+                )
+        return effective
+
+    async def finalize_reliable_task(
+        self,
+        task_id: str,
+        *,
+        workflow_id: str,
+        run_id: str,
+        status: TaskStatus,
+        result: ContractPayload | None = None,
+        error: ContractError | None = None,
+    ) -> ResearchTask:
+        """Apply a terminal transition after the authority commit barrier."""
+
+        if not status.is_terminal:
+            raise ValueError("reliable finalization requires a terminal status")
+        current = await self._projection_store.get(task_id)
+        if current is None:
+            raise LookupError(task_id)
+        if current.workflow_id and current.workflow_id != workflow_id:
+            raise ValueError("workflow_id does not own the task projection")
+        if current.run_id and current.run_id != run_id and current.status.is_terminal:
+            task = await self.task(task_id)
+            if task is None:
+                raise LookupError(task_id)
+            return task
+        now = _safe_now(self._clock)
+        projection = current.model_copy(
+            update={
+                "status": status,
+                "progress": 1.0,
+                "current_step_id": None,
+                "workflow_id": workflow_id,
+                "run_id": run_id,
+                "updated_at": now,
+            }
+        )
+        effective = await self._projection_store.put(projection)
+        async with self._state_lock:
+            task = self._tasks.get(task_id)
+            if task is None:
+                raise LookupError(task_id)
+            if task.status.is_terminal:
+                return task
+            updated = task.model_copy(
+                update={
+                    "status": effective.status,
+                    "progress_projection": effective,
+                    "terminal_error": error,
+                    "updated_at": now,
+                }
+            )
+            self._tasks[task_id] = updated
+            event_type = {
+                TaskStatus.COMPLETED: "task.completed",
+                TaskStatus.FAILED: "task.failed",
+                TaskStatus.CANCELLED: "task.cancelled",
+            }[status]
+            self._events.setdefault(task_id, []).append(
+                TaskEvent(
+                    event_id=f"{task_id}:{run_id}:{status.value}",
+                    task_id=task_id,
+                    event_type=event_type,
+                    occurred_at=now,
+                    turn_id=task.turn_id,
+                    status=status,
+                    progress=1.0,
+                    error=error,
+                    payload={"result": result} if result is not None else {},
+                )
+            )
+            return updated
+
+    async def _next_reliable_turn_locked(self, request: ResearchRequest) -> int:
+        target = request.target_task_id
+        if target:
+            prior = self._tasks.get(target)
+            if prior is not None and prior.turn_id is not None:
+                try:
+                    return int(prior.turn_id) + 1
+                except ValueError:
+                    pass
+        return 1
 
     async def task(self, task_id: str) -> ResearchTask | None:
         async with self._state_lock:

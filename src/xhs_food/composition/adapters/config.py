@@ -53,6 +53,7 @@ def build_owner_config(
         ),
         temporal=TemporalConfigView(
             enabled=enabled,
+            reliable_task_lifecycle=target.reliable_task_lifecycle,
             address=target.temporal_address,
             namespace=target.temporal_namespace,
             research_queue=target.temporal_research_queue,

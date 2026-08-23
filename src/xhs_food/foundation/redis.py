@@ -3,15 +3,21 @@
 from __future__ import annotations
 
 import json
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Protocol, cast
 
 from pydantic import TypeAdapter
 
-from xhs_food.contracts import ContractPayload, ErrorScope, EventEnvelope
+from xhs_food.contracts import (
+    ContractError,
+    ContractPayload,
+    ErrorCategory,
+    ErrorScope,
+    EventEnvelope,
+)
 
-from .failures import foundation_failure_boundary
+from .failures import FoundationAdapterError, foundation_failure_boundary
 
 
 class AsyncRedisClient(Protocol):
@@ -55,6 +61,28 @@ class AsyncRedisClient(Protocol):
     async def xread(
         self, streams: Mapping[str, str], *, count: int, block: int
     ) -> list[object]: ...
+
+    async def xrange(
+        self, key: str, min: str = "-", max: str = "+", count: int | None = None
+    ) -> list[object]: ...
+
+
+class RedisReplayExpiredError(FoundationAdapterError):
+    """The requested SSE cursor is outside Redis' bounded replay window."""
+
+    def __init__(self, *, topic: str, cursor: str) -> None:
+        super().__init__(
+            ContractError(
+                code="SSE_REPLAY_EXPIRED",
+                category=ErrorCategory.REPLAY_EXPIRED,
+                scope=ErrorScope.EVENT_BUS,
+                retryable=False,
+                terminal=False,
+                message="the requested event cursor is outside the Redis replay window",
+                boundary_ref="event_bus.subscribe.replay_window",
+                details={"topic": topic, "cursor": cursor, "recovery": "resync"},
+            )
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -319,6 +347,7 @@ class RedisEventBusAdapter:
     async def subscribe(self, topic: str, after: str | None = None) -> AsyncIterator[EventEnvelope]:
         key = self._key(topic)
         cursor = after or "0"
+        await self._assert_cursor_replayable(topic, key, cursor)
         while True:
             with foundation_failure_boundary(
                 scope=ErrorScope.EVENT_BUS,
@@ -342,6 +371,35 @@ class RedisEventBusAdapter:
                     )
                 cursor = entry_cursor
                 yield event
+
+    async def _assert_cursor_replayable(self, topic: str, key: str, cursor: str) -> None:
+        """Detect a trimmed cursor before ``XREAD`` silently starts later.
+
+        ``xrange`` is optional on the narrow test double used by the S3
+        contract suite.  Production redis-py exposes it, so the target path
+        gets explicit replay-expiry semantics without changing the legacy bus.
+        """
+
+        if cursor in {"", "0", "0-0"}:
+            return
+        range_reader = getattr(self._client, "xrange", None)
+        if not callable(range_reader):
+            return
+        typed_range_reader = cast(
+            Callable[..., Awaitable[list[object]]],
+            range_reader,
+        )
+        with foundation_failure_boundary(
+            scope=ErrorScope.EVENT_BUS,
+            operation="event_bus.subscribe.replay_window",
+        ):
+            first = await typed_range_reader(key, min="-", max="+", count=1)
+        if not first:
+            raise RedisReplayExpiredError(topic=topic, cursor=cursor)
+        first_item = cast(tuple[object, object], first[0])
+        first_id = _text(first_item[0])  # redis-py returns (entry_id, fields)
+        if _stream_id_is_after(first_id, cursor):
+            raise RedisReplayExpiredError(topic=topic, cursor=cursor)
 
     async def delete_topic(self, topic: str) -> bool:
         redis_key = self._key(topic)
@@ -377,6 +435,20 @@ __all__ = [
     "RedisFixedWindowRateLimiter",
     "RedisHotStateContract",
     "RedisIdempotencyWindow",
+    "RedisReplayExpiredError",
     "RedisSessionWindow",
     "RedisStateStore",
 ]
+
+
+def _stream_id_is_after(candidate: str, cursor: str) -> bool:
+    """Compare Redis ``milliseconds-sequence`` IDs without string surprises."""
+
+    try:
+        candidate_parts = tuple(int(part) for part in candidate.split("-", 1))
+        cursor_parts = tuple(int(part) for part in cursor.split("-", 1))
+    except (TypeError, ValueError):
+        raise ValueError("Redis stream cursor must use the ms-sequence format") from None
+    if len(candidate_parts) != 2 or len(cursor_parts) != 2:
+        raise ValueError("Redis stream cursor must use the ms-sequence format")
+    return candidate_parts > cursor_parts

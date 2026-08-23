@@ -2,6 +2,10 @@
 
 from .config import OwnerConfigFacade, build_owner_config
 from .llm import LegacyLLMProviderAdapter, ProviderModelGateway
+from .reliable_task_authority import (
+    PostgresReliableTaskAuthority,
+    PostgresTaskProgressProjectionStore,
+)
 from .repositories import (
     DisabledPublicEvidenceRepository,
     LegacyFavoritesRepositoryAdapter,
@@ -36,6 +40,8 @@ __all__ = [
     "LegacyUserRepositoryAdapter",
     "OwnerConfigFacade",
     "ProviderModelGateway",
+    "PostgresReliableTaskAuthority",
+    "PostgresTaskProgressProjectionStore",
     "build_owner_config",
     "build_place_source_connector",
     "build_place_tool",

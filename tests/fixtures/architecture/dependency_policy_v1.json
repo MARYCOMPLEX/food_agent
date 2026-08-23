@@ -56,10 +56,10 @@
   "target_third_party_allowlist": {
     "contracts": ["jsonschema", "pydantic", "pydantic_core", "referencing"],
     "composition": ["dotenv", "fastapi", "loguru", "slowapi", "uvicorn"],
-    "compatibility_adapter": ["langchain_core", "pydantic"],
+      "compatibility_adapter": ["langchain_core", "pydantic", "sqlalchemy"],
     "domain_pack": [],
     "gateway": ["pydantic"],
-    "orchestrator": ["jsonschema", "pydantic", "pydantic_ai"],
+    "orchestrator": ["jsonschema", "pydantic", "pydantic_ai", "temporalio"],
     "target_foundation": ["boto3", "botocore", "opentelemetry", "pydantic", "pydantic_settings", "redis", "sqlalchemy", "temporalio"]
   },
   "owner_port_consumer_module_prefixes": [
@@ -90,6 +90,9 @@
     "get_amap_api",
     "get_user_storage_service"
   ],
+  "owner_port_boundary_exceptions": {
+    "xhs_food.orchestrator.reliable_task": ["temporalio"]
+  },
   "foundation_module_prefixes": ["xhs_food.foundation"],
   "foundation_forbidden_food_import_prefixes": [
     "xhs_food.agents",
@@ -146,7 +149,8 @@
     "rpush",
     "set",
     "xadd",
-    "xread"
+    "xread",
+    "xrange"
   ],
   "redis_allowed_key_prefixes": [
     "events",

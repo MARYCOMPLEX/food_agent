@@ -8,6 +8,7 @@ from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from temporalio import exceptions as temporal_errors
 from temporalio.client import Client
 from temporalio.contrib.opentelemetry import TracingInterceptor
 from temporalio.service import RPCError, RPCStatusCode
@@ -91,17 +92,45 @@ class TemporalWorkflowAdapter:
         if command.task_queue not in self._task_queues.allowed:
             raise ValueError(f"unregistered Temporal task queue: {command.task_queue}")
         payload = deterministic_workflow_input(command)
-        with foundation_failure_boundary(
-            scope=ErrorScope.WORKFLOW,
-            operation="workflow.start",
-        ):
+        try:
+            # ``WorkflowStart.input`` is the only application payload.  The
+            # command envelope remains local to the port and must not become
+            # an accidental workflow input contract.
             handle = await self._client.start_workflow(
                 command.workflow_type,
-                payload,
+                payload["input"],
                 id=command.workflow_id,
                 task_queue=command.task_queue,
             )
             return _run_from_handle(handle, status="running")
+        except temporal_errors.WorkflowAlreadyStartedError as duplicate:
+            # Temporal's Workflow ID is the single-flight authority.  A
+            # duplicate request is successful admission of the existing run,
+            # not a Redis lock conflict or a new execution.
+            existing = await self.describe(command.workflow_id)
+            if existing is not None:
+                return existing
+            # A server can report a duplicate while its visibility index is
+            # briefly unavailable.  Preserve the stable conflict taxonomy.
+            raise FoundationAdapterError(
+                foundation_error_from_exception(
+                    duplicate,
+                    scope=ErrorScope.WORKFLOW,
+                    operation="workflow.start.duplicate_unresolved",
+                )
+            ) from duplicate
+        except asyncio.CancelledError:
+            raise
+        except FoundationAdapterError:
+            raise
+        except Exception as exc:
+            raise FoundationAdapterError(
+                foundation_error_from_exception(
+                    exc,
+                    scope=ErrorScope.WORKFLOW,
+                    operation="workflow.start",
+                )
+            ) from exc
 
     async def signal(self, workflow_id: str, signal: str, payload: ContractPayload) -> None:
         require_enabled(self._enabled, "temporal")
@@ -118,7 +147,13 @@ class TemporalWorkflowAdapter:
             scope=ErrorScope.WORKFLOW,
             operation="workflow.cancel",
         ):
-            await self._client.get_workflow_handle(workflow_id).cancel(reason=reason or "")
+            # The reliable Research workflow converts this deterministic
+            # command into an authoritative cancellation Activity.  A signal
+            # keeps the PG receipt inside workflow history instead of ending
+            # the execution before the commit barrier runs.
+            await self._client.get_workflow_handle(workflow_id).signal(
+                "research.cancel.requested", {"reason": reason or ""}
+            )
 
     async def describe(self, workflow_id: str) -> WorkflowRun | None:
         require_enabled(self._enabled, "temporal")

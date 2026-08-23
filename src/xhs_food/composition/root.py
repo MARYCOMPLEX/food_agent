@@ -243,8 +243,18 @@ class DisabledBindingError(RuntimeError):
         self.binding_name = binding_name
 
 
-def build_legacy_composition_root() -> CompositionRoot:
-    """Create the compatibility root with an atomically validated Food Pack."""
+def build_legacy_composition_root(
+    *,
+    reliable_policy: object | None = None,
+    reliable_task_lifecycle: bool | None = None,
+) -> CompositionRoot:
+    """Create the compatibility root with an atomically validated Food Pack.
+
+    ``reliable_task_lifecycle`` is deliberately explicit.  When enabled, a
+    caller must provide a ``TemporalReliableResearchPolicy`` (and therefore
+    its PostgreSQL/Temporal adapters); the root never silently falls back to
+    process-local task execution.
+    """
 
     from xhs_food.agents.poi_enricher import (
         configure_poi_place_cache_factory,
@@ -311,6 +321,15 @@ def build_legacy_composition_root() -> CompositionRoot:
     configure_poi_place_lookup_factory(build_place_tool)
     configure_poi_place_cache_factory(lambda: place_cache_repository)
     target_settings = TargetSettings()
+    reliable_enabled = (
+        target_settings.reliable_task_lifecycle
+        if reliable_task_lifecycle is None
+        else reliable_task_lifecycle
+    )
+    if reliable_enabled and reliable_policy is None:
+        raise RuntimeError(
+            "reliable_task_lifecycle requires an explicit Temporal/PostgreSQL policy adapter"
+        )
     owner_config = build_owner_config(get_settings(), target_settings)
 
     food_gateway, food_providers = build_food_tool_gateway(
@@ -434,14 +453,19 @@ def build_legacy_composition_root() -> CompositionRoot:
             tool_gateway=food_gateway,
             enabled=False,
         )
-        return ResearchCoordinator(
+        coordinator = ResearchCoordinator(
             LegacyResearchTaskFacade(),
             agent_runtime=runtime,
             scheduler=StepScheduler(food_gateway),
+            reliable_policy=reliable_policy,  # type: ignore[arg-type]
             agent_runtime_enabled=False,
             scheduler_enabled=False,
-            reliable_policy_enabled=False,
+            reliable_policy_enabled=reliable_enabled,
         )
+        bind_owner = getattr(reliable_policy, "bind_owner", None)
+        if reliable_enabled and callable(bind_owner):
+            bind_owner(coordinator)
+        return coordinator
 
     root = CompositionRoot()
     root.registry("foundation").register(
@@ -642,6 +666,12 @@ def build_legacy_composition_root() -> CompositionRoot:
         registry_name="use_cases",
         binding_name="research_task",
     )
+    if reliable_enabled:
+        root.bind_logical(
+            "reliable_task_lifecycle",
+            registry_name="use_cases",
+            binding_name="research_task",
+        )
     root.bind_logical(
         "food_pack",
         registry_name="domain_packs",

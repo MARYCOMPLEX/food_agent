@@ -28,6 +28,7 @@ from .redis import (
     RedisFixedWindowRateLimiter,
     RedisHotStateContract,
     RedisIdempotencyWindow,
+    RedisReplayExpiredError,
     RedisSessionWindow,
     RedisStateStore,
 )
@@ -51,6 +52,7 @@ __all__ = [
     "RedisFixedWindowRateLimiter",
     "RedisHotStateContract",
     "RedisIdempotencyWindow",
+    "RedisReplayExpiredError",
     "RedisSessionWindow",
     "RedisStateStore",
     "RepositoryConfigView",

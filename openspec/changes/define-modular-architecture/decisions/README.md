@@ -31,6 +31,12 @@ This index is the authority gate for the change. An unresolved question blocks o
 | ADR-0009 | Disposition of legacy schema, task-state, persistence, deployment, and documentation gaps | Architecture + API + Data Platform + Platform + Frontend | [ADR-0009](./ADR-0009-legacy-gap-disposition.md) |
 | ADR-0010 | Source outcome taxonomy, source-ready query projection, and legacy client projection | Evidence + API + Architecture + QA | [ADR-0010](./ADR-0010-source-outcome-legacy-projection.md) |
 
+## Pending B0 Decision Records
+
+| ID | Status | Scope | Gate |
+|---|---|---|---|
+| ADR-0011 | Draft - contract recorded, qualification pending | Reliable Research task policy, Temporal single-flight, PostgreSQL commit barrier, Redis replay/resync, cancellation, and rollback | [ADR-0011](./ADR-0011-reliable-task-semantics.md) + [B0 verification](../verification/b0-reliable-task-semantics.md) |
+
 ## Dependency Qualification Ledger
 
 Upstream and distribution metadata were rechecked on 2026-08-21 against the

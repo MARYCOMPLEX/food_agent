@@ -325,6 +325,10 @@ def _scan_owner_port_boundary_violations(source_root: Path, policy: dict[str, An
     consumer_prefixes = set(policy["owner_port_consumer_module_prefixes"])
     forbidden_imports = set(policy["owner_port_forbidden_import_prefixes"])
     forbidden_symbols = set(policy["owner_port_forbidden_import_symbols"])
+    boundary_exceptions = {
+        module: set(values)
+        for module, values in policy.get("owner_port_boundary_exceptions", {}).items()
+    }
     foundation_prefixes = set(policy["foundation_module_prefixes"])
     food_imports = set(policy["foundation_forbidden_food_import_prefixes"])
     violations: set[str] = set()
@@ -341,12 +345,13 @@ def _scan_owner_port_boundary_violations(source_root: Path, policy: dict[str, An
         for node in ast.walk(tree):
             for target in _import_targets(module, path, node):
                 identities = (target.module, target.identity)
+                exception_roots = boundary_exceptions.get(module, set())
                 if is_consumer and (
                     target.identity.rpartition(".")[2] in forbidden_symbols
                     or any(
                         _matches_module_prefix(identity, prefix)
                         for identity in identities
-                        for prefix in forbidden_imports
+                        for prefix in forbidden_imports - exception_roots
                     )
                 ):
                     violations.add(f"{module}|owner-port-bypass|{target.identity}")

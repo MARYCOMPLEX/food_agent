@@ -20,6 +20,10 @@ class TargetSettings(BaseSettings):
     )
 
     target_adapters_enabled: bool = False
+    # B0 is opt-in and has no effect unless the Composition Root is supplied
+    # with durable Temporal/PostgreSQL adapters.  Legacy routing remains the
+    # default for every existing deployment.
+    reliable_task_lifecycle: bool = False
     database_url: str | None = None
     food_pack_version: Literal["1.0.0", "legacy/v1"] = "1.0.0"
     research_core_version: Literal["shared/v1", "legacy/v1"] = "shared/v1"
@@ -82,6 +86,7 @@ class RedisConfigView(_OwnerView):
 
 class TemporalConfigView(_OwnerView):
     enabled: bool
+    reliable_task_lifecycle: bool = False
     address: str
     namespace: str
     research_queue: str

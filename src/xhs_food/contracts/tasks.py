@@ -382,6 +382,18 @@ class ResearchTask(VersionedContract):
     updated_at: Timestamp
 
 
+class ResultCommitReceipt(VersionedContract):
+    """Durable result/cancellation receipt returned by the task authority."""
+
+    task_id: NonEmptyStr
+    workflow_id: NonEmptyStr
+    run_id: NonEmptyStr
+    committed: bool
+    already_committed: bool = False
+    result_version: str | None = None
+    terminal_status: TaskStatus | None = None
+
+
 class TaskEvent(VersionedContract):
     """Internal event envelope mapped to external SSE only at the boundary."""
 
@@ -414,6 +426,7 @@ __all__ = [
     "ResearchPlanStep",
     "ResearchRequest",
     "ResearchTask",
+    "ResultCommitReceipt",
     "RecoverView",
     "TaskEvent",
     "TaskProgressProjection",
