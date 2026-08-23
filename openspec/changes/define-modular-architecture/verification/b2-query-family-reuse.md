@@ -1,6 +1,6 @@
 # B2 Query Family Reuse Qualification
 
-Status: Partial implementation - tasks 10.1-10.3, 10.5, and 10.6 qualified; 10.4 remains partial
+Status: Partial implementation - tasks 10.1-10.6 qualified; 10.7-10.13 remain pending
 
 ## Implemented boundary
 
@@ -17,8 +17,16 @@ Status: Partial implementation - tasks 10.1-10.3, 10.5, and 10.6 qualified; 10.4
   current-pointer compare-and-swap; Redis is not consulted.
 - Candidate Bundles are validated before the profile read pointer and Bundle
   current pointer move in one row-lock/CAS transaction. A profile mismatch or
-  late Bundle writer leaves both pointers unchanged. Delta collection and
-  feature/score recomputation remain part of task 10.4.
+  late Bundle writer leaves both pointers unchanged.
+- `BundleRefreshService` collects only the public `RefreshJob.delta_scope`, merges
+  the delta into an immutable child Bundle, validates every accepted Evidence
+  through the Domain Pack, recomputes public features/scores, and requires a
+  profile-pinned index receipt before persisting candidate derivations.
+- Candidate evidence, derivation receipt, and profile-aware index metadata are
+  persisted before PostgreSQL conditional dual-pointer activation. Index,
+  derivation, or CAS failure leaves the previous Bundle/profile readable; the
+  additive `evidence_bundle_derivations` table is owned by Alembic revision
+  `20260824_0005_b2_derivations`.
 - Reads map a valid old Bundle to explicit `stale` or `partial` status when
   the Freshness Gate reports time staleness or coverage deficit; a new Family
   returns `unavailable` without fabricating a Bundle.
@@ -33,6 +41,7 @@ Offline contract and service tests:
 
 ```powershell
 uv run --frozen pytest -q tests/test_unit_b2_query_reuse.py tests/test_unit_b1_schema_and_embeddings.py tests/test_unit_b1_embedding_shadow.py
+uv run --frozen pytest -q tests/test_unit_b2_bundle_refresh.py
 ```
 
 Live PostgreSQL/pgvector/pg_trgm test:
@@ -44,15 +53,18 @@ uv run --frozen pytest -q -m live tests/test_live_b2_query_reuse.py -vv -s --tb=
 
 Observed on 2026-08-24 with PostgreSQL 16.14 and pgvector:
 
-- offline B2/B1 subset: `30 passed` (including Bundle lifecycle and refresh)
+- offline B2/B1 subset: `33 passed` (including Bundle lifecycle, refresh, and
+  delta derivation/pointer failure gates)
 - live B2 repository qualification: `1 passed in 6.40s`
-- migration clean upgrade and B2 downgrade/upgrade through `20260824_0004_b2_activate`: passed
+- Alembic head resolves through `20260824_0005_b2_derivations`; additive 0005
+  upgrade/downgrade SQL smoke passed (live PostgreSQL migration rerun remains
+  part of the target-stack gate)
 - `uv lock --check`: passed
 - targeted Ruff check: passed
 
 ## Deliberate non-claims
 
-Tasks 10.4 and 10.7-10.13 remain pending. This milestone does not activate query reuse
+Tasks 10.7-10.13 remain pending. This milestone does not activate query reuse
 reads, background refresh scheduling, personalization, or an external refresh
 API. Temporal worker crash replay and production canary gates remain part of
 the later B2 tasks.

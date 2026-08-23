@@ -125,6 +125,31 @@ embedding_profile_read_pointer = Table(
     Column("updated_at", DateTime(timezone=True), nullable=False),
 )
 
+bundle_derivations = Table(
+    "evidence_bundle_derivations",
+    SHADOW_METADATA,
+    Column(
+        "bundle_id",
+        String(256),
+        ForeignKey("evidence_bundles.bundle_id", name="fk_derivation_bundle"),
+        primary_key=True,
+    ),
+    Column("family_id", String(256), nullable=False),
+    Column("bundle_version", Integer, nullable=False),
+    Column(
+        "profile_id",
+        String(128),
+        ForeignKey("embedding_profiles.profile_id", name="fk_derivation_profile"),
+        nullable=False,
+    ),
+    Column("profile_version", String(64), nullable=False),
+    Column("features", JSONB, nullable=False),
+    Column("public_scores", JSONB, nullable=False),
+    Column("index_metadata", JSONB, nullable=False),
+    Column("content_hash", String(64), nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+
 query_embeddings = Table(
     "canonical_query_embeddings",
     SHADOW_METADATA,
@@ -230,6 +255,7 @@ B2_QUERY_REUSE_TABLES = (
     query_family_freshness,
     query_refresh_claims,
     embedding_profile_read_pointer,
+    bundle_derivations,
 )
 
 __all__ = [
@@ -237,6 +263,7 @@ __all__ = [
     "B2_QUERY_REUSE_TABLES",
     "SHADOW_METADATA",
     "backfill_cursors",
+    "bundle_derivations",
     "canonical_queries",
     "embedding_profiles",
     "embedding_profile_read_pointer",

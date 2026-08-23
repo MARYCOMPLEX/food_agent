@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 
 from xhs_food.contracts import BundleState, EvidenceBundle, EvidenceItem
@@ -18,6 +19,27 @@ class SQLAlchemyCandidateBundleRepository:
 
     def __init__(self, unit_of_work_factory: UnitOfWorkFactory) -> None:
         self._unit_of_work_factory = unit_of_work_factory
+
+    async def get_bundle(self, bundle_id: str) -> EvidenceBundle | None:
+        statement = select(evidence_bundles.c.payload).where(
+            evidence_bundles.c.bundle_id == bundle_id
+        )
+        async with self._unit_of_work_factory() as unit:
+            row = (await unit.session_for_adapter().execute(statement)).mappings().first()
+        if row is None:
+            return None
+        return EvidenceBundle.model_validate(row["payload"])
+
+    async def get_items(self, evidence_ids: tuple[str, ...]) -> tuple[EvidenceItem, ...]:
+        if not evidence_ids:
+            return ()
+        statement = select(evidence_items.c.evidence_id, evidence_items.c.payload).where(
+            evidence_items.c.evidence_id.in_(evidence_ids)
+        )
+        async with self._unit_of_work_factory() as unit:
+            rows = (await unit.session_for_adapter().execute(statement)).mappings().all()
+        by_id = {str(row["evidence_id"]): EvidenceItem.model_validate(row["payload"]) for row in rows}
+        return tuple(by_id[item_id] for item_id in evidence_ids if item_id in by_id)
 
     async def save_candidate(
         self, bundle: EvidenceBundle, items: tuple[EvidenceItem, ...]

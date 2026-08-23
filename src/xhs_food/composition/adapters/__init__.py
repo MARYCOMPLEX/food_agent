@@ -1,5 +1,6 @@
 """Concrete and legacy framework adapters owned by Composition."""
 
+from .bundle_derivation_repository import SQLAlchemyBundleDerivationRepository
 from .config import OwnerConfigFacade, build_owner_config
 from .embedding_shadow_repository import SQLAlchemyEmbeddingShadowRepository
 from .evidence_bundle_repository import SQLAlchemyCandidateBundleRepository
@@ -32,6 +33,7 @@ from .state import (
 
 __all__ = [
     "DisabledPublicEvidenceRepository",
+    "SQLAlchemyBundleDerivationRepository",
     "SQLAlchemyCandidateBundleRepository",
     "SQLAlchemyEmbeddingShadowRepository",
     "SQLAlchemyCanonicalQueryShadowRepository",
