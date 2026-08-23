@@ -41,13 +41,15 @@ This index is the authority gate for the change. An unresolved question blocks o
 
 ## Dependency Qualification Ledger
 
-Upstream and distribution metadata were rechecked on 2026-08-21 against the
+Upstream and distribution metadata were rechecked on 2026-08-24 against the
 linked official documentation/repositories and the Python Package Index JSON
 metadata. `uv.lock` was resolved for CPython 3.12 and currently contains 117
 packages with SHA-256
 `8301f2b046290c4e65a8ffdacafce7844d1f8da6e414df003809e161931cccff`.
 `uv lock --check` and a frozen Python 3.12 environment both resolve the exact
-versions below.
+versions below. The version probe and lock check were rerun on 2026-08-24;
+the qualification results are captured by
+`tests/test_unit_dependency_ledger.py`.
 
 "Active, compatibility-pinned" means upstream has a newer compatible or major
 release, but this change deliberately retains the version exercised by the S3

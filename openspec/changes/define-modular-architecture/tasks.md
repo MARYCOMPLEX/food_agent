@@ -22,7 +22,7 @@
 - [x] 1.20 对 Temporal Python SDK 及 Pydantic AI 官方 Temporal durable execution integration 运行 workflow determinism、模型/工具 Activity replay、worker crash、取消竞争、重试耗尽和部署升级 qualification suite；记录 ARQ、Celery、LangGraph、OpenAI Agents SDK 及 Redis job facade 不作为第二套核心 runtime 的架构禁令。
 - [x] 1.21 固化数据库和检索方案：SQLAlchemy 2 Async 通过 asyncpg 访问 PostgreSQL 16，Alembic 是唯一 schema authority，检索使用确定性键、`pg_trgm` 与 pgvector；定义 BGE-M3 `profile_v1`（1024 维、cosine）的新增 profile/table、回填、切换和回滚边界。
 - [x] 1.22 固化 S3-compatible ObjectStore/boto3、本地 MinIO、OpenTelemetry SDK、Prometheus client、import-linter、Schemathesis/Hypothesis 和前端 OpenAPI client 的 adapter/tooling 边界及脱敏要求。
-- [ ] 1.23 将官方资料 URL、核验日期、精确版本、维护状态和 spike 结果写入 ADR 索引；用 Python 3.12 生成并提交 `uv.lock`，依赖状态变化必须显式评审并更新锁文件。
+- [x] 1.23 将官方资料 URL、核验日期、精确版本、维护状态和 spike 结果写入 ADR 索引；用 Python 3.12 生成并提交 `uv.lock`，依赖状态变化必须显式评审并更新锁文件。
 
 ## 2. S0 Characterization Baseline
 
