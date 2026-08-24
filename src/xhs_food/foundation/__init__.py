@@ -39,6 +39,7 @@ from .redis import (
 from .temporal import (
     TemporalActivityAdapter,
     TemporalTaskQueues,
+    TemporalWorkerQuota,
     TemporalWorkflowAdapter,
     deterministic_workflow_input,
 )
@@ -73,6 +74,7 @@ __all__ = [
     "TemporalActivityAdapter",
     "TemporalConfigView",
     "TemporalTaskQueues",
+    "TemporalWorkerQuota",
     "TemporalWorkflowAdapter",
     "correlation_attributes",
     "deterministic_workflow_input",

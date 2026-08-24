@@ -52,7 +52,7 @@ flag without an explicitly injected Temporal/PostgreSQL policy.
 | 8.2 | Opt-in Research Workflow, stable Workflow ID, duplicate start/single-flight | PARTIAL | Stable identity, same-process concurrent admission coalescing, durable-owner hydration, and Temporal adapter duplicate-start handling are covered offline/live SDK-side. Reliable refine is rejected with `RELIABLE_REFINE_IDENTITY_UNAPPROVED` until its cross-turn identity contract is approved. Cross-worker PostgreSQL admission and live Temporal duplicate-start qualification remain pending. |
 | 8.3 | Coordinator-only transitions, Temporal checkpoint, PG commit barrier, reconciliation | PARTIAL | Coordinator-only transitions, `ReliableTaskStorePort`, `PostgresReliableTaskStore` admission/CAS SQL, projection turn ordering, completed/cancelled/failed receipts, same-run terminal competition, late-run guards, and reconciliation Activity are covered structurally/offline. Live PostgreSQL transaction/CAS and crash-after-commit reconciliation remain pending. |
 | 8.4 | Pydantic AI Temporal integration, bounded Activities, retry/timeout/heartbeat/cancel policy | PASS (SDK qualification) | Factory, plugin, JSON boundary, policy constants, and the official live model/tool Activity replay and determinism suite pass; production worker/provider rollout remains a separate gate. |
-| 8.5 | Separate Research queue and reserved Refresh/Media queues | PASS (structural) | `TemporalTaskQueues` enforces three distinct names; worker quota/isolation smoke is pending with the target service. |
+| 8.5 | Separate Research queue and reserved Refresh/Media queues | PARTIAL (structural) | `TemporalTaskQueues` now carries explicit per-queue `TemporalWorkerQuota`, enables only `research` by default, and rejects disabled `refresh/media` execution until B4. Real Temporal worker registration, concurrency caps, and priority/isolation smoke remain pending with the target service. |
 | 8.6 | PG projection + Temporal history + Redis replay/resync | PARTIAL | Fake `xrange` contract proves exact retained-cursor validation, exclusive continuation, and `replay_expired` for trimmed or unknown cursors; PostgreSQL projection adapter exists without runtime DDL. Live PostgreSQL snapshot wiring and HTTP/SSE resync integration remain pending. |
 | 8.7 | Failure-injection and differential suite | PARTIAL | Eight live SDK/application tests pass: determinism/replay, adapter duplicate start, model/tool Activities, retry/exhaustion, clean worker restart+replay, SDK cancellation race, reliable cancellation receipt, and patch replay. Offline failed-receipt ordering, same-run terminal competition, commit failure, reconciliation, late-run, and Redis replay contracts also pass. Process-level in-flight crash, duplicate Activity against a live worker, PG/Temporal integration, and SSE/HTTP cases remain pending. |
 | 8.8 | Redis outage semantics | PENDING | Verify started Workflow/committed result survives Redis outage; new live SSE/realtime admission returns `dependency-unavailable`; no process-local production fallback. |
@@ -66,13 +66,13 @@ The following commands were run against the current working tree:
 
 ```powershell
 uv run --frozen pytest -q tests/test_unit_b0_reliable_task.py
-  # 14 passed in 6.07s
+  # 19 passed (current B0 reliable-task suite)
 
 uv run --frozen pytest -q tests/test_unit_s3_redis_contract.py
   # 8 passed in 3.08s
 
 uv run --frozen pytest -q -m "not live" -ra --durations=0
-  # 745 passed, 12 deselected, 2 warnings in 65.62s
+  # 851 passed, 15 deselected, 2 warnings in 52.41s
 
 uv lock --check
 # passed
@@ -109,7 +109,9 @@ The existing authority fixtures prove the wire-level replay rules:
 Ruff passes on the changed Python modules and targeted Pyright reports zero
 errors. Full-tree Pyright remains a pre-existing noisy baseline (`206 errors`,
 `28 warnings`) and is not represented as passing. The complete non-live suite
-passes with the count recorded above.
+passes with the count recorded above. The B0, Redis, and Temporal foundation
+adapter subset currently passes 33 tests; the architecture-boundary subset is
+tracked separately in `tests/test_unit_architecture_boundaries.py`.
 
 ## Required Live Qualification
 
@@ -121,10 +123,11 @@ AI `TestModel`; it does not contact a real provider or write application data.
 uv run --frozen pytest -q -m live tests/test_temporal_qualification.py
 ```
 
-Recorded SDK result: `8 passed` in `36.56s` on Python `3.12.0`, Temporal SDK
+Recorded SDK result: `8 passed` in `38.20s` on Python `3.12.0`, Temporal SDK
 `1.31.0`, Pydantic AI `2.5.1`, Windows 11 build `22631`, UTC
-`2026-08-24`. The first eight qualification observations are implemented by
-seven isolated tests. The worker case is clean stop/restart plus explicit
+`2026-08-24`. The first nine qualification observations are implemented by
+eight isolated tests; retry recovery and exhaustion share one test function.
+The worker case is clean stop/restart plus explicit
 history replay, not an in-flight process crash; that deployment harness and
 the application PG/Redis/SSE cases remain required.
 

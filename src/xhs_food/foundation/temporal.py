@@ -32,19 +32,86 @@ from .failures import (
 
 
 @dataclass(frozen=True, slots=True)
+class TemporalWorkerQuota:
+    """Per-queue worker capacity and priority contract."""
+
+    queue: str
+    max_concurrent_activities: int
+    max_concurrent_workflows: int
+    priority: int
+    enabled: bool = True
+
+    def __post_init__(self) -> None:
+        if not self.queue:
+            raise ValueError("Temporal worker queue must be non-empty")
+        if self.max_concurrent_activities < 1 or self.max_concurrent_workflows < 1:
+            raise ValueError("Temporal worker concurrency must be at least one")
+        if self.priority < 0:
+            raise ValueError("Temporal worker priority cannot be negative")
+
+
+@dataclass(frozen=True, slots=True)
 class TemporalTaskQueues:
     research: str = "research"
     refresh: str = "refresh"
     media: str = "media"
+    research_quota: TemporalWorkerQuota | None = None
+    refresh_quota: TemporalWorkerQuota | None = None
+    media_quota: TemporalWorkerQuota | None = None
 
     def __post_init__(self) -> None:
         values = (self.research, self.refresh, self.media)
         if any(not value for value in values) or len(set(values)) != 3:
             raise ValueError("Temporal task queue names must be non-empty and distinct")
+        defaults = (
+            ("research_quota", self.research, 8, 8, 100, True),
+            ("refresh_quota", self.refresh, 2, 2, 50, False),
+            ("media_quota", self.media, 2, 2, 25, False),
+        )
+        for attribute, queue, activities, workflows, priority, enabled in defaults:
+            quota = getattr(self, attribute)
+            if quota is None:
+                quota = TemporalWorkerQuota(
+                    queue=queue,
+                    max_concurrent_activities=activities,
+                    max_concurrent_workflows=workflows,
+                    priority=priority,
+                    enabled=enabled,
+                )
+                object.__setattr__(self, attribute, quota)
+            elif quota.queue != queue:
+                raise ValueError(f"{attribute} must target queue {queue!r}")
+        if self.research_quota is None or not self.research_quota.enabled:
+            raise ValueError("the Research worker quota must be enabled")
 
     @property
     def allowed(self) -> frozenset[str]:
         return frozenset((self.research, self.refresh, self.media))
+
+    @property
+    def active(self) -> frozenset[str]:
+        return frozenset(
+            quota.queue
+            for quota in (self.research_quota, self.refresh_quota, self.media_quota)
+            if quota is not None and quota.enabled
+        )
+
+    def quota_for(self, queue: str) -> TemporalWorkerQuota:
+        if queue not in self.allowed:
+            raise ValueError(f"unregistered Temporal task queue: {queue}")
+        quota = {
+            self.research: self.research_quota,
+            self.refresh: self.refresh_quota,
+            self.media: self.media_quota,
+        }[queue]
+        assert quota is not None
+        return quota
+
+    def assert_enabled(self, queue: str) -> TemporalWorkerQuota:
+        quota = self.quota_for(queue)
+        if not quota.enabled:
+            raise ValueError(f"Temporal task queue {queue!r} is disabled until its milestone")
+        return quota
 
 
 ClientFactory = Callable[..., Awaitable[Any]]
@@ -90,8 +157,7 @@ class TemporalWorkflowAdapter:
 
     async def start(self, command: WorkflowStart) -> WorkflowRun:
         require_enabled(self._enabled, "temporal")
-        if command.task_queue not in self._task_queues.allowed:
-            raise ValueError(f"unregistered Temporal task queue: {command.task_queue}")
+        self._task_queues.assert_enabled(command.task_queue)
         payload = deterministic_workflow_input(command)
         try:
             # ``WorkflowStart.input`` is the only application payload.  The
@@ -211,8 +277,7 @@ class TemporalActivityAdapter:
 
     async def execute(self, call: ActivityCall) -> ActivityResult:
         require_enabled(self._enabled, "temporal-activity")
-        if call.task_queue not in self._task_queues.allowed:
-            raise ValueError(f"unregistered Temporal task queue: {call.task_queue}")
+        self._task_queues.assert_enabled(call.task_queue)
         try:
             handler = self._handlers[call.activity_type]
         except KeyError as exc:
@@ -273,6 +338,7 @@ def _is_not_found(exc: Exception) -> bool:
 __all__ = [
     "TemporalActivityAdapter",
     "TemporalTaskQueues",
+    "TemporalWorkerQuota",
     "TemporalWorkflowAdapter",
     "deterministic_json_value",
     "deterministic_workflow_input",

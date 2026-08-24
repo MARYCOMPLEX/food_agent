@@ -21,6 +21,7 @@ from xhs_food.foundation import (
     TargetAdapterDisabled,
     TemporalActivityAdapter,
     TemporalTaskQueues,
+    TemporalWorkerQuota,
     TemporalWorkflowAdapter,
     correlation_attributes,
     deterministic_workflow_input,
@@ -233,6 +234,12 @@ async def test_temporal_is_disabled_by_default_and_payloads_are_deterministic() 
     assert list(payload["input"]) == ["a", "z"]
     queues = TemporalTaskQueues(research="research", refresh="refresh", media="media")
     assert queues.allowed == frozenset({"research", "refresh", "media"})
+    assert queues.active == frozenset({"research"})
+    assert queues.quota_for("research").max_concurrent_workflows == 8
+    with pytest.raises(ValueError, match="disabled"):
+        queues.assert_enabled("refresh")
+    with pytest.raises(ValueError, match="concurrency"):
+        TemporalWorkerQuota("research", 0, 1, 100)
     with pytest.raises(ValueError, match="distinct"):
         TemporalTaskQueues(research="same", refresh="same", media="media")
 

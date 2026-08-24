@@ -49,8 +49,9 @@ runtime environment in the table below.
 | SSE retained cursor | `Last-Event-ID` resumes exclusively without creating a task | PENDING |
 | SSE expired cursor | Trim/TTL/restart returns `replay_expired/resync` and the PG snapshot | PENDING |
 
-The first nine observations are implemented by eight isolated SDK/application tests. The worker
-row intentionally does not claim an in-flight process crash: the Windows
+The first nine observations are implemented by eight isolated SDK/application tests; retry
+recovery and retry exhaustion share one test function. The worker row
+intentionally does not claim an in-flight process crash: the Windows
 Temporal test server's clean shutdown/restart path is the reproducible SDK
 check, while a process-level crash harness remains a deployment gate. The
 remaining rows require the application integration harness and a real
@@ -76,8 +77,8 @@ Fill this section from the command output, preserving failures verbatim:
 | Test server mode | `time-skipping` |
 | Command | `uv run --frozen pytest -q -m live tests/test_temporal_qualification.py -ra` |
 | Result | `8 passed` |
-| Duration | `36.78s` (current frozen-lockfile run after durable-owner/projection changes; prior runs `10.25s`-`39.42s`) |
-| Failure output | `none for the seven SDK/application cases; process-crash and external PostgreSQL/Redis/SSE integration remain out of scope` |
+| Duration | `38.20s` (current frozen-lockfile run after durable-owner/projection and queue-quota changes; prior runs `10.25s`-`39.42s`) |
+| Failure output | `none for the eight SDK/application tests; process-crash and external PostgreSQL/Redis/SSE integration remain out of scope` |
 
 If a future environment blocks the test server download, mark `Result` as
 `blocked`, retain the command and exception, and leave unexecuted case
