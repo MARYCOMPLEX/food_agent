@@ -1,6 +1,6 @@
 # B3 Personalization Memory Verification
 
-Status: Partial implementation - tasks 11.1-11.3 qualified; 11.4-11.15 remain disabled and pending
+Status: Partial implementation - tasks 11.1-11.4 qualified; 11.5-11.15 remain disabled and pending
 
 ## Task 11.1 boundary
 
@@ -44,6 +44,16 @@ Status: Partial implementation - tasks 11.1-11.3 qualified; 11.4-11.15 remain di
 - Individual repository convenience methods remain one-UoW operations; callers
   requiring atomic conversation/memory/outbox persistence use
   `commit_authority_write`.
+- `PreferenceResolver` is a contracts-only service. It rejects records outside
+  the requested full scope, excludes expired/withdrawn/tombstoned records,
+  keeps the four memory buckets separate, and selects the newest record per
+  key within each bucket. `effective_constraints` merges inferred -> stable
+  explicit -> current session -> explicit hard constraints, so stronger input
+  wins deterministically. Strategy feedback is never included in that content
+  merge and can only be consumed by later research/presentation policy code.
+- `PreferenceSnapshot.source_record_versions` may be empty when no active
+  memory exists. This represents “no preference” distinctly from an explicit
+  no-preference value and prevents stale caches from being treated as facts.
 
 ## Qualification commands
 
@@ -53,6 +63,9 @@ uv run --frozen pytest -q tests/test_unit_b3_schema.py
 
 uv run --frozen pytest -q tests/test_unit_domain_memory_contracts.py tests/test_unit_memory_media_hardening.py
 # 53 passed
+
+uv run --frozen pytest -q tests/test_unit_b3_resolver.py
+# 5 passed
 
 uv run --frozen pytest -q tests/test_unit_b0_schema.py tests/test_unit_b1_schema_and_embeddings.py tests/test_unit_b2_profile_fixture.py
 # 8 passed

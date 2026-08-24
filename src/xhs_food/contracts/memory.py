@@ -436,7 +436,7 @@ class PreferenceSnapshot(_AuthorityModel):
     snapshot_version: int = Field(ge=1)
     isolation_key: MemoryIsolationKey = Field(discriminator="kind")
     policy_version: NonEmptyStr
-    source_record_versions: dict[NonEmptyStr, NonEmptyStr] = Field(min_length=1)
+    source_record_versions: dict[NonEmptyStr, NonEmptyStr] = Field(default_factory=dict)
     explicit_hard_constraints: ContractPayload = Field(default_factory=dict)
     session_requirements: ContractPayload = Field(default_factory=dict)
     stable_explicit_preferences: ContractPayload = Field(default_factory=dict)

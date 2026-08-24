@@ -170,7 +170,7 @@
 - [x] 11.1 只通过 Alembic 编写只增不删的 `conversation_turns`、`session_state`、`memory_records`、`memory_events`、`preference_snapshots`、版本化摘要和 outbox migration，并用 SQLAlchemy 2 Async repositories 保证 user scope 与 transaction boundary。
 - [x] 11.2 实现 Session、Explicit、Inferred 和 Strategy Feedback 四类权威写入及来源事件、置信度、作用域、有效时间和 schema/policy version 元数据；embedding 只作为可重建派生索引，不作为记忆事实。
 - [x] 11.3 固化权威写序：同一 PostgreSQL transaction 写 conversation/memory 与 outbox，commit 后再消费 outbox 做 Redis invalidate/warm；任何缓存失败不得回滚或取代已提交事实。
-- [ ] 11.4 实现 Preference Resolver 的“显式硬约束 > 当前会话 > 稳定显式偏好 > 推断偏好”规则和策略反馈边界。
+- [x] 11.4 实现 Preference Resolver 的“显式硬约束 > 当前会话 > 稳定显式偏好 > 推断偏好”规则和策略反馈边界。
 - [ ] 11.5 实现 `ContextAssembler`，按“当前请求约束 -> 最近消息 -> 版本化摘要 -> 相关记忆 -> 相关 Evidence”组装临时模型上下文，并记录每部分 token budget、版本和引用。
 - [ ] 11.6 实现 Redis 会话投影：每 session 最多最近 20 条、TTL 24 小时、user-scoped key；缓存 miss/过期从 PostgreSQL 重建，生产多 worker 禁止退化到进程内跨请求记忆。
 - [ ] 11.7 实现 user-scoped cache/repository authorization、匿名会话隔离和已批准的匿名转实名迁移。
