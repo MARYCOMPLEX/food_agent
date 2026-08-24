@@ -160,6 +160,20 @@ Status: Partial implementation - tasks 11.1-11.5 qualified; 11.6-11.15 remain di
   features, and scores. Explanation refs point to policy or candidate
   evidence refs; no private memory value is copied into the public result.
 
+## Task 11.11 boundary
+
+- `FeedbackIngestionRequest` accepts only favorite, ignore, click, or result
+  feedback actions, carries active personalization consent, and pins the
+  policy version and occurrence time.
+- `FeedbackIngestor` derives stable event/outbox IDs from the idempotency key
+  and writes a `MemoryEvent` plus `memory.feedback.project` outbox event via
+  one `MemoryAuthorityWrite`. PostgreSQL uniqueness makes retries idempotent;
+  this path introduces no second event store.
+- Scope authorization is checked before building the authority write. A
+  withdrawn/mismatched consent or cross-user/session request is rejected before
+  PostgreSQL is called. Raw consent token material is not copied into public
+  Evidence or strategy output.
+
 ## Qualification commands
 
 ```powershell
@@ -189,6 +203,9 @@ uv run --frozen pytest -q tests/test_unit_b3_strategy.py
 
 uv run --frozen pytest -q tests/test_unit_b3_reranker.py
 # 2 passed
+
+uv run --frozen pytest -q tests/test_unit_b3_feedback.py
+# 3 passed
 
 uv run --frozen pytest -q tests/test_unit_b3_schema.py tests/test_unit_b3_resolver.py tests/test_unit_b3_context.py tests/test_unit_b3_session_projection.py
 # 28 passed

@@ -47,6 +47,13 @@ class MemoryLayer(StrEnum):
     STRATEGY_FEEDBACK = "strategy_feedback"
 
 
+class FeedbackAction(StrEnum):
+    FAVORITE = "favorite"
+    IGNORE = "ignore"
+    CLICK = "click"
+    RESULT_FEEDBACK = "feedback"
+
+
 class MemoryStatus(StrEnum):
     ACTIVE = "active"
     SUPERSEDED = "superseded"
@@ -435,6 +442,48 @@ class AnonymousClaimReceipt(_AuthorityModel):
     outbox_ids: tuple[NonEmptyStr, ...] = ()
 
 
+class FeedbackIngestionRequest(_AuthorityModel):
+    """User action captured as a private, idempotent source event."""
+
+    schema_version: Literal["feedback-ingestion/v1"] = "feedback-ingestion/v1"
+    feedback_id: NonEmptyStr
+    scope: MemoryIsolationKey = Field(discriminator="kind")
+    action: FeedbackAction
+    target_id: NonEmptyStr
+    payload: ContractPayload = Field(default_factory=dict)
+    consent: MemoryConsent
+    policy_version: NonEmptyStr
+    occurred_at: Timestamp
+    idempotency_key: NonEmptyStr
+
+    @model_validator(mode="after")
+    def validate_consent(self) -> FeedbackIngestionRequest:
+        if self.consent.status is not ConsentStatus.ACTIVE:
+            raise ValueError("feedback ingestion requires active consent")
+        if self.consent.policy_version != self.policy_version:
+            raise ValueError("feedback consent and policy versions must match")
+        if self.consent.basis not in {
+            ConsentBasis.PERSONALIZATION_OPT_IN,
+            ConsentBasis.FEEDBACK_PERSONALIZATION_OPT_IN,
+        }:
+            raise ValueError("feedback ingestion requires personalization consent")
+        if self.occurred_at < self.consent.captured_at:
+            raise ValueError("feedback cannot occur before consent capture")
+        return self
+
+
+class FeedbackIngestionReceipt(_AuthorityModel):
+    """Stable IDs returned after the authority event/outbox write."""
+
+    schema_version: Literal["feedback-ingestion-receipt/v1"] = (
+        "feedback-ingestion-receipt/v1"
+    )
+    feedback_id: NonEmptyStr
+    event_id: NonEmptyStr
+    outbox_id: NonEmptyStr
+    committed: Literal[True] = True
+
+
 def _scope_identity(
     tenant_id: str,
     subject_kind: object,
@@ -557,6 +606,9 @@ __all__ = [
     "AnonymousClaimRequest",
     "ConsentBasis",
     "ConsentStatus",
+    "FeedbackAction",
+    "FeedbackIngestionReceipt",
+    "FeedbackIngestionRequest",
     "EffectiveCapabilities",
     "MemoryConsent",
     "MemoryAuthorityWrite",
