@@ -72,7 +72,7 @@ uv run --frozen pytest -q tests/test_unit_s3_redis_contract.py
   # 10 passed in 3.49s
 
 uv run --frozen pytest -q -m "not live" -ra --durations=0
-  # 859 passed, 16 deselected, 2 warnings in 55.35s
+  # 859 passed, 18 deselected, 2 warnings in 53.63s
 
 uv lock --check
 # passed
@@ -230,8 +230,8 @@ unexecuted command.
 
 | Field | Value |
 |---|---|
-| Implementation commit | `6a0f110` (B0 Temporal/PostgreSQL/Redis application binding qualification increment) |
-| Qualification commit | `6a0f110` |
+| Implementation commit | `9fc38cc` (B0 Temporal/PostgreSQL/Redis application binding qualification increment) |
+| Qualification commit | `9fc38cc` |
 | Python/runtime | `CPython 3.12.x` |
 | Temporal SDK / service | `1.31.0 / official time-skipping test server` |
 | Pydantic AI | `2.5.1` |
@@ -240,7 +240,7 @@ unexecuted command.
 | Redis contract count/duration | `10 passed in 3.49s` offline; `1 passed in 3.33s` live B0 stream |
 | Live qualification count/duration | `8 passed in 39.07s` |
 | Live application binding count/duration | `1 passed in 10.66s` |
-| Full non-live count/duration | `859 passed, 16 deselected, 2 warnings in 55.35s` |
+| Full non-live count/duration | `859 passed, 18 deselected, 2 warnings in 53.63s` |
 | `uv lock --check` | `pass` |
 | Ruff / Pyright | `targeted changed-file Ruff pass; targeted Pyright 0 errors; legacy full-tree baseline remains noisy` |
 | `openspec validate define-modular-architecture --strict` | `pass` |
