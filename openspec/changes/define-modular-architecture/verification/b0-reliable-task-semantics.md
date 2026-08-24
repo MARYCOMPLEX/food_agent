@@ -218,8 +218,8 @@ unexecuted command.
 
 | Field | Value |
 |---|---|
-| Implementation commit | `796a6c9` (reliable SSE dependency gate; live PostgreSQL qualification pending) |
-| Qualification commit | `796a6c9` |
+| Implementation commit | `dce194e` (B0 PostgreSQL schema/authority and Redis Streams qualification increment) |
+| Qualification commit | `dce194e` |
 | Python/runtime | `CPython 3.12.x` |
 | Temporal SDK / service | `1.31.0 / official time-skipping test server` |
 | Pydantic AI | `2.5.1` |
