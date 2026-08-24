@@ -49,6 +49,7 @@ from .redis import (
     RedisReplayExpiredError,
     RedisSessionWindow,
     RedisStateStore,
+    RedisUserSessionWindow,
     create_redis_client,
 )
 from .temporal import (
@@ -83,6 +84,7 @@ __all__ = [
     "RedisReplayExpiredError",
     "RedisSessionWindow",
     "RedisStateStore",
+    "RedisUserSessionWindow",
     "RepositoryConfigView",
     "RepositorySlot",
     "SQLAlchemyDatabase",

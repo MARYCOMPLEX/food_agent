@@ -9,6 +9,11 @@ from .llm import LegacyLLMProviderAdapter, ProviderModelGateway
 from .memory_authority import MemoryAuthorityWriter
 from .memory_outbox import MemoryOutboxProjector
 from .memory_repository import SQLAlchemyMemoryRepository
+from .memory_session_projection import (
+    SESSION_WINDOW_SIZE,
+    SESSION_WINDOW_TTL_SECONDS,
+    MemorySessionProjection,
+)
 from .query_family_repository import SQLAlchemyQueryFamilyRepository
 from .reliable_events import ReliableTaskEventBusPublisher
 from .reliable_task_authority import (
@@ -43,6 +48,9 @@ __all__ = [
     "SQLAlchemyEmbeddingShadowRepository",
     "SQLAlchemyMemoryRepository",
     "MemoryOutboxProjector",
+    "MemorySessionProjection",
+    "SESSION_WINDOW_SIZE",
+    "SESSION_WINDOW_TTL_SECONDS",
     "MemoryAuthorityWriter",
     "SQLAlchemyCanonicalQueryShadowRepository",
     "SQLAlchemyQueryFamilyRepository",

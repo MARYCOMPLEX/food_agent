@@ -15,6 +15,8 @@ from xhs_food.contracts import (
     ErrorCategory,
     ErrorScope,
     EventEnvelope,
+    MemoryIsolationKey,
+    MemorySessionWindowPort,
 )
 
 from .failures import FoundationAdapterError, foundation_failure_boundary
@@ -328,6 +330,72 @@ class RedisSessionWindow:
         return f"{self.KEY_PREFIX}:{session_id}:window"
 
 
+class RedisUserSessionWindow(MemorySessionWindowPort):
+    """User-scoped Redis projection with the same bounded hot-state limits."""
+
+    KEY_PREFIX = "session"
+
+    def __init__(
+        self,
+        client: AsyncRedisClient,
+        contract: RedisHotStateContract | None = None,
+    ) -> None:
+        self._client = client
+        self._contract = contract or RedisHotStateContract()
+
+    async def append(
+        self,
+        scope: MemoryIsolationKey,
+        message: ContractPayload,
+        ttl_seconds: int,
+    ) -> None:
+        if not scope.session_id:
+            raise ValueError("user-scoped session projection requires session_id")
+        if ttl_seconds != self._contract.session_ttl_seconds:
+            raise ValueError("session window TTL must match the target Redis contract")
+        redis_key = self._key(scope)
+        payload = json.dumps(message, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        with foundation_failure_boundary(
+            scope=ErrorScope.CACHE,
+            operation="cache.user_session_window.append",
+        ):
+            await self._client.rpush(redis_key, payload)
+            await self._client.ltrim(redis_key, -self._contract.session_window_size, -1)
+            await self._client.expire(redis_key, ttl_seconds)
+
+    async def recent(
+        self,
+        scope: MemoryIsolationKey,
+        limit: int,
+    ) -> tuple[ContractPayload, ...]:
+        if not scope.session_id:
+            raise ValueError("user-scoped session projection requires session_id")
+        if not 1 <= limit <= self._contract.session_window_size:
+            raise ValueError("session window read exceeds the target limit")
+        redis_key = self._key(scope)
+        with foundation_failure_boundary(
+            scope=ErrorScope.CACHE,
+            operation="cache.user_session_window.recent",
+        ):
+            values = await self._client.lrange(redis_key, -limit, -1)
+            return tuple(_payload(value) for value in values)
+
+    async def clear(self, scope: MemoryIsolationKey) -> bool:
+        if not scope.session_id:
+            raise ValueError("user-scoped session projection requires session_id")
+        redis_key = self._key(scope)
+        with foundation_failure_boundary(
+            scope=ErrorScope.CACHE,
+            operation="cache.user_session_window.clear",
+        ):
+            return bool(await self._client.delete(redis_key))
+
+    def _key(self, scope: MemoryIsolationKey) -> str:
+        if not scope.session_id:
+            raise ValueError("user-scoped session projection requires session_id")
+        return f"{self.KEY_PREFIX}:{scope.namespaced_key('window')}"
+
+
 class RedisEventBusAdapter:
     """Contract EventBus over Redis Streams with exclusive cursor reads."""
 
@@ -466,6 +534,7 @@ __all__ = [
     "RedisIdempotencyWindow",
     "RedisReplayExpiredError",
     "RedisSessionWindow",
+    "RedisUserSessionWindow",
     "RedisStateStore",
 ]
 

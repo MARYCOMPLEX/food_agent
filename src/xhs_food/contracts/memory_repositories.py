@@ -8,6 +8,7 @@ from typing import Protocol, runtime_checkable
 from .base import ContractPayload
 from .memory import (
     MemoryAuthorityWrite,
+    MemoryConversationTurn,
     MemoryEvent,
     MemoryIsolationKey,
     MemoryOutboxEvent,
@@ -46,6 +47,13 @@ class MemoryRepositoryPort(Protocol):
         include_inactive: bool = False,
     ) -> tuple[MemoryRecord, ...]: ...
 
+    async def list_conversation_turns(
+        self,
+        scope: MemoryIsolationKey,
+        *,
+        limit: int,
+    ) -> tuple[MemoryConversationTurn, ...]: ...
+
     async def save_preference_snapshot(self, snapshot: PreferenceSnapshot) -> str: ...
 
     async def enqueue_outbox(
@@ -66,4 +74,28 @@ class MemoryOutboxProjectorPort(Protocol):
     async def project(self, event: MemoryOutboxEvent) -> bool: ...
 
 
-__all__ = ["MemoryOutboxProjectorPort", "MemoryRepositoryPort"]
+@runtime_checkable
+class MemorySessionWindowPort(Protocol):
+    """User-scoped, rebuildable session projection; never an authority."""
+
+    async def append(
+        self,
+        scope: MemoryIsolationKey,
+        message: ContractPayload,
+        ttl_seconds: int,
+    ) -> None: ...
+
+    async def recent(
+        self,
+        scope: MemoryIsolationKey,
+        limit: int,
+    ) -> tuple[ContractPayload, ...]: ...
+
+    async def clear(self, scope: MemoryIsolationKey) -> bool: ...
+
+
+__all__ = [
+    "MemoryOutboxProjectorPort",
+    "MemoryRepositoryPort",
+    "MemorySessionWindowPort",
+]

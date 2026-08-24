@@ -209,7 +209,11 @@ from .memory import (
     intersect_personalized_capabilities,
     isolation_key_for,
 )
-from .memory_repositories import MemoryOutboxProjectorPort, MemoryRepositoryPort
+from .memory_repositories import (
+    MemoryOutboxProjectorPort,
+    MemoryRepositoryPort,
+    MemorySessionWindowPort,
+)
 from .ports import (
     ActivityCall,
     ActivityPort,
@@ -477,6 +481,7 @@ __all__ = [
     "MemoryOutboxProjectorPort",
     "MemoryRecord",
     "MemoryRepositoryPort",
+    "MemorySessionWindowPort",
     "MemoryStatus",
     "MemorySubject",
     "MemorySubjectKind",

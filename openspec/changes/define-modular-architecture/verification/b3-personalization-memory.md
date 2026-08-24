@@ -82,6 +82,23 @@ Status: Partial implementation - tasks 11.1-11.5 qualified; 11.6-11.15 remain di
   sections; they remain inputs to research-depth, source-selection, and
   presentation policy only.
 
+## Task 11.6 boundary
+
+- `MemorySessionWindowPort` is a distinct user-scoped projection contract. Its
+  append/recent/clear methods require the complete `MemoryIsolationKey`, so a
+  bare session ID cannot read another user's hot state.
+- `RedisUserSessionWindow` uses a namespaced `session:` key containing tenant,
+  user or anonymous subject, and session. It enforces the fixed 20-item window
+  and 24-hour TTL and exposes no lock, lease, durable task, or process-local
+  fallback surface. The existing legacy `RedisSessionWindow` key and methods
+  remain unchanged for compatibility.
+- `SQLAlchemyMemoryRepository.list_conversation_turns` reads only the supplied
+  PostgreSQL scope, orders by the authority timestamp, and caps the query at
+  20 turns. `MemorySessionProjection` first reads Redis; an empty/missing
+  projection is rebuilt from those PostgreSQL turns and then warmed back into
+  Redis. Redis errors propagate to the caller and never switch to in-process
+  cross-request memory.
+
 ## Qualification commands
 
 ```powershell
@@ -96,6 +113,12 @@ uv run --frozen pytest -q tests/test_unit_b3_resolver.py
 
 uv run --frozen pytest -q tests/test_unit_b3_context.py
 # 4 passed
+
+uv run --frozen pytest -q tests/test_unit_b3_session_projection.py
+# 3 passed
+
+uv run --frozen pytest -q tests/test_unit_b3_schema.py tests/test_unit_b3_resolver.py tests/test_unit_b3_context.py tests/test_unit_b3_session_projection.py
+# 25 passed
 
 uv run --frozen pytest -q tests/test_unit_b0_schema.py tests/test_unit_b1_schema_and_embeddings.py tests/test_unit_b2_profile_fixture.py
 # 8 passed

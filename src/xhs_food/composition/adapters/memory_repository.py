@@ -153,6 +153,37 @@ class SQLAlchemyMemoryRepository(MemoryRepositoryPort):
             rows = result.mappings().all()
         return tuple(MemoryRecord.model_validate(row["payload"]) for row in rows)
 
+    async def list_conversation_turns(
+        self,
+        scope: MemoryIsolationKey,
+        *,
+        limit: int,
+    ) -> tuple[MemoryConversationTurn, ...]:
+        if not 1 <= limit <= 20:
+            raise ValueError("conversation window limit must be between 1 and 20")
+        statement = (
+            select(conversation_turns)
+            .where(*_conversation_scope_clause(scope))
+            .order_by(conversation_turns.c.occurred_at.desc(), conversation_turns.c.turn_id.desc())
+            .limit(limit)
+        )
+        async with self._unit_of_work_factory() as unit:
+            result = await unit.session_for_adapter().execute(statement)
+            rows = result.mappings().all()
+        return tuple(
+            MemoryConversationTurn(
+                turn_id=row["turn_id"],
+                scope=scope,
+                role=row["role"],
+                content=row["content"],
+                source_event_id=row["source_event_id"],
+                occurred_at=row["occurred_at"],
+                idempotency_key=row["idempotency_key"],
+                metadata=row["metadata"] or {},
+            )
+            for row in reversed(rows)
+        )
+
     async def save_preference_snapshot(self, snapshot: PreferenceSnapshot) -> str:
         scope = snapshot.isolation_key
         payload = snapshot.model_dump(mode="json", by_alias=True)
@@ -292,6 +323,14 @@ def _scope_clause(scope: MemoryIsolationKey) -> tuple[object, ...]:
     values = _scope_values(scope)
     return tuple(
         memory_records.c[column] == value
+        for column, value in values.items()
+    )
+
+
+def _conversation_scope_clause(scope: MemoryIsolationKey) -> tuple[object, ...]:
+    values = _scope_values(scope)
+    return tuple(
+        conversation_turns.c[column] == value
         for column, value in values.items()
     )
 
