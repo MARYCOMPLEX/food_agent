@@ -10,6 +10,7 @@ from sqlalchemy.dialects.postgresql import insert
 
 from xhs_food.contracts import (
     ContractPayload,
+    MemoryEvent,
     MemoryIsolationKey,
     MemoryRecord,
     MemoryRepositoryPort,
@@ -20,6 +21,7 @@ from xhs_food.contracts import (
 from xhs_food.foundation.database import SQLAlchemyUnitOfWork
 from xhs_food.foundation.memory_schema import (
     conversation_turns,
+    memory_events,
     memory_records,
     outbox,
     preference_snapshots,
@@ -95,6 +97,26 @@ class SQLAlchemyMemoryRepository(MemoryRepositoryPort):
             await unit.commit()
         return record.record_id
 
+    async def append_memory_event(self, event: MemoryEvent) -> str:
+        statement = insert(memory_events).values(
+            event_id=event.event_id,
+            **_subject_scope_values(
+                tenant_id=event.tenant_id,
+                subject_id=event.subject.id,
+                subject_kind=event.subject.kind.value,
+                session_id=event.session_id,
+            ),
+            event_type=event.event_type,
+            payload=event.model_dump(mode="json", by_alias=True),
+            idempotency_key=event.idempotency_key,
+            occurred_at=event.occurred_at,
+            created_at=event.created_at,
+        ).on_conflict_do_nothing(index_elements=[memory_events.c.idempotency_key])
+        async with self._unit_of_work_factory() as unit:
+            await unit.session_for_adapter().execute(statement)
+            await unit.commit()
+        return event.event_id
+
     async def list_records(
         self,
         scope: MemoryIsolationKey,
@@ -161,11 +183,22 @@ class SQLAlchemyMemoryRepository(MemoryRepositoryPort):
 
 def _scope_values(scope: MemoryIsolationKey) -> dict[str, str | None]:
     subject_id = scope.user_id if isinstance(scope, UserIsolationKey) else scope.anonymous_subject_id
+    return _subject_scope_values(
+        tenant_id=scope.tenant_id,
+        subject_id=subject_id,
+        subject_kind=str(scope.kind),
+        session_id=scope.session_id,
+    )
+
+
+def _subject_scope_values(
+    *, tenant_id: str, subject_id: str, subject_kind: str, session_id: str | None
+) -> dict[str, str | None]:
     return {
-        "tenant_id": scope.tenant_id,
-        "subject_kind": str(scope.kind),
+        "tenant_id": tenant_id,
+        "subject_kind": subject_kind,
         "subject_id": subject_id,
-        "session_id": scope.session_id,
+        "session_id": session_id,
     }
 
 

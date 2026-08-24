@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Protocol, runtime_checkable
 
 from .base import ContractPayload
-from .memory import MemoryIsolationKey, MemoryRecord, PreferenceSnapshot
+from .memory import MemoryEvent, MemoryIsolationKey, MemoryRecord, PreferenceSnapshot
 
 
 @runtime_checkable
@@ -27,6 +27,8 @@ class MemoryRepositoryPort(Protocol):
     ) -> str: ...
 
     async def save_record(self, record: MemoryRecord) -> str: ...
+
+    async def append_memory_event(self, event: MemoryEvent) -> str: ...
 
     async def list_records(
         self,

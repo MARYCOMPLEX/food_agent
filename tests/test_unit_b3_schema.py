@@ -15,7 +15,7 @@ from alembic.operations import Operations
 from sqlalchemy.dialects import postgresql
 
 from xhs_food.composition.adapters import SQLAlchemyMemoryRepository
-from xhs_food.contracts import MemoryRecord, UserIsolationKey
+from xhs_food.contracts import MemoryEvent, MemoryRecord, UserIsolationKey
 
 ROOT = Path(__file__).parents[1]
 MIGRATION = ROOT / "alembic" / "versions" / "20260824_0007_b3_personalization_memory.py"
@@ -113,8 +113,12 @@ class _UnitOfWork:
 
 
 def _record() -> MemoryRecord:
+    return _records()[1]
+
+
+def _records() -> tuple[MemoryRecord, ...]:
     value = json.loads(MEMORY_FIXTURE.read_text(encoding="utf-8"))
-    return MemoryRecord.model_validate(value["exampleRecords"][1])
+    return tuple(MemoryRecord.model_validate(item) for item in value["exampleRecords"])
 
 
 @pytest.mark.unit
@@ -183,3 +187,49 @@ async def test_memory_repository_writes_conversation_and_outbox_with_scope() -> 
         compiled = statement.compile(dialect=postgresql.dialect())
         assert scope.tenant_id in compiled.params.values()
         assert scope.user_id in compiled.params.values()
+
+
+@pytest.mark.unit
+async def test_memory_repository_persists_versioned_source_event_scope() -> None:
+    record = _record()
+    event = MemoryEvent(
+        event_id=record.source_event_ids[0],
+        tenant_id=record.tenant_id,
+        subject=record.subject,
+        session_id=record.session_id,
+        event_type=f"memory.{record.layer.value}",
+        payload={"recordId": record.record_id, "confidence": record.confidence},
+        idempotency_key=f"source:{record.source_event_ids[0]}",
+        occurred_at=record.valid_from,
+        policy_version=record.policy_version,
+        created_at=record.created_at,
+    )
+    session = _Session()
+    unit = _UnitOfWork(session)
+    repository = SQLAlchemyMemoryRepository(lambda: unit)
+
+    assert await repository.append_memory_event(event) == event.event_id
+    assert unit.commits == 1
+    statement = session.statements[0]
+    compiled = statement.compile(dialect=postgresql.dialect())
+    assert "memory_events" in str(statement)
+    assert event.tenant_id in compiled.params.values()
+    assert event.subject.id in compiled.params.values()
+    payload = compiled.params["payload"]
+    assert payload["schemaVersion"] == "memory-event/v1"
+    assert payload["policyVersion"] == record.policy_version
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("record_index", range(4))
+async def test_memory_repository_accepts_each_authoritative_layer(record_index: int) -> None:
+    record = _records()[record_index]
+    session = _Session()
+    unit = _UnitOfWork(session)
+    repository = SQLAlchemyMemoryRepository(lambda: unit)
+
+    assert await repository.save_record(record) == record.record_id
+    compiled = session.statements[0].compile(dialect=postgresql.dialect())
+    assert compiled.params["layer"] == record.layer.value
+    assert compiled.params["policy_version"] == record.policy_version
+    assert compiled.params["source_event_ids"] == list(record.source_event_ids)

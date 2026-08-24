@@ -1,6 +1,6 @@
 # B3 Personalization Memory Verification
 
-Status: Partial implementation - task 11.1 qualified; 11.2-11.15 remain disabled and pending
+Status: Partial implementation - tasks 11.1-11.2 qualified; 11.3-11.15 remain disabled and pending
 
 ## Task 11.1 boundary
 
@@ -14,10 +14,20 @@ Status: Partial implementation - task 11.1 qualified; 11.2-11.15 remain disabled
   `alembic/env.py`; Alembic remains the only schema authority.
 - `SQLAlchemyMemoryRepository` uses the project `SQLAlchemyUnitOfWork` and
   PostgreSQL `INSERT ... ON CONFLICT DO NOTHING` for idempotent turn, record,
-  preference snapshot, and outbox writes.
+  source-event, preference snapshot, and outbox writes.
 - Every read and write carries the complete tenant/subject/session scope. User
   and anonymous isolation keys map to distinct subject kinds and do not use
   process-local memory or Redis as an authority.
+- `MemoryRecord` is the single `memory-record/v1` contract for Session,
+  Explicit, Inferred, and Strategy Feedback layers. Its validation fixes the
+  layer-specific value kind, confidence rule, consent basis, source event IDs,
+  validity interval, expiry policy, status, and policy version.
+- `MemoryEvent` is the private `memory-event/v1` source-event contract. Its
+  payload stores schema/policy metadata and the repository persists the event
+  identity, full scope, event type, occurred/created timestamps, and unique
+  idempotency key in `memory_events`.
+- No embedding, summary, framework message, or recall-index column is part of
+  the authority schema. Such artifacts remain rebuildable derived data.
 - The repository currently exposes one-UoW operations. Cross-record atomic
   writes and post-commit Redis invalidation are intentionally reserved for
   task 11.3.
@@ -26,7 +36,10 @@ Status: Partial implementation - task 11.1 qualified; 11.2-11.15 remain disabled
 
 ```powershell
 uv run --frozen pytest -q tests/test_unit_b3_schema.py
-# 3 passed
+# 8 passed
+
+uv run --frozen pytest -q tests/test_unit_domain_memory_contracts.py tests/test_unit_memory_media_hardening.py
+# 53 passed
 
 uv run --frozen pytest -q tests/test_unit_b0_schema.py tests/test_unit_b1_schema_and_embeddings.py tests/test_unit_b2_profile_fixture.py
 # 8 passed

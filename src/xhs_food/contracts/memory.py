@@ -242,6 +242,30 @@ class MemoryRecord(_AuthorityModel):
             raise ValueError(f"{self.layer.value} memory requires {basis.value} consent")
 
 
+class MemoryEvent(_AuthorityModel):
+    """Versioned private source event referenced by one or more memory records."""
+
+    schema_version: Literal["memory-event/v1"] = "memory-event/v1"
+    event_id: NonEmptyStr
+    tenant_id: NonEmptyStr
+    subject: MemorySubject
+    session_id: NonEmptyStr | None = None
+    event_type: NonEmptyStr
+    payload: ContractPayload
+    idempotency_key: NonEmptyStr
+    occurred_at: Timestamp
+    policy_version: NonEmptyStr
+    created_at: Timestamp
+
+    @model_validator(mode="after")
+    def enforce_scope_and_lifecycle(self) -> MemoryEvent:
+        if self.subject.kind is MemorySubjectKind.ANONYMOUS and not self.session_id:
+            raise ValueError("anonymous memory events require session_id")
+        if self.occurred_at > self.created_at:
+            raise ValueError("occurred_at must not be after created_at")
+        return self
+
+
 class UserIsolationKey(_AuthorityModel):
     kind: Literal["user"] = "user"
     tenant_id: NonEmptyStr
@@ -377,6 +401,7 @@ __all__ = [
     "ConsentStatus",
     "EffectiveCapabilities",
     "MemoryConsent",
+    "MemoryEvent",
     "MemoryIsolationKey",
     "MemoryLayer",
     "MemoryRecord",

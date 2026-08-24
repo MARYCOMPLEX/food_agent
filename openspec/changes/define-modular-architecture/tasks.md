@@ -168,7 +168,7 @@
 ## 11. B3 Personalization Memory
 
 - [x] 11.1 只通过 Alembic 编写只增不删的 `conversation_turns`、`session_state`、`memory_records`、`memory_events`、`preference_snapshots`、版本化摘要和 outbox migration，并用 SQLAlchemy 2 Async repositories 保证 user scope 与 transaction boundary。
-- [ ] 11.2 实现 Session、Explicit、Inferred 和 Strategy Feedback 四类权威写入及来源事件、置信度、作用域、有效时间和 schema/policy version 元数据；embedding 只作为可重建派生索引，不作为记忆事实。
+- [x] 11.2 实现 Session、Explicit、Inferred 和 Strategy Feedback 四类权威写入及来源事件、置信度、作用域、有效时间和 schema/policy version 元数据；embedding 只作为可重建派生索引，不作为记忆事实。
 - [ ] 11.3 固化权威写序：同一 PostgreSQL transaction 写 conversation/memory 与 outbox，commit 后再消费 outbox 做 Redis invalidate/warm；任何缓存失败不得回滚或取代已提交事实。
 - [ ] 11.4 实现 Preference Resolver 的“显式硬约束 > 当前会话 > 稳定显式偏好 > 推断偏好”规则和策略反馈边界。
 - [ ] 11.5 实现 `ContextAssembler`，按“当前请求约束 -> 最近消息 -> 版本化摘要 -> 相关记忆 -> 相关 Evidence”组装临时模型上下文，并记录每部分 token budget、版本和引用。
