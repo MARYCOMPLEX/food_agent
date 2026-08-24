@@ -50,11 +50,11 @@ flag without an explicitly injected Temporal/PostgreSQL policy.
 |---|---|---|---|
 | 8.1 | Independent policy versions, terminal set, old-terminal and mapper rules | PASS (contract/mapper) | `legacy-task/v1`, `reliable-task/v1`, `research-task/v1`, `research-activity/v1`; normative fixture, ADR-0011, and `ReliableEventMapper` contract tests. HTTP/SSE route binding remains the 8.9 B0 gate. |
 | 8.2 | Opt-in Research Workflow, stable Workflow ID, duplicate start/single-flight | PASS (SDK/PG qualification) | Stable identity, same-process concurrent admission coalescing, durable-owner hydration, Temporal adapter duplicate-start handling, cross-connection PostgreSQL admission, and the live Temporal duplicate-start qualification pass. Reliable refine remains rejected with `RELIABLE_REFINE_IDENTITY_UNAPPROVED` until its separately approved cross-turn identity contract exists. |
-| 8.3 | Coordinator-only transitions, Temporal checkpoint, PG commit barrier, reconciliation | PARTIAL | Coordinator-only transitions, `ReliableTaskStorePort`, Alembic-owned schema, PostgreSQL admission/CAS, projection turn ordering, completed/cancelled/failed receipts, same-run terminal competition, late-run guards, idempotent commit/reconcile, and the live Temporal -> PostgreSQL commit barrier are covered. Crash-after-commit reconciliation against Temporal remains pending. |
+| 8.3 | Coordinator-only transitions, Temporal checkpoint, PG commit barrier, reconciliation | PARTIAL | Coordinator-only transitions, `ReliableTaskStorePort`, Alembic-owned schema, PostgreSQL admission/CAS, projection turn ordering, completed/cancelled/failed receipts, same-run terminal competition, late-run guards, idempotent commit/reconcile, and the live Temporal -> PostgreSQL commit barrier are covered. The live application fixture injects a post-commit Redis publication failure and rebuilds the terminal event from the PostgreSQL receipt; a process-level crash-and-resume harness remains pending. |
 | 8.4 | Pydantic AI Temporal integration, bounded Activities, retry/timeout/heartbeat/cancel policy | PASS (SDK qualification) | Factory, plugin, JSON boundary, policy constants, and the official live model/tool Activity replay and determinism suite pass; production worker/provider rollout remains a separate gate. |
 | 8.5 | Separate Research queue and reserved Refresh/Media queues | PARTIAL (binding + structural) | `TemporalTaskQueues` carries explicit per-queue `TemporalWorkerQuota`, enables only `research` by default, rejects disabled `refresh/media` execution until B4, and `build_reliable_research_worker()` registers the Research Workflow, Activities, and official Pydantic AI plugin with the Research quota. Real Temporal service concurrency/priority/isolation smoke remains pending. |
 | 8.6 | PG projection + Temporal history + Redis replay/resync | PARTIAL (binding contract) | Fake and live Redis 7 `xrange`/`xread` contracts prove exact retained-cursor validation, exclusive continuation, and `replay_expired` for unknown cursors; Alembic-backed PostgreSQL projection ordering passes through the reliable Composition-Root adapter, reliable `TaskEvent` values have an EventBus publisher adapter, and explicit reliable task/projection/EventBus bindings are now resolvable from the Composition Root without fallback. Offline HTTP/SSE v1 retained/expired mapping passes; Redis trim/TTL/restart and full production binding remain pending. |
-| 8.7 | Failure-injection and differential suite | PARTIAL | Eight live SDK/application tests pass: determinism/replay, adapter duplicate start, model/tool Activities, retry/exhaustion, clean worker restart+replay, SDK cancellation race, reliable cancellation receipt, and patch replay; the live application binding also proves PG commit/reconcile and Redis terminal publication. Offline failed-receipt ordering, same-run terminal competition, commit failure, reconciliation, late-run, and Redis replay contracts also pass. Process-level in-flight crash, duplicate Activity against a live worker, PG/Temporal crash reconciliation, and SSE/HTTP differential cases remain pending. |
+| 8.7 | Failure-injection and differential suite | PARTIAL | Eight live SDK tests pass: determinism/replay, adapter duplicate start, model/tool Activities, retry/exhaustion, clean worker restart+replay, SDK cancellation race, reliable cancellation receipt, and patch replay. The separate live application fixture proves PG commit, injected EventBus publication failure, reconciliation from the committed receipt, and deterministic Redis terminal republication. Offline failed-receipt ordering, same-run terminal competition, commit failure, reconciliation, late-run, and Redis replay contracts also pass. Process-level in-flight crash, duplicate Activity against a live worker, PG/Temporal crash reconciliation, and SSE/HTTP differential cases remain pending. |
 | 8.8 | Redis outage semantics | PARTIAL (binding contract) | `get_event_bus(require_redis=True)` returns stable `EVENT_BUS_DEPENDENCY_UNAVAILABLE` for missing configuration and connection failure instead of creating an in-memory bus; the API lifespan resolves reliable projection/EventBus bindings only when explicitly registered, so a missing reliable EventBus remains a route-level dependency failure. Live Redis 7 stream behavior passes and legacy callers retain their characterized fallback. Live Workflow continuity after Redis outage, persistent-result reads, and full new HTTP/SSE admission mapping remain pending. |
 | 8.9 | HTTP/SSE compatibility and post-commit terminal publication | PASS (contract/route) | Legacy HTTP/SSE snapshots, reliable event mapping, opt-in reliable admission, canonical `sseVersion=v1`, exclusive retained replay, missing projection `404`, expired-cursor `replay_expired/resync` without an id, dependency-unavailable `503`, and live Redis terminal publication after PostgreSQL commit pass. Production Composition-Root binding and full-stack differential qualification remain B0 gaps. |
 | 8.10 | Dependency/runtime prohibition gate | PASS (static, needs final scan) | No B0 code introduces Redis lock/lease, ARQ, Celery, LangGraph, or second scheduler. Re-run import/dependency scan before commit. |
@@ -72,23 +72,28 @@ uv run --frozen pytest -q tests/test_unit_s3_redis_contract.py
   # 10 passed in 3.49s
 
 uv run --frozen pytest -q -m "not live" -ra --durations=0
-  # 867 passed, 18 deselected, 2 warnings in 53.71s
+  # 867 passed, 18 deselected, 2 warnings in 52.42s
 
 uv lock --check
 # passed
 
 $env:B0_POSTGRES_URL='postgresql+asyncpg://postgres:postgres@localhost:55432/xhs_food_agent'
 uv run --frozen pytest -q -m live tests/test_live_b0_reliable_task.py
-  # 1 passed in 6.52s (PostgreSQL 16.14; Alembic 20260824_0006_b0_reliable_task)
+  # 1 passed in 6.08s (PostgreSQL 16.14; Alembic 20260824_0006_b0_reliable_task)
 
 $env:B0_REDIS_URL='redis://localhost:56380/0'
 uv run --frozen pytest -q -m live tests/test_live_b0_redis.py
-  # 1 passed in 3.33s (Redis 7.x; temporary local container)
+  # 1 passed in 3.14s (Redis 7.x; temporary local container)
 
 $env:B0_POSTGRES_URL='postgresql+asyncpg://postgres:postgres@localhost:55432/xhs_food_agent'
 $env:B0_REDIS_URL='redis://localhost:56380/0'
 uv run --frozen pytest -q -m live tests/test_live_b0_application.py
-  # 1 passed in 10.66s (Temporal time-skipping server + PostgreSQL 16.14 + Redis 7.x)
+  # 1 passed in 11.81s (Temporal time-skipping server + PostgreSQL 16.14 + Redis 7.x)
+
+$env:B0_POSTGRES_URL='postgresql+asyncpg://postgres:postgres@localhost:55432/xhs_food_agent'
+$env:B0_REDIS_URL='redis://localhost:56380/0'
+uv run --frozen pytest -q -m live tests/test_temporal_qualification.py tests/test_live_b0_reliable_task.py tests/test_live_b0_redis.py tests/test_live_b0_application.py
+  # 11 passed in 43.55s
 ```
 
 The focused unit suite proves:
@@ -137,11 +142,13 @@ exclusively after a retained cursor and maps an unknown cursor to the stable
 container and does not make Redis a task or result authority.
 
 The live application B0 suite registers the real `TemporalResearchWorkflow`
-and `ReliableResearchActivities` against the SDK test server, persists task and
-result facts through PostgreSQL, and publishes the terminal `task.completed`
-event through Redis. It then reads the committed receipt and terminal stream
-event using the same task/workflow identity. The test does not claim a
-process-level crash or HTTP/SSE route qualification.
+and `ReliableResearchActivities` against the SDK test server and persists task
+and result facts through PostgreSQL. It injects failure on the first Redis
+terminal publication after the PostgreSQL commit, verifies the Workflow still
+returns a committed but unpublished result, and then reconciles the receipt to
+republish the same deterministic `task.completed` event. This is application
+failure injection and recovery evidence; it does not claim a process-level
+crash or HTTP/SSE route qualification.
 
 The existing authority fixtures prove the wire-level replay rules:
 
@@ -251,10 +258,10 @@ unexecuted command.
 | Pydantic AI | `2.5.1` |
 | PostgreSQL / Redis | `16 / 7.4` |
 | Focused unit count/duration | `20 passed` in the B0 reliable-task unit module; `42 passed in 14.17s` in the B0/Redis/architecture targeted gate; `45 passed in 16.47s` in the HTTP/SSE/reliable route gate |
-| Redis contract count/duration | `10 passed in 3.49s` offline; `1 passed in 3.33s` live B0 stream |
+| Redis contract count/duration | `10 passed in 3.49s` offline; `1 passed in 3.14s` live B0 stream |
 | Live qualification count/duration | `8 passed in 37.03s` |
-| Live application binding count/duration | `1 passed in 10.66s` |
-| Full non-live count/duration | `867 passed, 18 deselected, 2 warnings in 53.71s` |
+| Live application binding count/duration | `1 passed in 11.81s`; combined Temporal/PostgreSQL/Redis/application gate `11 passed in 43.55s` |
+| Full non-live count/duration | `867 passed, 18 deselected, 2 warnings in 52.42s` |
 | `uv lock --check` | `pass` |
 | Ruff / Pyright | `targeted changed-file Ruff pass; targeted Pyright 0 errors; legacy full-tree baseline remains noisy` |
 | `openspec validate define-modular-architecture --strict` | `pass` |

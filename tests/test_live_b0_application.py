@@ -60,6 +60,20 @@ class _LegacyPort:
         return None
 
 
+class _FailOncePublisher:
+    """Inject one rebuildable EventBus failure after the PG commit barrier."""
+
+    def __init__(self, delegate: Any) -> None:
+        self._delegate = delegate
+        self._failed = False
+
+    async def publish_task_event(self, event: Any, *, idempotency_key: str) -> str:
+        if not self._failed:
+            self._failed = True
+            raise RuntimeError("injected Redis publication failure")
+        return await self._delegate.publish_task_event(event, idempotency_key=idempotency_key)
+
+
 @pytest_asyncio.fixture(scope="module")
 async def temporal_env() -> Any:
     env = await WorkflowEnvironment.start_time_skipping(data_converter=pydantic_data_converter)
@@ -82,7 +96,7 @@ def _request(prefix: str) -> ResearchRequest:
 
 
 @pytest.mark.live
-async def test_b0_application_commits_postgres_before_redis_terminal(
+async def test_b0_application_commits_postgres_before_redis_terminal_and_reconciles(
     temporal_env: Any,
 ) -> None:
     postgres_url = os.getenv("B0_POSTGRES_URL")
@@ -125,9 +139,8 @@ async def test_b0_application_commits_postgres_before_redis_terminal(
         reliable_policy_enabled=True,
     )
     policy.bind_owner(coordinator)
-    publisher = ReliableTaskEventBusPublisher(
-        redis_events,
-        topic_resolver=lambda event: topic,
+    publisher = _FailOncePublisher(
+        ReliableTaskEventBusPublisher(redis_events, topic_resolver=lambda event: topic)
     )
     activities = ReliableResearchActivities(
         owner=coordinator,
@@ -162,13 +175,20 @@ async def test_b0_application_commits_postgres_before_redis_terminal(
             result = ResearchWorkflowOutput.model_validate(raw_result)
 
         assert result.committed is True
-        assert result.published is True
+        assert result.published is False
         committed = await authority.reconcile(
             task.task_id,
             task.workflow_id,
             task.run_id or "",
         )
         assert committed == {"answer": "application-ok", "status": "completed"}
+        assert await activities.reconcile(
+            {
+                "task_id": task.task_id,
+                "workflow_id": task.workflow_id,
+                "run_id": task.run_id or "",
+            }
+        ) is True
         stream = redis_events.subscribe(topic)
         terminal = await asyncio.wait_for(anext(stream), timeout=5)
         await cast(Any, stream).aclose()
