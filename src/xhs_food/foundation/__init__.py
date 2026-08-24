@@ -41,6 +41,7 @@ from .temporal import (
     TemporalTaskQueues,
     TemporalWorkerQuota,
     TemporalWorkflowAdapter,
+    build_temporal_worker,
     deterministic_workflow_input,
 )
 
@@ -76,6 +77,7 @@ __all__ = [
     "TemporalTaskQueues",
     "TemporalWorkerQuota",
     "TemporalWorkflowAdapter",
+    "build_temporal_worker",
     "correlation_attributes",
     "deterministic_workflow_input",
     "foundation_error_from_exception",

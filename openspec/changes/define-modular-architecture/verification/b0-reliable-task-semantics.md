@@ -52,7 +52,7 @@ flag without an explicitly injected Temporal/PostgreSQL policy.
 | 8.2 | Opt-in Research Workflow, stable Workflow ID, duplicate start/single-flight | PASS (SDK/PG qualification) | Stable identity, same-process concurrent admission coalescing, durable-owner hydration, Temporal adapter duplicate-start handling, cross-connection PostgreSQL admission, and the live Temporal duplicate-start qualification pass. Reliable refine remains rejected with `RELIABLE_REFINE_IDENTITY_UNAPPROVED` until its separately approved cross-turn identity contract exists. |
 | 8.3 | Coordinator-only transitions, Temporal checkpoint, PG commit barrier, reconciliation | PARTIAL | Coordinator-only transitions, `ReliableTaskStorePort`, Alembic-owned schema, PostgreSQL admission/CAS, projection turn ordering, completed/cancelled/failed receipts, same-run terminal competition, late-run guards, idempotent commit/reconcile, and the live Temporal -> PostgreSQL commit barrier are covered. Crash-after-commit reconciliation against Temporal remains pending. |
 | 8.4 | Pydantic AI Temporal integration, bounded Activities, retry/timeout/heartbeat/cancel policy | PASS (SDK qualification) | Factory, plugin, JSON boundary, policy constants, and the official live model/tool Activity replay and determinism suite pass; production worker/provider rollout remains a separate gate. |
-| 8.5 | Separate Research queue and reserved Refresh/Media queues | PARTIAL (structural) | `TemporalTaskQueues` now carries explicit per-queue `TemporalWorkerQuota`, enables only `research` by default, and rejects disabled `refresh/media` execution until B4. Real Temporal worker registration, concurrency caps, and priority/isolation smoke remain pending with the target service. |
+| 8.5 | Separate Research queue and reserved Refresh/Media queues | PARTIAL (binding + structural) | `TemporalTaskQueues` carries explicit per-queue `TemporalWorkerQuota`, enables only `research` by default, rejects disabled `refresh/media` execution until B4, and `build_reliable_research_worker()` registers the Research Workflow, Activities, and official Pydantic AI plugin with the Research quota. Real Temporal service concurrency/priority/isolation smoke remains pending. |
 | 8.6 | PG projection + Temporal history + Redis replay/resync | PARTIAL | Fake and live Redis 7 `xrange`/`xread` contracts prove exact retained-cursor validation, exclusive continuation, and `replay_expired` for unknown cursors; Alembic-backed PostgreSQL projection ordering passes through the reliable Composition-Root adapter, and reliable `TaskEvent` values have an EventBus publisher adapter. Offline HTTP/SSE v1 retained/expired mapping now passes; Redis trim/TTL/restart and production binding remain pending. |
 | 8.7 | Failure-injection and differential suite | PARTIAL | Eight live SDK/application tests pass: determinism/replay, adapter duplicate start, model/tool Activities, retry/exhaustion, clean worker restart+replay, SDK cancellation race, reliable cancellation receipt, and patch replay; the live application binding also proves PG commit/reconcile and Redis terminal publication. Offline failed-receipt ordering, same-run terminal competition, commit failure, reconciliation, late-run, and Redis replay contracts also pass. Process-level in-flight crash, duplicate Activity against a live worker, PG/Temporal crash reconciliation, and SSE/HTTP differential cases remain pending. |
 | 8.8 | Redis outage semantics | PARTIAL | `get_event_bus(require_redis=True)` returns stable `EVENT_BUS_DEPENDENCY_UNAVAILABLE` for missing configuration and connection failure instead of creating an in-memory bus; live Redis 7 stream behavior passes and legacy callers retain their characterized fallback. Live Workflow continuity after Redis outage, persistent-result reads, and new HTTP/SSE admission mapping remain pending. |
@@ -106,6 +106,14 @@ The focused unit suite proves:
    and
 7. reliable refine is rejected until its cross-turn identity contract is
    approved.
+
+The worker-binding contract suite additionally proves that the Foundation
+worker factory passes the Research queue's activity/workflow concurrency caps,
+rejects the disabled Refresh/Media queues, and that the reliable Research
+factory registers the Workflow, all reliable Activities, and the official
+Pydantic AI plugin. The live application fixture uses this same factory; a
+target Temporal service smoke is still required before enabling multiple
+worker pools in production.
 
 The live PostgreSQL B0 suite additionally proves cross-connection admission
 coalescing, task CAS hydration, same-run completed/cancelled receipt

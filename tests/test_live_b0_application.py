@@ -12,7 +12,6 @@ from redis import asyncio as aioredis
 from sqlalchemy import text
 from temporalio.contrib.pydantic import pydantic_data_converter
 from temporalio.testing import WorkflowEnvironment
-from temporalio.worker import Worker
 
 from xhs_food.composition.adapters import (
     PostgresReliableTaskAuthority,
@@ -36,7 +35,7 @@ from xhs_food.foundation import (
 from xhs_food.orchestrator import (
     ReliableResearchActivities,
     ResearchWorkflowOutput,
-    TemporalResearchWorkflow,
+    build_reliable_research_worker,
     stable_research_task_id,
 )
 from xhs_food.orchestrator.coordinator import ResearchCoordinator
@@ -155,12 +154,7 @@ async def test_b0_application_commits_postgres_before_redis_terminal(
             await unit.commit()
         await redis_events.delete_topic(topic)
 
-        async with Worker(
-            temporal_env.client,
-            task_queue="research",
-            workflows=[TemporalResearchWorkflow],
-            activities=activities.activities(),
-        ):
+        async with build_reliable_research_worker(temporal_env.client, activities):
             task = await coordinator.submit(request)
             task_id = task.task_id
             assert task.workflow_id is not None

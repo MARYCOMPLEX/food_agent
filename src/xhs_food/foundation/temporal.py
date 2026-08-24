@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -291,6 +291,37 @@ class TemporalActivityAdapter:
         return ActivityResult(activity_id=call.activity_id, output=output)
 
 
+def build_temporal_worker(
+    client: Any,
+    *,
+    task_queues: TemporalTaskQueues,
+    queue: str,
+    workflows: Sequence[type[Any]],
+    activities: Sequence[Callable[..., Any]],
+    plugins: Sequence[Any] = (),
+) -> Any:
+    """Build one queue-isolated Temporal worker from the approved quota.
+
+    Worker construction is kept at the Foundation boundary so every worker
+    uses the same queue registration and concurrency contract.  In
+    particular, a caller cannot accidentally start a Refresh or Media worker
+    while those queues are disabled for the current milestone.
+    """
+
+    quota = task_queues.assert_enabled(queue)
+    from temporalio.worker import Worker
+
+    return Worker(
+        client,
+        task_queue=quota.queue,
+        workflows=tuple(workflows),
+        activities=tuple(activities),
+        plugins=tuple(plugins),
+        max_concurrent_activities=quota.max_concurrent_activities,
+        max_concurrent_workflow_tasks=quota.max_concurrent_workflows,
+    )
+
+
 def deterministic_workflow_input(command: WorkflowStart) -> dict[str, Any]:
     """Round-trip through canonical JSON before crossing the Temporal boundary."""
 
@@ -340,6 +371,7 @@ __all__ = [
     "TemporalTaskQueues",
     "TemporalWorkerQuota",
     "TemporalWorkflowAdapter",
+    "build_temporal_worker",
     "deterministic_json_value",
     "deterministic_workflow_input",
 ]

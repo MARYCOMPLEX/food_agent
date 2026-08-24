@@ -16,7 +16,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Any, Protocol, cast, runtime_checkable
@@ -729,6 +729,45 @@ def pydantic_ai_worker_plugin() -> Any:
     return PydanticAIPlugin()
 
 
+def build_reliable_research_worker(
+    client: Any,
+    activities: ReliableResearchActivities,
+    *,
+    config: ReliableTaskConfig | None = None,
+    task_queues: Any | None = None,
+    workflows: Sequence[type[Any]] | None = None,
+    plugins: Sequence[Any] = (),
+) -> Any:
+    """Build the B0 Research worker with the approved queue and plugin set.
+
+    Refresh and Media workers are intentionally not created by this helper;
+    their independent pools are enabled by B4.  ``task_queues`` is injectable
+    so deployments can rename queues without changing the Research contract.
+    """
+
+    from xhs_food.foundation import TemporalTaskQueues, build_temporal_worker
+
+    config = config or ReliableTaskConfig()
+    queues = task_queues or TemporalTaskQueues(
+        research=config.task_queue,
+        refresh="refresh",
+        media="media",
+    )
+    if queues.research != config.task_queue:
+        raise ValueError("Research worker queue must match ReliableTaskConfig.task_queue")
+    registered_plugins = tuple(plugins)
+    if not any(type(plugin).__name__ == "PydanticAIPlugin" for plugin in registered_plugins):
+        registered_plugins = (pydantic_ai_worker_plugin(), *registered_plugins)
+    return build_temporal_worker(
+        client,
+        task_queues=queues,
+        queue=config.task_queue,
+        workflows=tuple(workflows or (TemporalResearchWorkflow,)),
+        activities=activities.activities(),
+        plugins=registered_plugins,
+    )
+
+
 class ReliableResearchActivities:
     """Worker Activity implementations with explicit authority boundaries."""
 
@@ -1371,6 +1410,7 @@ __all__ = [
     "TemporalResearchWorkflow",
     "build_workflow_start",
     "build_pydantic_ai_research_workflow",
+    "build_reliable_research_worker",
     "pydantic_ai_worker_plugin",
     "stable_research_task_id",
     "stable_research_workflow_id",
