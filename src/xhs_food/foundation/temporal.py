@@ -227,6 +227,18 @@ class TemporalWorkflowAdapter:
                 "research.cancel.requested", {"reason": reason or ""}
             )
 
+    async def aclose(self) -> None:
+        """Close the owned Temporal client during application shutdown."""
+
+        client = self._client
+        self._client = None
+        self._enabled = False
+        close = getattr(client, "aclose", None) or getattr(client, "close", None)
+        if callable(close):
+            result = close()
+            if asyncio.iscoroutine(result):
+                await result
+
     async def describe(self, workflow_id: str) -> WorkflowRun | None:
         require_enabled(self._enabled, "temporal")
         handle = self._client.get_workflow_handle(workflow_id)

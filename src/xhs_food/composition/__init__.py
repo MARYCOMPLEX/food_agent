@@ -7,8 +7,10 @@ from .root import (
     DisabledBindingError,
     LogicalBinding,
     RegistryState,
+    ReliableRuntimeBindings,
     build_legacy_composition_root,
     build_reliable_research_worker,
+    build_reliable_runtime_bindings,
 )
 
 __all__ = [
@@ -18,6 +20,8 @@ __all__ = [
     "DisabledBindingError",
     "LogicalBinding",
     "RegistryState",
+    "ReliableRuntimeBindings",
     "build_legacy_composition_root",
+    "build_reliable_runtime_bindings",
     "build_reliable_research_worker",
 ]

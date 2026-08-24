@@ -124,7 +124,7 @@
 - [x] 8.3 保持 `ResearchCoordinator` 为语义状态迁移的唯一 owner；Temporal history 是唯一 executable checkpoint，PostgreSQL 只保存业务进度/结果投影。实现按 `workflow_id/run_id` 的固定 reconciliation、权威结果提交屏障与 PG commit 后唯一 terminal 投影。
 - [x] 8.4 使用 Pydantic AI 官方 Temporal durable execution integration 将每次模型与工具调用映射为有界 Activity，并将 Connector、Repository 和结果提交放入普通 Activities；定义版本化 timeout、retry、non-retryable failure、heartbeat 和 cancellation policy，禁止普通 Pydantic AI loop 或任何非确定性 I/O 直接运行在 Workflow sandbox 中。
 - [x] 8.5 将 Research 任务绑定到独立 Temporal Task Queue 和 worker 配额，禁止与 Refresh/Media 共用无优先级队列；B4 启用另外两类 Task Queue。
-- [ ] 8.6 协调 Temporal executable checkpoint、PostgreSQL `task_progress_projection` 与 Redis EventBus/SSE；SSE Stream 固定 TTL 1 小时和 `MAXLEN 1000`，窗口内按 event ID 排他续传，窗口外或 Redis 重启后返回稳定 `replay_expired/resync` 与权威任务快照/终态，并保持同一 task/turn、不创建重复研究。
+- [x] 8.6 协调 Temporal executable checkpoint、PostgreSQL `task_progress_projection` 与 Redis EventBus/SSE；SSE Stream 固定 TTL 1 小时和 `MAXLEN 1000`，窗口内按 event ID 排他续传，窗口外或 Redis 重启后返回稳定 `replay_expired/resync` 与权威任务快照/终态，并保持同一 task/turn、不创建重复研究。
 - [ ] 8.7 添加 Pydantic AI 模型/工具 Activity history replay、Workflow 代码版本升级、worker crash/restart、Activity 重复、PG/Temporal projection reconciliation、SSE 保留窗口内/外重连、并发启动、持久化失败、取消竞争、重试耗尽和旧 policy differential tests。
 - [x] 8.8 验证 Redis 不可用时已启动 Temporal workflow 可继续且持久结果可读；需要创建实时会话/SSE热状态的新请求返回明确 dependency-unavailable，不静默退化到进程内状态。
 - [x] 8.9 运行 HTTP/SSE compatibility mapper tests，证明 reliable policy 的 wire 差异只出现在已批准 authority contract 允许的位置，且 terminal event 只在 PostgreSQL 提交成功后发出。

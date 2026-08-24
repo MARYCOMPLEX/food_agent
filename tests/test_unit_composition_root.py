@@ -14,8 +14,11 @@ from xhs_food.composition import (
     CompositionRoot,
     RegistryState,
     build_legacy_composition_root,
+    build_reliable_runtime_bindings,
 )
+from xhs_food.config import Settings
 from xhs_food.contracts import TaskProgressProjection, TaskStatus
+from xhs_food.foundation import TargetSettings
 from xhs_food.protocols.mcp import MCPToolRegistry
 
 
@@ -78,6 +81,92 @@ class _EventBusFixture:
         del topic, after
         if False:
             yield None
+
+
+class _WorkflowFixture:
+    def __init__(self, calls: list[str]) -> None:
+        self._calls = calls
+
+    async def start(self, command: object) -> object:
+        del command
+        raise AssertionError("workflow start is not part of binding construction")
+
+    async def signal(self, workflow_id: str, signal: str, payload: dict) -> None:
+        del workflow_id, signal, payload
+
+    async def cancel(self, workflow_id: str, reason: str | None = None) -> None:
+        del workflow_id, reason
+
+    async def describe(self, workflow_id: str) -> None:
+        del workflow_id
+        return None
+
+    async def aclose(self) -> None:
+        self._calls.append("temporal")
+
+
+class _DatabaseFixture:
+    def __init__(self, calls: list[str]) -> None:
+        self._calls = calls
+        self.started = False
+
+    def start(self) -> None:
+        self.started = True
+
+    def unit_of_work(self) -> None:
+        return None
+
+    async def aclose(self) -> None:
+        self._calls.append("postgres")
+
+
+class _RedisFixture:
+    def __init__(self, calls: list[str]) -> None:
+        self._calls = calls
+        self.pings = 0
+
+    async def ping(self) -> bool:
+        self.pings += 1
+        return True
+
+    async def aclose(self) -> None:
+        self._calls.append("redis")
+
+
+async def test_reliable_runtime_bindings_are_explicit_and_close_owned_resources() -> None:
+    calls: list[str] = []
+    database = _DatabaseFixture(calls)
+    redis = _RedisFixture(calls)
+    workflow = _WorkflowFixture(calls)
+    target = TargetSettings(
+        target_adapters_enabled=True,
+        reliable_task_lifecycle=True,
+        database_url="postgresql+asyncpg://postgres:postgres@db/xhs_food_agent",
+        temporal_address="temporal:7233",
+        temporal_namespace="food-agent",
+    )
+    legacy = Settings(redis_url="redis://redis:6379/0")
+    connected: dict[str, object] = {}
+
+    async def connect(**kwargs: object) -> _WorkflowFixture:
+        connected.update(kwargs)
+        return workflow
+
+    runtime = await build_reliable_runtime_bindings(
+        target_settings=target,
+        legacy_settings=legacy,
+        database_factory=lambda url, *, enabled: database,
+        redis_factory=lambda url, *, decode_responses: redis,
+        temporal_connect=connect,
+    )
+    assert database.started is True
+    assert redis.pings == 1
+    assert connected["address"] == "temporal:7233"
+    assert connected["namespace"] == "food-agent"
+    assert connected["enabled"] is True
+    assert runtime.workflow is workflow
+    await runtime.aclose()
+    assert calls == ["temporal", "redis", "postgres"]
 
 
 async def test_registry_freezes_after_activation_and_caches_instances() -> None:

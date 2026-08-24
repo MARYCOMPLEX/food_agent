@@ -69,6 +69,17 @@ class AsyncRedisClient(Protocol):
     ) -> list[object]: ...
 
 
+def create_redis_client(redis_url: str, *, decode_responses: bool = True) -> AsyncRedisClient:
+    """Build the project-owned Redis client adapter."""
+
+    from redis import asyncio as aioredis
+
+    return cast(
+        AsyncRedisClient,
+        aioredis.from_url(redis_url, decode_responses=decode_responses),
+    )
+
+
 class RedisReplayExpiredError(FoundationAdapterError):
     """The requested SSE cursor is outside Redis' bounded replay window."""
 
@@ -447,6 +458,7 @@ def _validate_identity(value: str) -> None:
 
 __all__ = [
     "AsyncRedisClient",
+    "create_redis_client",
     "RateLimitDecision",
     "RedisEventBusAdapter",
     "RedisFixedWindowRateLimiter",

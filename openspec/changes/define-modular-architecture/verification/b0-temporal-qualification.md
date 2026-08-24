@@ -54,11 +54,12 @@ runtime environment in the table below.
 | PG commit/reconcile | Commit receipt is idempotent; application failure injection after commit republishes the same terminal ID | PASS (application live) |
 | SSE retained cursor | Live FastAPI/Redis route resumes exclusively from `Last-Event-ID` without creating a task | PASS (application live) |
 | SSE expired cursor | Live FastAPI/Redis route maps stream loss to `replay_expired/resync` with the PostgreSQL snapshot | PASS (application live) |
+| Redis service restart | Redis restart either preserves a retained cursor or returns `replay_expired`; no duplicate event is delivered | PASS (live Redis service) |
 
-The fourteen observations listed here are covered by fifteen isolated
+The fifteen observations listed here are covered by sixteen isolated
 SDK/application tests in the combined live command; retry recovery and retry
-exhaustion share one test function, and the Redis retention/TTL coverage uses
-two tests. The process-crash test proves that a replacement OS worker resumes
+exhaustion share one test function, and the Redis retention/TTL/restart
+coverage uses three tests. The process-crash test proves that a replacement OS worker resumes
 the same Workflow ID after the first worker exits with code 71. Temporal may
 reassign an in-flight Activity task without appending a second
 `ACTIVITY_TASK_STARTED` event; the test therefore requires an Activity start
@@ -90,8 +91,8 @@ Fill this section from the command output, preserving failures verbatim:
 | Test server mode | `time-skipping` |
 | Command | `uv run --frozen pytest -q -m live tests/test_temporal_qualification.py -ra` |
 | Result | `8 passed` |
-| Duration | `37.63s` (current frozen-lockfile run; prior runs `10.25s`-`39.42s`) |
-| Failure output | `none for the eight SDK tests or the fifteen-test combined B0 live gate; real Temporal service qualification remains out of scope` |
+| Duration | `36.54s` (current frozen-lockfile run) |
+| Failure output | `none for the eight SDK tests or the sixteen-test combined B0 live gate; real Temporal service qualification remains out of scope` |
 
 If a future environment blocks the test server download, mark `Result` as
 `blocked`, retain the command and exception, and leave unexecuted case

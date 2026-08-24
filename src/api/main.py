@@ -110,13 +110,36 @@ async def lifespan(application: FastAPI):
     if not settings.xhs_cookies and not settings.xhs_profile_dir:
         logger.warning("XHS auth not configured — spider requests will fail")
 
-    from xhs_food.composition import build_legacy_composition_root
+    from xhs_food.composition import (
+        build_legacy_composition_root,
+        build_reliable_runtime_bindings,
+    )
     from xhs_food.events.bus import get_event_bus, shutdown_event_bus
+    from xhs_food.foundation import TargetSettings
     from xhs_food.services import get_session_manager
     from xhs_food.services.user_storage import get_user_storage_service
 
-    composition_root = build_legacy_composition_root()
+    target_settings = TargetSettings()
+    reliable_runtime = None
+    if target_settings.reliable_task_lifecycle:
+        reliable_runtime = await build_reliable_runtime_bindings(
+            target_settings=target_settings,
+        )
+        try:
+            composition_root = build_legacy_composition_root(
+                reliable_policy=reliable_runtime.policy,
+                reliable_task_store=reliable_runtime.task_store,
+                reliable_projection_store=reliable_runtime.projection_store,
+                reliable_event_bus=reliable_runtime.event_bus,
+                reliable_task_lifecycle=True,
+            )
+        except BaseException:
+            await reliable_runtime.aclose()
+            raise
+    else:
+        composition_root = build_legacy_composition_root()
     application.state.composition_root = composition_root
+    application.state.reliable_runtime = reliable_runtime
     application.state.reliable_task_lifecycle = (
         "reliable_task_lifecycle" in composition_root.logical_bindings
     )
@@ -142,8 +165,12 @@ async def lifespan(application: FastAPI):
     else:
         logger.warning("SessionManager degraded")
 
-    bus = await get_event_bus()
-    logger.info(f"EventBus backend: {type(bus).__name__}")
+    if reliable_runtime is None:
+        bus = await get_event_bus()
+        logger.info(f"EventBus backend: {type(bus).__name__}")
+    else:
+        await reliable_runtime.event_bus.ensure_available()
+        logger.info("EventBus backend: RedisEventBusAdapter (reliable runtime)")
 
     try:
         yield
@@ -154,6 +181,8 @@ async def lifespan(application: FastAPI):
         await session_manager.close()
         await shutdown_event_bus()
         await composition_root.close()
+        if reliable_runtime is not None:
+            await reliable_runtime.aclose()
 
 
 # ---------------------------------------------------------------------------

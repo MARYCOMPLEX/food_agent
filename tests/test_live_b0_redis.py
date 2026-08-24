@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
+import subprocess
+import time
 from datetime import UTC, datetime
 from typing import Any, cast
 
@@ -112,4 +115,77 @@ async def test_b0_redis_stream_trim_ttl_and_restart_expire_replay_cursor() -> No
             await anext(restarted)
     finally:
         await events.delete_topic(topic)
+        await client.aclose()
+
+
+@pytest.mark.live
+async def test_b0_redis_service_restart_preserves_or_expires_cursor_without_duplication() -> None:
+    url = os.getenv("B0_REDIS_URL")
+    container = os.getenv("B0_REDIS_CONTAINER")
+    if not url:
+        pytest.skip("B0_REDIS_URL is required for live Redis qualification")
+    if not container:
+        pytest.skip("B0_REDIS_CONTAINER is required for Redis service restart smoke")
+
+    client = cast(Any, aioredis.from_url(url, decode_responses=True))
+    topic = f"live-b0-redis-restart-{os.getpid()}"
+    events = RedisEventBusAdapter(
+        client,
+        RedisHotStateContract(event_read_block_ms=100, event_stream_ttl_seconds=60),
+    )
+    restarted_client: Any | None = None
+    restarted_events: RedisEventBusAdapter | None = None
+    try:
+        await events.delete_topic(topic)
+        first = EventEnvelope(
+            event_id=f"{topic}-1",
+            topic=topic,
+            payload={"status": "running"},
+            published_at=datetime.now(UTC),
+        )
+        first_cursor = await events.publish(first)
+        await asyncio.to_thread(
+            subprocess.run,
+            ["docker", "restart", container],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+        restarted_client = cast(Any, aioredis.from_url(url, decode_responses=True))
+        deadline = time.monotonic() + 30
+        while True:
+            try:
+                await restarted_client.ping()
+                break
+            except Exception:
+                if time.monotonic() >= deadline:
+                    raise
+                await asyncio.sleep(0.25)
+
+        restarted_events = RedisEventBusAdapter(
+            restarted_client,
+            RedisHotStateContract(event_read_block_ms=100, event_stream_ttl_seconds=60),
+        )
+        second = first.model_copy(
+            update={"event_id": f"{topic}-2", "payload": {"status": "completed"}}
+        )
+        await restarted_events.publish(second)
+        replay = restarted_events.subscribe(topic, after=first_cursor)
+        try:
+            observed = await asyncio.wait_for(anext(replay), timeout=5)
+        except RedisReplayExpiredError:
+            observed = None
+        finally:
+            await cast(Any, replay).aclose()
+        if observed is not None:
+            assert observed.event_id == second.event_id
+    finally:
+        if restarted_events is not None:
+            await restarted_events.delete_topic(topic)
+        else:
+            await events.delete_topic(topic)
+        if restarted_client is not None:
+            await restarted_client.aclose()
         await client.aclose()

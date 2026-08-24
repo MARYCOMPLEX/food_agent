@@ -35,6 +35,7 @@ from .redis import (
     RedisReplayExpiredError,
     RedisSessionWindow,
     RedisStateStore,
+    create_redis_client,
 )
 from .temporal import (
     TemporalActivityAdapter,
@@ -79,6 +80,7 @@ __all__ = [
     "TemporalWorkflowAdapter",
     "build_temporal_worker",
     "correlation_attributes",
+    "create_redis_client",
     "deterministic_workflow_input",
     "foundation_error_from_exception",
     "foundation_failure_boundary",

@@ -12,7 +12,7 @@ from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from types import MappingProxyType
-from typing import cast
+from typing import Any, cast
 
 AdapterFactory = Callable[[], object | Awaitable[object]]
 
@@ -241,6 +241,137 @@ class DisabledBindingError(RuntimeError):
         super().__init__(f"binding {registry_name}.{binding_name} is disabled")
         self.registry_name = registry_name
         self.binding_name = binding_name
+
+
+@dataclass(slots=True)
+class ReliableRuntimeBindings:
+    """Explicit production resources shared by the API and reliable policy.
+
+    The API process owns these connections for its lifetime.  Temporal worker
+    processes create their own Activity-side bindings, while PostgreSQL and
+    Redis remain shared service dependencies rather than process-local state.
+    """
+
+    database: Any
+    workflow: Any
+    task_store: Any
+    projection_store: Any
+    event_bus: Any
+    policy: Any
+    redis_client: Any
+
+    async def aclose(self) -> None:
+        errors: list[BaseException] = []
+        for resource in (self.workflow, self.redis_client, self.database):
+            close = getattr(resource, "aclose", None) or getattr(resource, "close", None)
+            if not callable(close):
+                continue
+            try:
+                result = close()
+                if inspect.isawaitable(result):
+                    await result
+            except BaseException as exc:  # pragma: no cover - exercised by lifecycle failure tests
+                errors.append(exc)
+        if errors:
+            raise ExceptionGroup("failed to close reliable runtime bindings", errors)
+
+
+async def build_reliable_runtime_bindings(
+    *,
+    target_settings: Any | None = None,
+    legacy_settings: Any | None = None,
+    database_factory: Callable[..., Any] | None = None,
+    redis_factory: Callable[..., Any] | None = None,
+    temporal_connect: Callable[..., Awaitable[Any]] | None = None,
+) -> ReliableRuntimeBindings:
+    """Create the explicit PG/Redis/Temporal bindings for API lifespan use.
+
+    This helper is intentionally opt-in and injectable for contract tests. It
+    never creates an in-memory execution store or EventBus when a target
+    binding is requested; missing service configuration is a startup error.
+    """
+
+    from xhs_food.composition.adapters import (
+        PostgresReliableTaskStore,
+        PostgresTaskProgressProjectionStore,
+    )
+    from xhs_food.config import get_settings
+    from xhs_food.foundation import (
+        RedisEventBusAdapter,
+        RedisHotStateContract,
+        SQLAlchemyDatabase,
+        TargetSettings,
+        TemporalTaskQueues,
+        TemporalWorkflowAdapter,
+        create_redis_client,
+    )
+    from xhs_food.orchestrator import TemporalReliableResearchPolicy
+
+    target = target_settings if target_settings is not None else TargetSettings()
+    if not bool(getattr(target, "reliable_task_lifecycle", False)):
+        raise RuntimeError("reliable_task_lifecycle must be enabled for target bindings")
+    if not bool(getattr(target, "target_adapters_enabled", False)):
+        raise RuntimeError("target_adapters_enabled must be enabled for reliable bindings")
+
+    legacy = legacy_settings if legacy_settings is not None else get_settings()
+    database_url = getattr(target, "database_url", None)
+    if not isinstance(database_url, str) or not database_url:
+        raise RuntimeError("reliable_task_lifecycle requires MODULAR_DATABASE_URL")
+    redis_url = legacy.resolved_redis_url()
+    if not isinstance(redis_url, str) or not redis_url:
+        raise RuntimeError("reliable runtime requires REDIS_URL or REDIS_HOST")
+
+    database_builder = database_factory or SQLAlchemyDatabase
+    database = database_builder(database_url, enabled=True)
+    database.start()
+    redis_builder = redis_factory or create_redis_client
+    redis_client = redis_builder(redis_url, decode_responses=True)
+    workflow: Any | None = None
+    try:
+        await redis_client.ping()
+        queues = TemporalTaskQueues(
+            research=target.temporal_research_queue,
+            refresh=target.temporal_refresh_queue,
+            media=target.temporal_media_queue,
+        )
+        connect = temporal_connect or TemporalWorkflowAdapter.connect
+        workflow = await connect(
+            address=target.temporal_address,
+            namespace=target.temporal_namespace,
+            task_queues=queues,
+            enabled=True,
+        )
+        contract = RedisHotStateContract(
+            event_stream_ttl_seconds=legacy.event_stream_ttl_seconds,
+            event_stream_maxlen=legacy.event_stream_maxlen,
+        )
+        event_bus = RedisEventBusAdapter(redis_client, contract)
+        task_store = PostgresReliableTaskStore(database.unit_of_work)
+        projection_store = PostgresTaskProgressProjectionStore(database.unit_of_work)
+        policy = TemporalReliableResearchPolicy(workflow)
+        return ReliableRuntimeBindings(
+            database=database,
+            workflow=workflow,
+            task_store=task_store,
+            projection_store=projection_store,
+            event_bus=event_bus,
+            policy=policy,
+            redis_client=redis_client,
+        )
+    except BaseException:
+        if workflow is not None:
+            close = getattr(workflow, "aclose", None) or getattr(workflow, "close", None)
+            if callable(close):
+                result = close()
+                if inspect.isawaitable(result):
+                    await result
+        close_redis = getattr(redis_client, "aclose", None) or getattr(redis_client, "close", None)
+        if callable(close_redis):
+            result = close_redis()
+            if inspect.isawaitable(result):
+                await result
+        await database.aclose()
+        raise
 
 
 def build_reliable_research_worker(
