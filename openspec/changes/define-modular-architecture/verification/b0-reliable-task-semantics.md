@@ -230,8 +230,8 @@ unexecuted command.
 
 | Field | Value |
 |---|---|
-| Implementation commit | `9fc38cc` (B0 Temporal/PostgreSQL/Redis application binding qualification increment) |
-| Qualification commit | `9fc38cc` |
+| Implementation commit | `a3fcb6d` (B0 reliable admission and HTTP/SSE qualification increment) |
+| Qualification commit | `a3fcb6d` |
 | Python/runtime | `CPython 3.12.x` |
 | Temporal SDK / service | `1.31.0 / official time-skipping test server` |
 | Pydantic AI | `2.5.1` |
@@ -256,10 +256,10 @@ using the procedure in `b0-reliable-task-rollback.md`:
 
 | Revert evidence | Value |
 |---|---|
-| Base commit/tree | `3b59232 / 5d321b13340cd971f816d7cb03770cbbc02b0f7e` |
-| B0 head/tree | `796a6c9 / d2ecb7effa410f26a57db3da486511f545e478be` |
+| Base commit/tree | `4986922 / c8ed0ebbf9db5a5e0e1a02771277760aa54f27e7` |
+| B0 head/tree | `a3fcb6d / 20d872ed465c2fbfbcfc522ded9615a181287315` |
 | Generated revert commits | `none (detached worktree used --no-commit revert); worktree removed` |
-| Reverted tree equals base | `pass` |
+| Reverted tree equals base | `pass (reverted a3fcb6d and 2590171; index matched 4986922)` |
 | Reverted test count/duration | `not rerun; tree identity and empty diff were the drill assertions` |
 | Empty diff and clean status | `pass` |
 | Worktree cleanup/prune | `pass` |
