@@ -504,6 +504,27 @@ class PersonalizationPolicy(_AuthorityModel):
     public_refresh_influence: Literal[False] = False
 
 
+class ResearchStrategy(_AuthorityModel):
+    """Versioned private strategy input that cannot alter public identity."""
+
+    schema_version: Literal["research-strategy/v1"] = "research-strategy/v1"
+    strategy_id: NonEmptyStr
+    strategy_version: NonEmptyStr
+    isolation_key: MemoryIsolationKey = Field(discriminator="kind")
+    preference_snapshot_id: NonEmptyStr
+    preference_snapshot_version: int = Field(ge=1)
+    research_depth: NonEmptyStr
+    source_priority: tuple[NonEmptyStr, ...] = ()
+    selected_source_subset: tuple[NonEmptyStr, ...] = ()
+    stopping_conditions: ContractPayload = Field(default_factory=dict)
+    hard_filters: ContractPayload = Field(default_factory=dict)
+    mutates_query_family_identity: Literal[False] = False
+    mutates_public_evidence: Literal[False] = False
+    mutates_public_features: Literal[False] = False
+    mutates_public_scores: Literal[False] = False
+    public_refresh_influence: Literal[False] = False
+
+
 class EffectiveCapabilities(_AuthorityModel):
     sources: tuple[NonEmptyStr, ...]
     tools: tuple[NonEmptyStr, ...]
@@ -552,6 +573,7 @@ __all__ = [
     "MemoryVisibility",
     "PersonalizationPolicy",
     "PreferenceSnapshot",
+    "ResearchStrategy",
     "UserIsolationKey",
     "intersect_personalized_capabilities",
     "isolation_key_for",

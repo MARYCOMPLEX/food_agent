@@ -133,6 +133,19 @@ Status: Partial implementation - tasks 11.1-11.5 qualified; 11.6-11.15 remain di
   returned IDs remain subject to the owning gateway's registered schema and
   authorization checks.
 
+## Task 11.9 boundary
+
+- `ResearchStrategy` is a versioned private contract pinned to one
+  `PreferenceSnapshot`. `ResearchStrategyResolver` maps strategy feedback only
+  to `research_depth`, source priority/subset, and caller-supplied stopping
+  conditions. It never changes Canonical Query or Query Family identity.
+- Hard filters are merged from current session requirements and explicit hard
+  constraints using the already-approved memory priority. Stable/inferred
+  content preference and strategy feedback do not become hard filters.
+- Unknown research depth values fail validation rather than silently changing
+  workflow behavior. All public mutation flags remain literal `False`, and
+  source IDs still require the capability intersection before execution.
+
 ## Qualification commands
 
 ```powershell
@@ -156,6 +169,9 @@ uv run --frozen pytest -q tests/test_unit_b3_authorization.py
 
 uv run --frozen pytest -q tests/test_unit_b3_capabilities.py
 # 4 passed
+
+uv run --frozen pytest -q tests/test_unit_b3_strategy.py
+# 3 passed
 
 uv run --frozen pytest -q tests/test_unit_b3_schema.py tests/test_unit_b3_resolver.py tests/test_unit_b3_context.py tests/test_unit_b3_session_projection.py
 # 28 passed
