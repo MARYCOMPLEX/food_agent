@@ -186,6 +186,8 @@ from .experience import (
     StableResultMapperPort,
 )
 from .memory import (
+    AnonymousClaimReceipt,
+    AnonymousClaimRequest,
     AnonymousIsolationKey,
     ConsentBasis,
     ConsentStatus,
@@ -368,6 +370,8 @@ __all__ = [
     "BackfillRow",
     "BundledSchemaDocument",
     "AnonymousIsolationKey",
+    "AnonymousClaimReceipt",
+    "AnonymousClaimRequest",
     "AuthorityModel",
     "BundleState",
     "BundleActivationRepository",

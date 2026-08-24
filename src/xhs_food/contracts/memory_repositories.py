@@ -7,6 +7,8 @@ from typing import Protocol, runtime_checkable
 
 from .base import ContractPayload
 from .memory import (
+    AnonymousClaimReceipt,
+    AnonymousClaimRequest,
     MemoryAuthorityWrite,
     MemoryConversationTurn,
     MemoryEvent,
@@ -53,6 +55,11 @@ class MemoryRepositoryPort(Protocol):
         *,
         limit: int,
     ) -> tuple[MemoryConversationTurn, ...]: ...
+
+    async def claim_anonymous(
+        self,
+        request: AnonymousClaimRequest,
+    ) -> AnonymousClaimReceipt: ...
 
     async def save_preference_snapshot(self, snapshot: PreferenceSnapshot) -> str: ...
 

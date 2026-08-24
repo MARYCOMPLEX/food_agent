@@ -173,7 +173,7 @@
 - [x] 11.4 实现 Preference Resolver 的“显式硬约束 > 当前会话 > 稳定显式偏好 > 推断偏好”规则和策略反馈边界。
 - [x] 11.5 实现 `ContextAssembler`，按“当前请求约束 -> 最近消息 -> 版本化摘要 -> 相关记忆 -> 相关 Evidence”组装临时模型上下文，并记录每部分 token budget、版本和引用。
 - [x] 11.6 实现 Redis 会话投影：每 session 最多最近 20 条、TTL 24 小时、user-scoped key；缓存 miss/过期从 PostgreSQL 重建，生产多 worker 禁止退化到进程内跨请求记忆。
-- [ ] 11.7 实现 user-scoped cache/repository authorization、匿名会话隔离和已批准的匿名转实名迁移。
+- [x] 11.7 实现 user-scoped cache/repository authorization、匿名会话隔离和已批准的匿名转实名迁移。
 - [ ] 11.8 实现 `Domain allow-list ∩ request authorization ∩ personalization subset` 能力计算，禁止个性化启用未声明或未授权来源/工具。
 - [ ] 11.9 实现版本化 Research Strategy，只调整深度、已授权来源优先级/子集、停止条件和 hard filters，不改变 Query Family identity。
 - [ ] 11.10 实现公共候选后的最终 reranker 和 explanation refs，禁止 Personalization 获取公共 Evidence/score 写端。

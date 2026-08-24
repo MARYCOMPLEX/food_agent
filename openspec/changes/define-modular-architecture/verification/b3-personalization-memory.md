@@ -99,6 +99,27 @@ Status: Partial implementation - tasks 11.1-11.5 qualified; 11.6-11.15 remain di
   Redis. Redis errors propagate to the caller and never switch to in-process
   cross-request memory.
 
+## Task 11.7 boundary
+
+- `MemoryScopeAuthorizer` compares tenant, subject kind, subject identity, and
+  session as one authorization tuple. A caller-supplied user/session ID alone
+  cannot read or write another private partition.
+- `AnonymousClaimRequest` is a versioned explicit command containing the
+  anonymous scope, authenticated target user, one-time token, consent policy,
+  and idempotency key. `AnonymousMemoryClaimService` requires both the exact
+  authorized anonymous scope and the authenticated target user before calling
+  the repository.
+- `SQLAlchemyMemoryRepository.claim_anonymous` performs the claim in one
+  PostgreSQL transaction. It rejects an already claimed anonymous scope,
+  stores only a SHA-256 token digest in `claim_events`, copies active
+  session/explicit/strategy records with provenance IDs, excludes inferred
+  records from copying, marks every source record claimed, and writes source
+  invalidation plus target warm outbox events. An idempotent replay returns the
+  stored receipt; a different replay cannot attach the scope to another user.
+- Anonymous isolation keys remain tenant + anonymous subject + session. The
+  claim path never merges by device, IP, user-agent, or the literal anonymous
+  marker, and cache failures cannot undo the committed authority transaction.
+
 ## Qualification commands
 
 ```powershell
@@ -117,8 +138,11 @@ uv run --frozen pytest -q tests/test_unit_b3_context.py
 uv run --frozen pytest -q tests/test_unit_b3_session_projection.py
 # 3 passed
 
+uv run --frozen pytest -q tests/test_unit_b3_authorization.py
+# 3 passed
+
 uv run --frozen pytest -q tests/test_unit_b3_schema.py tests/test_unit_b3_resolver.py tests/test_unit_b3_context.py tests/test_unit_b3_session_projection.py
-# 25 passed
+# 28 passed
 
 uv run --frozen pytest -q tests/test_unit_b0_schema.py tests/test_unit_b1_schema_and_embeddings.py tests/test_unit_b2_profile_fixture.py
 # 8 passed
@@ -141,7 +165,7 @@ openspec validate define-modular-architecture --strict
 
 ## Deliberate non-claims
 
-This milestone does not implement Redis session projections, cache
-invalidation, feedback ingestion, consent flows, personalization canarying, or
-reranking. Those behaviors remain behind the later B3 tasks and no
-personalization binding is enabled by this change.
+This milestone does not implement cache invalidation, feedback ingestion,
+consent flows, personalization canarying, or reranking. Those behaviors remain
+behind the later B3 tasks and no personalization binding is enabled by this
+change.

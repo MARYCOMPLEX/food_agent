@@ -4,25 +4,32 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import datetime
+from hashlib import sha256
 
-from sqlalchemy import select
+from sqlalchemy import or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 
 from xhs_food.contracts import (
+    AnonymousClaimReceipt,
+    AnonymousClaimRequest,
     ContractPayload,
     MemoryAuthorityWrite,
     MemoryConversationTurn,
     MemoryEvent,
     MemoryIsolationKey,
+    MemoryLayer,
     MemoryOutboxEvent,
     MemoryRecord,
     MemoryRepositoryPort,
+    MemoryStatus,
+    MemorySubject,
     PreferenceSnapshot,
     UserIsolationKey,
     isolation_key_for,
 )
 from xhs_food.foundation.database import SQLAlchemyUnitOfWork
 from xhs_food.foundation.memory_schema import (
+    claim_events,
     conversation_turns,
     memory_events,
     memory_records,
@@ -184,6 +191,119 @@ class SQLAlchemyMemoryRepository(MemoryRepositoryPort):
             for row in reversed(rows)
         )
 
+    async def claim_anonymous(self, request: AnonymousClaimRequest) -> AnonymousClaimReceipt:
+        """Claim one anonymous scope in one PostgreSQL transaction."""
+
+        source = request.source_scope
+        target = UserIsolationKey(
+            tenant_id=source.tenant_id,
+            user_id=request.target_user_id,
+            session_id=source.session_id,
+        )
+        source_claim = select(claim_events.c.payload).where(
+            claim_events.c.tenant_id == source.tenant_id,
+            claim_events.c.anonymous_subject_id == source.anonymous_subject_id,
+            claim_events.c.session_id == source.session_id,
+        )
+        idempotent_claim = select(claim_events.c.payload).where(
+            claim_events.c.idempotency_key == request.idempotency_key,
+        )
+        records_statement = select(memory_records.c.payload).where(
+            memory_records.c.tenant_id == source.tenant_id,
+            memory_records.c.subject_kind == "anonymous",
+            memory_records.c.subject_id == source.anonymous_subject_id,
+            memory_records.c.session_id == source.session_id,
+            memory_records.c.status == "active",
+            memory_records.c.valid_from <= request.requested_at,
+            or_(
+                memory_records.c.expires_at.is_(None),
+                memory_records.c.expires_at > request.requested_at,
+            ),
+        )
+        async with self._unit_of_work_factory() as unit:
+            session = unit.session_for_adapter()
+            existing_idempotent = (await session.execute(idempotent_claim)).mappings().first()
+            if existing_idempotent is not None:
+                return _receipt_from_claim_payload(existing_idempotent["payload"])
+            existing_source = (await session.execute(source_claim)).mappings().first()
+            if existing_source is not None:
+                raise ValueError("anonymous session has already been claimed")
+            rows = (await session.execute(records_statement)).mappings().all()
+            records = tuple(MemoryRecord.model_validate(row["payload"]) for row in rows)
+            if any(record.updated_at > request.requested_at for record in records):
+                raise ValueError("claim requested_at must not precede source memory updates")
+
+            migrated: list[MemoryRecord] = []
+            claimed_ids = []
+            for record in records:
+                claimed_ids.append(record.record_id)
+                if record.layer is MemoryLayer.INFERRED:
+                    continue
+                migrated.append(_claimed_record(record, target, request))
+            for record in migrated:
+                await session.execute(_record_statement(record))
+            if claimed_ids:
+                await session.execute(
+                    update(memory_records)
+                    .where(memory_records.c.record_id.in_(claimed_ids))
+                    .values(status=MemoryStatus.CLAIMED.value, updated_at=request.requested_at)
+                )
+
+            source_outbox = _claim_outbox(
+                request,
+                scope=source,
+                outbox_id=f"{request.claim_id}:source-invalidate",
+                event_type="memory.claim.source.invalidate",
+                aggregate_id=request.claim_id,
+                payload={"claimId": request.claim_id, "action": "invalidate"},
+            )
+            target_outbox = _claim_outbox(
+                request,
+                scope=target,
+                outbox_id=f"{request.claim_id}:target.warm",
+                event_type="memory.claim.target.warm",
+                aggregate_id=request.claim_id,
+                payload={
+                    "claimId": request.claim_id,
+                    "action": "warm",
+                    "recordIds": [record.record_id for record in migrated],
+                },
+            )
+            await session.execute(_outbox_statement(source_outbox))
+            await session.execute(_outbox_statement(target_outbox))
+            receipt = AnonymousClaimReceipt(
+                claim_id=request.claim_id,
+                source_scope=source,
+                target_scope=target,
+                migrated_record_ids=tuple(record.record_id for record in migrated),
+                claimed_record_ids=tuple(claimed_ids),
+                outbox_ids=(source_outbox.outbox_id, target_outbox.outbox_id),
+            )
+            claim_payload = {
+                "schemaVersion": request.schema_version,
+                "claimId": request.claim_id,
+                "sourceScope": source.model_dump(mode="json", by_alias=True),
+                "targetScope": target.model_dump(mode="json", by_alias=True),
+                "tokenDigest": sha256(request.one_time_token.encode("utf-8")).hexdigest(),
+                "consentPolicyVersion": request.consent_policy_version,
+                "receipt": receipt.model_dump(mode="json", by_alias=True),
+            }
+            await session.execute(
+                insert(claim_events).values(
+                    claim_id=request.claim_id,
+                    tenant_id=source.tenant_id,
+                    anonymous_subject_id=source.anonymous_subject_id,
+                    session_id=source.session_id,
+                    target_user_id=request.target_user_id,
+                    status="committed",
+                    payload=claim_payload,
+                    idempotency_key=request.idempotency_key,
+                    created_at=request.requested_at,
+                ).on_conflict_do_nothing(index_elements=[claim_events.c.idempotency_key])
+            )
+            await session.commit()
+            return receipt
+
     async def save_preference_snapshot(self, snapshot: PreferenceSnapshot) -> str:
         scope = snapshot.isolation_key
         payload = snapshot.model_dump(mode="json", by_alias=True)
@@ -306,6 +426,55 @@ def _outbox_statement(event: MemoryOutboxEvent) -> object:
         attempts=0,
         created_at=event.available_at,
     ).on_conflict_do_nothing(index_elements=[outbox.c.idempotency_key])
+
+
+def _claimed_record(
+    record: MemoryRecord,
+    target: UserIsolationKey,
+    request: AnonymousClaimRequest,
+) -> MemoryRecord:
+    values = record.model_dump(mode="python")
+    values.update(
+        {
+            "record_id": f"{record.record_id}:claimed:{request.claim_id}",
+            "subject": MemorySubject(
+                kind="user",
+                id=target.user_id,
+                cohort=record.subject.cohort,
+                locale=record.subject.locale,
+            ),
+            "session_id": target.session_id,
+            "status": MemoryStatus.ACTIVE,
+            "updated_at": request.requested_at,
+        }
+    )
+    return MemoryRecord.model_validate(values)
+
+
+def _claim_outbox(
+    request: AnonymousClaimRequest,
+    *,
+    scope: MemoryIsolationKey,
+    outbox_id: str,
+    event_type: str,
+    aggregate_id: str,
+    payload: ContractPayload,
+) -> MemoryOutboxEvent:
+    return MemoryOutboxEvent(
+        outbox_id=outbox_id,
+        scope=scope,
+        event_type=event_type,
+        aggregate_id=aggregate_id,
+        payload=payload,
+        idempotency_key=f"{request.idempotency_key}:{outbox_id}",
+        available_at=request.requested_at,
+    )
+
+
+def _receipt_from_claim_payload(payload: object) -> AnonymousClaimReceipt:
+    if not isinstance(payload, dict) or not isinstance(payload.get("receipt"), dict):
+        raise ValueError("stored claim event has an invalid receipt payload")
+    return AnonymousClaimReceipt.model_validate(payload["receipt"])
 
 
 def _subject_scope_values(

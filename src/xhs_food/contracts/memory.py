@@ -399,6 +399,42 @@ class MemoryWriteReceipt(_AuthorityModel):
     projected: bool
 
 
+class AnonymousClaimRequest(_AuthorityModel):
+    """Explicit, one-time request to migrate one anonymous session."""
+
+    schema_version: Literal["anonymous-memory-claim/v1"] = "anonymous-memory-claim/v1"
+    claim_id: NonEmptyStr
+    source_scope: AnonymousIsolationKey
+    target_user_id: Annotated[str, Field(min_length=16)]
+    one_time_token: NonEmptyStr
+    consent_policy_version: NonEmptyStr
+    idempotency_key: NonEmptyStr
+    requested_at: Timestamp
+
+    @model_validator(mode="after")
+    def validate_target(self) -> AnonymousClaimRequest:
+        if self.target_user_id.casefold() in _FORBIDDEN_SUBJECT_VALUES:
+            raise ValueError("claim target must be an authenticated user identity")
+        if self.target_user_id == self.source_scope.anonymous_subject_id:
+            raise ValueError("claim target must differ from anonymous subject")
+        return self
+
+
+class AnonymousClaimReceipt(_AuthorityModel):
+    """Committed claim result; IDs make migration and retry auditable."""
+
+    schema_version: Literal["anonymous-memory-claim-receipt/v1"] = (
+        "anonymous-memory-claim-receipt/v1"
+    )
+    claim_id: NonEmptyStr
+    source_scope: AnonymousIsolationKey
+    target_scope: UserIsolationKey
+    committed: Literal[True] = True
+    migrated_record_ids: tuple[NonEmptyStr, ...] = ()
+    claimed_record_ids: tuple[NonEmptyStr, ...] = ()
+    outbox_ids: tuple[NonEmptyStr, ...] = ()
+
+
 def _scope_identity(
     tenant_id: str,
     subject_kind: object,
@@ -496,6 +532,8 @@ def _key_part(value: str) -> str:
 
 __all__ = [
     "AnonymousIsolationKey",
+    "AnonymousClaimReceipt",
+    "AnonymousClaimRequest",
     "ConsentBasis",
     "ConsentStatus",
     "EffectiveCapabilities",
