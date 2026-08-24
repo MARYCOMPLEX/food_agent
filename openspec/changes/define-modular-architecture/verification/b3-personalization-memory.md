@@ -1,6 +1,6 @@
 # B3 Personalization Memory Verification
 
-Status: Partial implementation - tasks 11.1-11.4 qualified; 11.5-11.15 remain disabled and pending
+Status: Partial implementation - tasks 11.1-11.5 qualified; 11.6-11.15 remain disabled and pending
 
 ## Task 11.1 boundary
 
@@ -55,6 +55,33 @@ Status: Partial implementation - tasks 11.1-11.4 qualified; 11.5-11.15 remain di
   memory exists. This represents “no preference” distinctly from an explicit
   no-preference value and prevents stale caches from being treated as facts.
 
+## Task 11.5 boundary
+
+- `ContextAssembler` is a contracts-only personalization service. It does not
+  import FastAPI, Redis, SQLAlchemy, Pydantic AI, or any provider SDK.
+- `ContextAssembly` uses the fixed order `request_constraints`,
+  `recent_messages`, `versioned_summary`, `related_memory`, and
+  `related_evidence`. It returns structured fragments instead of framework
+  `ModelMessage` values; a model adapter may translate the temporary result
+  later without making framework messages memory authority.
+- `ContextBudget` has a total ceiling and an explicit ceiling for every
+  section. The default estimator is deterministic (`ceil(characters / 4)`) and
+  can be replaced by a provider tokenizer adapter without changing the
+  contract. Whole fragments are selected deterministically; priority-zero
+  hard constraints can be clipped to their section ceiling, while lower
+  priority inferred memory is dropped first and never displaces them.
+- Every selected and dropped fragment carries a `ContextSourceRef` with source
+  identity plus schema/policy/summary/profile/authority/bundle versions where
+  applicable. Section records include selected and dropped refs, token usage,
+  version refs, and a truncation flag.
+- The assembler validates an optional full memory isolation scope and rejects
+  records from another user/session. It accepts public Evidence only and
+  excludes tombstoned items; no private Evidence can enter the temporary
+  context.
+- Strategy Feedback records are intentionally excluded from content memory
+  sections; they remain inputs to research-depth, source-selection, and
+  presentation policy only.
+
 ## Qualification commands
 
 ```powershell
@@ -67,6 +94,9 @@ uv run --frozen pytest -q tests/test_unit_domain_memory_contracts.py tests/test_
 uv run --frozen pytest -q tests/test_unit_b3_resolver.py
 # 5 passed
 
+uv run --frozen pytest -q tests/test_unit_b3_context.py
+# 4 passed
+
 uv run --frozen pytest -q tests/test_unit_b0_schema.py tests/test_unit_b1_schema_and_embeddings.py tests/test_unit_b2_profile_fixture.py
 # 8 passed
 
@@ -75,11 +105,20 @@ uv run --frozen ruff check src/xhs_food/foundation/memory_schema.py src/xhs_food
 
 git diff --check
 # passed
+
+uv run --frozen pytest -q -m "not live" -ra --tb=short
+# 894 passed, 24 deselected, 2 warnings
+
+uv lock --check
+# passed
+
+openspec validate define-modular-architecture --strict
+# Change 'define-modular-architecture' is valid
 ```
 
 ## Deliberate non-claims
 
-This milestone does not implement preference resolution, context assembly,
-Redis session projections, cache invalidation, feedback ingestion, consent
-flows, personalization canarying, or reranking. Those behaviors remain behind
-the later B3 tasks and no personalization binding is enabled by this change.
+This milestone does not implement Redis session projections, cache
+invalidation, feedback ingestion, consent flows, personalization canarying, or
+reranking. Those behaviors remain behind the later B3 tasks and no
+personalization binding is enabled by this change.
