@@ -272,8 +272,8 @@ unexecuted command.
 
 | Field | Value |
 |---|---|
-| Implementation commit | `a3fcb6d` (B0 reliable admission and HTTP/SSE qualification increment) |
-| Qualification commit | `a3fcb6d` |
+| Implementation commit | `a234726` (PG/Temporal crash-after-commit qualification increment) |
+| Qualification commit | `a234726` |
 | Python/runtime | `CPython 3.12.x` |
 | Temporal SDK / service | `1.31.0 / official time-skipping test server` |
 | Pydantic AI | `2.5.1` |
