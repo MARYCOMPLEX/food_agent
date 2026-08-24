@@ -230,8 +230,8 @@ unexecuted command.
 
 | Field | Value |
 |---|---|
-| Implementation commit | `dce194e` (B0 PostgreSQL schema/authority and Redis Streams qualification increment) |
-| Qualification commit | `dce194e` |
+| Implementation commit | `6a0f110` (B0 Temporal/PostgreSQL/Redis application binding qualification increment) |
+| Qualification commit | `6a0f110` |
 | Python/runtime | `CPython 3.12.x` |
 | Temporal SDK / service | `1.31.0 / official time-skipping test server` |
 | Pydantic AI | `2.5.1` |
