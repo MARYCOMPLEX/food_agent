@@ -192,6 +192,7 @@ from .memory import (
     intersect_personalized_capabilities,
     isolation_key_for,
 )
+from .memory_repositories import MemoryRepositoryPort
 from .ports import (
     ActivityCall,
     ActivityPort,
@@ -445,6 +446,7 @@ __all__ = [
     "MemoryIsolationKey",
     "MemoryLayer",
     "MemoryRecord",
+    "MemoryRepositoryPort",
     "MemoryStatus",
     "MemorySubject",
     "MemorySubjectKind",

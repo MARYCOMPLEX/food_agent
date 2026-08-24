@@ -6,6 +6,7 @@ from .embedding_shadow_repository import SQLAlchemyEmbeddingShadowRepository
 from .evidence_bundle_repository import SQLAlchemyCandidateBundleRepository
 from .evidence_shadow_repository import SQLAlchemyCanonicalQueryShadowRepository
 from .llm import LegacyLLMProviderAdapter, ProviderModelGateway
+from .memory_repository import SQLAlchemyMemoryRepository
 from .query_family_repository import SQLAlchemyQueryFamilyRepository
 from .reliable_events import ReliableTaskEventBusPublisher
 from .reliable_task_authority import (
@@ -38,6 +39,7 @@ __all__ = [
     "SQLAlchemyBundleDerivationRepository",
     "SQLAlchemyCandidateBundleRepository",
     "SQLAlchemyEmbeddingShadowRepository",
+    "SQLAlchemyMemoryRepository",
     "SQLAlchemyCanonicalQueryShadowRepository",
     "SQLAlchemyQueryFamilyRepository",
     "LegacyFavoritesRepositoryAdapter",

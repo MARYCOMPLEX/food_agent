@@ -12,12 +12,15 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 from xhs_food.foundation.evidence_schema import SHADOW_METADATA
+from xhs_food.foundation.memory_schema import MEMORY_METADATA
 
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-target_metadata = SHADOW_METADATA
+# Keep every checked-in SQLAlchemy schema metadata visible to Alembic's
+# autogenerate and schema-authority checks. Revisions remain the only writer.
+target_metadata = (SHADOW_METADATA, MEMORY_METADATA)
 
 
 def run_migrations_offline() -> None:
