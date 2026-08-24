@@ -1,6 +1,6 @@
 # B0 Reliable Task Semantics Verification
 
-Status: Draft - offline, SDK, and PostgreSQL authority evidence recorded; Temporal/Redis/HTTP production integration pending
+Status: Draft - offline, SDK, PostgreSQL authority, and Redis Streams evidence recorded; Temporal/HTTP production integration pending
 
 Change: `define-modular-architecture`
 
@@ -36,7 +36,7 @@ gate and MUST NOT be represented as production qualification.
 | Semantic state transition | `ResearchCoordinator` | coordinator owner methods and architecture tests |
 | Executable checkpoint | Temporal history | live SDK history replay passes; target-service and process-crash qualification pending |
 | Business result/projection | PostgreSQL adapter port | SQLAlchemy adapter, Alembic 0006 schema, cross-connection admission/CAS, terminal receipts, same-run conflict handling, and live projection ordering pass; crash-after-commit reconciliation remains pending |
-| Hot replay state | Redis Streams, one hour/1000 entries | Redis target contract plus retained, trimmed, and unknown-cursor replay-expiry tests |
+| Hot replay state | Redis Streams, one hour/1000 entries | Redis target contract plus live Redis 7 exclusive replay and unknown-cursor expiry; trim/TTL outage and HTTP resync remain pending |
 | Public HTTP/SSE | existing mapper and ADR-0004 | authority fixtures and mapper suite (pending B0 integration) |
 
 The in-memory `InMemoryReliableTaskAuthority` and
@@ -53,9 +53,9 @@ flag without an explicitly injected Temporal/PostgreSQL policy.
 | 8.3 | Coordinator-only transitions, Temporal checkpoint, PG commit barrier, reconciliation | PARTIAL | Coordinator-only transitions, `ReliableTaskStorePort`, Alembic-owned schema, PostgreSQL admission/CAS, projection turn ordering, completed/cancelled/failed receipts, same-run terminal competition, late-run guards, idempotent commit/reconcile, and reconciliation Activity are covered; live PostgreSQL qualification now passes. Crash-after-commit reconciliation against Temporal remains pending. |
 | 8.4 | Pydantic AI Temporal integration, bounded Activities, retry/timeout/heartbeat/cancel policy | PASS (SDK qualification) | Factory, plugin, JSON boundary, policy constants, and the official live model/tool Activity replay and determinism suite pass; production worker/provider rollout remains a separate gate. |
 | 8.5 | Separate Research queue and reserved Refresh/Media queues | PARTIAL (structural) | `TemporalTaskQueues` now carries explicit per-queue `TemporalWorkerQuota`, enables only `research` by default, and rejects disabled `refresh/media` execution until B4. Real Temporal worker registration, concurrency caps, and priority/isolation smoke remain pending with the target service. |
-| 8.6 | PG projection + Temporal history + Redis replay/resync | PARTIAL | Fake `xrange` contract proves exact retained-cursor validation, exclusive continuation, and `replay_expired` for trimmed or unknown cursors; Alembic-backed PostgreSQL projection ordering now passes through the reliable Composition-Root adapter, and reliable `TaskEvent` values have an EventBus publisher adapter. Live Redis/HTTP/SSE resync integration remains pending. |
+| 8.6 | PG projection + Temporal history + Redis replay/resync | PARTIAL | Fake and live Redis 7 `xrange`/`xread` contracts prove exact retained-cursor validation, exclusive continuation, and `replay_expired` for unknown cursors; Alembic-backed PostgreSQL projection ordering passes through the reliable Composition-Root adapter, and reliable `TaskEvent` values have an EventBus publisher adapter. Redis trim/TTL/restart and HTTP/SSE resync integration remain pending. |
 | 8.7 | Failure-injection and differential suite | PARTIAL | Eight live SDK/application tests pass: determinism/replay, adapter duplicate start, model/tool Activities, retry/exhaustion, clean worker restart+replay, SDK cancellation race, reliable cancellation receipt, and patch replay. Offline failed-receipt ordering, same-run terminal competition, commit failure, reconciliation, late-run, and Redis replay contracts also pass. Process-level in-flight crash, duplicate Activity against a live worker, PG/Temporal integration, and SSE/HTTP cases remain pending. |
-| 8.8 | Redis outage semantics | PARTIAL (offline) | `get_event_bus(require_redis=True)` now returns stable `EVENT_BUS_DEPENDENCY_UNAVAILABLE` for missing configuration and connection failure instead of creating an in-memory bus; legacy callers retain their characterized fallback. Live Workflow continuity after Redis outage, persistent-result reads, and new HTTP/SSE admission mapping remain pending. |
+| 8.8 | Redis outage semantics | PARTIAL | `get_event_bus(require_redis=True)` returns stable `EVENT_BUS_DEPENDENCY_UNAVAILABLE` for missing configuration and connection failure instead of creating an in-memory bus; live Redis 7 stream behavior passes and legacy callers retain their characterized fallback. Live Workflow continuity after Redis outage, persistent-result reads, and new HTTP/SSE admission mapping remain pending. |
 | 8.9 | HTTP/SSE compatibility and post-commit terminal publication | PARTIAL (offline) | Legacy HTTP/SSE snapshots, reliable event mapping, and a reliable-mode SSE dependency-unavailable `503` route contract pass; route selects `require_redis=True` from the Composition Root app-state flag. PostgreSQL-backed snapshot/resync, same task/turn reconnect, terminal publication against live Redis, and full reliable-vs-legacy differential behavior remain pending. |
 | 8.10 | Dependency/runtime prohibition gate | PASS (static, needs final scan) | No B0 code introduces Redis lock/lease, ARQ, Celery, LangGraph, or second scheduler. Re-run import/dependency scan before commit. |
 | 8.11 | Disable/rebind legacy and independent revert | PARTIAL | The independent Git revert drill passed for implementation head `796a6c9` against `3b59232` with an identical base tree and clean detached worktree; production flag flip/rebind and runtime no-new-admission checks remain pending. |
@@ -72,7 +72,7 @@ uv run --frozen pytest -q tests/test_unit_s3_redis_contract.py
   # 10 passed in 3.49s
 
 uv run --frozen pytest -q -m "not live" -ra --durations=0
-  # 858 passed, 15 deselected, 2 warnings in 52.88s
+  # 859 passed, 16 deselected, 2 warnings in 55.35s
 
 uv lock --check
 # passed
@@ -80,6 +80,10 @@ uv lock --check
 $env:B0_POSTGRES_URL='postgresql+asyncpg://postgres:postgres@localhost:55432/xhs_food_agent'
 uv run --frozen pytest -q -m live tests/test_live_b0_reliable_task.py
   # 1 passed in 6.52s (PostgreSQL 16.14; Alembic 20260824_0006_b0_reliable_task)
+
+$env:B0_REDIS_URL='redis://localhost:56380/0'
+uv run --frozen pytest -q -m live tests/test_live_b0_redis.py
+  # 1 passed in 3.33s (Redis 7.x; temporary local container)
 ```
 
 The focused unit suite proves:
@@ -108,6 +112,11 @@ an unknown cursor numerically inside that window both raise
 `RedisReplayExpiredError`, preventing silent event gaps. PostgreSQL
 snapshot/resync wiring is still an integration gate.
 
+The live Redis B0 suite proves that the target Redis Streams adapter resumes
+exclusively after a retained cursor and maps an unknown cursor to the stable
+`SSE_REPLAY_EXPIRED`/`resync` contract. The suite uses a disposable Redis
+container and does not make Redis a task or result authority.
+
 The existing authority fixtures prove the wire-level replay rules:
 
 - [`sse_v1_contract.json`](../../../../tests/fixtures/authority/sse_v1_contract.json)
@@ -118,8 +127,8 @@ Ruff and targeted Pyright pass for the changed event-bus, route, and Redis
 contract modules. Full-tree Pyright remains a pre-existing noisy baseline (`206 errors`,
 `28 warnings`) and is not represented as passing. The complete non-live suite
 passes with the count recorded above. The B0, Redis, and architecture targeted
-gate currently passes 42 tests; the HTTP/SSE/reliable route gate passes 45
-tests. Live Temporal qualification is recorded below.
+gate includes the B0 migration contract; the HTTP/SSE/reliable route gate passes
+45 tests. Live Temporal qualification is recorded below.
 
 ## Required Live Qualification
 
@@ -216,9 +225,9 @@ unexecuted command.
 | Pydantic AI | `2.5.1` |
 | PostgreSQL / Redis | `16 / 7.4` |
 | Focused unit count/duration | `20 passed` in the B0 reliable-task unit module; `42 passed in 14.17s` in the B0/Redis/architecture targeted gate; `45 passed in 16.47s` in the HTTP/SSE/reliable route gate |
-| Redis contract count/duration | `10 passed in 3.49s` |
-| Live qualification count/duration | `8 passed in 38.25s` |
-| Full non-live count/duration | `858 passed, 15 deselected, 2 warnings in 52.88s` |
+| Redis contract count/duration | `10 passed in 3.49s` offline; `1 passed in 3.33s` live B0 stream |
+| Live qualification count/duration | `8 passed in 39.07s` |
+| Full non-live count/duration | `859 passed, 16 deselected, 2 warnings in 55.35s` |
 | `uv lock --check` | `pass` |
 | Ruff / Pyright | `targeted changed-file Ruff pass; targeted Pyright 0 errors; legacy full-tree baseline remains noisy` |
 | `openspec validate define-modular-architecture --strict` | `pass` |
