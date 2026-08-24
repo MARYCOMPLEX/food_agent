@@ -1,6 +1,6 @@
 # B3 Personalization Memory Verification
 
-Status: Partial implementation - tasks 11.1-11.5 qualified; 11.6-11.15 remain disabled and pending
+Status: Tasks 11.1-11.13 qualified; 11.14-11.15 remain disabled and pending
 
 ## Task 11.1 boundary
 
@@ -186,6 +186,21 @@ Status: Partial implementation - tasks 11.1-11.5 qualified; 11.6-11.15 remain di
   from PostgreSQL; an unavailable authority or Redis is not converted into an
   empty success.
 
+## Task 11.13 boundary
+
+- `tests/test_unit_b3_architecture.py` walks the personalization package imports
+  and rejects a second memory or durable-runtime authority, including Mem0, Zep,
+  LangGraph, Pydantic AI session state, and Redis-backed long-term state.
+- The gate inspects the actual PostgreSQL memory authority table columns rather
+  than documentation text. Framework message objects, public ranking scores,
+  and embedding columns are absent from the authority schema; derived summaries
+  and indexes remain projections.
+- `PersonalizedRanking` exposes public-mutation markers as `Literal[False]` with
+  false defaults. The contract therefore cannot authorize personalization to
+  rewrite public Evidence, features, or scores.
+- The gate is structural and additive: it does not alter runtime behavior or
+  enable the pending personalization canary and rollback tasks.
+
 ## Qualification commands
 
 ```powershell
@@ -219,6 +234,9 @@ uv run --frozen pytest -q tests/test_unit_b3_reranker.py
 uv run --frozen pytest -q tests/test_unit_b3_feedback.py
 # 3 passed
 
+uv run --frozen pytest -q tests/test_unit_b3_architecture.py tests/test_unit_architecture_boundaries.py
+# 15 passed
+
 uv run --frozen pytest -q tests/test_unit_b3_reranker.py tests/test_unit_b3_session_projection.py tests/test_unit_b3_schema.py tests/test_unit_b3_authorization.py tests/test_unit_b3_capabilities.py tests/test_unit_b3_strategy.py tests/test_unit_b3_feedback.py tests/test_unit_b3_context.py
 # 37 passed
 
@@ -235,7 +253,7 @@ git diff --check
 # passed
 
 uv run --frozen pytest -q -m "not live" -ra --tb=short
-# 894 passed, 24 deselected, 2 warnings
+# 917 passed, 24 deselected, 2 warnings
 
 uv lock --check
 # passed
@@ -246,7 +264,8 @@ openspec validate define-modular-architecture --strict
 
 ## Deliberate non-claims
 
-This milestone does not implement cache invalidation, feedback ingestion,
-consent flows, personalization canarying, or reranking. Those behaviors remain
-behind the later B3 tasks and no personalization binding is enabled by this
-change.
+Tasks 11.14 and 11.15 remain disabled. This verification does not claim that
+personalization canarying is enabled or that the system has exercised the
+production rollback path. The qualified implementation keeps PostgreSQL as
+memory authority and Redis as a rebuildable projection; it does not promote
+any new runtime or cache into a second authority.

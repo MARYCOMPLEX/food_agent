@@ -751,6 +751,13 @@ async def test_terminal_event_type_matches_failed_and_cancelled_status() -> None
         "task.failed",
         "task.cancelled",
     ]
+    assert await activities.reconcile(
+        {
+            "task_id": task.task_id,
+            "workflow_id": task.workflow_id,
+            "run_id": "run-cancelled",
+        }
+    ) is False
 
 
 @pytest.mark.unit
