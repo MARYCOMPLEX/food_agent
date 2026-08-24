@@ -1,6 +1,6 @@
 # B0 Reliable Task Semantics Verification
 
-Status: Draft - offline and SDK qualification evidence recorded; production integration pending
+Status: Draft - offline, SDK, and PostgreSQL authority evidence recorded; Temporal/Redis/HTTP production integration pending
 
 Change: `define-modular-architecture`
 
@@ -35,7 +35,7 @@ gate and MUST NOT be represented as production qualification.
 | Activity contract | `research-activity/v1` | Activity version validation and fixture |
 | Semantic state transition | `ResearchCoordinator` | coordinator owner methods and architecture tests |
 | Executable checkpoint | Temporal history | live SDK history replay passes; target-service and process-crash qualification pending |
-| Business result/projection | PostgreSQL adapter port | SQLAlchemy adapter, failed/success/cancelled receipts, and structural conflict handling; live PostgreSQL/schema qualification pending |
+| Business result/projection | PostgreSQL adapter port | SQLAlchemy adapter, Alembic 0006 schema, cross-connection admission/CAS, terminal receipts, same-run conflict handling, and live projection ordering pass; crash-after-commit reconciliation remains pending |
 | Hot replay state | Redis Streams, one hour/1000 entries | Redis target contract plus retained, trimmed, and unknown-cursor replay-expiry tests |
 | Public HTTP/SSE | existing mapper and ADR-0004 | authority fixtures and mapper suite (pending B0 integration) |
 
@@ -49,11 +49,11 @@ flag without an explicitly injected Temporal/PostgreSQL policy.
 | Task | Gate | Status | Evidence or remaining work |
 |---|---|---|---|
 | 8.1 | Independent policy versions, terminal set, old-terminal and mapper rules | PASS (contract/mapper) | `legacy-task/v1`, `reliable-task/v1`, `research-task/v1`, `research-activity/v1`; normative fixture, ADR-0011, and `ReliableEventMapper` contract tests. HTTP/SSE route binding remains the 8.9 B0 gate. |
-| 8.2 | Opt-in Research Workflow, stable Workflow ID, duplicate start/single-flight | PARTIAL | Stable identity, same-process concurrent admission coalescing, durable-owner hydration, and Temporal adapter duplicate-start handling are covered offline/live SDK-side. Reliable refine is rejected with `RELIABLE_REFINE_IDENTITY_UNAPPROVED` until its cross-turn identity contract is approved. Cross-worker PostgreSQL admission and live Temporal duplicate-start qualification remain pending. |
-| 8.3 | Coordinator-only transitions, Temporal checkpoint, PG commit barrier, reconciliation | PARTIAL | Coordinator-only transitions, `ReliableTaskStorePort`, `PostgresReliableTaskStore` admission/CAS SQL, projection turn ordering, completed/cancelled/failed receipts, same-run terminal competition, late-run guards, and reconciliation Activity are covered structurally/offline. Live PostgreSQL transaction/CAS and crash-after-commit reconciliation remain pending. |
+| 8.2 | Opt-in Research Workflow, stable Workflow ID, duplicate start/single-flight | PARTIAL | Stable identity, same-process concurrent admission coalescing, durable-owner hydration, Temporal adapter duplicate-start handling, and cross-connection PostgreSQL admission are covered. Reliable refine is rejected with `RELIABLE_REFINE_IDENTITY_UNAPPROVED` until its cross-turn identity contract is approved. Live Temporal duplicate-start qualification remains pending. |
+| 8.3 | Coordinator-only transitions, Temporal checkpoint, PG commit barrier, reconciliation | PARTIAL | Coordinator-only transitions, `ReliableTaskStorePort`, Alembic-owned schema, PostgreSQL admission/CAS, projection turn ordering, completed/cancelled/failed receipts, same-run terminal competition, late-run guards, idempotent commit/reconcile, and reconciliation Activity are covered; live PostgreSQL qualification now passes. Crash-after-commit reconciliation against Temporal remains pending. |
 | 8.4 | Pydantic AI Temporal integration, bounded Activities, retry/timeout/heartbeat/cancel policy | PASS (SDK qualification) | Factory, plugin, JSON boundary, policy constants, and the official live model/tool Activity replay and determinism suite pass; production worker/provider rollout remains a separate gate. |
 | 8.5 | Separate Research queue and reserved Refresh/Media queues | PARTIAL (structural) | `TemporalTaskQueues` now carries explicit per-queue `TemporalWorkerQuota`, enables only `research` by default, and rejects disabled `refresh/media` execution until B4. Real Temporal worker registration, concurrency caps, and priority/isolation smoke remain pending with the target service. |
-| 8.6 | PG projection + Temporal history + Redis replay/resync | PARTIAL | Fake `xrange` contract proves exact retained-cursor validation, exclusive continuation, and `replay_expired` for trimmed or unknown cursors; PostgreSQL projection adapter is now an explicit reliable Composition-Root dependency, and reliable `TaskEvent` values have an EventBus publisher adapter. Live PostgreSQL snapshot wiring and HTTP/SSE resync integration remain pending. |
+| 8.6 | PG projection + Temporal history + Redis replay/resync | PARTIAL | Fake `xrange` contract proves exact retained-cursor validation, exclusive continuation, and `replay_expired` for trimmed or unknown cursors; Alembic-backed PostgreSQL projection ordering now passes through the reliable Composition-Root adapter, and reliable `TaskEvent` values have an EventBus publisher adapter. Live Redis/HTTP/SSE resync integration remains pending. |
 | 8.7 | Failure-injection and differential suite | PARTIAL | Eight live SDK/application tests pass: determinism/replay, adapter duplicate start, model/tool Activities, retry/exhaustion, clean worker restart+replay, SDK cancellation race, reliable cancellation receipt, and patch replay. Offline failed-receipt ordering, same-run terminal competition, commit failure, reconciliation, late-run, and Redis replay contracts also pass. Process-level in-flight crash, duplicate Activity against a live worker, PG/Temporal integration, and SSE/HTTP cases remain pending. |
 | 8.8 | Redis outage semantics | PARTIAL (offline) | `get_event_bus(require_redis=True)` now returns stable `EVENT_BUS_DEPENDENCY_UNAVAILABLE` for missing configuration and connection failure instead of creating an in-memory bus; legacy callers retain their characterized fallback. Live Workflow continuity after Redis outage, persistent-result reads, and new HTTP/SSE admission mapping remain pending. |
 | 8.9 | HTTP/SSE compatibility and post-commit terminal publication | PARTIAL (offline) | Legacy HTTP/SSE snapshots, reliable event mapping, and a reliable-mode SSE dependency-unavailable `503` route contract pass; route selects `require_redis=True` from the Composition Root app-state flag. PostgreSQL-backed snapshot/resync, same task/turn reconnect, terminal publication against live Redis, and full reliable-vs-legacy differential behavior remain pending. |
@@ -76,6 +76,10 @@ uv run --frozen pytest -q -m "not live" -ra --durations=0
 
 uv lock --check
 # passed
+
+$env:B0_POSTGRES_URL='postgresql+asyncpg://postgres:postgres@localhost:55432/xhs_food_agent'
+uv run --frozen pytest -q -m live tests/test_live_b0_reliable_task.py
+  # 1 passed in 6.52s (PostgreSQL 16.14; Alembic 20260824_0006_b0_reliable_task)
 ```
 
 The focused unit suite proves:
@@ -94,7 +98,11 @@ The focused unit suite proves:
 7. reliable refine is rejected until its cross-turn identity contract is
    approved.
 
-The S3 Redis contract suite additionally proves exact-cursor validation and
+The live PostgreSQL B0 suite additionally proves cross-connection admission
+coalescing, task CAS hydration, same-run completed/cancelled receipt
+competition, idempotent result receipts, reconciliation reads, and a newer
+turn replacing a terminal projection. The S3 Redis contract suite additionally
+proves exact-cursor validation and
 exclusive replay for a cursor inside the retained window. A trimmed cursor and
 an unknown cursor numerically inside that window both raise
 `RedisReplayExpiredError`, preventing silent event gaps. PostgreSQL

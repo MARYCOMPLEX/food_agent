@@ -172,9 +172,10 @@ class PostgresReliableTaskAuthority:
         result = await session.execute(
             text(
                 f"INSERT INTO {self._result_table} "
-                "(task_id, workflow_id, run_id, status, payload, idempotency_key, committed_at) "
+                "(task_id, workflow_id, run_id, status, payload, idempotency_key, "
+                "result_version, committed_at) "
                 "VALUES (:task_id, :workflow_id, :run_id, :status, CAST(:payload AS JSONB), "
-                ":idempotency_key, CURRENT_TIMESTAMP) "
+                ":idempotency_key, :result_version, CURRENT_TIMESTAMP) "
                 "ON CONFLICT DO NOTHING "
                 "RETURNING task_id, workflow_id, run_id, status, payload, "
                 "idempotency_key, committed_at, result_version"
@@ -186,6 +187,7 @@ class PostgresReliableTaskAuthority:
                 "status": status,
                 "payload": payload,
                 "idempotency_key": idempotency_key,
+                "result_version": _result_version(task_id, workflow_id, run_id),
             },
         )
         row = result.mappings().first()
@@ -505,6 +507,12 @@ def _terminal_status(value: object) -> TaskStatus | None:
     except ValueError:
         return None
     return status if status.is_terminal else None
+
+
+def _result_version(task_id: str, workflow_id: str, run_id: str) -> str:
+    """Return a stable receipt version for one task/workflow/run identity."""
+
+    return f"{task_id}:{workflow_id}:{run_id}"
 
 
 def _projection_is_older(
