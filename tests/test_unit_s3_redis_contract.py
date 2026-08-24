@@ -10,6 +10,8 @@ import pytest
 from redis import exceptions as redis_errors
 
 from xhs_food.contracts import ErrorCategory, ErrorScope, EventEnvelope
+from xhs_food.events import bus as event_bus_module
+from xhs_food.events.bus import EventBusDependencyError
 from xhs_food.foundation import (
     FoundationAdapterError,
     RateLimitDecision,
@@ -340,3 +342,47 @@ async def test_sse_unknown_cursor_inside_window_is_replay_expired() -> None:
     iterator = RedisEventBusAdapter(client).subscribe("search", after="10-0")
     with pytest.raises(RedisReplayExpiredError):
         await anext(iterator)
+
+
+@pytest.mark.unit
+async def test_reliable_event_bus_requires_redis_instead_of_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(event_bus_module, "_bus", None)
+    monkeypatch.setattr(event_bus_module.settings, "event_bus_backend", "memory")
+    monkeypatch.setattr(
+        type(event_bus_module.settings),
+        "resolved_redis_url",
+        lambda self: None,
+    )
+
+    with pytest.raises(EventBusDependencyError) as caught:
+        await event_bus_module.get_event_bus(require_redis=True)
+
+    assert caught.value.error.code == "EVENT_BUS_DEPENDENCY_UNAVAILABLE"
+    assert caught.value.error.details["fallback"] == "disabled"
+
+
+@pytest.mark.unit
+async def test_reliable_event_bus_wraps_redis_connect_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(event_bus_module, "_bus", None)
+    monkeypatch.setattr(event_bus_module.settings, "event_bus_backend", "redis")
+    monkeypatch.setattr(
+        type(event_bus_module.settings),
+        "resolved_redis_url",
+        lambda self: "redis://fixture.invalid/0",
+    )
+
+    async def failing_create(cls: type[object], url: str | None = None) -> object:
+        del cls, url
+        raise ConnectionError("fixture unavailable")
+
+    monkeypatch.setattr(event_bus_module.RedisStreamEventBus, "create", classmethod(failing_create))
+
+    with pytest.raises(EventBusDependencyError) as caught:
+        await event_bus_module.get_event_bus(require_redis=True)
+
+    assert caught.value.error.code == "EVENT_BUS_DEPENDENCY_UNAVAILABLE"
+    assert caught.value.error.boundary_ref == "event_bus.redis_connect"

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Event bus — abstract publish/subscribe with two backends.
 
 Two backends are provided:
@@ -13,12 +12,13 @@ Two backends are provided:
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator
-from typing import AsyncGenerator, Dict, Optional, Protocol, Tuple
+from collections.abc import AsyncGenerator, AsyncIterator, Awaitable
+from typing import Protocol, cast
 
 from loguru import logger
 
 from xhs_food.config import settings
+from xhs_food.contracts import ContractError, ErrorCategory, ErrorScope
 from xhs_food.observability.metrics import sse_active_connections
 
 from .types import SearchEvent, SearchEventType
@@ -33,16 +33,27 @@ class EventBus(Protocol):
 
     async def publish(self, session_id: str, event: SearchEvent) -> str:
         """Append ``event`` to the session stream. Returns the entry id."""
+        ...
 
     def subscribe(
         self,
         session_id: str,
         last_id: str = STREAM_START,
-    ) -> AsyncIterator[Tuple[str, SearchEvent]]:
+    ) -> AsyncIterator[tuple[str, SearchEvent]]:
         """Yield ``(entry_id, event)`` tuples until a terminal event arrives."""
+        ...
 
     async def close(self) -> None:
         """Release any backend connections."""
+        ...
+
+
+class EventBusDependencyError(RuntimeError):
+    """Stable dependency failure raised by the legacy event-bus facade."""
+
+    def __init__(self, error: ContractError) -> None:
+        super().__init__(error.code)
+        self.error = error
 
 
 # ---------------------------------------------------------------------------
@@ -71,7 +82,7 @@ class InMemoryEventBus:
     """Single-process event bus suitable for tests and dev."""
 
     def __init__(self) -> None:
-        self._channels: Dict[str, _Channel] = {}
+        self._channels: dict[str, _Channel] = {}
         self._lock = asyncio.Lock()
 
     async def _get_channel(self, session_id: str) -> _Channel:
@@ -98,7 +109,7 @@ class InMemoryEventBus:
         self,
         session_id: str,
         last_id: str = STREAM_START,
-    ) -> AsyncGenerator[Tuple[str, SearchEvent], None]:
+    ) -> AsyncGenerator[tuple[str, SearchEvent], None]:
         channel = await self._get_channel(session_id)
         queue: asyncio.Queue[tuple[str, SearchEvent]] = asyncio.Queue()
 
@@ -120,7 +131,7 @@ class InMemoryEventBus:
                     entry_id, event = await asyncio.wait_for(
                         queue.get(), timeout=settings.sse_heartbeat_seconds
                     )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     yield "heartbeat", SearchEvent(
                         type=SearchEventType.PROGRESS,
                         data={"heartbeat": True},
@@ -176,14 +187,14 @@ class RedisStreamEventBus:
         self._heartbeat = settings.sse_heartbeat_seconds
 
     @classmethod
-    async def create(cls, url: Optional[str] = None) -> "RedisStreamEventBus":
+    async def create(cls, url: str | None = None) -> RedisStreamEventBus:
         from redis import asyncio as aioredis  # local import to keep dev path light
 
         target = url or settings.resolved_redis_url()
         if not target:
             raise RuntimeError("Redis URL not configured")
         client = aioredis.from_url(target, decode_responses=True)
-        await client.ping()
+        await cast(Awaitable[object], client.ping())
         safe = target.split("@")[-1]
         logger.info(f"RedisStreamEventBus connected: {safe}")
         return cls(client)
@@ -206,7 +217,7 @@ class RedisStreamEventBus:
         self,
         session_id: str,
         last_id: str = STREAM_START,
-    ) -> AsyncGenerator[Tuple[str, SearchEvent], None]:
+    ) -> AsyncGenerator[tuple[str, SearchEvent], None]:
         key = self._key(session_id)
         cursor = last_id or STREAM_START
         block_ms = self._heartbeat * 1000
@@ -241,28 +252,56 @@ class RedisStreamEventBus:
 # ---------------------------------------------------------------------------
 
 
-_bus: Optional[EventBus] = None
+_bus: EventBus | None = None
 _bus_lock = asyncio.Lock()
 
 
-async def get_event_bus() -> EventBus:
-    """Return the process-wide event bus (lazy init)."""
+async def get_event_bus(*, require_redis: bool = False) -> EventBus:
+    """Return the process-wide event bus, optionally requiring Redis.
+
+    Legacy callers retain their characterized in-memory fallback. Reliable
+    multi-worker callers pass ``require_redis=True`` and receive a stable
+    dependency error instead of silently creating process-local hot state.
+    """
     global _bus
     if _bus is not None:
+        if require_redis and not isinstance(_bus, RedisStreamEventBus):
+            raise _redis_required_error("event_bus.redis_required")
         return _bus
     async with _bus_lock:
         if _bus is not None:
+            if require_redis and not isinstance(_bus, RedisStreamEventBus):
+                raise _redis_required_error("event_bus.redis_required")
             return _bus
-        if settings.event_bus_backend == "redis" and settings.resolved_redis_url():
+        redis_url = settings.resolved_redis_url()
+        if settings.event_bus_backend == "redis" and redis_url:
             try:
-                _bus = await RedisStreamEventBus.create()
+                _bus = await RedisStreamEventBus.create(redis_url)
                 return _bus
             except Exception as exc:
+                if require_redis:
+                    raise _redis_required_error("event_bus.redis_connect") from exc
                 logger.warning(
                     f"RedisStreamEventBus init failed ({exc}); falling back to in-memory"
                 )
+        elif require_redis:
+            raise _redis_required_error("event_bus.redis_config")
         _bus = InMemoryEventBus()
         return _bus
+
+
+def _redis_required_error(operation: str) -> EventBusDependencyError:
+    return EventBusDependencyError(
+        ContractError(
+            code="EVENT_BUS_DEPENDENCY_UNAVAILABLE",
+            category=ErrorCategory.DEPENDENCY_UNAVAILABLE,
+            scope=ErrorScope.EVENT_BUS,
+            retryable=True,
+            terminal=False,
+            boundary_ref=operation,
+            details={"backend": "redis", "fallback": "disabled"},
+        )
+    )
 
 
 async def shutdown_event_bus() -> None:

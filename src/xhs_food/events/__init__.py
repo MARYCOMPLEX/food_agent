@@ -5,9 +5,14 @@ Public surface preserved for backwards compatibility:
 - :func:`get_emitter`, :func:`remove_emitter`
 - :class:`SearchEventEmitter` (now a thin facade over :class:`EventBus`)
 """
-from .types import SearchEvent, SearchEventType
-from .bus import EventBus, InMemoryEventBus, RedisStreamEventBus, get_event_bus
+from .bus import (
+    EventBus,
+    InMemoryEventBus,
+    RedisStreamEventBus,
+    get_event_bus,
+)
 from .emitter import SearchEventEmitter, get_emitter, remove_emitter
+from .types import SearchEvent, SearchEventType
 
 __all__ = [
     "SearchEvent",
