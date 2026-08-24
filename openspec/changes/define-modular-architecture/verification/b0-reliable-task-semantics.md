@@ -201,16 +201,16 @@ unexecuted command.
 
 | Field | Value |
 |---|---|
-| Implementation commit | `c869e5e` (durable owner, queue quota, projection injection, and EventBus publisher; live PostgreSQL qualification pending) |
-| Qualification commit | `c869e5e` |
+| Implementation commit | `946370c` (durable owner, queue quota, projection injection, EventBus publisher, and resync mapper; live PostgreSQL qualification pending) |
+| Qualification commit | `946370c` |
 | Python/runtime | `CPython 3.12.x` |
 | Temporal SDK / service | `1.31.0 / official time-skipping test server` |
 | Pydantic AI | `2.5.1` |
 | PostgreSQL / Redis | `16 / 7.4` |
-| Focused unit count/duration | `19 passed` in the B0 reliable-task unit module; `54 passed` in the B0/Composition/architecture/Redis targeted gate |
+| Focused unit count/duration | `20 passed` in the B0 reliable-task unit module; `55 passed` in the B0/Composition/architecture/Redis/reliable-SSE targeted gate |
 | Redis contract count/duration | `8 passed in 3.08s` |
 | Live qualification count/duration | `8 passed in 36.27s` |
-| Full non-live count/duration | `854 passed, 15 deselected, 2 warnings in 52.92s` |
+| Full non-live count/duration | `855 passed, 15 deselected, 2 warnings in 52.42s` |
 | `uv lock --check` | `pass` |
 | Ruff / Pyright | `targeted changed-file Ruff pass; targeted Pyright 0 errors; legacy full-tree baseline remains noisy` |
 | `openspec validate define-modular-architecture --strict` | `pass` |
@@ -226,8 +226,8 @@ using the procedure in `b0-reliable-task-rollback.md`:
 
 | Revert evidence | Value |
 |---|---|
-| Base commit/tree | `0aac00632186d6b4e5b12170fccfbbaf23fa4f8a / 7757c6bede8ba202435a142edd5f2c820a89a74d` |
-| B0 head/tree | `c869e5e / aa59e8831f13a00addfb61375a870ca43c4b30a9` |
+| Base commit/tree | `c2cdb926afc1eeac2beb9c56451d573b8bf5fc27 / 4e2ffff0bfb5f5fd3ebdc7fe33d4a5defa886058` |
+| B0 head/tree | `946370c / 6a654df1865025b75de75e69326c1a589abb77f1` |
 | Generated revert commits | `none (detached worktree used --no-commit revert); worktree removed` |
 | Reverted tree equals base | `pass` |
 | Reverted test count/duration | `not rerun; tree identity and empty diff were the drill assertions` |
