@@ -6,6 +6,8 @@ from .embedding_shadow_repository import SQLAlchemyEmbeddingShadowRepository
 from .evidence_bundle_repository import SQLAlchemyCandidateBundleRepository
 from .evidence_shadow_repository import SQLAlchemyCanonicalQueryShadowRepository
 from .llm import LegacyLLMProviderAdapter, ProviderModelGateway
+from .memory_authority import MemoryAuthorityWriter
+from .memory_outbox import MemoryOutboxProjector
 from .memory_repository import SQLAlchemyMemoryRepository
 from .query_family_repository import SQLAlchemyQueryFamilyRepository
 from .reliable_events import ReliableTaskEventBusPublisher
@@ -40,6 +42,8 @@ __all__ = [
     "SQLAlchemyCandidateBundleRepository",
     "SQLAlchemyEmbeddingShadowRepository",
     "SQLAlchemyMemoryRepository",
+    "MemoryOutboxProjector",
+    "MemoryAuthorityWriter",
     "SQLAlchemyCanonicalQueryShadowRepository",
     "SQLAlchemyQueryFamilyRepository",
     "LegacyFavoritesRepositoryAdapter",

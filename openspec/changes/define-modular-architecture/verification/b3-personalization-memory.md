@@ -1,6 +1,6 @@
 # B3 Personalization Memory Verification
 
-Status: Partial implementation - tasks 11.1-11.2 qualified; 11.3-11.15 remain disabled and pending
+Status: Partial implementation - tasks 11.1-11.3 qualified; 11.4-11.15 remain disabled and pending
 
 ## Task 11.1 boundary
 
@@ -26,17 +26,30 @@ Status: Partial implementation - tasks 11.1-11.2 qualified; 11.3-11.15 remain di
   payload stores schema/policy metadata and the repository persists the event
   identity, full scope, event type, occurred/created timestamps, and unique
   idempotency key in `memory_events`.
+- `MemoryAuthorityWrite` is the only batch shape for the multi-fact write path.
+  Its validator requires one tenant/subject/session scope for every fact. The
+  SQLAlchemy adapter writes conversation, source event, memory record, and
+  outbox in that order through one `SQLAlchemyUnitOfWork` and calls `commit`
+  exactly once.
+- `MemoryOutboxProjector` is invoked only after that commit. It supports
+  user/session-scoped Redis invalidate and warm instructions with the fixed
+  24-hour session TTL. Redis exceptions return `False` for retry and never
+  enter or roll back the PostgreSQL transaction.
+- `MemoryAuthorityWriter` makes this ordering executable at the application
+  boundary: a repository commit failure prevents projection, while a
+  projector failure returns `MemoryWriteReceipt(committed=True,
+  projected=False)` and leaves the outbox ID available for retry.
 - No embedding, summary, framework message, or recall-index column is part of
   the authority schema. Such artifacts remain rebuildable derived data.
-- The repository currently exposes one-UoW operations. Cross-record atomic
-  writes and post-commit Redis invalidation are intentionally reserved for
-  task 11.3.
+- Individual repository convenience methods remain one-UoW operations; callers
+  requiring atomic conversation/memory/outbox persistence use
+  `commit_authority_write`.
 
 ## Qualification commands
 
 ```powershell
 uv run --frozen pytest -q tests/test_unit_b3_schema.py
-# 8 passed
+# 13 passed
 
 uv run --frozen pytest -q tests/test_unit_domain_memory_contracts.py tests/test_unit_memory_media_hardening.py
 # 53 passed

@@ -14,8 +14,19 @@ from alembic.migration import MigrationContext
 from alembic.operations import Operations
 from sqlalchemy.dialects import postgresql
 
-from xhs_food.composition.adapters import SQLAlchemyMemoryRepository
-from xhs_food.contracts import MemoryEvent, MemoryRecord, UserIsolationKey
+from xhs_food.composition.adapters import (
+    MemoryAuthorityWriter,
+    MemoryOutboxProjector,
+    SQLAlchemyMemoryRepository,
+)
+from xhs_food.contracts import (
+    MemoryAuthorityWrite,
+    MemoryConversationTurn,
+    MemoryEvent,
+    MemoryOutboxEvent,
+    MemoryRecord,
+    UserIsolationKey,
+)
 
 ROOT = Path(__file__).parents[1]
 MIGRATION = ROOT / "alembic" / "versions" / "20260824_0007_b3_personalization_memory.py"
@@ -233,3 +244,209 @@ async def test_memory_repository_accepts_each_authoritative_layer(record_index: 
     assert compiled.params["layer"] == record.layer.value
     assert compiled.params["policy_version"] == record.policy_version
     assert compiled.params["source_event_ids"] == list(record.source_event_ids)
+
+
+@pytest.mark.unit
+async def test_memory_authority_write_commits_facts_and_outbox_once() -> None:
+    record = _record()
+    scope = UserIsolationKey(
+        tenant_id=record.tenant_id,
+        user_id=record.subject.id,
+        session_id="session-user-0001",
+    )
+    record = record.model_copy(update={"session_id": scope.session_id})
+    now = datetime(2026, 8, 24, tzinfo=UTC)
+    turn = MemoryConversationTurn(
+        turn_id="turn-batch-1",
+        scope=scope,
+        role="user",
+        content="不要辣",
+        source_event_id="turn-batch-1",
+        occurred_at=now,
+        idempotency_key="turn-batch-1",
+    )
+    source_event = MemoryEvent(
+        event_id="event-batch-1",
+        tenant_id=record.tenant_id,
+        subject=record.subject,
+        session_id=scope.session_id,
+        event_type="memory.explicit",
+        payload={"recordId": record.record_id},
+        idempotency_key="event-batch-1",
+        occurred_at=now,
+        policy_version=record.policy_version,
+        created_at=now,
+    )
+    outbox_event = MemoryOutboxEvent(
+        outbox_id="outbox-batch-1",
+        scope=scope,
+        event_type="memory.session.warm",
+        aggregate_id=turn.turn_id,
+        payload={"message": {"role": "user", "content": turn.content}},
+        idempotency_key="outbox-batch-1",
+        available_at=now,
+    )
+    write = MemoryAuthorityWrite(
+        conversation_turn=turn,
+        record=record,
+        source_event=source_event,
+        outbox=outbox_event,
+    )
+    session = _Session()
+    unit = _UnitOfWork(session)
+    repository = SQLAlchemyMemoryRepository(lambda: unit)
+
+    assert await repository.commit_authority_write(write) == outbox_event.outbox_id
+    assert unit.commits == 1
+    assert [statement.table.name for statement in session.statements] == [
+        "conversation_turns",
+        "memory_events",
+        "memory_records",
+        "outbox",
+    ]
+
+
+@pytest.mark.unit
+def test_memory_authority_write_rejects_cross_scope_facts() -> None:
+    record = _record()
+    scope = UserIsolationKey(
+        tenant_id=record.tenant_id,
+        user_id=record.subject.id,
+        session_id="session-user-0001",
+    )
+    outbox_event = MemoryOutboxEvent(
+        outbox_id="outbox-cross-scope",
+        scope=scope,
+        event_type="memory.session.invalidate",
+        aggregate_id="record-1",
+        payload={},
+        idempotency_key="outbox-cross-scope",
+        available_at=record.created_at,
+    )
+    with pytest.raises(ValueError, match="share one tenant/subject/session scope"):
+        MemoryAuthorityWrite(record=record, outbox=outbox_event)
+
+
+class _SessionWindow:
+    def __init__(self, *, fail: bool = False) -> None:
+        self.fail = fail
+        self.calls: list[tuple[str, str, object]] = []
+
+    async def append(self, session_id: str, message: dict[str, object], ttl_seconds: int) -> None:
+        if self.fail:
+            raise RuntimeError("redis unavailable")
+        self.calls.append(("append", session_id, (message, ttl_seconds)))
+
+    async def recent(self, session_id: str, limit: int) -> tuple[dict[str, object], ...]:
+        del session_id, limit
+        return ()
+
+    async def clear(self, session_id: str) -> bool:
+        if self.fail:
+            raise RuntimeError("redis unavailable")
+        self.calls.append(("clear", session_id, True))
+        return True
+
+
+class _AuthorityRepository:
+    def __init__(self, order: list[str]) -> None:
+        self.order = order
+        self.batches: list[MemoryAuthorityWrite] = []
+
+    async def commit_authority_write(self, batch: MemoryAuthorityWrite) -> str:
+        self.order.append("commit")
+        self.batches.append(batch)
+        return batch.outbox.outbox_id
+
+
+class _OutboxProjector:
+    def __init__(self, order: list[str], *, fail: bool = False) -> None:
+        self.order = order
+        self.fail = fail
+
+    async def project(self, event: MemoryOutboxEvent) -> bool:
+        del event
+        self.order.append("project")
+        if self.fail:
+            raise RuntimeError("redis unavailable")
+        return True
+
+
+def _event_only_write() -> MemoryAuthorityWrite:
+    record = _record()
+    scope = UserIsolationKey(tenant_id=record.tenant_id, user_id=record.subject.id)
+    event = MemoryEvent(
+        event_id="event-writer-1",
+        tenant_id=record.tenant_id,
+        subject=record.subject,
+        event_type="memory.explicit",
+        payload={"recordId": record.record_id},
+        idempotency_key="event-writer-1",
+        occurred_at=record.valid_from,
+        policy_version=record.policy_version,
+        created_at=record.created_at,
+    )
+    return MemoryAuthorityWrite(
+        source_event=event,
+        outbox=MemoryOutboxEvent(
+            outbox_id="outbox-writer-1",
+            scope=scope,
+            event_type="memory.session.invalidate",
+            aggregate_id=event.event_id,
+            payload={},
+            idempotency_key="outbox-writer-1",
+            available_at=record.created_at,
+        ),
+    )
+
+
+@pytest.mark.unit
+async def test_memory_outbox_projector_runs_after_commit_and_is_retryable() -> None:
+    scope = UserIsolationKey(
+        tenant_id="tenant-1",
+        user_id="user-1234567890abcd",
+        session_id="session-1234567890",
+    )
+    event = MemoryOutboxEvent(
+        outbox_id="outbox-project-1",
+        scope=scope,
+        event_type="memory.session.warm",
+        aggregate_id="turn-1",
+        payload={"message": {"role": "user", "content": "不要辣"}},
+        idempotency_key="outbox-project-1",
+        available_at=datetime(2026, 8, 24, tzinfo=UTC),
+    )
+    window = _SessionWindow()
+    assert await MemoryOutboxProjector(window).project(event) is True
+    assert window.calls == [("append", scope.session_id, ({"role": "user", "content": "不要辣"}, 86_400))]
+
+    failed_window = _SessionWindow(fail=True)
+    assert await MemoryOutboxProjector(failed_window).project(event) is False
+
+
+@pytest.mark.unit
+async def test_memory_authority_writer_projects_only_after_commit() -> None:
+    order: list[str] = []
+    repository = _AuthorityRepository(order)
+    projector = _OutboxProjector(order)
+
+    receipt = await MemoryAuthorityWriter(repository, projector).write(_event_only_write())
+
+    assert receipt.committed is True
+    assert receipt.projected is True
+    assert receipt.outbox_id == "outbox-writer-1"
+    assert order == ["commit", "project"]
+
+
+@pytest.mark.unit
+async def test_memory_authority_writer_keeps_commit_when_projection_fails() -> None:
+    order: list[str] = []
+    repository = _AuthorityRepository(order)
+    projector = _OutboxProjector(order, fail=True)
+
+    receipt = await MemoryAuthorityWriter(repository, projector).write(_event_only_write())
+
+    assert receipt.committed is True
+    assert receipt.projected is False
+    assert order == ["commit", "project"]
+    assert len(repository.batches) == 1

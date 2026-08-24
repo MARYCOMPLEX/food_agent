@@ -6,7 +6,14 @@ from datetime import datetime
 from typing import Protocol, runtime_checkable
 
 from .base import ContractPayload
-from .memory import MemoryEvent, MemoryIsolationKey, MemoryRecord, PreferenceSnapshot
+from .memory import (
+    MemoryAuthorityWrite,
+    MemoryEvent,
+    MemoryIsolationKey,
+    MemoryOutboxEvent,
+    MemoryRecord,
+    PreferenceSnapshot,
+)
 
 
 @runtime_checkable
@@ -27,6 +34,8 @@ class MemoryRepositoryPort(Protocol):
     ) -> str: ...
 
     async def save_record(self, record: MemoryRecord) -> str: ...
+
+    async def commit_authority_write(self, write: MemoryAuthorityWrite) -> str: ...
 
     async def append_memory_event(self, event: MemoryEvent) -> str: ...
 
@@ -52,4 +61,9 @@ class MemoryRepositoryPort(Protocol):
     ) -> str: ...
 
 
-__all__ = ["MemoryRepositoryPort"]
+@runtime_checkable
+class MemoryOutboxProjectorPort(Protocol):
+    async def project(self, event: MemoryOutboxEvent) -> bool: ...
+
+
+__all__ = ["MemoryOutboxProjectorPort", "MemoryRepositoryPort"]

@@ -313,6 +313,105 @@ class AnonymousIsolationKey(_AuthorityModel):
 type MemoryIsolationKey = UserIsolationKey | AnonymousIsolationKey
 
 
+class MemoryConversationTurn(_AuthorityModel):
+    """A typed conversation fact included in an authority write batch."""
+
+    turn_id: NonEmptyStr
+    scope: MemoryIsolationKey = Field(discriminator="kind")
+    role: Literal["user", "assistant", "system"]
+    content: NonEmptyStr
+    source_event_id: NonEmptyStr
+    occurred_at: Timestamp
+    idempotency_key: NonEmptyStr
+    metadata: ContractPayload = Field(default_factory=dict)
+
+
+class MemoryOutboxEvent(_AuthorityModel):
+    """A committed post-write projection instruction."""
+
+    outbox_id: NonEmptyStr
+    scope: MemoryIsolationKey = Field(discriminator="kind")
+    event_type: NonEmptyStr
+    aggregate_id: NonEmptyStr
+    payload: ContractPayload
+    idempotency_key: NonEmptyStr
+    available_at: Timestamp
+
+
+class MemoryAuthorityWrite(_AuthorityModel):
+    """Facts that must commit together before any derived projection runs."""
+
+    conversation_turn: MemoryConversationTurn | None = None
+    record: MemoryRecord | None = None
+    source_event: MemoryEvent | None = None
+    outbox: MemoryOutboxEvent
+
+    @model_validator(mode="after")
+    def require_authority_fact(self) -> MemoryAuthorityWrite:
+        if self.conversation_turn is None and self.record is None and self.source_event is None:
+            raise ValueError("an authority write must include a conversation, record, or source event")
+        scopes = {
+            _scope_identity(
+                self.outbox.scope.tenant_id,
+                self.outbox.scope.kind,
+                _scope_subject_id(self.outbox.scope),
+                self.outbox.scope.session_id,
+            )
+        }
+        if self.conversation_turn is not None:
+            scopes.add(
+                _scope_identity(
+                    self.conversation_turn.scope.tenant_id,
+                    self.conversation_turn.scope.kind,
+                    _scope_subject_id(self.conversation_turn.scope),
+                    self.conversation_turn.scope.session_id,
+                )
+            )
+        if self.record is not None:
+            scopes.add(
+                _scope_identity(
+                    self.record.tenant_id,
+                    self.record.subject.kind,
+                    self.record.subject.id,
+                    self.record.session_id,
+                )
+            )
+        if self.source_event is not None:
+            scopes.add(
+                _scope_identity(
+                    self.source_event.tenant_id,
+                    self.source_event.subject.kind,
+                    self.source_event.subject.id,
+                    self.source_event.session_id,
+                )
+            )
+        if len(scopes) != 1:
+            raise ValueError("authority write facts must share one tenant/subject/session scope")
+        return self
+
+
+class MemoryWriteReceipt(_AuthorityModel):
+    """Result reported after authority commit and optional projection attempt."""
+
+    schema_version: Literal["memory-write-receipt/v1"] = "memory-write-receipt/v1"
+    outbox_id: NonEmptyStr
+    committed: Literal[True] = True
+    projected: bool
+
+
+def _scope_identity(
+    tenant_id: str,
+    subject_kind: object,
+    subject_id: str,
+    session_id: str | None,
+) -> tuple[str, str, str, str | None]:
+    return (tenant_id, str(subject_kind), subject_id, session_id)
+
+
+def _scope_subject_id(scope: MemoryIsolationKey) -> str:
+    return scope.user_id if isinstance(scope, UserIsolationKey) else scope.anonymous_subject_id
+
+
 def isolation_key_for(record: MemoryRecord) -> MemoryIsolationKey:
     if record.subject.kind is MemorySubjectKind.USER:
         return UserIsolationKey(
@@ -401,9 +500,13 @@ __all__ = [
     "ConsentStatus",
     "EffectiveCapabilities",
     "MemoryConsent",
+    "MemoryAuthorityWrite",
+    "MemoryConversationTurn",
     "MemoryEvent",
     "MemoryIsolationKey",
     "MemoryLayer",
+    "MemoryOutboxEvent",
+    "MemoryWriteReceipt",
     "MemoryRecord",
     "MemoryStatus",
     "MemorySubject",

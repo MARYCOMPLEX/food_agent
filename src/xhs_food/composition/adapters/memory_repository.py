@@ -10,8 +10,11 @@ from sqlalchemy.dialects.postgresql import insert
 
 from xhs_food.contracts import (
     ContractPayload,
+    MemoryAuthorityWrite,
+    MemoryConversationTurn,
     MemoryEvent,
     MemoryIsolationKey,
+    MemoryOutboxEvent,
     MemoryRecord,
     MemoryRepositoryPort,
     PreferenceSnapshot,
@@ -96,6 +99,22 @@ class SQLAlchemyMemoryRepository(MemoryRepositoryPort):
             await unit.session_for_adapter().execute(statement)
             await unit.commit()
         return record.record_id
+
+    async def commit_authority_write(self, write: MemoryAuthorityWrite) -> str:
+        """Commit all authority facts and the projection instruction once."""
+
+        async with self._unit_of_work_factory() as unit:
+            if write.conversation_turn is not None:
+                await unit.session_for_adapter().execute(
+                    _conversation_statement(write.conversation_turn)
+                )
+            if write.source_event is not None:
+                await unit.session_for_adapter().execute(_memory_event_statement(write.source_event))
+            if write.record is not None:
+                await unit.session_for_adapter().execute(_record_statement(write.record))
+            await unit.session_for_adapter().execute(_outbox_statement(write.outbox))
+            await unit.commit()
+        return write.outbox.outbox_id
 
     async def append_memory_event(self, event: MemoryEvent) -> str:
         statement = insert(memory_events).values(
@@ -189,6 +208,73 @@ def _scope_values(scope: MemoryIsolationKey) -> dict[str, str | None]:
         subject_kind=str(scope.kind),
         session_id=scope.session_id,
     )
+
+
+def _conversation_statement(turn: MemoryConversationTurn) -> object:
+    return insert(conversation_turns).values(
+        turn_id=turn.turn_id,
+        **_scope_values(turn.scope),
+        role=turn.role,
+        content=turn.content,
+        metadata=turn.metadata,
+        source_event_id=turn.source_event_id,
+        occurred_at=turn.occurred_at,
+        idempotency_key=turn.idempotency_key,
+        created_at=turn.occurred_at,
+    ).on_conflict_do_nothing(index_elements=[conversation_turns.c.idempotency_key])
+
+
+def _record_statement(record: MemoryRecord) -> object:
+    scope = isolation_key_for(record)
+    return insert(memory_records).values(
+        record_id=record.record_id,
+        **_scope_values(scope),
+        layer=record.layer.value,
+        memory_key=record.key,
+        value=record.value,
+        confidence=record.confidence,
+        source_event_ids=list(record.source_event_ids),
+        consent=record.consent.model_dump(mode="json", by_alias=True),
+        valid_from=record.valid_from,
+        expires_at=record.expires_at,
+        status=record.status.value,
+        supersedes_record_id=record.supersedes_record_id,
+        policy_version=record.policy_version,
+        payload=record.model_dump(mode="json", by_alias=True),
+        created_at=record.created_at,
+        updated_at=record.updated_at,
+    ).on_conflict_do_nothing(index_elements=[memory_records.c.record_id])
+
+
+def _memory_event_statement(event: MemoryEvent) -> object:
+    return insert(memory_events).values(
+        event_id=event.event_id,
+        **_subject_scope_values(
+            tenant_id=event.tenant_id,
+            subject_id=event.subject.id,
+            subject_kind=str(event.subject.kind),
+            session_id=event.session_id,
+        ),
+        event_type=event.event_type,
+        payload=event.model_dump(mode="json", by_alias=True),
+        idempotency_key=event.idempotency_key,
+        occurred_at=event.occurred_at,
+        created_at=event.created_at,
+    ).on_conflict_do_nothing(index_elements=[memory_events.c.idempotency_key])
+
+
+def _outbox_statement(event: MemoryOutboxEvent) -> object:
+    return insert(outbox).values(
+        outbox_id=event.outbox_id,
+        **_scope_values(event.scope),
+        event_type=event.event_type,
+        aggregate_id=event.aggregate_id,
+        payload=event.payload,
+        idempotency_key=event.idempotency_key,
+        available_at=event.available_at,
+        attempts=0,
+        created_at=event.available_at,
+    ).on_conflict_do_nothing(index_elements=[outbox.c.idempotency_key])
 
 
 def _subject_scope_values(
