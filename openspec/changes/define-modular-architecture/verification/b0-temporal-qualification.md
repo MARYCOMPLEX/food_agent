@@ -76,7 +76,7 @@ Fill this section from the command output, preserving failures verbatim:
 | Test server mode | `time-skipping` |
 | Command | `uv run --frozen pytest -q -m live tests/test_temporal_qualification.py -ra` |
 | Result | `8 passed` |
-| Duration | `36.56s` (current HEAD frozen-lockfile run with adapter duplicate-start qualification; prior runs `10.25s`-`39.42s`) |
+| Duration | `36.78s` (current frozen-lockfile run after durable-owner/projection changes; prior runs `10.25s`-`39.42s`) |
 | Failure output | `none for the seven SDK/application cases; process-crash and external PostgreSQL/Redis/SSE integration remain out of scope` |
 
 If a future environment blocks the test server download, mark `Result` as

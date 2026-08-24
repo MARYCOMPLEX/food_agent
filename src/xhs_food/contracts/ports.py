@@ -26,7 +26,7 @@ from .evidence import (
     CollectRequest,
     SourceLocator,
 )
-from .tasks import RecoverView, TaskProgressProjection
+from .tasks import RecoverView, ResearchRequest, ResearchTask, TaskProgressProjection
 
 
 class _PortValue(AuthorityModel):
@@ -318,6 +318,25 @@ class RecoverViewPort(Protocol):
 TaskProgressProjectionStore = TaskProgressProjectionPort
 
 
+@runtime_checkable
+class ReliableTaskStorePort(Protocol):
+    """Durable owner store for reliable task admission and state snapshots.
+
+    Implementations own persistence only.  The Research Coordinator remains
+    the sole component that computes semantic task transitions.
+    """
+
+    async def get(
+        self, task_id: str
+    ) -> tuple[ResearchTask, ResearchRequest] | None: ...
+
+    async def admit(
+        self, task: ResearchTask, request: ResearchRequest
+    ) -> tuple[ResearchTask, bool]: ...
+
+    async def save(self, task: ResearchTask, request: ResearchRequest) -> ResearchTask: ...
+
+
 __all__ = [
     "ActivityCall",
     "ActivityPort",
@@ -344,6 +363,7 @@ __all__ = [
     "StateStorePort",
     "TaskProgressProjectionPort",
     "TaskProgressProjectionStore",
+    "ReliableTaskStorePort",
     "ToolCall",
     "ToolGateway",
     "ToolResult",

@@ -19,6 +19,7 @@ from xhs_food.contracts import (
     PlanStatus,
     PlanStepStatus,
     RecoverView,
+    ReliableTaskStorePort,
     ResearchOperation,
     ResearchPlan,
     ResearchPlanStep,
@@ -101,6 +102,7 @@ class ResearchCoordinator:
         evidence_review: EvidenceReviewShell | None = None,
         replanner: ReplanShell | None = None,
         stopping_conditions: StoppingConditionShell | None = None,
+        reliable_task_store: ReliableTaskStorePort | None = None,
         reliable_policy: ReliableResearchPolicy | None = None,
         agent_runtime_enabled: bool = False,
         scheduler_enabled: bool = False,
@@ -120,6 +122,7 @@ class ResearchCoordinator:
         self._evidence_review = evidence_review or EvidenceReviewShell()
         self._replanner = replanner or ReplanShell()
         self._stopping_conditions = stopping_conditions or StoppingConditionShell()
+        self._reliable_task_store = reliable_task_store
         self._reliable_policy = reliable_policy or DisabledReliableResearchPolicy()
         self._agent_runtime_enabled = agent_runtime_enabled
         self._scheduler_enabled = scheduler_enabled
@@ -258,6 +261,14 @@ class ResearchCoordinator:
             existing = self._tasks.get(task_id)
             if existing is not None:
                 return existing
+            if self._reliable_task_store is not None:
+                stored = await self._reliable_task_store.get(task_id)
+                if stored is not None:
+                    stored_task, stored_request = stored
+                    self._tasks[task_id] = stored_task
+                    self._reliable_requests[task_id] = stored_request
+                    self._remember_reliable_plan(stored_task, stored_request)
+                    return stored_task
             turn_id = await self._next_reliable_turn_locked(request)
             plan = reliable_plan(
                 task_id=task_id,
@@ -298,28 +309,80 @@ class ResearchCoordinator:
                 step_id="research.execute",
                 payload={"policyVersion": "reliable-task/v1", "workflowId": workflow_id},
             )
+            created = True
+            if self._reliable_task_store is not None:
+                task, created = await self._reliable_task_store.admit(task, request)
+                if task.progress_projection is None:
+                    task = task.model_copy(update={"progress_projection": projection})
+                else:
+                    projection = task.progress_projection
             self._tasks[task_id] = task
             self._remember_plan(plan)
             self._reliable_requests[task_id] = request
-            self._events.setdefault(task_id, []).append(event)
+            if created:
+                self._events.setdefault(task_id, []).append(event)
         await self._projection_store.put(projection)
         return task
 
+    def _remember_reliable_plan(
+        self, task: ResearchTask, request: ResearchRequest
+    ) -> None:
+        from xhs_food.orchestrator.reliable_task import reliable_plan
+
+        try:
+            turn_id = int(task.turn_id or "1")
+        except ValueError:
+            turn_id = 1
+        self._remember_plan(
+            reliable_plan(
+                task_id=task.task_id,
+                query=request.query or request.domain,
+                turn_id=turn_id,
+            )
+        )
+
     async def reliable_task(self, task_id: str) -> ResearchTask | None:
-        return await self.task(task_id)
+        task = await self.task(task_id)
+        if task is not None or self._reliable_task_store is None:
+            return task
+        stored = await self._reliable_task_store.get(task_id)
+        if stored is None:
+            return None
+        stored_task, stored_request = stored
+        async with self._state_lock:
+            current = self._tasks.get(task_id)
+            if current is not None:
+                return current
+            self._tasks[task_id] = stored_task
+            self._reliable_requests[task_id] = stored_request
+            self._remember_reliable_plan(stored_task, stored_request)
+        return stored_task
 
     async def reliable_request(self, task_id: str) -> ResearchRequest | None:
         async with self._state_lock:
-            return self._reliable_requests.get(task_id)
+            request = self._reliable_requests.get(task_id)
+        if request is not None or self._reliable_task_store is None:
+            return request
+        stored = await self._reliable_task_store.get(task_id)
+        if stored is None:
+            return None
+        stored_task, stored_request = stored
+        async with self._state_lock:
+            self._tasks.setdefault(task_id, stored_task)
+            self._reliable_requests.setdefault(task_id, stored_request)
+            self._remember_reliable_plan(stored_task, stored_request)
+        return stored_request
 
     async def attach_reliable_run(self, task_id: str, workflow_run: WorkflowRun) -> ResearchTask:
         """Attach a Temporal run and open a new turn for an explicit retry."""
 
         retry_projection: TaskProgressProjection | None = None
+        request: ResearchRequest | None = None
         async with self._state_lock:
             task = self._tasks.get(task_id)
             if task is None:
                 raise LookupError(task_id)
+            request = self._reliable_requests.get(task_id)
             projection = task.progress_projection
             is_new_retry = task.status.is_terminal and task.run_id != workflow_run.run_id
             now = _safe_now(self._clock)
@@ -399,6 +462,8 @@ class ResearchCoordinator:
         projection_to_store = retry_projection or projection
         if projection_to_store is not None:
             await self._projection_store.put(projection_to_store)
+        if self._reliable_task_store is not None and request is not None:
+            await self._reliable_task_store.save(updated, request)
         return updated
 
     async def record_reliable_progress(
@@ -431,15 +496,21 @@ class ResearchCoordinator:
             }
         )
         effective = await self._projection_store.put(updated)
+        persisted_task: ResearchTask | None = None
+        request: ResearchRequest | None = None
         async with self._state_lock:
             task = self._tasks.get(task_id)
             if task is not None:
-                self._tasks[task_id] = task.model_copy(
+                persisted_task = task.model_copy(
                     update={
                         "progress_projection": effective,
                         "updated_at": effective.updated_at,
                     }
                 )
+                self._tasks[task_id] = persisted_task
+                request = self._reliable_requests.get(task_id)
+        if self._reliable_task_store is not None and persisted_task is not None and request is not None:
+            await self._reliable_task_store.save(persisted_task, request)
         return effective
 
     async def finalize_reliable_task(
@@ -478,6 +549,7 @@ class ResearchCoordinator:
             }
         )
         effective = await self._projection_store.put(projection)
+        request: ResearchRequest | None = None
         async with self._state_lock:
             task = self._tasks.get(task_id)
             if task is None:
@@ -493,6 +565,7 @@ class ResearchCoordinator:
                 }
             )
             self._tasks[task_id] = updated
+            request = self._reliable_requests.get(task_id)
             event_type = {
                 TaskStatus.COMPLETED: "task.completed",
                 TaskStatus.FAILED: "task.failed",
@@ -511,7 +584,9 @@ class ResearchCoordinator:
                     payload={"result": result} if result is not None else {},
                 )
             )
-            return updated
+        if self._reliable_task_store is not None and request is not None:
+            await self._reliable_task_store.save(updated, request)
+        return updated
 
     async def _next_reliable_turn_locked(self, request: ResearchRequest) -> int:
         target = request.target_task_id

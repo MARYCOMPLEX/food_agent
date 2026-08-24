@@ -9,6 +9,7 @@ from .llm import LegacyLLMProviderAdapter, ProviderModelGateway
 from .query_family_repository import SQLAlchemyQueryFamilyRepository
 from .reliable_task_authority import (
     PostgresReliableTaskAuthority,
+    PostgresReliableTaskStore,
     PostgresTaskProgressProjectionStore,
 )
 from .repositories import (
@@ -51,6 +52,7 @@ __all__ = [
     "OwnerConfigFacade",
     "ProviderModelGateway",
     "PostgresReliableTaskAuthority",
+    "PostgresReliableTaskStore",
     "PostgresTaskProgressProjectionStore",
     "build_owner_config",
     "build_place_source_connector",

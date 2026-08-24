@@ -33,8 +33,6 @@ class InMemoryTaskProgressProjectionStore:
             raise ValueError("task progress projections cannot be execution checkpoints")
         async with self._lock:
             current = self._values.get(projection.task_id)
-            if current is not None and projection.updated_at < current.updated_at:
-                raise ValueError("task progress projections cannot move backwards in time")
             if current is not None:
                 turn_order = _compare_turn_ids(current.turn_id, projection.turn_id)
                 if turn_order < 0:
@@ -44,6 +42,8 @@ class InMemoryTaskProgressProjectionStore:
                     # same task identity and may restart from ``running``.
                     self._values[projection.task_id] = projection
                     return projection
+                if projection.updated_at < current.updated_at:
+                    raise ValueError("task progress projections cannot move backwards in time")
                 # A terminal projection is immutable. For non-terminal values,
                 # reject same-state progress/completion regressions while still
                 # allowing a legitimate transition to a terminal failure.

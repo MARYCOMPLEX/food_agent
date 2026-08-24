@@ -49,8 +49,8 @@ flag without an explicitly injected Temporal/PostgreSQL policy.
 | Task | Gate | Status | Evidence or remaining work |
 |---|---|---|---|
 | 8.1 | Independent policy versions, terminal set, old-terminal and mapper rules | PASS (contract/mapper) | `legacy-task/v1`, `reliable-task/v1`, `research-task/v1`, `research-activity/v1`; normative fixture, ADR-0011, and `ReliableEventMapper` contract tests. HTTP/SSE route binding remains the 8.9 B0 gate. |
-| 8.2 | Opt-in Research Workflow, stable Workflow ID, duplicate start/single-flight | PARTIAL | Sequential equivalent-request duplicate submission and stable ID tests pass. Reliable refine is now rejected with `RELIABLE_REFINE_IDENTITY_UNAPPROVED` until its cross-turn identity contract is approved. Real Temporal duplicate-start and concurrent PostgreSQL admission/CAS remain pending. |
-| 8.3 | Coordinator-only transitions, Temporal checkpoint, PG commit barrier, reconciliation | PARTIAL | Activity ordering, completed/cancelled/failed receipts, same-run terminal competition, late-run guards, reconciliation Activity, and the SQLAlchemy PostgreSQL authority adapter are covered structurally/offline. Live PostgreSQL transaction/CAS and crash-after-commit reconciliation remain pending. |
+| 8.2 | Opt-in Research Workflow, stable Workflow ID, duplicate start/single-flight | PARTIAL | Stable identity, same-process concurrent admission coalescing, durable-owner hydration, and Temporal adapter duplicate-start handling are covered offline/live SDK-side. Reliable refine is rejected with `RELIABLE_REFINE_IDENTITY_UNAPPROVED` until its cross-turn identity contract is approved. Cross-worker PostgreSQL admission and live Temporal duplicate-start qualification remain pending. |
+| 8.3 | Coordinator-only transitions, Temporal checkpoint, PG commit barrier, reconciliation | PARTIAL | Coordinator-only transitions, `ReliableTaskStorePort`, `PostgresReliableTaskStore` admission/CAS SQL, projection turn ordering, completed/cancelled/failed receipts, same-run terminal competition, late-run guards, and reconciliation Activity are covered structurally/offline. Live PostgreSQL transaction/CAS and crash-after-commit reconciliation remain pending. |
 | 8.4 | Pydantic AI Temporal integration, bounded Activities, retry/timeout/heartbeat/cancel policy | PASS (SDK qualification) | Factory, plugin, JSON boundary, policy constants, and the official live model/tool Activity replay and determinism suite pass; production worker/provider rollout remains a separate gate. |
 | 8.5 | Separate Research queue and reserved Refresh/Media queues | PASS (structural) | `TemporalTaskQueues` enforces three distinct names; worker quota/isolation smoke is pending with the target service. |
 | 8.6 | PG projection + Temporal history + Redis replay/resync | PARTIAL | Fake `xrange` contract proves exact retained-cursor validation, exclusive continuation, and `replay_expired` for trimmed or unknown cursors; PostgreSQL projection adapter exists without runtime DDL. Live PostgreSQL snapshot wiring and HTTP/SSE resync integration remain pending. |
@@ -174,8 +174,12 @@ must be completed and tested:
 - bind the existing SQLAlchemy `PostgresReliableTaskAuthority` to the
   Alembic-owned schema and qualify its transactional idempotency and same-run
   uniqueness constraints against PostgreSQL;
-- a durable task owner/repository that implements the Coordinator port without
-  process-local state;
+- qualify the `PostgresReliableTaskStore` durable owner/repository against the
+  deployment schema and prove cross-worker admission/CAS without process-local
+  state. The adapter expects an Alembic-owned table contract with
+  `task_id` primary key, unique `workflow_id`, `status`, `turn_id`, `run_id`,
+  JSONB `task_payload`, JSONB `request_payload`, and `updated_at`; it never
+  creates this table at runtime;
 - a Temporal `WorkflowPort` connected to the `research` queue and a worker
   registration containing the reliable Activities and, when used, the
   `PydanticAIPlugin`;
@@ -194,16 +198,16 @@ unexecuted command.
 
 | Field | Value |
 |---|---|
-| Implementation commit | `1c12ceb9cb2f9dc8f16059d8a5b36f0eb441faaf` |
+| Implementation commit | `cd4167f` plus the current durable-owner worktree changes (qualification pending) |
 | Qualification commit | `050890af0c6a39e25f7d9483e52fcfc2a8228f62` |
 | Python/runtime | `CPython 3.12.x` |
 | Temporal SDK / service | `1.31.0 / official time-skipping test server` |
 | Pydantic AI | `2.5.1` |
 | PostgreSQL / Redis | `16 / 7.4` |
-| Focused unit count/duration | `14 passed in 6.07s` |
+| Focused unit count/duration | `19 passed` in the B0 reliable-task unit module (current run included in the 82-test targeted gate) |
 | Redis contract count/duration | `8 passed in 3.08s` |
-| Live qualification count/duration | `8 passed in 36.56s` |
-| Full non-live count/duration | `745 passed, 12 deselected, 2 warnings in 65.62s` |
+| Live qualification count/duration | `8 passed in 36.78s` |
+| Full non-live count/duration | `851 passed, 15 deselected, 2 warnings in 54.78s` |
 | `uv lock --check` | `pass` |
 | Ruff / Pyright | `targeted changed-file Ruff pass; targeted Pyright 0 errors; legacy full-tree baseline remains noisy` |
 | `openspec validate define-modular-architecture --strict` | `pass` |

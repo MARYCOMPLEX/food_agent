@@ -18,6 +18,8 @@ from sqlalchemy import text
 from xhs_food.contracts import (
     ContractError,
     ContractPayload,
+    ResearchRequest,
+    ResearchTask,
     ResultCommitReceipt,
     TaskProgressProjection,
     TaskStatus,
@@ -280,6 +282,186 @@ class PostgresTaskProgressProjectionStore:
             await unit.commit()
         return projection
 
+    async def delete(self, task_id: str) -> bool:
+        async with self._unit_of_work_factory() as unit:
+            result = await unit.session_for_adapter().execute(
+                text(
+                    f"DELETE FROM {self._projection_table} "
+                    "WHERE task_id = :task_id RETURNING task_id"
+                ),
+                {"task_id": task_id},
+            )
+            deleted = result.mappings().first() is not None
+            await unit.commit()
+        return deleted
+
+
+class PostgresReliableTaskStore:
+    """Durable reliable-task owner snapshots with PostgreSQL admission/CAS.
+
+    The ``reliable_tasks`` table is an externally provisioned deployment
+    contract.  This adapter never creates or alters schema; it only uses the
+    caller-owned SQLAlchemy unit of work for one transaction per operation.
+    """
+
+    def __init__(
+        self,
+        unit_of_work_factory: UnitOfWorkFactory,
+        *,
+        task_table: str = "reliable_tasks",
+    ) -> None:
+        self._unit_of_work_factory = unit_of_work_factory
+        self._task_table = _identifier(task_table)
+
+    async def get(self, task_id: str) -> tuple[ResearchTask, ResearchRequest] | None:
+        async with self._unit_of_work_factory() as unit:
+            result = await unit.session_for_adapter().execute(
+                text(
+                    f"SELECT task_payload, request_payload FROM {self._task_table} "
+                    "WHERE task_id = :task_id"
+                ),
+                {"task_id": task_id},
+            )
+            row = result.mappings().first()
+            if row is None:
+                return None
+            return _task_record(row)
+
+    async def admit(
+        self, task: ResearchTask, request: ResearchRequest
+    ) -> tuple[ResearchTask, bool]:
+        task_payload, request_payload = _serialized_task_record(task, request)
+        async with self._unit_of_work_factory() as unit:
+            session = unit.session_for_adapter()
+            result = await session.execute(
+                text(
+                    f"INSERT INTO {self._task_table} "
+                    "(task_id, workflow_id, status, turn_id, run_id, task_payload, "
+                    "request_payload, updated_at) VALUES "
+                    "(:task_id, :workflow_id, :status, :turn_id, :run_id, "
+                    "CAST(:task_payload AS JSONB), CAST(:request_payload AS JSONB), "
+                    ":updated_at) ON CONFLICT (task_id) DO NOTHING "
+                    "RETURNING task_payload, request_payload"
+                ),
+                {
+                    "task_id": task.task_id,
+                    "workflow_id": task.workflow_id,
+                    "status": task.status.value,
+                    "turn_id": task.turn_id,
+                    "run_id": task.run_id,
+                    "task_payload": task_payload,
+                    "request_payload": request_payload,
+                    "updated_at": task.updated_at,
+                },
+            )
+            row = result.mappings().first()
+            created = row is not None
+            if row is None:
+                row = await _select_task_row(session, self._task_table, task.task_id, lock=True)
+            if row is None:
+                raise RuntimeError("reliable task admission returned no durable row")
+            admitted_task, _ = _task_record(row)
+            if admitted_task.workflow_id != task.workflow_id:
+                raise RuntimeError("task admission resolved to a different workflow identity")
+            await unit.commit()
+        return admitted_task, created
+
+    async def save(self, task: ResearchTask, request: ResearchRequest) -> ResearchTask:
+        task_payload, request_payload = _serialized_task_record(task, request)
+        async with self._unit_of_work_factory() as unit:
+            session = unit.session_for_adapter()
+            current_row = await _select_task_row(session, self._task_table, task.task_id, lock=True)
+            if current_row is None:
+                raise RuntimeError("reliable task CAS found no durable task")
+            current_task, current_request = _task_record(current_row)
+            if current_task.workflow_id != task.workflow_id:
+                raise RuntimeError("reliable task CAS rejected task/workflow identity")
+            if current_request != request:
+                raise RuntimeError("reliable task request identity changed during CAS")
+            if _task_is_older(current_task, task):
+                await unit.commit()
+                return current_task
+            result = await session.execute(
+                text(
+                    f"UPDATE {self._task_table} SET status = :status, turn_id = :turn_id, "
+                    "run_id = :run_id, task_payload = CAST(:task_payload AS JSONB), "
+                    "request_payload = CAST(:request_payload AS JSONB), "
+                    "updated_at = :updated_at "
+                    "WHERE task_id = :task_id AND workflow_id = :workflow_id "
+                    "RETURNING task_payload, request_payload"
+                ),
+                {
+                    "task_id": task.task_id,
+                    "workflow_id": task.workflow_id,
+                    "status": task.status.value,
+                    "turn_id": task.turn_id,
+                    "run_id": task.run_id,
+                    "task_payload": task_payload,
+                    "request_payload": request_payload,
+                    "updated_at": task.updated_at,
+                },
+            )
+            row = result.mappings().first()
+            if row is None:
+                raise RuntimeError("reliable task CAS rejected task/workflow identity")
+            saved_task, saved_request = _task_record(row)
+            if saved_request != request:
+                raise RuntimeError("reliable task request identity changed during CAS")
+            await unit.commit()
+        return saved_task
+
+
+async def _select_task_row(
+    session: Any, table: str, task_id: str, *, lock: bool
+) -> Mapping[str, Any] | None:
+    suffix = " FOR UPDATE" if lock else ""
+    result = await session.execute(
+        text(
+            f"SELECT task_payload, request_payload FROM {table} "
+            f"WHERE task_id = :task_id{suffix}"
+        ),
+        {"task_id": task_id},
+    )
+    return result.mappings().first()
+
+
+def _serialized_task_record(
+    task: ResearchTask, request: ResearchRequest
+) -> tuple[str, str]:
+    return (
+        json.dumps(task.model_dump(mode="json"), ensure_ascii=False, sort_keys=True, separators=(",", ":")),
+        json.dumps(
+            request.model_dump(mode="json"), ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ),
+    )
+
+
+def _task_record(row: Mapping[str, Any]) -> tuple[ResearchTask, ResearchRequest]:
+    task_payload = row.get("task_payload")
+    request_payload = row.get("request_payload")
+    if isinstance(task_payload, str):
+        task_payload = json.loads(task_payload)
+    if isinstance(request_payload, str):
+        request_payload = json.loads(request_payload)
+    if not isinstance(task_payload, Mapping) or not isinstance(request_payload, Mapping):
+        raise TypeError("reliable task row payloads must be JSON objects")
+    return ResearchTask.model_validate(task_payload), ResearchRequest.model_validate(request_payload)
+
+
+def _task_is_older(current: ResearchTask, candidate: ResearchTask) -> bool:
+    """Return whether a candidate cannot replace the locked task snapshot."""
+
+    if current.turn_id != candidate.turn_id:
+        try:
+            return int(candidate.turn_id or "0") < int(current.turn_id or "0")
+        except ValueError:
+            return (candidate.turn_id or "") < (current.turn_id or "")
+    if current.status.is_terminal:
+        return True
+    if current.run_id and current.run_id != candidate.run_id:
+        return True
+    return candidate.updated_at < current.updated_at
+
 
 def _identifier(value: str) -> str:
     if not _IDENTIFIER.fullmatch(value):
@@ -345,4 +527,8 @@ def _projection_is_older(
     return candidate.updated_at < current.updated_at
 
 
-__all__ = ["PostgresReliableTaskAuthority", "PostgresTaskProgressProjectionStore"]
+__all__ = [
+    "PostgresReliableTaskAuthority",
+    "PostgresReliableTaskStore",
+    "PostgresTaskProgressProjectionStore",
+]

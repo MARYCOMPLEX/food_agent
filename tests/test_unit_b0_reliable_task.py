@@ -7,7 +7,10 @@ from typing import Any
 
 import pytest
 
-from xhs_food.composition.adapters import PostgresReliableTaskAuthority
+from xhs_food.composition.adapters import (
+    PostgresReliableTaskAuthority,
+    PostgresReliableTaskStore,
+)
 from xhs_food.composition.adapters.reliable_task_authority import _projection_is_older
 from xhs_food.contracts import (
     ContractError,
@@ -28,6 +31,7 @@ from xhs_food.orchestrator import (
     stable_research_task_id,
 )
 from xhs_food.orchestrator.coordinator import ResearchCoordinator
+from xhs_food.orchestrator.projections import InMemoryTaskProgressProjectionStore
 
 
 class _LegacyPort:
@@ -143,6 +147,29 @@ class _UnitOfWork:
         self.commits += 1
 
 
+class _ReliableTaskStore:
+    def __init__(self) -> None:
+        self.records: dict[str, tuple[Any, Any]] = {}
+        self.admissions = 0
+        self.saves = 0
+
+    async def get(self, task_id: str) -> tuple[Any, Any] | None:
+        return self.records.get(task_id)
+
+    async def admit(self, task: Any, request: Any) -> tuple[Any, bool]:
+        self.admissions += 1
+        existing = self.records.get(task.task_id)
+        if existing is not None:
+            return existing[0], False
+        self.records[task.task_id] = (task, request)
+        return task, True
+
+    async def save(self, task: Any, request: Any) -> Any:
+        self.saves += 1
+        self.records[task.task_id] = (task, request)
+        return task
+
+
 def _request(
     request_id: str = "request-1",
     *,
@@ -199,6 +226,39 @@ async def test_concurrent_equivalent_admission_waits_for_one_workflow_attach() -
     assert first.workflow_id == second.workflow_id
     assert first.run_id == second.run_id
     assert len(workflow.starts) == 1
+
+
+@pytest.mark.unit
+async def test_reliable_owner_store_hydrates_duplicate_across_coordinator_instances() -> None:
+    store = _ReliableTaskStore()
+    first_workflow = _Workflow()
+    first_policy = TemporalReliableResearchPolicy(first_workflow)
+    first_coordinator = ResearchCoordinator(
+        _LegacyPort(),
+        reliable_task_store=store,
+        reliable_policy=first_policy,
+        reliable_policy_enabled=True,
+    )
+    first_policy.bind_owner(first_coordinator)
+    first = await first_coordinator.submit(_request("request-1"))
+    assert store.admissions == 1
+    assert store.saves >= 1
+
+    second_workflow = _Workflow()
+    second_policy = TemporalReliableResearchPolicy(second_workflow)
+    second_coordinator = ResearchCoordinator(
+        _LegacyPort(),
+        reliable_task_store=store,
+        reliable_policy=second_policy,
+        reliable_policy_enabled=True,
+    )
+    second_policy.bind_owner(second_coordinator)
+    second = await second_coordinator.submit(_request("request-2"))
+
+    assert second.task_id == first.task_id
+    assert second.workflow_id == first.workflow_id
+    assert second.run_id == first.run_id
+    assert second_workflow.starts == []
 
 
 @pytest.mark.unit
@@ -342,6 +402,73 @@ async def test_postgres_authority_uses_one_transaction_and_idempotent_receipt() 
 
 
 @pytest.mark.unit
+async def test_postgres_task_store_admission_and_cas_are_transactional() -> None:
+    request = _request()
+    workflow = _Workflow()
+    policy = TemporalReliableResearchPolicy(workflow)
+    coordinator = ResearchCoordinator(
+        _LegacyPort(), reliable_policy=policy, reliable_policy_enabled=True
+    )
+    policy.bind_owner(coordinator)
+    task = await coordinator.admit_reliable_task(
+        request,
+        task_id="task-1",
+        workflow_id="research:task-1",
+    )
+    row = {
+        "task_payload": task.model_dump(mode="json"),
+        "request_payload": request.model_dump(mode="json"),
+    }
+    insert_session = _Session([row])
+    insert_unit = _UnitOfWork(insert_session)
+    store = PostgresReliableTaskStore(lambda: insert_unit)
+    admitted, created = await store.admit(task, request)
+    assert created is True
+    assert admitted.task_id == task.task_id
+    assert insert_unit.commits == 1
+    assert len(insert_session.statements) == 1
+
+    save_task = task.model_copy(update={"run_id": "run-1"})
+    save_row = {
+        "task_payload": save_task.model_dump(mode="json"),
+        "request_payload": request.model_dump(mode="json"),
+    }
+    save_session = _Session([save_row, save_row])
+    save_unit = _UnitOfWork(save_session)
+    saved = await PostgresReliableTaskStore(lambda: save_unit).save(save_task, request)
+    assert saved.run_id == "run-1"
+    assert save_unit.commits == 1
+    assert len(save_session.statements) == 2
+
+
+@pytest.mark.unit
+async def test_postgres_task_store_conflict_reads_existing_identity() -> None:
+    request = _request()
+    workflow = _Workflow()
+    policy = TemporalReliableResearchPolicy(workflow)
+    coordinator = ResearchCoordinator(
+        _LegacyPort(), reliable_policy=policy, reliable_policy_enabled=True
+    )
+    policy.bind_owner(coordinator)
+    task = await coordinator.admit_reliable_task(
+        request,
+        task_id="task-1",
+        workflow_id="research:task-1",
+    )
+    row = {
+        "task_payload": task.model_dump(mode="json"),
+        "request_payload": request.model_dump(mode="json"),
+    }
+    session = _Session([None, row])
+    unit = _UnitOfWork(session)
+    admitted, created = await PostgresReliableTaskStore(lambda: unit).admit(task, request)
+    assert created is False
+    assert admitted.task_id == task.task_id
+    assert unit.commits == 1
+    assert len(session.statements) == 2
+
+
+@pytest.mark.unit
 async def test_postgres_failed_receipt_preserves_terminal_status() -> None:
     row = {
         "task_id": "task-1",
@@ -458,6 +585,29 @@ def test_newer_turn_can_replace_terminal_projection() -> None:
     )
 
     assert _projection_is_older(current, candidate) is False
+
+
+@pytest.mark.unit
+async def test_newer_turn_projection_wins_even_with_an_older_timestamp() -> None:
+    store = InMemoryTaskProgressProjectionStore()
+    current = TaskProgressProjection(
+        task_id="task-1",
+        turn_id="1",
+        status=TaskStatus.COMPLETED,
+        progress=1.0,
+        updated_at="2026-08-24T00:01:00Z",
+    )
+    candidate = current.model_copy(
+        update={
+            "turn_id": "2",
+            "status": TaskStatus.RUNNING,
+            "progress": 0.0,
+            "updated_at": "2026-08-24T00:00:00Z",
+        }
+    )
+    assert await store.put(current) == current
+    assert await store.put(candidate) == candidate
+    assert await store.get("task-1") == candidate
 
 
 @pytest.mark.unit

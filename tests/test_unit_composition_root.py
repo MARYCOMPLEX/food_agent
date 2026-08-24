@@ -222,6 +222,14 @@ def test_duplicate_bindings_and_non_legacy_s1_bindings_are_rejected() -> None:
         root.assert_legacy_only()
 
 
+def test_reliable_root_requires_an_explicit_durable_task_store(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("MODULAR_RELIABLE_TASK_LIFECYCLE", "true")
+    with pytest.raises(RuntimeError, match="durable reliable task store"):
+        build_legacy_composition_root(reliable_policy=object())
+
+
 async def test_s4_composition_root_registers_validated_food_pack_and_legacy_fallback() -> None:
     from xhs_food.composition.domain_packs import RegisteredDomainPack
     from xhs_food.domain_packs.food import FoodPack
