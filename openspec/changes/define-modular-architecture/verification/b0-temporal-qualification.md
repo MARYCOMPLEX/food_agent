@@ -1,6 +1,6 @@
 # B0 Temporal And Pydantic AI Qualification
 
-Status: Partial pass - SDK and reliable cancellation qualification passed; process-crash and external-store gates pending
+Status: Partial pass - SDK, application, and local process-crash qualification passed; target-service and external-store gates remain pending
 
 Milestone: B0 (`Reliable Task Semantics`)
 
@@ -10,11 +10,14 @@ This record is intentionally separate from the offline B0 contract tests. It
 qualifies the locked Temporal Python SDK `1.31.0` and Pydantic AI Slim `2.5.1`
 integration using the official SDK time-skipping test server and deterministic
 Pydantic AI `TestModel`. It does not qualify a production Temporal deployment,
-provider availability, or the PostgreSQL authority adapter.
+provider availability, or the PostgreSQL authority adapter. The process-crash
+case uses a real local Temporal dev server and two OS worker processes; it does
+not qualify a production Temporal service rollout.
 
 Source suite:
 
 - [`tests/test_temporal_qualification.py`](../../../../tests/test_temporal_qualification.py)
+- [`tests/test_live_b0_process_crash.py`](../../../../tests/test_live_b0_process_crash.py)
 - [Temporal Python SDK documentation](https://docs.temporal.io/develop/python)
 - [Pydantic AI Temporal durable execution documentation](https://pydantic.dev/docs/ai/capabilities/durable_execution/temporal/)
 
@@ -41,6 +44,7 @@ runtime environment in the table below.
 | Retry recovery | Transient Activity succeeds on the third bounded attempt | PASS |
 | Retry exhaustion | Exhausted Activity produces one failed Workflow and the configured attempt count | PASS |
 | Worker stop/restart | Clean worker stop, fresh worker execution, and explicit history replay pass; this is not a process-level crash test | PASS (limited) |
+| Process-level worker crash | First OS worker exits with code 71 after Activity start; replacement worker completes the same Workflow and persisted history | PASS (local Temporal dev server) |
 | Reliable cancellation | Reliable Research signal reaches cancellation Activity, commits a receipt, maps `task.cancelled`, and publishes one idempotent terminal event | PASS |
 | Cancellation race | Cancel versus slow Activity yields exactly one terminal history event | PASS |
 | Deployment patch | Old history replays under `workflow.patched()` and new execution selects the new branch | PASS |
@@ -49,14 +53,16 @@ runtime environment in the table below.
 | SSE retained cursor | Live FastAPI/Redis route resumes exclusively from `Last-Event-ID` without creating a task | PASS (application live) |
 | SSE expired cursor | Live FastAPI/Redis route maps stream loss to `replay_expired/resync` with the PostgreSQL snapshot | PASS (application live) |
 
-The first nine observations are implemented by eight isolated SDK/application tests; retry
-recovery and retry exhaustion share one test function. The worker row
-intentionally does not claim an in-flight process crash: the Windows
-Temporal test server's clean shutdown/restart path is the reproducible SDK
-check, while a process-level crash harness remains a deployment gate. The
-application rows are qualified separately by the B0 live PostgreSQL, Redis,
-and HTTP/SSE suites; the SDK suite alone cannot prove them. Deployment-level
-process-crash and real Temporal service gates remain outside this record.
+The first thirteen observations are implemented by fourteen isolated
+SDK/application tests; retry recovery and retry exhaustion share one test
+function. The process-crash test proves that a replacement OS worker resumes
+the same Workflow ID after the first worker exits with code 71. Temporal may
+reassign an in-flight Activity task without appending a second
+`ACTIVITY_TASK_STARTED` event; the test therefore requires an Activity start
+and completion plus `WORKFLOW_EXECUTION_COMPLETED`, rather than assuming a
+retry-event shape. The application rows are qualified separately by the B0
+live PostgreSQL, Redis, and HTTP/SSE suites. A real deployed Temporal service,
+restart smoke, and production lifespan binding remain outside this record.
 
 The reliable cancellation case uses graceful signal handling: a signal that
 arrives during an Activity waits for that Activity to finish, then the
@@ -78,8 +84,8 @@ Fill this section from the command output, preserving failures verbatim:
 | Test server mode | `time-skipping` |
 | Command | `uv run --frozen pytest -q -m live tests/test_temporal_qualification.py -ra` |
 | Result | `8 passed` |
-| Duration | `37.03s` (current frozen-lockfile run after reliable cancellation, worker binding, and rollback admission changes; prior runs `10.25s`-`39.42s`) |
-| Failure output | `none for the eight SDK tests or the live PostgreSQL/Redis/HTTP/SSE application gates; process-crash and real Temporal service qualification remain out of scope` |
+| Duration | `37.63s` (current frozen-lockfile run; prior runs `10.25s`-`39.42s`) |
+| Failure output | `none for the eight SDK tests; the combined B0 live gate including PostgreSQL, Redis, HTTP/SSE, and local process-crash qualification also passed; real Temporal service qualification remains out of scope` |
 
 If a future environment blocks the test server download, mark `Result` as
 `blocked`, retain the command and exception, and leave unexecuted case
@@ -93,9 +99,10 @@ The qualification passes only if:
 1. every case marked `Required observation` has an explicit passing assertion;
 2. no replay reports a nondeterminism failure;
 3. retry counts match the configured maximum attempts;
-4. the SDK worker stop/restart check and explicit history replay pass; a
-   separate process-level crash harness must prove an in-flight Workflow
-   resumes under the same Workflow ID before B0 is complete;
+4. the SDK worker stop/restart check and explicit history replay pass, and the
+   local process-level crash harness proves an in-flight Workflow resumes under
+   the same Workflow ID; target Temporal service restart qualification remains
+   a separate deployment gate;
 5. exactly one terminal history event is observed in the cancellation race;
 6. the reliable application cancellation test commits the authoritative
    cancellation receipt and emits one `task.cancelled` event;
