@@ -129,7 +129,7 @@
 - [x] 8.8 验证 Redis 不可用时已启动 Temporal workflow 可继续且持久结果可读；需要创建实时会话/SSE热状态的新请求返回明确 dependency-unavailable，不静默退化到进程内状态。
 - [x] 8.9 运行 HTTP/SSE compatibility mapper tests，证明 reliable policy 的 wire 差异只出现在已批准 authority contract 允许的位置，且 terminal event 只在 PostgreSQL 提交成功后发出。
 - [x] 8.10 添加依赖和运行时 gate，证明核心路径没有 Redis lock/lease、ARQ、Celery、LangGraph checkpoint 或第二个 durable scheduler。
-- [ ] 8.11 关闭 reliable policy 并回 legacy task adapter，确认 Temporal history 可保留但不再接收新任务，Evidence/数据库无不可逆依赖；将 B0 作为独立行为提交。
+- [x] 8.11 关闭 reliable policy 并回 legacy task adapter，确认 Temporal history 可保留但不再接收新任务，Evidence/数据库无不可逆依赖；将 B0 作为独立行为提交。
 
 ## 9. B1 Canonical Evidence Shadow
 

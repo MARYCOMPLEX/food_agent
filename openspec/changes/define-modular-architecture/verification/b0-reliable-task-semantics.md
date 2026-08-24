@@ -58,7 +58,7 @@ flag without an explicitly injected Temporal/PostgreSQL policy.
 | 8.8 | Redis outage semantics | PASS (live continuity + HTTP binding) | `get_event_bus(require_redis=True)` returns stable `EVENT_BUS_DEPENDENCY_UNAVAILABLE` for missing configuration and connection failure instead of creating an in-memory bus; the reliable Redis adapter now performs a preflight `PING` before SSE headers, and the live HTTP test maps an unreachable endpoint to `503` without an in-memory fallback. The live application test closes the Redis connection after the PostgreSQL commit, verifies the Workflow still returns a committed result, reconnects, and reconciles the terminal event. |
 | 8.9 | HTTP/SSE compatibility and post-commit terminal publication | PASS (contract/route) | Legacy HTTP/SSE snapshots, reliable event mapping, opt-in reliable admission, canonical `sseVersion=v1`, exclusive retained replay, missing projection `404`, expired-cursor `replay_expired/resync` without an id, dependency-unavailable `503`, and live Redis terminal publication after PostgreSQL commit pass. Full-stack differential qualification and production Temporal service qualification remain B0 gaps. |
 | 8.10 | Dependency/runtime prohibition gate | PASS (static, needs final scan) | No B0 code introduces Redis lock/lease, ARQ, Celery, LangGraph, or second scheduler. Re-run import/dependency scan before commit. |
-| 8.11 | Disable/rebind legacy and independent revert | PARTIAL (admission gate) | `TemporalReliableResearchPolicy.disable_admission()` now rejects new reliable submissions with `RELIABLE_ADMISSION_DISABLED` before Temporal start while preserving existing history/facts; the independent Git revert drill passed for implementation head `796a6c9` against `3b59232` with an identical base tree and clean detached worktree. Production flag flip/rebind, active-workflow drain, and runtime no-new-admission checks remain pending. |
+| 8.11 | Disable/rebind legacy and independent revert | PASS (rollback/rebind contract) | `tests/test_unit_b0_rollback.py` closes reliable admission, rebinds `MODULAR_RESEARCH_CORE_VERSION=legacy/v1` with `MODULAR_RELIABLE_TASK_LIFECYCLE=false`, preserves the existing Temporal run snapshot, proves the legacy facade remains callable, and proves a post-flip legacy request does not increment Temporal starts. The runbook records the staged ingress drain, active-workflow reconciliation, explicit configuration flip, and no-delete/no-schema-downgrade boundary. Production operator execution remains a deployment gate, not a code-path fallback. The independent Git revert drill also passed with an identical base tree and clean detached worktree. |
 
 ## Offline Evidence Already Available
 
@@ -72,7 +72,7 @@ uv run --frozen pytest -q tests/test_unit_s3_redis_contract.py
   # 11 passed in 3.17s
 
 uv run --frozen pytest -q -m "not live" -ra --durations=0
-  # 870 passed, 24 deselected, 2 warnings in 55.42s
+  # 872 passed, 24 deselected, 2 warnings in 53.71s
 
 uv lock --check
 # passed
@@ -130,11 +130,15 @@ Pydantic AI plugin. The live application fixture uses this same factory; a
 target Temporal service smoke is still required before enabling multiple
 worker pools in production.
 
-The rollback admission contract additionally proves that disabling the reliable
-policy leaves its Workflow port untouched and prevents a new `WorkflowStart`
-from being issued. This is the in-process guard used after ingress draining;
-the deployment still has to perform the staged configuration flip and verify
-all API instances before the B0 rollback gate can be marked complete.
+The rollback/rebind contract in
+[`tests/test_unit_b0_rollback.py`](../../../../tests/test_unit_b0_rollback.py)
+proves that disabling the reliable policy leaves an existing Workflow history
+untouched, removes reliable logical bindings from a newly built Composition
+Root, selects `LegacyResearchTaskFacade`, and accepts a legacy request without
+issuing another Temporal start. It also asserts that target foundation
+bindings remain disabled and that the test path performs no Evidence or
+database cleanup. The deployment still has to perform the staged configuration
+flip and verify all API instances before enabling the rollback in production.
 
 The live PostgreSQL B0 suite additionally proves cross-connection admission
 coalescing, task CAS hydration, same-run completed/cancelled receipt
@@ -278,11 +282,11 @@ unexecuted command.
 | Temporal SDK / service | `1.31.0 / official time-skipping test server` |
 | Pydantic AI | `2.5.1` |
 | PostgreSQL / Redis | `16 / 7.4` |
-| Focused unit count/duration | `20 passed` in the B0 reliable-task unit module; `42 passed in 14.17s` in the B0/Redis/architecture targeted gate; `45 passed in 16.47s` in the HTTP/SSE/reliable route gate |
+| Focused unit count/duration | `20 passed` in the B0 reliable-task unit module; `48 passed in 16.44s` in the B0/Redis/worker/architecture/rollback targeted gate; `45 passed in 16.47s` in the HTTP/SSE/reliable route gate |
 | Redis contract count/duration | `11 passed in 3.17s` offline; `3 passed in 8.20s` live B0 streams and restart smoke |
 | Live qualification count/duration | `9 passed in 39.93s` |
 | Live application binding count/duration | `1 passed in 12.63s`; live HTTP/SSE `1 passed in 7.99s`; local process-crash `1 passed in 19.78s`; PG/Temporal crash-after-commit `1 passed in 44.28s`; current combined Temporal/PostgreSQL/Redis/application/process gate `17 passed in 119.27s` |
-| Full non-live count/duration | `870 passed, 24 deselected, 2 warnings in 55.42s` |
+| Full non-live count/duration | `872 passed, 24 deselected, 2 warnings in 53.71s` |
 | `uv lock --check` | `pass` |
 | Ruff / Pyright | `targeted changed-file Ruff pass; targeted Pyright 0 errors; legacy full-tree baseline remains noisy` |
 | `openspec validate define-modular-architecture --strict` | `pass` |

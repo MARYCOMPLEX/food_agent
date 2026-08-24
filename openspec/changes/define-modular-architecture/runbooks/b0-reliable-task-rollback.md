@@ -143,6 +143,31 @@ the reliable policy is enabled during this verification. Also run the
 non-live HTTP/SSE characterization suite and confirm the legacy six-step
 stream and known legacy terminal projection remain unchanged.
 
+For the executable local rollback/rebind contract, run:
+
+```powershell
+uv run --frozen pytest -q tests/test_unit_b0_rollback.py
+```
+
+The contract must pass all of the following assertions before the deployment
+flip is considered qualified:
+
+- `MODULAR_RELIABLE_TASK_LIFECYCLE=false` and
+  `MODULAR_RESEARCH_CORE_VERSION=legacy/v1` produce a root with no reliable
+  logical bindings and a `LegacyResearchTaskFacade` `modular_core` binding;
+- an existing `(workflow_id, run_id)` history snapshot is unchanged after the
+  new root is built;
+- a legacy request is accepted through the facade and the Temporal start count
+  does not increase; and
+- target foundation bindings remain disabled. The test performs no cleanup;
+  operator verification must additionally confirm that no Evidence row,
+  object, PostgreSQL fact, Redis stream, or Temporal history is deleted by the
+  flip.
+
+The test is an offline gate for the application binding. It does not replace
+the operator checks for every API instance, ingress drain, active-workflow
+reconciliation, or post-flip Temporal namespace observation described above.
+
 ### 5. Close the rollback
 
 Record:

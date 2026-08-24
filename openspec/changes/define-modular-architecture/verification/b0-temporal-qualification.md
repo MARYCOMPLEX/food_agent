@@ -93,7 +93,7 @@ Fill this section from the command output, preserving failures verbatim:
 | Test server mode | `time-skipping` |
 | Command | `uv run --frozen pytest -q -m live tests/test_temporal_qualification.py -ra` |
 | Result | `9 passed` |
-| Duration | `39.93s` (current frozen-lockfile run) |
+| Duration | `39.20s` (current frozen-lockfile run) |
 | Failure output | `none for the nine SDK tests or the seventeen-test combined B0 live gate; real Temporal service qualification remains out of scope` |
 
 If a future environment blocks the test server download, mark `Result` as
