@@ -16,7 +16,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
-from collections.abc import Awaitable, Callable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Any, Protocol, cast, runtime_checkable
@@ -729,45 +729,6 @@ def pydantic_ai_worker_plugin() -> Any:
     return PydanticAIPlugin()
 
 
-def build_reliable_research_worker(
-    client: Any,
-    activities: ReliableResearchActivities,
-    *,
-    config: ReliableTaskConfig | None = None,
-    task_queues: Any | None = None,
-    workflows: Sequence[type[Any]] | None = None,
-    plugins: Sequence[Any] = (),
-) -> Any:
-    """Build the B0 Research worker with the approved queue and plugin set.
-
-    Refresh and Media workers are intentionally not created by this helper;
-    their independent pools are enabled by B4.  ``task_queues`` is injectable
-    so deployments can rename queues without changing the Research contract.
-    """
-
-    from xhs_food.foundation import TemporalTaskQueues, build_temporal_worker
-
-    config = config or ReliableTaskConfig()
-    queues = task_queues or TemporalTaskQueues(
-        research=config.task_queue,
-        refresh="refresh",
-        media="media",
-    )
-    if queues.research != config.task_queue:
-        raise ValueError("Research worker queue must match ReliableTaskConfig.task_queue")
-    registered_plugins = tuple(plugins)
-    if not any(type(plugin).__name__ == "PydanticAIPlugin" for plugin in registered_plugins):
-        registered_plugins = (pydantic_ai_worker_plugin(), *registered_plugins)
-    return build_temporal_worker(
-        client,
-        task_queues=queues,
-        queue=config.task_queue,
-        workflows=tuple(workflows or (TemporalResearchWorkflow,)),
-        activities=activities.activities(),
-        plugins=registered_plugins,
-    )
-
-
 class ReliableResearchActivities:
     """Worker Activity implementations with explicit authority boundaries."""
 
@@ -1181,6 +1142,7 @@ class TemporalReliableResearchPolicy:
         # cross-worker authorities.
         self._admission_lock = asyncio.Lock()
         self._inflight_admissions: dict[str, asyncio.Future[ResearchTask]] = {}
+        self._admission_enabled = True
 
     def bind_owner(self, owner: ReliableTaskOwner) -> None:
         """Bind the Coordinator after Composition Root construction."""
@@ -1193,8 +1155,38 @@ class TemporalReliableResearchPolicy:
     def config(self) -> ReliableTaskConfig:
         return self._config
 
+    @property
+    def admission_enabled(self) -> bool:
+        """Whether this policy may start or attach a new reliable Workflow."""
+
+        return self._admission_enabled
+
+    def disable_admission(self) -> None:
+        """Close the reliable ingress during a staged rollback.
+
+        Existing Workflow histories and PostgreSQL facts remain untouched. A
+        deployment should drain active requests before calling this method;
+        the guard is the final in-process check before Temporal start.
+        """
+
+        self._admission_enabled = False
+
+    def enable_admission(self) -> None:
+        """Re-open reliable ingress after the rollback qualification gate."""
+
+        self._admission_enabled = True
+
     async def submit(self, request: ResearchRequest) -> ResearchTask:
         owner = self._require_owner()
+        if not self._admission_enabled:
+            raise ReliableTaskConflict(
+                _lifecycle_error(
+                    code="RELIABLE_ADMISSION_DISABLED",
+                    category=ErrorCategory.POLICY_DENIED,
+                    scope=ErrorScope.REQUEST,
+                    message="reliable task admission is disabled during rollback",
+                )
+            )
         if request.operation is ResearchOperation.RECOVER:
             if request.target_task_id is None:
                 raise ValueError("recover operation requires target_task_id")
@@ -1237,6 +1229,15 @@ class TemporalReliableResearchPolicy:
 
         try:
             existing = await owner.reliable_task(task_id)
+            if not self._admission_enabled:
+                raise ReliableTaskConflict(
+                    _lifecycle_error(
+                        code="RELIABLE_ADMISSION_DISABLED",
+                        category=ErrorCategory.POLICY_DENIED,
+                        scope=ErrorScope.REQUEST,
+                        message="reliable task admission is disabled during rollback",
+                    )
+                )
             if existing is not None and (existing.run_id or existing.status.is_terminal):
                 result = existing
             else:
@@ -1410,7 +1411,6 @@ __all__ = [
     "TemporalResearchWorkflow",
     "build_workflow_start",
     "build_pydantic_ai_research_workflow",
-    "build_reliable_research_worker",
     "pydantic_ai_worker_plugin",
     "stable_research_task_id",
     "stable_research_workflow_id",

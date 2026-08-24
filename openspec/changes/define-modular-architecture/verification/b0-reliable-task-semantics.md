@@ -58,7 +58,7 @@ flag without an explicitly injected Temporal/PostgreSQL policy.
 | 8.8 | Redis outage semantics | PARTIAL | `get_event_bus(require_redis=True)` returns stable `EVENT_BUS_DEPENDENCY_UNAVAILABLE` for missing configuration and connection failure instead of creating an in-memory bus; live Redis 7 stream behavior passes and legacy callers retain their characterized fallback. Live Workflow continuity after Redis outage, persistent-result reads, and new HTTP/SSE admission mapping remain pending. |
 | 8.9 | HTTP/SSE compatibility and post-commit terminal publication | PASS (contract/route) | Legacy HTTP/SSE snapshots, reliable event mapping, opt-in reliable admission, canonical `sseVersion=v1`, exclusive retained replay, missing projection `404`, expired-cursor `replay_expired/resync` without an id, dependency-unavailable `503`, and live Redis terminal publication after PostgreSQL commit pass. Production Composition-Root binding and full-stack differential qualification remain B0 gaps. |
 | 8.10 | Dependency/runtime prohibition gate | PASS (static, needs final scan) | No B0 code introduces Redis lock/lease, ARQ, Celery, LangGraph, or second scheduler. Re-run import/dependency scan before commit. |
-| 8.11 | Disable/rebind legacy and independent revert | PARTIAL | The independent Git revert drill passed for implementation head `796a6c9` against `3b59232` with an identical base tree and clean detached worktree; production flag flip/rebind and runtime no-new-admission checks remain pending. |
+| 8.11 | Disable/rebind legacy and independent revert | PARTIAL (admission gate) | `TemporalReliableResearchPolicy.disable_admission()` now rejects new reliable submissions with `RELIABLE_ADMISSION_DISABLED` before Temporal start while preserving existing history/facts; the independent Git revert drill passed for implementation head `796a6c9` against `3b59232` with an identical base tree and clean detached worktree. Production flag flip/rebind, active-workflow drain, and runtime no-new-admission checks remain pending. |
 
 ## Offline Evidence Already Available
 
@@ -72,7 +72,7 @@ uv run --frozen pytest -q tests/test_unit_s3_redis_contract.py
   # 10 passed in 3.49s
 
 uv run --frozen pytest -q -m "not live" -ra --durations=0
-  # 863 passed, 18 deselected, 2 warnings in 52.86s
+  # 866 passed, 18 deselected, 2 warnings in 52.64s
 
 uv lock --check
 # passed
@@ -114,6 +114,12 @@ factory registers the Workflow, all reliable Activities, and the official
 Pydantic AI plugin. The live application fixture uses this same factory; a
 target Temporal service smoke is still required before enabling multiple
 worker pools in production.
+
+The rollback admission contract additionally proves that disabling the reliable
+policy leaves its Workflow port untouched and prevents a new `WorkflowStart`
+from being issued. This is the in-process guard used after ingress draining;
+the deployment still has to perform the staged configuration flip and verify
+all API instances before the B0 rollback gate can be marked complete.
 
 The live PostgreSQL B0 suite additionally proves cross-connection admission
 coalescing, task CAS hydration, same-run completed/cancelled receipt
@@ -248,7 +254,7 @@ unexecuted command.
 | Redis contract count/duration | `10 passed in 3.49s` offline; `1 passed in 3.33s` live B0 stream |
 | Live qualification count/duration | `8 passed in 37.34s` |
 | Live application binding count/duration | `1 passed in 10.66s` |
-| Full non-live count/duration | `863 passed, 18 deselected, 2 warnings in 52.86s` |
+| Full non-live count/duration | `866 passed, 18 deselected, 2 warnings in 52.64s` |
 | `uv lock --check` | `pass` |
 | Ruff / Pyright | `targeted changed-file Ruff pass; targeted Pyright 0 errors; legacy full-tree baseline remains noisy` |
 | `openspec validate define-modular-architecture --strict` | `pass` |

@@ -6,8 +6,9 @@ from typing import Any
 
 import pytest
 
+from xhs_food.composition import build_reliable_research_worker
 from xhs_food.foundation import TemporalTaskQueues, build_temporal_worker
-from xhs_food.orchestrator import ReliableTaskConfig, build_reliable_research_worker
+from xhs_food.orchestrator import ReliableTaskConfig
 
 
 class _WorkerFixture:

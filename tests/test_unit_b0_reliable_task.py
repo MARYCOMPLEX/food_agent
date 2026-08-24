@@ -30,6 +30,7 @@ from xhs_food.orchestrator import (
     InMemoryReliableTaskAuthority,
     InMemoryReliableTaskEventPublisher,
     ReliableResearchActivities,
+    ReliableTaskConflict,
     TemporalReliableResearchPolicy,
     build_workflow_start,
     stable_research_task_id,
@@ -378,6 +379,24 @@ async def test_cancellation_is_a_temporal_command_and_does_not_fabricate_termina
     assert workflow.cancels == [(task.workflow_id or "", "user requested")]
     current = await coordinator.task(task.task_id)
     assert current is not None and current.status is TaskStatus.RUNNING
+
+
+@pytest.mark.unit
+async def test_rollback_gate_stops_new_reliable_admission_without_touching_history() -> None:
+    workflow = _Workflow()
+    policy = TemporalReliableResearchPolicy(workflow)
+    coordinator = ResearchCoordinator(
+        _LegacyPort(), reliable_policy=policy, reliable_policy_enabled=True
+    )
+    policy.bind_owner(coordinator)
+    policy.disable_admission()
+
+    with pytest.raises(ReliableTaskConflict) as caught:
+        await coordinator.submit(_request())
+
+    assert caught.value.error.code == "RELIABLE_ADMISSION_DISABLED"
+    assert policy.admission_enabled is False
+    assert workflow.starts == []
 
 
 @pytest.mark.unit

@@ -13,6 +13,7 @@ from sqlalchemy import text
 from temporalio.contrib.pydantic import pydantic_data_converter
 from temporalio.testing import WorkflowEnvironment
 
+from xhs_food.composition import build_reliable_research_worker
 from xhs_food.composition.adapters import (
     PostgresReliableTaskAuthority,
     PostgresReliableTaskStore,
@@ -35,7 +36,6 @@ from xhs_food.foundation import (
 from xhs_food.orchestrator import (
     ReliableResearchActivities,
     ResearchWorkflowOutput,
-    build_reliable_research_worker,
     stable_research_task_id,
 )
 from xhs_food.orchestrator.coordinator import ResearchCoordinator

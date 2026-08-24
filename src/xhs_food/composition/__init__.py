@@ -8,6 +8,7 @@ from .root import (
     LogicalBinding,
     RegistryState,
     build_legacy_composition_root,
+    build_reliable_research_worker,
 )
 
 __all__ = [
@@ -18,4 +19,5 @@ __all__ = [
     "LogicalBinding",
     "RegistryState",
     "build_legacy_composition_root",
+    "build_reliable_research_worker",
 ]

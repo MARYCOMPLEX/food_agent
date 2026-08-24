@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from types import MappingProxyType
@@ -241,6 +241,48 @@ class DisabledBindingError(RuntimeError):
         super().__init__(f"binding {registry_name}.{binding_name} is disabled")
         self.registry_name = registry_name
         self.binding_name = binding_name
+
+
+def build_reliable_research_worker(
+    client: object,
+    activities: object,
+    *,
+    config: object | None = None,
+    task_queues: object | None = None,
+    workflows: Sequence[type[object]] | None = None,
+    plugins: Sequence[object] = (),
+) -> object:
+    """Build the opt-in Research worker at the Composition Root boundary."""
+
+    from xhs_food.foundation import TemporalTaskQueues, build_temporal_worker
+    from xhs_food.orchestrator import (
+        ReliableTaskConfig,
+        TemporalResearchWorkflow,
+        pydantic_ai_worker_plugin,
+    )
+
+    reliable_config = config if isinstance(config, ReliableTaskConfig) else ReliableTaskConfig()
+    queues = task_queues if isinstance(task_queues, TemporalTaskQueues) else TemporalTaskQueues(
+        research=reliable_config.task_queue,
+        refresh="refresh",
+        media="media",
+    )
+    if queues.research != reliable_config.task_queue:
+        raise ValueError("Research worker queue must match ReliableTaskConfig.task_queue")
+    activity_list = getattr(activities, "activities", None)
+    if not callable(activity_list):
+        raise TypeError("reliable Research activities must expose activities()")
+    registered_plugins = tuple(plugins)
+    if not any(type(plugin).__name__ == "PydanticAIPlugin" for plugin in registered_plugins):
+        registered_plugins = (pydantic_ai_worker_plugin(), *registered_plugins)
+    return build_temporal_worker(
+        client,
+        task_queues=queues,
+        queue=reliable_config.task_queue,
+        workflows=tuple(workflows or (TemporalResearchWorkflow,)),
+        activities=tuple(activity_list()),
+        plugins=registered_plugins,
+    )
 
 
 def build_legacy_composition_root(
@@ -722,4 +764,5 @@ __all__ = [
     "LogicalBinding",
     "RegistryState",
     "build_legacy_composition_root",
+    "build_reliable_research_worker",
 ]
