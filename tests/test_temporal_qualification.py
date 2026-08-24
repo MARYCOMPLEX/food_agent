@@ -15,6 +15,7 @@ from typing import Any
 
 import pytest
 import pytest_asyncio
+from fixtures.b0_duplicate_commit_workflow import DuplicateCommitQualificationWorkflow
 from pydantic import BaseModel
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.durable_exec.temporal import (
@@ -332,6 +333,66 @@ async def test_pydantic_ai_model_and_tool_calls_are_temporal_activities(temporal
     assert any(name.endswith("__model_request") for name in activity_names)
     assert any("lookup" in name or "call_tool" in name for name in activity_names)
     assert "WORKFLOW_EXECUTION_COMPLETED" in names
+    replay = Replayer(
+        workflows=[_PydanticQualificationWorkflow],
+        plugins=[PydanticAIPlugin()],
+    )
+    replay_result = await replay.replay_workflow(history)
+    assert replay_result.replay_failure is None
+
+
+@pytest.mark.live
+async def test_duplicate_commit_activity_delivery_is_idempotent(temporal_env: Any) -> None:
+    request = ResearchRequest(
+        request_id="duplicate-activity-request",
+        operation=ResearchOperation.QUERY,
+        domain="food",
+        query="duplicate commit qualification",
+        identity=RequestIdentity(session_ref="duplicate-activity-session"),
+        policy=RequestPolicy(policy_version="research/v1", compatibility_version="http/v1"),
+    )
+    policy = TemporalReliableResearchPolicy(_QualificationWorkflowPort(temporal_env.client))
+    coordinator = ResearchCoordinator(
+        _ApplicationLegacyPort(), reliable_policy=policy, reliable_policy_enabled=True
+    )
+    policy.bind_owner(coordinator)
+    task = await coordinator.submit(request)
+    authority = InMemoryReliableTaskAuthority()
+
+    async def execute(value: Any, key: str) -> dict[str, str]:
+        del value, key
+        return {"answer": "unused"}
+
+    activities = ReliableResearchActivities(
+        owner=coordinator,
+        authority=authority,
+        executor=execute,
+    )
+    raw = {
+        "task_id": task.task_id,
+        "workflow_id": task.workflow_id,
+        "result": {"answer": "committed-once"},
+        "idempotency_key": f"{task.task_id}:duplicate-commit:result",
+    }
+    async with Worker(
+        temporal_env.client,
+        task_queue=QUEUE,
+        workflows=[DuplicateCommitQualificationWorkflow],
+        activities=activities.activities(),
+    ):
+        first, second = await temporal_env.client.execute_workflow(
+            DuplicateCommitQualificationWorkflow.run,
+            raw,
+            id=f"b0-duplicate-commit-{task.task_id}",
+            task_queue=QUEUE,
+        )
+
+    assert first["committed"] is True
+    assert first["already_committed"] is False
+    assert second["committed"] is True
+    assert second["already_committed"] is True
+    assert len(authority.receipts) == 1
+    assert len(await coordinator.events(task.task_id)) == 2
 
 
 @pytest.mark.live

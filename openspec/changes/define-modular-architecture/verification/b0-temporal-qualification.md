@@ -51,15 +51,17 @@ runtime environment in the table below.
 | Cancellation race | Cancel versus slow Activity yields exactly one terminal history event | PASS |
 | Deployment patch | Old history replays under `workflow.patched()` and new execution selects the new branch | PASS |
 | Application duplicate start | Temporal adapter concurrent starts resolve to the existing run; no Redis lock path | PASS (SDK adapter) |
+| Duplicate commit Activity | Two Temporal commit Activity executions with one authority idempotency key produce one receipt and one terminal projection | PASS (live Temporal worker) |
 | PG commit/reconcile | Commit receipt is idempotent; application failure injection after commit republishes the same terminal ID | PASS (application live) |
 | SSE retained cursor | Live FastAPI/Redis route resumes exclusively from `Last-Event-ID` without creating a task | PASS (application live) |
 | SSE expired cursor | Live FastAPI/Redis route maps stream loss to `replay_expired/resync` with the PostgreSQL snapshot | PASS (application live) |
 | Redis service restart | Redis restart either preserves a retained cursor or returns `replay_expired`; no duplicate event is delivered | PASS (live Redis service) |
 
-The fifteen observations listed here are covered by sixteen isolated
-SDK/application tests in the combined live command; retry recovery and retry
+The sixteen observations listed here are covered by seventeen isolated
+SDK/application tests in the combined live command (`119.27s`); retry recovery and retry
 exhaustion share one test function, and the Redis retention/TTL/restart
-coverage uses three tests. The process-crash test proves that a replacement OS worker resumes
+coverage uses three tests. The duplicate commit case executes the real
+authority Activity twice with one idempotency key. The process-crash test proves that a replacement OS worker resumes
 the same Workflow ID after the first worker exits with code 71. Temporal may
 reassign an in-flight Activity task without appending a second
 `ACTIVITY_TASK_STARTED` event; the test therefore requires an Activity start
@@ -90,9 +92,9 @@ Fill this section from the command output, preserving failures verbatim:
 | Pydantic AI | `2.5.1` |
 | Test server mode | `time-skipping` |
 | Command | `uv run --frozen pytest -q -m live tests/test_temporal_qualification.py -ra` |
-| Result | `8 passed` |
-| Duration | `36.54s` (current frozen-lockfile run) |
-| Failure output | `none for the eight SDK tests or the sixteen-test combined B0 live gate; real Temporal service qualification remains out of scope` |
+| Result | `9 passed` |
+| Duration | `39.93s` (current frozen-lockfile run) |
+| Failure output | `none for the nine SDK tests or the seventeen-test combined B0 live gate; real Temporal service qualification remains out of scope` |
 
 If a future environment blocks the test server download, mark `Result` as
 `blocked`, retain the command and exception, and leave unexecuted case
