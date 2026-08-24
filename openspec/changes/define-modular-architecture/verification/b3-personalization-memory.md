@@ -120,6 +120,19 @@ Status: Partial implementation - tasks 11.1-11.5 qualified; 11.6-11.15 remain di
   claim path never merges by device, IP, user-agent, or the literal anonymous
   marker, and cache failures cannot undo the committed authority transaction.
 
+## Task 11.8 boundary
+
+- `PersonalizationCapabilityResolver` computes effective sources and tools from
+  the Pack allow-list, request authorization, and the policy-selected subset.
+  An explicit subset containing an undeclared or unauthorized capability raises
+  `PermissionError`; it is never widened or silently executed.
+- An omitted subset means “no additional personalization restriction” and
+  resolves to Pack ∩ request authorization. The result is a sorted immutable
+  `EffectiveCapabilities` contract suitable for a provider/tool adapter.
+- This calculation does not grant access to a Connector or Tool Gateway; the
+  returned IDs remain subject to the owning gateway's registered schema and
+  authorization checks.
+
 ## Qualification commands
 
 ```powershell
@@ -140,6 +153,9 @@ uv run --frozen pytest -q tests/test_unit_b3_session_projection.py
 
 uv run --frozen pytest -q tests/test_unit_b3_authorization.py
 # 3 passed
+
+uv run --frozen pytest -q tests/test_unit_b3_capabilities.py
+# 4 passed
 
 uv run --frozen pytest -q tests/test_unit_b3_schema.py tests/test_unit_b3_resolver.py tests/test_unit_b3_context.py tests/test_unit_b3_session_projection.py
 # 28 passed
