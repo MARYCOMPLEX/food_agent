@@ -20,6 +20,7 @@ from .canonical import (
     CanonicalQueryNormalizer,
     UnclassifiedConstraintError,
 )
+from .continuous_refresh import ContinuousRefreshCoordinator
 from .diff import ShadowDiffApproval, ShadowDifference, ShadowDiffReport, compare_shadow_legacy
 from .embedding_shadow import (
     EmbeddingBackfillInput,
@@ -30,6 +31,7 @@ from .embedding_shadow import (
     EmbeddingShadowService,
 )
 from .explicit_refresh import ExplicitRefreshRequestMapper, ExplicitRefreshService
+from .media_pipeline import EvidenceExtractorRegistry, MediaAssetFetcher, MediaProcessorRegistry
 from .query_reuse import QueryFamilyReuseService, RefreshSingleFlightService
 from .query_reuse_read import QueryReuseReadService
 from .shadow_writer import (
@@ -73,6 +75,10 @@ __all__ = [
     "EmbeddingShadowService",
     "BundleLifecycleService",
     "BundleRefreshService",
+    "ContinuousRefreshCoordinator",
+    "EvidenceExtractorRegistry",
+    "MediaAssetFetcher",
+    "MediaProcessorRegistry",
     "InMemoryBundleDerivationRepository",
     "build_candidate_bundle",
     "ExplicitRefreshService",

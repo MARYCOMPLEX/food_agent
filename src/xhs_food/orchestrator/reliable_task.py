@@ -45,6 +45,7 @@ from xhs_food.contracts import (
     TaskEvent,
     TaskProgressProjection,
     TaskStatus,
+    TemporalExecutionPolicy,
     WorkflowPort,
     WorkflowRun,
     WorkflowStart,
@@ -87,23 +88,11 @@ class ReliableTaskTerminal(StrEnum):
     CANCELLED = "cancelled"
 
 
-class ReliableTaskConfig(ContractModel):
-    """Versioned Temporal activity policy shared by Research workers."""
+class ReliableTaskConfig(TemporalExecutionPolicy):
+    """Research queue binding over the shared Temporal execution policy."""
 
     policy_version: str = RELIABLE_TASK_POLICY_VERSION
     task_queue: str = RESEARCH_TASK_QUEUE
-    activity_timeout_seconds: int = Field(default=300, ge=1)
-    heartbeat_timeout_seconds: int = Field(default=30, ge=1)
-    retry_initial_interval_seconds: int = Field(default=1, ge=1)
-    retry_maximum_interval_seconds: int = Field(default=30, ge=1)
-    retry_backoff_coefficient: float = Field(default=2.0, ge=1.0)
-    retry_maximum_attempts: int = Field(default=3, ge=1)
-    non_retryable_error_types: tuple[str, ...] = (
-        "ValidationError",
-        "PolicyDeniedError",
-        "NonRetryableApplicationError",
-        "ResultCommitRejected",
-    )
 
     def activity_config(self, *, timeout_seconds: int | None = None) -> ActivityConfig:
         """Return one explicit, inspectable Temporal Activity configuration."""

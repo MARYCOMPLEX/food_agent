@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import re
 from collections.abc import AsyncIterable, AsyncIterator
-from typing import Protocol, Self, TypeVar, runtime_checkable
+from enum import StrEnum
+from typing import Literal, Protocol, Self, TypeVar, runtime_checkable
 from urllib.parse import unquote, urlsplit
 
 from pydantic import ConfigDict, Field, model_validator
@@ -66,9 +67,75 @@ class WorkflowStart(_PortVersionedContract):
     idempotency_key: NonEmptyStr
 
 
+class TemporalExecutionPolicy(_PortVersionedContract):
+    """SDK-neutral retry, timeout, and heartbeat policy shared by workloads."""
+
+    policy_version: NonEmptyStr = "temporal-activity/v1"
+    activity_timeout_seconds: int = Field(default=300, ge=1)
+    heartbeat_timeout_seconds: int = Field(default=30, ge=1)
+    retry_initial_interval_seconds: int = Field(default=1, ge=1)
+    retry_maximum_interval_seconds: int = Field(default=30, ge=1)
+    retry_backoff_coefficient: float = Field(default=2.0, ge=1.0)
+    retry_maximum_attempts: int = Field(default=3, ge=1)
+    non_retryable_error_types: tuple[NonEmptyStr, ...] = (
+        "ValidationError",
+        "PolicyDeniedError",
+        "NonRetryableApplicationError",
+        "ResultCommitRejected",
+    )
+
+
 class WorkflowRun(_PortVersionedContract):
     workflow_id: NonEmptyStr
     run_id: NonEmptyStr
+    status: NonEmptyStr
+
+
+class FailedWorkflow(_PortVersionedContract):
+    """Queryable failed execution metadata used by the operator boundary.
+
+    Temporal history remains the executable checkpoint. This value is only a
+    read model for inspection and recovery selection; it carries no queue or
+    broker receipt.
+    """
+
+    workflow_id: NonEmptyStr
+    run_id: NonEmptyStr
+    workflow_type: NonEmptyStr
+    task_queue: NonEmptyStr
+    status: NonEmptyStr = "failed"
+    failure_category: NonEmptyStr | None = None
+    last_checkpoint: NonEmptyStr | None = None
+
+
+class WorkflowRecoveryAction(StrEnum):
+    RETRY = "retry"
+    TERMINATE = "terminate"
+
+
+class WorkflowRetryRequest(_PortVersionedContract):
+    """Operator retry command carrying the original deterministic start input."""
+
+    command: WorkflowStart
+    expected_run_id: NonEmptyStr | None = None
+    reason: NonEmptyStr | None = None
+
+
+class WorkflowTerminateRequest(_PortVersionedContract):
+    """Operator termination command for a failed or stuck execution."""
+
+    workflow_id: NonEmptyStr
+    run_id: NonEmptyStr | None = None
+    reason: NonEmptyStr
+
+
+class WorkflowRecoveryReceipt(_PortVersionedContract):
+    """Deterministic acknowledgement of a retry or termination command."""
+
+    workflow_id: NonEmptyStr
+    run_id: NonEmptyStr
+    action: WorkflowRecoveryAction
+    accepted: bool
     status: NonEmptyStr
 
 
@@ -125,6 +192,66 @@ class ObjectRef(_PortVersionedContract):
 class ObjectStat(_PortValue):
     ref: ObjectRef
     metadata: ContractPayload = Field(default_factory=dict)
+
+
+class ObjectStorePolicy(_PortValue):
+    """Fail-closed operational policy for binary object access."""
+
+    policy_version: NonEmptyStr = "object-store-policy/v1"
+    environment: Literal["production", "local", "test"] = "test"
+    allowed_content_types: tuple[NonEmptyStr, ...] = (
+        "application/json",
+        "audio/mpeg",
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "text/plain",
+        "video/mp4",
+    )
+    max_object_bytes: int = Field(default=50 * 1024 * 1024, gt=0)
+    multipart_threshold_bytes: int = Field(default=8 * 1024 * 1024, gt=0)
+    multipart_chunk_bytes: int = Field(default=8 * 1024 * 1024, gt=0)
+    server_side_encryption: Literal["AES256", "aws:kms", "test"] | None = None
+    encryption_key_ref: NonEmptyStr | None = None
+    signed_url_ttl_seconds: int | None = Field(default=None, ge=1)
+    orphan_grace_seconds: int | None = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def validate_security(self) -> Self:
+        if len(self.allowed_content_types) != len(set(self.allowed_content_types)):
+            raise ValueError("object content-type allow-list must be unique")
+        if self.multipart_chunk_bytes > self.max_object_bytes:
+            raise ValueError("multipart chunk size cannot exceed max object size")
+        if self.environment == "production" and self.server_side_encryption is None:
+            raise ValueError("production ObjectStore requires server-side encryption")
+        if self.server_side_encryption == "aws:kms" and not self.encryption_key_ref:
+            raise ValueError("aws:kms ObjectStore encryption requires an encryption key reference")
+        if self.server_side_encryption != "aws:kms" and self.encryption_key_ref is not None:
+            raise ValueError("encryption key reference is only valid with aws:kms")
+        return self
+
+
+class OrphanCleanupRequest(_PortValue):
+    """An idempotent cleanup candidate emitted after metadata aborts."""
+
+    object_ref: ObjectRef
+    uploaded_at: Timestamp
+    metadata_committed: bool = False
+    referenced: bool = False
+    legal_hold: bool = False
+
+
+class OrphanCleanupResult(_PortValue):
+    """Auditable cleanup outcome; deletion is never inferred from absence."""
+
+    object_id: NonEmptyStr
+    action: Literal["deleted", "retained", "missing", "deferred"]
+    reason: NonEmptyStr
+
+
+@runtime_checkable
+class OrphanCleanupPort(Protocol):
+    async def cleanup(self, request: OrphanCleanupRequest) -> OrphanCleanupResult: ...
 
 
 class ModelMessage(_PortValue):
@@ -190,6 +317,62 @@ class SourceConnector(Protocol):
     async def list_media_refs(self, owner_ref: SourceLocator) -> tuple[CanonicalMediaRef, ...]: ...
 
 
+class SourceAdmissionDecision(_PortVersionedContract):
+    """Rate/circuit admission result; cursor state remains connector-owned."""
+
+    allowed: bool
+    retry_after_seconds: int = Field(default=0, ge=0)
+    circuit_open: bool = False
+
+    @model_validator(mode="after")
+    def validate_admission(self) -> Self:
+        if self.allowed and (self.retry_after_seconds or self.circuit_open):
+            raise ValueError("allowed source admission cannot carry a retry or open circuit")
+        if not self.allowed and self.retry_after_seconds == 0 and not self.circuit_open:
+            raise ValueError("denied source admission must carry a retry or open circuit")
+        return self
+
+
+class SourceCollectionOutcome(_PortVersionedContract):
+    """One source attempt, preserving empty-success versus failure semantics."""
+
+    source_id: NonEmptyStr
+    outcome: Literal["success_nonempty", "success_empty", "partial", "failure"]
+    batch: CanonicalSourceBatch | None = None
+    error: ContractError | None = None
+    next_cursor: str | None = None
+
+    @model_validator(mode="after")
+    def validate_outcome(self) -> Self:
+        has_items = self.batch is not None and bool(
+            self.batch.documents or self.batch.comments or self.batch.authors or self.batch.media_refs
+        )
+        if self.outcome == "failure":
+            if self.error is None or self.batch is not None:
+                raise ValueError("source failure requires an error and no successful batch")
+        elif self.error is not None:
+            if self.outcome != "partial" or self.batch is None:
+                raise ValueError("only partial source outcomes may carry batch errors")
+        elif self.outcome == "success_nonempty" and not has_items:
+            raise ValueError("success_nonempty requires source items")
+        elif self.outcome == "success_empty" and has_items:
+            raise ValueError("success_empty cannot carry source items")
+        if self.batch is not None and self.batch.source_id != self.source_id:
+            raise ValueError("source outcome batch must match source_id")
+        if self.next_cursor is None and self.batch is not None:
+            object.__setattr__(self, "next_cursor", self.batch.next_cursor)
+        return self
+
+
+@runtime_checkable
+class SourceControlPort(Protocol):
+    async def admit(self, source_id: str) -> SourceAdmissionDecision: ...
+
+    async def record_success(self, source_id: str) -> None: ...
+
+    async def record_failure(self, source_id: str, *, retryable: bool) -> None: ...
+
+
 @runtime_checkable
 class PlaceLookupPort(Protocol):
     """Optional place enrichment exposed without a provider-specific client."""
@@ -224,6 +407,27 @@ class WorkflowPort(Protocol):
     async def cancel(self, workflow_id: str, reason: str | None = None) -> None: ...
 
     async def describe(self, workflow_id: str) -> WorkflowRun | None: ...
+
+
+@runtime_checkable
+class WorkflowOperatorPort(Protocol):
+    """Inspection and manual recovery for retry-exhausted Temporal runs.
+
+    Implementations must use the same Workflow ID and durable Temporal
+    history. This port is intentionally separate from the request-time
+    WorkflowPort so a failed-workflow operator cannot become a second queue or
+    retry authority.
+    """
+
+    async def list_failed_workflows(
+        self, *, task_queue: str | None = None, limit: int = 100
+    ) -> tuple[FailedWorkflow, ...]: ...
+
+    async def retry_workflow(self, request: WorkflowRetryRequest) -> WorkflowRecoveryReceipt: ...
+
+    async def terminate_workflow(
+        self, request: WorkflowTerminateRequest
+    ) -> WorkflowRecoveryReceipt: ...
 
 
 @runtime_checkable
@@ -350,6 +554,7 @@ __all__ = [
     "ActivityResult",
     "CachePort",
     "EventBusPort",
+    "FailedWorkflow",
     "EventEnvelope",
     "LLMProvider",
     "ModelGateway",
@@ -367,15 +572,24 @@ __all__ = [
     "RecoverViewPort",
     "SessionWindowPort",
     "SourceConnector",
+    "SourceAdmissionDecision",
+    "SourceCollectionOutcome",
+    "SourceControlPort",
     "StateStorePort",
     "TaskProgressProjectionPort",
     "TaskProgressProjectionSessionLookupPort",
     "TaskProgressProjectionStore",
+    "TemporalExecutionPolicy",
     "ReliableTaskStorePort",
     "ToolCall",
     "ToolGateway",
     "ToolResult",
     "WorkflowPort",
+    "WorkflowOperatorPort",
+    "WorkflowRecoveryAction",
+    "WorkflowRecoveryReceipt",
+    "WorkflowRetryRequest",
     "WorkflowRun",
     "WorkflowStart",
+    "WorkflowTerminateRequest",
 ]

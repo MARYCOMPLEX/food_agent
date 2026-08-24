@@ -9,6 +9,8 @@ from .root import (
     RegistryState,
     ReliableRuntimeBindings,
     build_legacy_composition_root,
+    build_media_worker,
+    build_refresh_worker,
     build_reliable_research_worker,
     build_reliable_runtime_bindings,
 )
@@ -21,7 +23,9 @@ __all__ = [
     "LogicalBinding",
     "RegistryState",
     "ReliableRuntimeBindings",
+    "build_media_worker",
     "build_legacy_composition_root",
+    "build_refresh_worker",
     "build_reliable_runtime_bindings",
     "build_reliable_research_worker",
 ]

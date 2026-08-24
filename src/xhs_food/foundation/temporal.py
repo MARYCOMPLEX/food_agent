@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
@@ -19,8 +20,13 @@ from xhs_food.contracts import (
     ActivityResult,
     ContractPayload,
     ErrorScope,
+    FailedWorkflow,
+    WorkflowRecoveryAction,
+    WorkflowRecoveryReceipt,
+    WorkflowRetryRequest,
     WorkflowRun,
     WorkflowStart,
+    WorkflowTerminateRequest,
 )
 
 from .base import require_enabled
@@ -106,6 +112,32 @@ class TemporalTaskQueues:
         }[queue]
         assert quota is not None
         return quota
+
+    def queue_for(self, workload: str) -> str:
+        """Resolve a logical workload without exposing queue implementation details."""
+
+        queues = {"research": self.research, "refresh": self.refresh, "media": self.media}
+        try:
+            return queues[workload]
+        except KeyError as exc:
+            raise ValueError(f"unregistered Temporal workload: {workload}") from exc
+
+    def quota_for_workload(self, workload: str) -> TemporalWorkerQuota:
+        return self.quota_for(self.queue_for(workload))
+
+    @property
+    def priority_order(self) -> tuple[str, ...]:
+        """Active queues ordered by their configured priority."""
+
+        quotas = (
+            quota
+            for quota in (self.research_quota, self.refresh_quota, self.media_quota)
+            if quota is not None and quota.enabled
+        )
+        return tuple(
+            quota.queue
+            for quota in sorted(quotas, key=lambda item: (-item.priority, item.queue))
+        )
 
     def assert_enabled(self, queue: str) -> TemporalWorkerQuota:
         quota = self.quota_for(queue)
@@ -224,7 +256,7 @@ class TemporalWorkflowAdapter:
             # keeps the PG receipt inside workflow history instead of ending
             # the execution before the commit barrier runs.
             await self._client.get_workflow_handle(workflow_id).signal(
-                "research.cancel.requested", {"reason": reason or ""}
+                _cancel_signal_for_workflow(workflow_id), {"reason": reason or ""}
             )
 
     async def aclose(self) -> None:
@@ -272,6 +304,120 @@ class TemporalWorkflowAdapter:
             status=str(status).casefold(),
         )
 
+    async def list_failed_workflows(
+        self, *, task_queue: str | None = None, limit: int = 100
+    ) -> tuple[FailedWorkflow, ...]:
+        """Inspect retry-exhausted executions through Temporal visibility.
+
+        The result is a read-only operator view. It never copies workflow
+        state into a second durable store or creates a broker queue.
+        """
+
+        require_enabled(self._enabled, "temporal")
+        if limit < 1:
+            raise ValueError("failed workflow limit must be at least one")
+        if task_queue is not None:
+            self._task_queues.quota_for(task_queue)
+        try:
+            query = 'ExecutionStatus="Failed"'
+            if task_queue is not None:
+                # Queue names are validated against the configured allow-list
+                # before they are interpolated into the visibility query.
+                query += f' AND TaskQueue="{task_queue}"'
+            executions = self._client.list_workflows(
+                query=query,
+                limit=limit,
+            )
+            if inspect.isawaitable(executions):
+                executions = await executions
+            values: list[FailedWorkflow] = []
+            if callable(getattr(executions, "__aiter__", None)):
+                async for execution in executions:
+                    item = _failed_workflow_from_visibility(execution)
+                    if item is not None and (
+                        task_queue is None or item.task_queue in {task_queue, "unknown"}
+                    ):
+                        if item.task_queue == "unknown" and task_queue is not None:
+                            item = item.model_copy(update={"task_queue": task_queue})
+                        values.append(item)
+                        if len(values) >= limit:
+                            break
+            else:
+                for execution in executions:
+                    item = _failed_workflow_from_visibility(execution)
+                    if item is not None and (
+                        task_queue is None or item.task_queue in {task_queue, "unknown"}
+                    ):
+                        if item.task_queue == "unknown" and task_queue is not None:
+                            item = item.model_copy(update={"task_queue": task_queue})
+                        values.append(item)
+                        if len(values) >= limit:
+                            break
+            return tuple(values)
+        except asyncio.CancelledError:
+            raise
+        except FoundationAdapterError:
+            raise
+        except Exception as exc:
+            raise FoundationAdapterError(
+                foundation_error_from_exception(
+                    exc,
+                    scope=ErrorScope.WORKFLOW,
+                    operation="workflow.list_failed",
+                )
+            ) from exc
+
+    async def retry_workflow(
+        self, request: WorkflowRetryRequest
+    ) -> WorkflowRecoveryReceipt:
+        """Start an explicit retry with the original stable Workflow ID."""
+
+        require_enabled(self._enabled, "temporal")
+        if request.expected_run_id is not None:
+            current = await self.describe(request.command.workflow_id)
+            if current is not None and current.run_id != request.expected_run_id:
+                raise ValueError("failed workflow run no longer matches the recovery request")
+        run = await self.start(request.command)
+        return WorkflowRecoveryReceipt(
+            workflow_id=run.workflow_id,
+            run_id=run.run_id,
+            action=WorkflowRecoveryAction.RETRY,
+            accepted=True,
+            status=run.status,
+        )
+
+    async def terminate_workflow(
+        self, request: WorkflowTerminateRequest
+    ) -> WorkflowRecoveryReceipt:
+        """Terminate a failed or stuck execution using Temporal history identity."""
+
+        require_enabled(self._enabled, "temporal")
+        try:
+            handle = self._client.get_workflow_handle(
+                request.workflow_id,
+                run_id=request.run_id,
+            )
+            await handle.terminate(reason=request.reason)
+        except asyncio.CancelledError:
+            raise
+        except FoundationAdapterError:
+            raise
+        except Exception as exc:
+            raise FoundationAdapterError(
+                foundation_error_from_exception(
+                    exc,
+                    scope=ErrorScope.WORKFLOW,
+                    operation="workflow.terminate",
+                )
+            ) from exc
+        return WorkflowRecoveryReceipt(
+            workflow_id=request.workflow_id,
+            run_id=request.run_id or "current",
+            action=WorkflowRecoveryAction.TERMINATE,
+            accepted=True,
+            status="termination_requested",
+        )
+
 
 class TemporalActivityAdapter:
     """Worker-side Activity boundary; registered but disabled during S3."""
@@ -311,6 +457,7 @@ def build_temporal_worker(
     workflows: Sequence[type[Any]],
     activities: Sequence[Callable[..., Any]],
     plugins: Sequence[Any] = (),
+    telemetry: Any | None = None,
 ) -> Any:
     """Build one queue-isolated Temporal worker from the approved quota.
 
@@ -323,7 +470,7 @@ def build_temporal_worker(
     quota = task_queues.assert_enabled(queue)
     from temporalio.worker import Worker
 
-    return Worker(
+    worker = Worker(
         client,
         task_queue=quota.queue,
         workflows=tuple(workflows),
@@ -331,6 +478,56 @@ def build_temporal_worker(
         plugins=tuple(plugins),
         max_concurrent_activities=quota.max_concurrent_activities,
         max_concurrent_workflow_tasks=quota.max_concurrent_workflows,
+    )
+    record_health = getattr(telemetry, "record_worker_health", None)
+    if callable(record_health):
+        record_health(task_queue=quota.queue, status="ready")
+    return worker
+
+
+def build_temporal_refresh_worker(
+    client: Any,
+    activities: Any,
+    *,
+    task_queues: TemporalTaskQueues | None = None,
+    workflows: Sequence[type[Any]] = (),
+    plugins: Sequence[Any] = (),
+    telemetry: Any | None = None,
+) -> Any:
+    """Build the isolated Refresh worker; activation is explicit by quota."""
+
+    queues = task_queues or TemporalTaskQueues()
+    return build_temporal_worker(
+        client,
+        task_queues=queues,
+        queue=queues.refresh,
+        workflows=workflows,
+        activities=_resolve_activity_registrations(activities),
+        plugins=plugins,
+        telemetry=telemetry,
+    )
+
+
+def build_temporal_media_worker(
+    client: Any,
+    activities: Any,
+    *,
+    task_queues: TemporalTaskQueues | None = None,
+    workflows: Sequence[type[Any]] = (),
+    plugins: Sequence[Any] = (),
+    telemetry: Any | None = None,
+) -> Any:
+    """Build the isolated Media worker; activation is explicit by quota."""
+
+    queues = task_queues or TemporalTaskQueues()
+    return build_temporal_worker(
+        client,
+        task_queues=queues,
+        queue=queues.media,
+        workflows=workflows,
+        activities=_resolve_activity_registrations(activities),
+        plugins=plugins,
+        telemetry=telemetry,
     )
 
 
@@ -378,12 +575,59 @@ def _is_not_found(exc: Exception) -> bool:
     ).__name__ == "WorkflowNotFoundError"
 
 
+def _resolve_activity_registrations(activities: Any) -> tuple[Callable[..., Any], ...]:
+    if callable(getattr(activities, "activities", None)):
+        activities = activities.activities()
+    return tuple(activities)
+
+
+def _cancel_signal_for_workflow(workflow_id: str) -> str:
+    if workflow_id.startswith("refresh:"):
+        return "refresh.cancel.requested"
+    if workflow_id.startswith("media:"):
+        return "media.cancel.requested"
+    return "research.cancel.requested"
+
+
+def _failed_workflow_from_visibility(value: Any) -> FailedWorkflow | None:
+    def field(*names: str, default: Any = None) -> Any:
+        for name in names:
+            if isinstance(value, Mapping) and name in value:
+                return value[name]
+            result = getattr(value, name, None)
+            if result is not None:
+                return result
+        return default
+
+    workflow_id = field("id", "workflow_id", "workflowId")
+    run_id = field("run_id", "runId")
+    if not workflow_id or not run_id:
+        return None
+    workflow_type = field("workflow_type", "workflowType", "type", default="unknown")
+    task_queue = field("task_queue", "taskQueue", default="unknown")
+    status = field("status", default="failed")
+    status_value = getattr(status, "name", None) or str(status)
+    if status_value.casefold() not in {"failed", "workflowexecutionstatus.failed"}:
+        return None
+    return FailedWorkflow(
+        workflow_id=str(workflow_id),
+        run_id=str(run_id),
+        workflow_type=str(workflow_type),
+        task_queue=str(task_queue),
+        status="failed",
+        failure_category=field("failure_category", "failureCategory"),
+        last_checkpoint=field("last_checkpoint", "lastCheckpoint"),
+    )
+
+
 __all__ = [
     "TemporalActivityAdapter",
     "TemporalTaskQueues",
     "TemporalWorkerQuota",
     "TemporalWorkflowAdapter",
     "build_temporal_worker",
+    "build_temporal_media_worker",
+    "build_temporal_refresh_worker",
     "deterministic_json_value",
     "deterministic_workflow_input",
 ]

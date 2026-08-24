@@ -185,19 +185,19 @@
 
 ## 12. B4 Continuous Refresh And Media Pipeline
 
-- [ ] 12.1 使用 Temporal 实现 Research/Refresh/Media 三个独立 Task Queue、worker pool、配额和优先级；共享 Workflow ID、retry、timeout、heartbeat、cancel 和重试耗尽后的 failed-workflow 检索/人工恢复合同，不引入 broker 式伪 `dead-letter` 语义。
-- [ ] 12.2 实现 Refresh Coordinator 优先级，记录热门、即将过期、覆盖下降、新来源/时间窗和隐私安全反馈聚合理由。
-- [ ] 12.3 实现 Refresh Workflow 的 base version、delta scope、watermarks、稳定 Workflow ID/idempotency key 和 PostgreSQL CAS activation；Redis 不参与 lease 或权威并发裁决。
-- [ ] 12.4 实现 SourceGateway 的 source cursor/rate-limit/circuit，并确保 refresh failure 与真实空结果分离。
-- [ ] 12.5 实现 MediaRef 选择、幂等 fetch、流式验证、SHA-256 去重、S3-compatible ObjectStore 和 MediaAsset metadata；生产 adapter 使用 boto3，本地/CI 使用 MinIO，数据库只存 object ref 和 provenance。
-- [ ] 12.6 实现 MediaProcessor registry 的 supports/process、资源/时间配额和 DerivedArtifact versioning。
-- [ ] 12.7 实现 EvidenceExtractor registry，将文本/媒体派生物转成带 confidence/provenance 的领域 Evidence。
-- [ ] 12.8 实现 Refresh/Media 开关，并以 OpenTelemetry spans/metrics 和 Prometheus counters/gauges/histograms 暴露独立 worker health、Task Queue lag、throughput、retry exhaustion、object I/O 和 extractor error；默认关闭调度。
-- [ ] 12.9 为 boto3 adapter 添加 multipart threshold、streaming backpressure、content type/size allow-list、server-side encryption 配置、signed URL TTL 和 orphan cleanup contracts。
-- [ ] 12.10 注入 Temporal worker crash/replay、Activity duplicate/out-of-order completion、rate limit、retry exhaustion、processor OOM、MinIO/S3 timeout、corrupt/missing object、对象上传成功后 PostgreSQL metadata transaction abort 和 extractor schema failure；断言孤儿对象不进入业务读路径、无 dangling Evidence、Bundle pointer 不变且幂等清理最终执行。
-- [ ] 12.11 验证所有失败不切 current pointer，旧 Bundle 继续服务，失败 workflow 可定位/重试/终止，前台 Research Task Queue 容量不被 Refresh/Media 耗尽。
-- [ ] 12.12 验证 OTel/Prometheus 不记录凭据、签名 URL、用户偏好值或高基数 object/task ID label，并能以 trace correlation 定位 workflow/activity/object failure。
-- [ ] 12.13 分别停止 Refresh 和 Media workers、禁用媒体 policy、回同步/旧 Bundle 路径；保留 Temporal history 和 S3 对象供审计，将 B4 作为独立提交。
+- [x] 12.1 使用 Temporal 实现 Research/Refresh/Media 三个独立 Task Queue、worker pool、配额和优先级；共享 Workflow ID、retry、timeout、heartbeat、cancel 和重试耗尽后的 failed-workflow 检索/人工恢复合同，不引入 broker 式伪 `dead-letter` 语义。
+- [x] 12.2 实现 Refresh Coordinator 优先级，记录热门、即将过期、覆盖下降、新来源/时间窗和隐私安全反馈聚合理由。
+- [x] 12.3 实现 Refresh Workflow 的 base version、delta scope、watermarks、稳定 Workflow ID/idempotency key 和 PostgreSQL CAS activation；Redis 不参与 lease 或权威并发裁决。
+- [x] 12.4 实现 SourceGateway 的 source cursor/rate-limit/circuit，并确保 refresh failure 与真实空结果分离。
+- [x] 12.5 实现 MediaRef 选择、幂等 fetch、流式验证、SHA-256 去重、S3-compatible ObjectStore 和 MediaAsset metadata；生产 adapter 使用 boto3，本地/CI 使用 MinIO，数据库只存 object ref 和 provenance。
+- [x] 12.6 实现 MediaProcessor registry 的 supports/process、资源/时间配额和 DerivedArtifact versioning。
+- [x] 12.7 实现 EvidenceExtractor registry，将文本/媒体派生物转成带 confidence/provenance 的领域 Evidence。
+- [x] 12.8 实现 Refresh/Media 开关，并以 OpenTelemetry spans/metrics 和 Prometheus counters/gauges/histograms 暴露独立 worker health、Task Queue lag、throughput、retry exhaustion、object I/O 和 extractor error；默认关闭调度。
+- [x] 12.9 为 boto3 adapter 添加 multipart threshold、streaming backpressure、content type/size allow-list、server-side encryption 配置、signed URL TTL 和 orphan cleanup contracts。
+- [x] 12.10 注入 Temporal worker crash/replay、Activity duplicate/out-of-order completion、rate limit、retry exhaustion、processor OOM、MinIO/S3 timeout、corrupt/missing object、对象上传成功后 PostgreSQL metadata transaction abort 和 extractor schema failure；断言孤儿对象不进入业务读路径、无 dangling Evidence、Bundle pointer 不变且幂等清理最终执行。
+- [x] 12.11 验证所有失败不切 current pointer，旧 Bundle 继续服务，失败 workflow 可定位/重试/终止，前台 Research Task Queue 容量不被 Refresh/Media 耗尽。
+- [x] 12.12 验证 OTel/Prometheus 不记录凭据、签名 URL、用户偏好值或高基数 object/task ID label，并能以 trace correlation 定位 workflow/activity/object failure。
+- [x] 12.13 分别停止 Refresh 和 Media workers、禁用媒体 policy、回同步/旧 Bundle 路径；保留 Temporal history 和 S3 对象供审计，将 B4 作为独立提交。
 
 ## 13. B5 Travel Pack Proof
 

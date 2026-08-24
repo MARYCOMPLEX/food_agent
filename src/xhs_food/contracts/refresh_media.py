@@ -22,7 +22,7 @@ from .evidence import (
     RetentionPolicy,
     SourceLocator,
 )
-from .ports import ObjectRef
+from .ports import ObjectRef, TemporalExecutionPolicy
 
 Sha256Digest = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
 
@@ -45,6 +45,61 @@ class RefreshPriorityReason(StrEnum):
     SOURCE_WATERMARK_ADVANCED = "source_watermark_advanced"
     NEW_SOURCE = "new_source"
     NEW_TIME_WINDOW = "new_time_window"
+    PRIVACY_SAFE_FEEDBACK = "privacy_safe_feedback"
+
+
+class RefreshPriorityPolicy(AuthorityModel):
+    """Versioned public scheduling thresholds and bounded integer weights."""
+
+    policy_version: ContractVersion = "refresh-priority/v1"
+    popular_threshold: float = Field(default=0.70, ge=0.0, le=1.0)
+    expiring_within_seconds: int = Field(default=3_600, ge=0)
+    coverage_decline_threshold: float = Field(default=0.10, ge=0.0, le=1.0)
+    feedback_min_subjects: int = Field(default=20, ge=2)
+    feedback_change_threshold: float = Field(default=0.25, ge=0.0, le=1.0)
+    popular_weight: int = Field(default=50, ge=0, le=100)
+    expiring_weight: int = Field(default=40, ge=0, le=100)
+    coverage_decline_weight: int = Field(default=35, ge=0, le=100)
+    watermark_weight: int = Field(default=30, ge=0, le=100)
+    new_source_weight: int = Field(default=20, ge=0, le=100)
+    new_time_window_weight: int = Field(default=15, ge=0, le=100)
+    feedback_weight: int = Field(default=10, ge=0, le=100)
+
+
+class RefreshPrioritySignals(AuthorityModel):
+    """Public scheduling signals; individual feedback records are forbidden."""
+
+    family_id: RegisteredSlug
+    observed_at: Timestamp
+    popularity_score: float = Field(default=0.0, ge=0.0, le=1.0)
+    expires_at: Timestamp | None = None
+    current_coverage: float = Field(default=1.0, ge=0.0, le=1.0)
+    previous_coverage: float = Field(default=1.0, ge=0.0, le=1.0)
+    source_watermark_advanced: bool = False
+    has_new_source: bool = False
+    has_new_time_window: bool = False
+    feedback_subject_count: int = Field(default=0, ge=0)
+    feedback_change_score: float = Field(default=0.0, ge=0.0, le=1.0)
+
+
+class RefreshPriorityDecision(AuthorityModel):
+    """Deterministic priority with stable, privacy-safe reason codes."""
+
+    family_id: RegisteredSlug
+    policy_version: ContractVersion
+    priority: int = Field(ge=0)
+    eligible: bool
+    reasons: tuple[RefreshPriorityReason, ...] = ()
+
+    @model_validator(mode="after")
+    def validate_decision(self) -> Self:
+        if len(self.reasons) != len(set(self.reasons)):
+            raise ValueError("refresh priority reasons must not contain duplicates")
+        if self.eligible != bool(self.reasons):
+            raise ValueError("refresh eligibility must match the presence of reasons")
+        if not self.eligible and self.priority != 0:
+            raise ValueError("ineligible refresh decisions must have zero priority")
+        return self
 
 
 class RefreshDeltaScope(AuthorityModel):
@@ -83,6 +138,35 @@ class RefreshJob(AuthorityModel):
     def validate_priority_reasons(self) -> Self:
         if len(self.priority_reasons) != len(set(self.priority_reasons)):
             raise ValueError("priority_reasons must not contain duplicates")
+        return self
+
+
+class RefreshWorkflowInput(VersionedContract):
+    """Deterministic input for the Refresh Temporal Workflow."""
+
+    job: RefreshJob
+    execution_policy: TemporalExecutionPolicy = Field(default_factory=TemporalExecutionPolicy)
+    expected_profile_id: NonEmptyStr | None = None
+
+
+class RefreshWorkflowResult(VersionedContract):
+    """Workflow result after candidate validation and conditional activation."""
+
+    job_id: NonEmptyStr
+    workflow_id: NonEmptyStr
+    run_id: NonEmptyStr
+    status: Literal["completed", "cancelled"]
+    activated: bool = False
+    bundle_id: RegisteredSlug | None = None
+    bundle_version: int | None = Field(default=None, ge=1)
+
+    @model_validator(mode="after")
+    def validate_result(self) -> Self:
+        has_bundle = self.bundle_id is not None and self.bundle_version is not None
+        if self.status == "cancelled" and (self.activated or has_bundle):
+            raise ValueError("cancelled refresh cannot report an activated Bundle")
+        if self.status == "completed" and not has_bundle:
+            raise ValueError("completed refresh must identify its candidate Bundle")
         return self
 
 
@@ -131,6 +215,58 @@ class MediaAsset(AuthorityModel):
         if self.retention != self.source_locator.retention:
             raise ValueError("raw MediaAsset retention must match its source provenance")
         return self
+
+
+class MediaFetchRequest(VersionedContract):
+    """Streaming fetch policy for one immutable source MediaRef."""
+
+    request_id: NonEmptyStr
+    asset_id: RegisteredSlug
+    media_ref: MediaRef
+    source_locator: SourceLocator
+    max_bytes: int = Field(gt=0)
+    allowed_content_types: tuple[NonEmptyStr, ...] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def validate_fetch_scope(self) -> Self:
+        if self.media_ref.locator_id != self.source_locator.locator_id:
+            raise ValueError("MediaFetchRequest media_ref must belong to source_locator")
+        if len(self.allowed_content_types) != len(set(self.allowed_content_types)):
+            raise ValueError("allowed_content_types must not contain duplicates")
+        return self
+
+
+class MediaWorkflowInput(VersionedContract):
+    """Deterministic Media Workflow envelope; bytes stay outside history."""
+
+    request: MediaFetchRequest
+    execution_policy: TemporalExecutionPolicy = Field(default_factory=TemporalExecutionPolicy)
+
+
+class MediaWorkflowResult(VersionedContract):
+    """Candidate media result; publication remains an owner-side Activity concern."""
+
+    request_id: NonEmptyStr
+    workflow_id: NonEmptyStr
+    run_id: NonEmptyStr
+    status: Literal["completed", "cancelled"]
+    asset_id: RegisteredSlug | None = None
+    deduplicated: bool = False
+
+    @model_validator(mode="after")
+    def validate_result(self) -> Self:
+        if self.status == "cancelled" and self.asset_id is not None:
+            raise ValueError("cancelled media cannot report an asset")
+        if self.status == "completed" and self.asset_id is None:
+            raise ValueError("completed media must identify an asset")
+        return self
+
+
+class MediaFetchResult(VersionedContract):
+    """Committed metadata receipt; bytes remain behind ObjectStore."""
+
+    asset: MediaAsset
+    deduplicated: bool = False
 
 
 class ProcessingLimits(AuthorityModel):
@@ -218,11 +354,20 @@ __all__ = [
     "EvidenceExtractionRequest",
     "EvidenceExtractor",
     "MediaAsset",
+    "MediaFetchRequest",
+    "MediaFetchResult",
+    "MediaWorkflowInput",
+    "MediaWorkflowResult",
     "MediaProcessingRequest",
     "MediaProcessor",
     "ProcessingLimits",
+    "RefreshPriorityDecision",
+    "RefreshPriorityPolicy",
+    "RefreshPrioritySignals",
     "RefreshDeltaScope",
     "RefreshJob",
+    "RefreshWorkflowInput",
+    "RefreshWorkflowResult",
     "RefreshPriorityReason",
     "Sha256Digest",
     "WorkloadPort",

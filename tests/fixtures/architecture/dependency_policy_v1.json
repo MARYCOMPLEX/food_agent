@@ -15,6 +15,7 @@
     {"prefix": "xhs_food.orchestrator.coordinator", "layer": "orchestrator", "mode": "target", "match": "exact"},
     {"prefix": "xhs_food.orchestrator.projections", "layer": "orchestrator", "mode": "target", "match": "exact"},
     {"prefix": "xhs_food.orchestrator.review", "layer": "orchestrator", "mode": "target", "match": "exact"},
+    {"prefix": "xhs_food.orchestrator.refresh_media", "layer": "orchestrator", "mode": "target", "match": "exact"},
     {"prefix": "xhs_food.orchestrator.scheduler", "layer": "orchestrator", "mode": "target", "match": "exact"},
     {"prefix": "xhs_food.orchestrator", "layer": "orchestrator", "mode": "legacy"},
     {"prefix": "xhs_food.agents", "layer": "orchestrator", "mode": "legacy"},
@@ -96,7 +97,8 @@
     "get_user_storage_service"
   ],
   "owner_port_boundary_exceptions": {
-    "xhs_food.orchestrator.reliable_task": ["temporalio"]
+    "xhs_food.orchestrator.reliable_task": ["temporalio"],
+    "xhs_food.orchestrator.refresh_media": ["temporalio"]
   },
   "foundation_module_prefixes": ["xhs_food.foundation"],
   "foundation_forbidden_food_import_prefixes": [

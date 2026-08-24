@@ -13,7 +13,7 @@ from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from opentelemetry.instrumentation.redis import RedisInstrumentor
 from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
-from prometheus_client import Counter, Histogram
+from prometheus_client import Counter, Gauge, Histogram
 from temporalio.contrib.opentelemetry import TracingInterceptor
 
 from xhs_food.contracts import PersonalizationCanaryObservation
@@ -40,6 +40,7 @@ _METRIC_LABEL_VALUES = {
         {
             "cancel",
             "collect",
+            "cleanup",
             "delete",
             "describe",
             "download",
@@ -67,6 +68,7 @@ _METRIC_LABEL_VALUES = {
             "ok",
             "partial",
             "rate_limited",
+            "retry_exhausted",
             "success",
             "success_empty",
             "timeout",
@@ -234,6 +236,94 @@ _personalization_privacy_guard = Counter(
     ["outcome"],
 )
 
+_worker_health = Gauge(
+    "xhs_temporal_worker_health",
+    "Current health state for an isolated Temporal worker",
+    ["task_queue", "status"],
+)
+_queue_lag = Histogram(
+    "xhs_temporal_queue_lag_seconds",
+    "Observed Temporal task queue lag",
+    ["task_queue"],
+)
+_worker_throughput = Counter(
+    "xhs_temporal_worker_throughput_total",
+    "Completed Temporal workload outcomes",
+    ["task_queue", "outcome"],
+)
+_retry_exhaustion = Counter(
+    "xhs_temporal_retry_exhaustion_total",
+    "Temporal workflows whose retry budget was exhausted",
+    ["task_queue"],
+)
+_object_io = Counter(
+    "xhs_object_store_io_total",
+    "ObjectStore operations by bounded operation and outcome",
+    ["operation", "outcome"],
+)
+_extractor_errors = Counter(
+    "xhs_evidence_extractor_errors_total",
+    "Evidence extractor failures by stable outcome",
+    ["outcome"],
+)
+
+
+class RefreshMediaTelemetry:
+    """Low-cardinality metrics and trace spans for B4 workloads."""
+
+    def __init__(self, *, enabled: bool = False, tracer: Any | None = None) -> None:
+        self._enabled = enabled
+        self._tracer = tracer or trace.get_tracer("xhs_food.refresh_media")
+
+    def record_worker_health(self, *, task_queue: str, status: str) -> None:
+        if not self._enabled:
+            return
+        labels = prometheus_labels({"task_queue": task_queue, "status": status})
+        _worker_health.labels(**labels).set(1 if status in {"healthy", "ready", "running"} else 0)
+
+    def record_queue_lag(self, *, task_queue: str, lag_seconds: float) -> None:
+        if not self._enabled:
+            return
+        if lag_seconds < 0:
+            raise ValueError("queue lag cannot be negative")
+        labels = prometheus_labels({"task_queue": task_queue})
+        _queue_lag.labels(**labels).observe(lag_seconds)
+
+    def record_throughput(self, *, task_queue: str, outcome: str) -> None:
+        if not self._enabled:
+            return
+        labels = prometheus_labels({"task_queue": task_queue, "outcome": outcome})
+        _worker_throughput.labels(**labels).inc()
+
+    def record_retry_exhaustion(self, *, task_queue: str) -> None:
+        if not self._enabled:
+            return
+        labels = prometheus_labels({"task_queue": task_queue})
+        _retry_exhaustion.labels(**labels).inc()
+
+    def record_object_io(self, *, operation: str, outcome: str) -> None:
+        if not self._enabled:
+            return
+        labels = prometheus_labels({"operation": operation, "outcome": outcome})
+        _object_io.labels(**labels).inc()
+
+    def record_extractor_error(self, *, outcome: str = "error") -> None:
+        if not self._enabled:
+            return
+        labels = prometheus_labels({"outcome": outcome})
+        _extractor_errors.labels(**labels).inc()
+
+    @contextmanager
+    def span(self, name: str, *, attributes: Mapping[str, object] | None = None):
+        if not self._enabled:
+            yield None
+            return
+        with self._tracer.start_as_current_span(
+            name,
+            attributes=correlation_attributes(attributes or {}),
+        ) as active_span:
+            yield active_span
+
 
 class PersonalizationCanaryTelemetry:
     """Record only bounded canary aggregates and never private values."""
@@ -309,6 +399,7 @@ __all__ = [
     "ObservabilityBootstrap",
     "EvidenceShadowTelemetry",
     "PersonalizationCanaryTelemetry",
+    "RefreshMediaTelemetry",
     "correlation_attributes",
     "redact_log_context",
     "prometheus_labels",

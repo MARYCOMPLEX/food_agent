@@ -7,7 +7,7 @@ import hashlib
 import json
 import tempfile
 from collections.abc import AsyncIterable, AsyncIterator, Callable, Mapping
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -16,7 +16,15 @@ from boto3.s3.transfer import TransferConfig
 from botocore.config import Config
 from botocore.exceptions import ClientError
 
-from xhs_food.contracts import ContractPayload, ErrorScope, ObjectRef, ObjectStat
+from xhs_food.contracts import (
+    ContractPayload,
+    ErrorScope,
+    ObjectRef,
+    ObjectStat,
+    ObjectStorePolicy,
+    OrphanCleanupRequest,
+    OrphanCleanupResult,
+)
 
 from .failures import (
     FoundationAdapterError,
@@ -75,7 +83,40 @@ class Boto3ObjectStore:
         multipart_threshold: int = 8 * 1024 * 1024,
         multipart_chunksize: int = 8 * 1024 * 1024,
         read_chunk_size: int = 64 * 1024,
+        max_object_bytes: int | None = None,
+        allowed_content_types: tuple[str, ...] | None = None,
+        environment: str = "test",
+        server_side_encryption: str | None = None,
+        encryption_key_ref: str | None = None,
+        signed_url_ttl_seconds: int | None = None,
+        orphan_grace_seconds: int | None = None,
+        require_encryption: bool = False,
+        policy: ObjectStorePolicy | None = None,
+        telemetry: Any | None = None,
     ) -> None:
+        if policy is not None:
+            if any(
+                value is not None
+                for value in (
+                    max_object_bytes,
+                    allowed_content_types,
+                    server_side_encryption,
+                    encryption_key_ref,
+                    signed_url_ttl_seconds,
+                    orphan_grace_seconds,
+                )
+            ):
+                raise ValueError("provide either policy or individual ObjectStore policy values")
+            environment = policy.environment
+            max_object_bytes = policy.max_object_bytes
+            allowed_content_types = policy.allowed_content_types
+            multipart_threshold = policy.multipart_threshold_bytes
+            multipart_chunksize = policy.multipart_chunk_bytes
+            server_side_encryption = policy.server_side_encryption
+            encryption_key_ref = policy.encryption_key_ref
+            signed_url_ttl_seconds = policy.signed_url_ttl_seconds
+            orphan_grace_seconds = policy.orphan_grace_seconds
+            require_encryption = environment == "production"
         if not bucket:
             raise ValueError("bucket must not be empty")
         if client is not None and client_factory is not None:
@@ -84,6 +125,28 @@ class Boto3ObjectStore:
             raise ValueError("max_concurrency must be at least one")
         if multipart_threshold < 1 or multipart_chunksize < 1 or read_chunk_size < 1:
             raise ValueError("object store sizes must be positive")
+        if max_object_bytes is not None and max_object_bytes < 1:
+            raise ValueError("max_object_bytes must be positive")
+        if max_object_bytes is not None and multipart_chunksize > max_object_bytes:
+            raise ValueError("multipart_chunksize cannot exceed max_object_bytes")
+        if allowed_content_types is not None and (
+            not allowed_content_types or len(allowed_content_types) != len(set(allowed_content_types))
+        ):
+            raise ValueError("allowed_content_types must be non-empty and unique")
+        if environment not in {"production", "local", "test"}:
+            raise ValueError("ObjectStore environment must be production, local, or test")
+        if require_encryption and not server_side_encryption:
+            raise ValueError("production ObjectStore requires server-side encryption")
+        if server_side_encryption not in {None, "AES256", "aws:kms", "test"}:
+            raise ValueError("unsupported server-side encryption mode")
+        if server_side_encryption == "aws:kms" and not encryption_key_ref:
+            raise ValueError("aws:kms ObjectStore encryption requires an encryption key reference")
+        if server_side_encryption != "aws:kms" and encryption_key_ref is not None:
+            raise ValueError("encryption_key_ref is only valid with aws:kms")
+        if signed_url_ttl_seconds is not None and signed_url_ttl_seconds < 1:
+            raise ValueError("signed_url_ttl_seconds must be positive")
+        if orphan_grace_seconds is not None and orphan_grace_seconds < 0:
+            raise ValueError("orphan_grace_seconds cannot be negative")
 
         self._bucket = bucket
         self._client = client
@@ -98,6 +161,14 @@ class Boto3ObjectStore:
             max_concurrency=1,
         )
         self._read_chunk_size = read_chunk_size
+        self._max_object_bytes = max_object_bytes
+        self._allowed_content_types = frozenset(allowed_content_types or ())
+        self._environment = environment
+        self._server_side_encryption = server_side_encryption
+        self._encryption_key_ref = encryption_key_ref
+        self._signed_url_ttl_seconds = signed_url_ttl_seconds
+        self._orphan_grace_seconds = orphan_grace_seconds
+        self._telemetry = telemetry
         self._closed = False
 
     @classmethod
@@ -135,6 +206,8 @@ class Boto3ObjectStore:
 
         if not content_type:
             raise ValueError("content_type must not be empty")
+        if self._allowed_content_types and content_type not in self._allowed_content_types:
+            raise ValueError("content_type is outside the configured ObjectStore allow-list")
         # Validate the externally supplied key before any byte reaches storage.
         ObjectRef(
             object_id="pending",
@@ -151,6 +224,11 @@ class Boto3ObjectStore:
                 "ContentType": content_type,
                 "Metadata": self._upload_metadata(metadata, content_hash, object_id),
             }
+            if self._server_side_encryption in {"AES256", "aws:kms"}:
+                extra_args["ServerSideEncryption"] = self._server_side_encryption
+                if self._server_side_encryption == "aws:kms":
+                    assert self._encryption_key_ref is not None
+                    extra_args["SSEKMSKeyId"] = self._encryption_key_ref
             client = await self._get_client()
         except BaseException:
             self._remove_file(path)
@@ -171,6 +249,7 @@ class Boto3ObjectStore:
             raise
         except Exception as exc:
             self._remove_file(path)
+            self._record_io("upload", "failure")
             raise FoundationAdapterError(
                 foundation_error_from_exception(
                     exc,
@@ -183,6 +262,7 @@ class Boto3ObjectStore:
             raise
         else:
             self._remove_file(path)
+            self._record_io("upload", "success")
 
         return ObjectRef(
             object_id=object_id,
@@ -204,6 +284,8 @@ class Boto3ObjectStore:
                         raise TypeError("ObjectStore chunks must be bytes")
                     digest.update(chunk)
                     size_bytes += len(chunk)
+                    if self._max_object_bytes is not None and size_bytes > self._max_object_bytes:
+                        raise ValueError("object exceeds the configured size allow-list")
                     handle.write(chunk)
                 handle.flush()
         except BaseException:
@@ -338,7 +420,93 @@ class Boto3ObjectStore:
                     operation="object_store.delete",
                 )
             ) from exc
+        self._record_io("delete", "success")
         return True
+
+    async def signed_url(self, ref: ObjectRef, *, ttl_seconds: int | None = None) -> str:
+        """Return a bounded presigned URL only when an explicit TTL is configured."""
+
+        ttl = ttl_seconds if ttl_seconds is not None else self._signed_url_ttl_seconds
+        if ttl is None:
+            raise RuntimeError("signed URL policy is not configured")
+        if ttl < 1 or ttl > 7 * 24 * 60 * 60:
+            raise ValueError("signed URL TTL must be between one second and seven days")
+        client = await self._get_client()
+        try:
+            value = await self._call_sync(
+                client.generate_presigned_url,
+                "get_object",
+                Params={"Bucket": self._bucket, "Key": ref.key},
+                ExpiresIn=ttl,
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            raise FoundationAdapterError(
+                foundation_error_from_exception(
+                    exc,
+                    scope=ErrorScope.OBJECT_STORE,
+                    operation="object_store.signed_url",
+                )
+            ) from exc
+        if not isinstance(value, str) or not value:
+            raise FoundationAdapterError(
+                foundation_error_from_exception(
+                    TypeError("S3 presign returned a non-string URL"),
+                    scope=ErrorScope.OBJECT_STORE,
+                    operation="object_store.signed_url",
+                )
+            )
+        return value
+
+    def _record_io(self, operation: str, outcome: str) -> None:
+        record = getattr(self._telemetry, "record_object_io", None)
+        if callable(record):
+            record(operation=operation, outcome=outcome)
+
+    async def cleanup_orphan(self, request: OrphanCleanupRequest) -> OrphanCleanupResult:
+        """Re-check authority before idempotently deleting an orphan candidate."""
+
+        if request.metadata_committed or request.referenced:
+            return OrphanCleanupResult(
+                object_id=request.object_ref.object_id,
+                action="retained",
+                reason="metadata_committed_or_referenced",
+            )
+        if request.legal_hold:
+            return OrphanCleanupResult(
+                object_id=request.object_ref.object_id,
+                action="retained",
+                reason="legal_hold",
+            )
+        if self._orphan_grace_seconds is None:
+            return OrphanCleanupResult(
+                object_id=request.object_ref.object_id,
+                action="deferred",
+                reason="orphan_grace_policy_missing",
+            )
+        uploaded_at = request.uploaded_at
+        if uploaded_at.tzinfo is None or uploaded_at.utcoffset() is None:
+            raise ValueError("orphan uploaded_at must be timezone-aware")
+        age_seconds = (datetime.now(UTC) - uploaded_at.astimezone(UTC)).total_seconds()
+        if age_seconds < self._orphan_grace_seconds:
+            return OrphanCleanupResult(
+                object_id=request.object_ref.object_id,
+                action="deferred",
+                reason="orphan_grace_not_elapsed",
+            )
+        if await self.stat(request.object_ref) is None:
+            return OrphanCleanupResult(
+                object_id=request.object_ref.object_id,
+                action="missing",
+                reason="object_already_absent",
+            )
+        deleted = await self.delete(request.object_ref)
+        return OrphanCleanupResult(
+            object_id=request.object_ref.object_id,
+            action="deleted" if deleted else "missing",
+            reason="orphan_cleanup" if deleted else "object_already_absent",
+        )
 
     async def aclose(self) -> None:
         """Close a lazily-created boto3 client when the composition root stops."""

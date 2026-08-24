@@ -416,6 +416,58 @@ def build_reliable_research_worker(
     )
 
 
+def build_refresh_worker(
+    client: object,
+    activities: object,
+    *,
+    task_queues: object | None = None,
+    workflows: Sequence[type[object]] = (),
+    plugins: Sequence[object] = (),
+) -> object:
+    """Build the opt-in Refresh worker on its isolated Temporal queue."""
+
+    from xhs_food.foundation import TemporalTaskQueues, build_temporal_refresh_worker
+
+    queues = task_queues if isinstance(task_queues, TemporalTaskQueues) else TemporalTaskQueues()
+    if not workflows:
+        from xhs_food.orchestrator import TemporalRefreshWorkflow
+
+        workflows = (TemporalRefreshWorkflow,)
+    return build_temporal_refresh_worker(
+        client,
+        activities,
+        task_queues=queues,
+        workflows=workflows,
+        plugins=plugins,
+    )
+
+
+def build_media_worker(
+    client: object,
+    activities: object,
+    *,
+    task_queues: object | None = None,
+    workflows: Sequence[type[object]] = (),
+    plugins: Sequence[object] = (),
+) -> object:
+    """Build the opt-in Media worker on its isolated Temporal queue."""
+
+    from xhs_food.foundation import TemporalTaskQueues, build_temporal_media_worker
+
+    queues = task_queues if isinstance(task_queues, TemporalTaskQueues) else TemporalTaskQueues()
+    if not workflows:
+        from xhs_food.orchestrator import TemporalMediaWorkflow
+
+        workflows = (TemporalMediaWorkflow,)
+    return build_temporal_media_worker(
+        client,
+        activities,
+        task_queues=queues,
+        workflows=workflows,
+        plugins=plugins,
+    )
+
+
 def build_legacy_composition_root(
     *,
     reliable_policy: object | None = None,
@@ -482,6 +534,7 @@ def build_legacy_composition_root(
         TargetSettings,
         TemporalActivityAdapter,
         TemporalTaskQueues,
+        TemporalWorkerQuota,
         TemporalWorkflowAdapter,
     )
     from xhs_food.gateways import SchemaToolGateway
@@ -614,6 +667,12 @@ def build_legacy_composition_root(
                 research=temporal.research_queue,
                 refresh=temporal.refresh_queue,
                 media=temporal.media_queue,
+                refresh_quota=TemporalWorkerQuota(
+                    temporal.refresh_queue, 2, 2, 50, enabled=temporal.refresh_enabled
+                ),
+                media_quota=TemporalWorkerQuota(
+                    temporal.media_queue, 2, 2, 25, enabled=temporal.media_enabled
+                ),
             ),
             enabled=False,
         )
@@ -626,12 +685,46 @@ def build_legacy_composition_root(
                 research=temporal.research_queue,
                 refresh=temporal.refresh_queue,
                 media=temporal.media_queue,
+                refresh_quota=TemporalWorkerQuota(
+                    temporal.refresh_queue, 2, 2, 50, enabled=temporal.refresh_enabled
+                ),
+                media_quota=TemporalWorkerQuota(
+                    temporal.media_queue, 2, 2, 25, enabled=temporal.media_enabled
+                ),
             ),
             enabled=False,
         )
 
     def target_object_store() -> Boto3ObjectStore:
         object_store = owner_config.object_store
+        extra: dict[str, Any] = {}
+        if object_store.multipart_chunk_size != 8 * 1024 * 1024:
+            extra["multipart_chunksize"] = object_store.multipart_chunk_size
+        if object_store.max_bytes != 50 * 1024 * 1024:
+            extra["max_object_bytes"] = object_store.max_bytes
+        default_content_types = (
+            "application/json",
+            "audio/mpeg",
+            "image/jpeg",
+            "image/png",
+            "image/webp",
+            "text/plain",
+            "video/mp4",
+        )
+        if object_store.allowed_content_types != default_content_types:
+            extra["allowed_content_types"] = object_store.allowed_content_types
+        if object_store.environment != "test":
+            extra["environment"] = object_store.environment
+        if object_store.server_side_encryption is not None:
+            extra["server_side_encryption"] = object_store.server_side_encryption
+        if object_store.encryption_key_ref is not None:
+            extra["encryption_key_ref"] = object_store.encryption_key_ref
+        if object_store.signed_url_ttl_seconds is not None:
+            extra["signed_url_ttl_seconds"] = object_store.signed_url_ttl_seconds
+        if object_store.orphan_grace_seconds is not None:
+            extra["orphan_grace_seconds"] = object_store.orphan_grace_seconds
+        if object_store.environment == "production":
+            extra["require_encryption"] = True
         if object_store.endpoint_url:
             access_key = object_store.access_key
             secret_key = object_store.secret_key
@@ -645,11 +738,13 @@ def build_legacy_composition_root(
                 region_name=object_store.region,
                 max_concurrency=object_store.max_concurrency,
                 multipart_threshold=object_store.multipart_threshold,
+                **extra,
             )
         return Boto3ObjectStore(
             bucket=object_store.bucket,
             max_concurrency=object_store.max_concurrency,
             multipart_threshold=object_store.multipart_threshold,
+            **extra,
         )
 
     def shared_research_coordinator() -> ResearchCoordinator:
@@ -987,6 +1082,8 @@ __all__ = [
     "DisabledBindingError",
     "LogicalBinding",
     "RegistryState",
+    "build_media_worker",
     "build_legacy_composition_root",
+    "build_refresh_worker",
     "build_reliable_research_worker",
 ]

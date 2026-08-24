@@ -39,6 +39,10 @@ class TargetSettings(BaseSettings):
     temporal_research_queue: str = "research"
     temporal_refresh_queue: str = "refresh"
     temporal_media_queue: str = "media"
+    # Background workloads are opt-in.  A queue may be registered only after
+    # the corresponding operational qualification gate has passed.
+    refresh_enabled: bool = False
+    media_enabled: bool = False
 
     object_store_endpoint_url: str | None = None
     object_store_bucket: str = "food-agent"
@@ -47,6 +51,24 @@ class TargetSettings(BaseSettings):
     object_store_secret_key: SecretStr | None = None
     object_store_max_concurrency: int = Field(default=4, ge=1, le=64)
     object_store_multipart_threshold: int = Field(default=8 * 1024 * 1024, ge=5 * 1024 * 1024)
+    object_store_multipart_chunk_size: int = Field(default=8 * 1024 * 1024, ge=5 * 1024 * 1024)
+    object_store_max_bytes: int = Field(default=50 * 1024 * 1024, gt=0)
+    object_store_allowed_content_types: tuple[str, ...] = (
+        "application/json",
+        "audio/mpeg",
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "text/plain",
+        "video/mp4",
+    )
+    # Test is the safe local default.  Production deployments must opt in to
+    # ``production`` and provide an encryption mode explicitly.
+    object_store_environment: Literal["production", "local", "test"] = "test"
+    object_store_server_side_encryption: Literal["AES256", "aws:kms", "test"] | None = None
+    object_store_encryption_key_ref: str | None = None
+    object_store_signed_url_ttl_seconds: int | None = Field(default=None, ge=1)
+    object_store_orphan_grace_seconds: int | None = Field(default=None, ge=0)
 
     otel_enabled: bool = False
     otel_service_name: str = "food-agent"
@@ -65,6 +87,18 @@ class TargetSettings(BaseSettings):
             raise ValueError("off personalization canary cannot carry a sample rate")
         if self.personalization_canary_mode != "off" and self.personalization_canary_sample_rate <= 0:
             raise ValueError("active personalization canary requires a positive sample rate")
+        if len(self.object_store_allowed_content_types) != len(
+            set(self.object_store_allowed_content_types)
+        ):
+            raise ValueError("object store content-type allow-list must be unique")
+        if self.object_store_multipart_chunk_size > self.object_store_max_bytes:
+            raise ValueError("object store multipart chunk size cannot exceed max bytes")
+        if self.object_store_environment == "production" and self.object_store_server_side_encryption is None:
+            raise ValueError("production ObjectStore requires MODULAR_OBJECT_STORE_SERVER_SIDE_ENCRYPTION")
+        if self.object_store_server_side_encryption == "aws:kms" and not self.object_store_encryption_key_ref:
+            raise ValueError("aws:kms ObjectStore encryption requires MODULAR_OBJECT_STORE_ENCRYPTION_KEY_REF")
+        if self.object_store_server_side_encryption != "aws:kms" and self.object_store_encryption_key_ref is not None:
+            raise ValueError("encryption key ref is only valid with aws:kms")
         return self
 
 
@@ -102,6 +136,8 @@ class TemporalConfigView(_OwnerView):
     research_queue: str
     refresh_queue: str
     media_queue: str
+    refresh_enabled: bool = False
+    media_enabled: bool = False
 
 
 class ObjectStoreConfigView(_OwnerView):
@@ -113,6 +149,14 @@ class ObjectStoreConfigView(_OwnerView):
     secret_key: SecretStr | None
     max_concurrency: int
     multipart_threshold: int
+    multipart_chunk_size: int
+    max_bytes: int
+    allowed_content_types: tuple[str, ...]
+    environment: Literal["production", "local", "test"]
+    server_side_encryption: Literal["AES256", "aws:kms", "test"] | None
+    encryption_key_ref: str | None
+    signed_url_ttl_seconds: int | None
+    orphan_grace_seconds: int | None
 
 
 class ObservabilityConfigView(_OwnerView):

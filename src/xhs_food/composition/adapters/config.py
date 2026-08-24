@@ -63,6 +63,8 @@ def build_owner_config(
             research_queue=target.temporal_research_queue,
             refresh_queue=target.temporal_refresh_queue,
             media_queue=target.temporal_media_queue,
+            refresh_enabled=target.refresh_enabled,
+            media_enabled=target.media_enabled,
         ),
         object_store=ObjectStoreConfigView(
             enabled=enabled,
@@ -73,6 +75,14 @@ def build_owner_config(
             secret_key=target.object_store_secret_key,
             max_concurrency=target.object_store_max_concurrency,
             multipart_threshold=target.object_store_multipart_threshold,
+            multipart_chunk_size=target.object_store_multipart_chunk_size,
+            max_bytes=target.object_store_max_bytes,
+            allowed_content_types=target.object_store_allowed_content_types,
+            environment=target.object_store_environment,
+            server_side_encryption=target.object_store_server_side_encryption,
+            encryption_key_ref=target.object_store_encryption_key_ref,
+            signed_url_ttl_seconds=target.object_store_signed_url_ttl_seconds,
+            orphan_grace_seconds=target.object_store_orphan_grace_seconds,
         ),
         observability=ObservabilityConfigView(
             enabled=target.otel_enabled,
