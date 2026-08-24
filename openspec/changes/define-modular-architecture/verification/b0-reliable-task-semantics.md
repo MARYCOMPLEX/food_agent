@@ -198,7 +198,7 @@ unexecuted command.
 
 | Field | Value |
 |---|---|
-| Implementation commit | `cd4167f` plus the current durable-owner worktree changes (qualification pending) |
+| Implementation commit | `78e7ea3` (durable owner/projection implementation; live PostgreSQL qualification pending) |
 | Qualification commit | `050890af0c6a39e25f7d9483e52fcfc2a8228f62` |
 | Python/runtime | `CPython 3.12.x` |
 | Temporal SDK / service | `1.31.0 / official time-skipping test server` |
