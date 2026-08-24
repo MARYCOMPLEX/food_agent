@@ -37,7 +37,7 @@
     {"prefix": "api", "layer": "experience", "mode": "legacy"}
   ],
   "allowed_internal_edges": {
-    "composition": ["composition", "compatibility_adapter", "contracts", "domain_pack", "experience", "gateway", "target_foundation", "orchestrator", "connector", "domain", "foundation", "legacy_composition", "legacy_shell"],
+    "composition": ["composition", "compatibility_adapter", "contracts", "domain_pack", "experience", "gateway", "target_foundation", "orchestrator", "personalization", "connector", "domain", "foundation", "legacy_composition", "legacy_shell"],
     "compatibility_adapter": ["compatibility_adapter", "contracts", "domain_pack", "gateway", "target_foundation", "connector", "domain", "foundation", "legacy_composition", "legacy_shell"],
     "contracts": ["contracts"],
     "domain_pack": ["contracts", "domain_pack"],

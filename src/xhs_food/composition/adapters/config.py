@@ -12,6 +12,7 @@ from xhs_food.foundation.config import (
     ModelConfigView,
     ObjectStoreConfigView,
     ObservabilityConfigView,
+    PersonalizationCanaryConfigView,
     RedisConfigView,
     RepositoryConfigView,
     TargetSettings,
@@ -28,6 +29,7 @@ class OwnerConfigFacade:
     object_store: ObjectStoreConfigView
     observability: ObservabilityConfigView
     evidence_shadow: EvidenceShadowConfigView
+    personalization_canary: PersonalizationCanaryConfigView
 
 
 def build_owner_config(
@@ -81,6 +83,11 @@ def build_owner_config(
             enabled=target.evidence_shadow_enabled,
             sample_rate=target.evidence_shadow_sample_rate,
             write_budget=target.evidence_shadow_write_budget,
+        ),
+        personalization_canary=PersonalizationCanaryConfigView(
+            mode=target.personalization_canary_mode,
+            sample_rate=target.personalization_canary_sample_rate,
+            projection_warmup_enabled=target.personalization_projection_warmup_enabled,
         ),
     )
 

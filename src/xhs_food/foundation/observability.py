@@ -13,8 +13,10 @@ from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from opentelemetry.instrumentation.redis import RedisInstrumentor
 from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
-from prometheus_client import Counter
+from prometheus_client import Counter, Histogram
 from temporalio.contrib.opentelemetry import TracingInterceptor
+
+from xhs_food.contracts import PersonalizationCanaryObservation
 
 _CORRELATION_KEYS = frozenset(
     {
@@ -203,6 +205,62 @@ _evidence_shadow_writes = Counter(
     ["operation", "outcome", "connector"],
 )
 
+_personalization_canary_exposures = Counter(
+    "xhs_personalization_canary_exposures_total",
+    "Personalization canary evaluations by mode and exposure outcome",
+    ["mode", "outcome"],
+)
+_personalization_ranking_changes = Counter(
+    "xhs_personalization_ranking_changes_total",
+    "Sampled personalization evaluations that changed candidate order",
+    ["mode"],
+)
+_personalization_cache_results = Counter(
+    "xhs_personalization_cache_results_total",
+    "Personalization cache observations without user labels",
+    ["result"],
+)
+_personalization_outbox_lag = Histogram(
+    "xhs_personalization_outbox_lag_seconds",
+    "Observed memory outbox projection lag",
+)
+_personalization_private_records = Histogram(
+    "xhs_personalization_private_records_used",
+    "Count of private records used per sampled evaluation",
+)
+_personalization_privacy_guard = Counter(
+    "xhs_personalization_privacy_guard_total",
+    "Personalization observations that pass the private-value guard",
+    ["outcome"],
+)
+
+
+class PersonalizationCanaryTelemetry:
+    """Record only bounded canary aggregates and never private values."""
+
+    def record(self, observation: PersonalizationCanaryObservation) -> None:
+        outcome = (
+            "served"
+            if observation.served_personalized
+            else "shadow"
+            if observation.sampled
+            else "skipped"
+        )
+        _personalization_canary_exposures.labels(
+            mode=observation.mode.value,
+            outcome=outcome,
+        ).inc()
+        if observation.sampled and observation.ranking_changed:
+            _personalization_ranking_changes.labels(mode=observation.mode.value).inc()
+        _personalization_cache_results.labels(
+            result="hit" if observation.cache_hit else "miss"
+        ).inc()
+        _personalization_outbox_lag.observe(observation.outbox_lag_ms / 1000.0)
+        _personalization_private_records.observe(observation.private_records_used)
+        _personalization_privacy_guard.labels(
+            outcome="clean" if not observation.private_values_exposed else "blocked"
+        ).inc()
+
 
 class EvidenceShadowTelemetry:
     """Trace shadow lifecycle with redacted IDs and bounded Prometheus labels."""
@@ -250,6 +308,7 @@ def _opaque_digest(value: str) -> str:
 __all__ = [
     "ObservabilityBootstrap",
     "EvidenceShadowTelemetry",
+    "PersonalizationCanaryTelemetry",
     "correlation_attributes",
     "redact_log_context",
     "prometheus_labels",

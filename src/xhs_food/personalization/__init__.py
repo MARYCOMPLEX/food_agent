@@ -1,5 +1,6 @@
 """Personalization policy services built on project-owned contracts."""
 
+from .canary import PersonalizationCanary
 from .capabilities import PersonalizationCapabilityResolver
 from .context_assembler import ContextAssembler
 from .feedback import FeedbackIngestor
@@ -10,6 +11,7 @@ from .strategy import ResearchStrategyResolver
 
 __all__ = [
     "AnonymousMemoryClaimService",
+    "PersonalizationCanary",
     "ContextAssembler",
     "FeedbackIngestor",
     "MemoryScopeAuthorizer",

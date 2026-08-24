@@ -220,6 +220,14 @@ from .memory_repositories import (
     MemoryRepositoryPort,
     MemorySessionWindowPort,
 )
+from .personalization_canary import (
+    PERSONALIZATION_CANARY_VERSION,
+    PersonalizationCanaryMode,
+    PersonalizationCanaryObservation,
+    PersonalizationCanaryResult,
+    PersonalizationCanarySettings,
+    PersonalizationRollbackReceipt,
+)
 from .ports import (
     ActivityCall,
     ActivityPort,
@@ -495,6 +503,12 @@ __all__ = [
     "MemoryRecord",
     "MemoryRepositoryPort",
     "MemorySessionWindowPort",
+    "PERSONALIZATION_CANARY_VERSION",
+    "PersonalizationCanaryMode",
+    "PersonalizationCanaryObservation",
+    "PersonalizationCanaryResult",
+    "PersonalizationCanarySettings",
+    "PersonalizationRollbackReceipt",
     "MemoryStatus",
     "MemorySubject",
     "MemorySubjectKind",

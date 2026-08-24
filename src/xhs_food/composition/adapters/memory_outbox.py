@@ -12,11 +12,27 @@ class MemoryOutboxProjector:
     can be retried. They never raise into the authority transaction.
     """
 
-    def __init__(self, session_window: SessionWindowPort, *, ttl_seconds: int = 86_400) -> None:
+    def __init__(
+        self,
+        session_window: SessionWindowPort,
+        *,
+        ttl_seconds: int = 86_400,
+        warmup_enabled: bool = True,
+    ) -> None:
         if ttl_seconds != 86_400:
             raise ValueError("memory session projection TTL must be 24 hours")
         self._session_window = session_window
         self._ttl_seconds = ttl_seconds
+        self._warmup_enabled = warmup_enabled
+
+    @property
+    def warmup_enabled(self) -> bool:
+        return self._warmup_enabled
+
+    def disable_warmup(self) -> None:
+        """Stop rebuildable Redis warm-up while retaining authority rows."""
+
+        self._warmup_enabled = False
 
     async def project(self, event: MemoryOutboxEvent) -> bool:
         session_id = event.scope.session_id
@@ -27,6 +43,8 @@ class MemoryOutboxProjector:
                 await self._session_window.clear(session_id)
                 return True
             if event.event_type == "memory.session.warm":
+                if not self._warmup_enabled:
+                    return True
                 message = event.payload.get("message")
                 if not isinstance(message, dict):
                     return False

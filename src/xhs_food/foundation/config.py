@@ -27,6 +27,9 @@ class TargetSettings(BaseSettings):
     evidence_shadow_enabled: bool = False
     evidence_shadow_sample_rate: float = Field(default=0.0, ge=0.0, le=1.0)
     evidence_shadow_write_budget: int = Field(default=0, ge=0)
+    personalization_canary_mode: Literal["off", "shadow", "canary"] = "off"
+    personalization_canary_sample_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    personalization_projection_warmup_enabled: bool = True
     database_url: str | None = None
     food_pack_version: Literal["1.0.0", "legacy/v1"] = "1.0.0"
     research_core_version: Literal["shared/v1", "legacy/v1"] = "shared/v1"
@@ -58,6 +61,10 @@ class TargetSettings(BaseSettings):
         }
         if len(queues) != 3:
             raise ValueError("Temporal Research, Refresh, and Media queues must be distinct")
+        if self.personalization_canary_mode == "off" and self.personalization_canary_sample_rate != 0:
+            raise ValueError("off personalization canary cannot carry a sample rate")
+        if self.personalization_canary_mode != "off" and self.personalization_canary_sample_rate <= 0:
+            raise ValueError("active personalization canary requires a positive sample rate")
         return self
 
 
@@ -120,11 +127,18 @@ class EvidenceShadowConfigView(_OwnerView):
     write_budget: int
 
 
+class PersonalizationCanaryConfigView(_OwnerView):
+    mode: Literal["off", "shadow", "canary"]
+    sample_rate: float
+    projection_warmup_enabled: bool
+
+
 __all__ = [
     "ModelConfigView",
     "EvidenceShadowConfigView",
     "ObjectStoreConfigView",
     "ObservabilityConfigView",
+    "PersonalizationCanaryConfigView",
     "RedisConfigView",
     "RepositoryConfigView",
     "TargetSettings",

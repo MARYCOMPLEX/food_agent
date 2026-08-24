@@ -1,6 +1,6 @@
 # B3 Personalization Memory Verification
 
-Status: Tasks 11.1-11.13 qualified; 11.14-11.15 remain disabled and pending
+Status: Tasks 11.1-11.15 qualified; B3 is complete and independently rollback-tested
 
 ## Task 11.1 boundary
 
@@ -199,7 +199,40 @@ Status: Tasks 11.1-11.13 qualified; 11.14-11.15 remain disabled and pending
   false defaults. The contract therefore cannot authorize personalization to
   rewrite public Evidence, features, or scores.
 - The gate is structural and additive: it does not alter runtime behavior or
-  enable the pending personalization canary and rollback tasks.
+  change public refresh priority.
+
+## Task 11.14 boundary
+
+- `PersonalizationCanarySettings` is a closed-world `off`/`shadow`/`canary`
+  control independent from the Research Core and Query Family refresh policy.
+  The default is `off`; active modes require an explicit positive deterministic
+  sample rate and can only use the existing `PersonalizedReranker`.
+- `PersonalizationCanary` keeps the public candidate order as the default
+  served path in `shadow`, and serves sampled personalized IDs only in
+  `canary`. It records default strategy version, ranking difference, cache hit,
+  outbox lag, private-record count, and public input/result digests.
+- `public_refresh_priority_enabled` and the observation's
+  `public_refresh_priority_changed` are literal `False`. No private signal can
+  mutate Family identity, Evidence, public features/scores, or refresh order.
+- `PersonalizationCanaryTelemetry` exports only low-cardinality aggregate
+  Prometheus metrics. Request keys, user IDs, memory values, and preference
+  payloads are absent from metric labels and values.
+
+## Task 11.15 boundary
+
+- `PersonalizationCanary.rollback()` returns a versioned
+  `PersonalizationRollbackReceipt`, changes the service to `off`, sets the
+  sample rate to zero, and disables projection warm-up without deleting
+  PostgreSQL authority facts.
+- `MemoryOutboxProjector(warmup_enabled=False)` acknowledges warm-up outbox
+  events without writing Redis. Existing invalidation and authority behavior
+  remain explicit; Redis never becomes a replacement fact store.
+- The opt-in Composition Root binding is absent in the default configuration
+  and appears only when `MODULAR_PERSONALIZATION_CANARY_MODE` is explicitly
+  `shadow` or `canary` with target adapters enabled.
+- The rollback contract is recorded in
+  [`b3-personalization-rollback.md`](../runbooks/b3-personalization-rollback.md)
+  and is independently covered by the B3 canary/rollback tests.
 
 ## Qualification commands
 
@@ -234,6 +267,9 @@ uv run --frozen pytest -q tests/test_unit_b3_reranker.py
 uv run --frozen pytest -q tests/test_unit_b3_feedback.py
 # 3 passed
 
+uv run --frozen pytest -q tests/test_unit_b3_canary.py tests/test_unit_b3_rollback.py
+# 8 passed
+
 uv run --frozen pytest -q tests/test_unit_b3_architecture.py tests/test_unit_architecture_boundaries.py
 # 15 passed
 
@@ -253,7 +289,7 @@ git diff --check
 # passed
 
 uv run --frozen pytest -q -m "not live" -ra --tb=short
-# 917 passed, 24 deselected, 2 warnings
+# 925 passed, 24 deselected, 2 warnings
 
 uv lock --check
 # passed
@@ -264,8 +300,8 @@ openspec validate define-modular-architecture --strict
 
 ## Deliberate non-claims
 
-Tasks 11.14 and 11.15 remain disabled. This verification does not claim that
-personalization canarying is enabled or that the system has exercised the
-production rollback path. The qualified implementation keeps PostgreSQL as
-memory authority and Redis as a rebuildable projection; it does not promote
-any new runtime or cache into a second authority.
+B3 qualifies the closed-world canary and local rollback contract. It does not
+claim that a production rollout has been approved, that private-memory consent
+is expanded, or that public refresh feedback influence is enabled. Any
+production exposure still requires the recorded configuration, owner approval,
+and the full-stack release gates in task group 14.

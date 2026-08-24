@@ -465,6 +465,8 @@ def build_legacy_composition_root(
     from xhs_food.contracts import (
         DomainContract,
         EventBusPort,
+        PersonalizationCanaryMode,
+        PersonalizationCanarySettings,
         ReliableTaskStorePort,
         TaskProgressProjectionPort,
     )
@@ -474,6 +476,7 @@ def build_legacy_composition_root(
     from xhs_food.foundation import (
         Boto3ObjectStore,
         ObservabilityBootstrap,
+        PersonalizationCanaryTelemetry,
         RedisHotStateContract,
         SQLAlchemyDatabase,
         TargetSettings,
@@ -485,6 +488,7 @@ def build_legacy_composition_root(
     from xhs_food.orchestrator.agent_runtime import PydanticAIAgentRuntime
     from xhs_food.orchestrator.coordinator import ResearchCoordinator
     from xhs_food.orchestrator.scheduler import StepScheduler
+    from xhs_food.personalization import PersonalizationCanary, PersonalizedReranker
     from xhs_food.services import LLMService, get_session_manager, get_user_storage_service
 
     discovered_food_factories = discover_allowlisted_domain_packs(("food",))
@@ -507,6 +511,11 @@ def build_legacy_composition_root(
         if reliable_task_lifecycle is None
         else reliable_task_lifecycle
     )
+    canary_enabled = target_settings.personalization_canary_mode != "off"
+    if canary_enabled and not target_settings.target_adapters_enabled:
+        raise RuntimeError(
+            "personalization canary requires target_adapters_enabled"
+        )
     if reliable_enabled and reliable_policy is None:
         raise RuntimeError(
             "reliable_task_lifecycle requires an explicit Temporal/PostgreSQL policy adapter"
@@ -663,6 +672,19 @@ def build_legacy_composition_root(
         if reliable_enabled and callable(bind_owner):
             bind_owner(coordinator)
         return coordinator
+
+    def personalization_canary() -> PersonalizationCanary:
+        settings = PersonalizationCanarySettings(
+            mode=PersonalizationCanaryMode(target_settings.personalization_canary_mode),
+            sample_rate=target_settings.personalization_canary_sample_rate,
+            projection_warmup_enabled=target_settings.personalization_projection_warmup_enabled,
+        )
+        telemetry = PersonalizationCanaryTelemetry()
+        return PersonalizationCanary(
+            PersonalizedReranker(),
+            settings=settings,
+            recorder=telemetry.record,
+        )
 
     root = CompositionRoot()
     root.registry("foundation").register(
@@ -884,6 +906,15 @@ def build_legacy_composition_root(
             legacy=True,
         )
     )
+    if canary_enabled:
+        root.registry("personalization").register(
+            AdapterBinding(
+                name="canary",
+                contract_version="personalization-canary/v1",
+                factory=personalization_canary,
+                legacy=False,
+            )
+        )
     root.bind_logical(
         "modular_core",
         registry_name="use_cases",
@@ -911,6 +942,12 @@ def build_legacy_composition_root(
                 registry_name="state",
                 binding_name="reliable_event_bus",
             )
+    if canary_enabled:
+        root.bind_logical(
+            "personalization_canary",
+            registry_name="personalization",
+            binding_name="canary",
+        )
     root.bind_logical(
         "food_pack",
         registry_name="domain_packs",
@@ -936,6 +973,8 @@ def build_legacy_composition_root(
         )
         if reliable_event_bus is not None:
             allowed_non_legacy.add("state.reliable_event_bus")
+    if canary_enabled:
+        allowed_non_legacy.add("personalization.canary")
     root.assert_legacy_only(frozenset(allowed_non_legacy))
     root.activate()
     return root

@@ -180,8 +180,8 @@
 - [x] 11.11 实现收藏/忽略/点击/反馈的幂等 ingestion，并按 ADR 执行 consent/expiry/correction/export/delete。
 - [x] 11.12 添加优先级、ContextAssembler 顺序/token budget、outbox 重放、缓存失效、能力越权、两用户同 Bundle 不同排序、匿名、跨用户攻击和 PostgreSQL/Redis memory outage tests。
 - [x] 11.13 添加架构 gate，禁止 Mem0、Zep、LangGraph Store、Pydantic AI session 或 Redis 成为长期记忆权威，禁止公共 Family/Bundle/feature/score 在个性化前后发生内容哈希变化。
-- [ ] 11.14 启用独立 `personalization` canary，观察默认策略、排序差异、cache hit/outbox lag 和隐私指标，不改变公共 refresh priority。
-- [ ] 11.15 关闭 personalization 并回公共/legacy 排名，保留 PostgreSQL 权威记录并停止 Redis projection warm-up；将 B3 作为独立提交。
+- [x] 11.14 启用独立 `personalization` canary，观察默认策略、排序差异、cache hit/outbox lag 和隐私指标，不改变公共 refresh priority。
+- [x] 11.15 关闭 personalization 并回公共/legacy 排名，保留 PostgreSQL 权威记录并停止 Redis projection warm-up；将 B3 作为独立提交。
 
 ## 12. B4 Continuous Refresh And Media Pipeline
 
