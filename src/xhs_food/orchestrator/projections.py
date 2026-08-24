@@ -28,6 +28,17 @@ class InMemoryTaskProgressProjectionStore:
         async with self._lock:
             return self._values.get(task_id)
 
+    async def get_by_session_id(self, session_id: str) -> TaskProgressProjection | None:
+        async with self._lock:
+            candidates = tuple(
+                projection
+                for projection in self._values.values()
+                if projection.session_id == session_id
+            )
+            if not candidates:
+                return None
+            return max(candidates, key=lambda projection: projection.updated_at)
+
     async def put(self, projection: TaskProgressProjection) -> TaskProgressProjection:
         if projection.executable_checkpoint:
             raise ValueError("task progress projections cannot be execution checkpoints")

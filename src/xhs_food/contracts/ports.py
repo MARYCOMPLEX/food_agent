@@ -309,6 +309,13 @@ class TaskProgressProjectionPort(Protocol):
 
 
 @runtime_checkable
+class TaskProgressProjectionSessionLookupPort(Protocol):
+    """Read-only lookup used by reliable SSE resynchronization."""
+
+    async def get_by_session_id(self, session_id: str) -> TaskProgressProjection | None: ...
+
+
+@runtime_checkable
 class RecoverViewPort(Protocol):
     """Read-only recovery view; it never exposes an executable checkpoint."""
 
@@ -362,6 +369,7 @@ __all__ = [
     "SourceConnector",
     "StateStorePort",
     "TaskProgressProjectionPort",
+    "TaskProgressProjectionSessionLookupPort",
     "TaskProgressProjectionStore",
     "ReliableTaskStorePort",
     "ToolCall",

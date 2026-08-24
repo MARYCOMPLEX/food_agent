@@ -86,6 +86,13 @@ class ResearchTaskPort(Protocol):
 
 
 @runtime_checkable
+class ReliableResearchTaskPort(Protocol):
+    """Opt-in reliable admission kept separate from legacy task methods."""
+
+    async def submit(self, request: ResearchRequest) -> ResearchTask: ...
+
+
+@runtime_checkable
 class ExplicitRefreshUseCase(Protocol):
     """Unbound S2 extension point; B2 supplies authorization and execution."""
 
@@ -124,5 +131,6 @@ __all__ = [
     "ResearchTaskAdmission",
     "ResearchTaskNotFoundError",
     "ResearchTaskPort",
+    "ReliableResearchTaskPort",
     "StableResultMapperPort",
 ]

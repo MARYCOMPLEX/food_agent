@@ -1167,6 +1167,22 @@
             }
           },
           {
+            "in": "query",
+            "name": "sseVersion",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sseversion"
+            }
+          },
+          {
             "in": "header",
             "name": "Last-Event-ID",
             "required": false,

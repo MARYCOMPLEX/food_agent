@@ -127,7 +127,7 @@
 - [ ] 8.6 协调 Temporal executable checkpoint、PostgreSQL `task_progress_projection` 与 Redis EventBus/SSE；SSE Stream 固定 TTL 1 小时和 `MAXLEN 1000`，窗口内按 event ID 排他续传，窗口外或 Redis 重启后返回稳定 `replay_expired/resync` 与权威任务快照/终态，并保持同一 task/turn、不创建重复研究。
 - [ ] 8.7 添加 Pydantic AI 模型/工具 Activity history replay、Workflow 代码版本升级、worker crash/restart、Activity 重复、PG/Temporal projection reconciliation、SSE 保留窗口内/外重连、并发启动、持久化失败、取消竞争、重试耗尽和旧 policy differential tests。
 - [ ] 8.8 验证 Redis 不可用时已启动 Temporal workflow 可继续且持久结果可读；需要创建实时会话/SSE热状态的新请求返回明确 dependency-unavailable，不静默退化到进程内状态。
-- [ ] 8.9 运行 HTTP/SSE compatibility mapper tests，证明 reliable policy 的 wire 差异只出现在已批准 authority contract 允许的位置，且 terminal event 只在 PostgreSQL 提交成功后发出。
+- [x] 8.9 运行 HTTP/SSE compatibility mapper tests，证明 reliable policy 的 wire 差异只出现在已批准 authority contract 允许的位置，且 terminal event 只在 PostgreSQL 提交成功后发出。
 - [x] 8.10 添加依赖和运行时 gate，证明核心路径没有 Redis lock/lease、ARQ、Celery、LangGraph checkpoint 或第二个 durable scheduler。
 - [ ] 8.11 关闭 reliable policy 并回 legacy task adapter，确认 Temporal history 可保留但不再接收新任务，Evidence/数据库无不可逆依赖；将 B0 作为独立行为提交。
 

@@ -245,6 +245,26 @@ class PostgresTaskProgressProjectionStore:
                 raise TypeError("task projection payload must be a JSON object")
             return TaskProgressProjection.model_validate(payload)
 
+    async def get_by_session_id(self, session_id: str) -> TaskProgressProjection | None:
+        async with self._unit_of_work_factory() as unit:
+            result = await unit.session_for_adapter().execute(
+                text(
+                    f"SELECT payload FROM {self._projection_table} "
+                    "WHERE payload ->> 'session_id' = :session_id "
+                    "ORDER BY updated_at DESC LIMIT 1"
+                ),
+                {"session_id": session_id},
+            )
+            row = result.mappings().first()
+            if row is None:
+                return None
+            payload = row.get("payload")
+            if isinstance(payload, str):
+                payload = json.loads(payload)
+            if not isinstance(payload, Mapping):
+                raise TypeError("task projection payload must be a JSON object")
+            return TaskProgressProjection.model_validate(payload)
+
     async def put(self, projection: TaskProgressProjection) -> TaskProgressProjection:
         if projection.executable_checkpoint:
             raise ValueError("task progress projections cannot be execution checkpoints")
