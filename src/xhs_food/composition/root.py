@@ -290,6 +290,7 @@ def build_legacy_composition_root(
     reliable_policy: object | None = None,
     reliable_task_store: object | None = None,
     reliable_projection_store: object | None = None,
+    reliable_event_bus: object | None = None,
     reliable_task_lifecycle: bool | None = None,
 ) -> CompositionRoot:
     """Create the compatibility root with an atomically validated Food Pack.
@@ -332,6 +333,7 @@ def build_legacy_composition_root(
     from xhs_food.config import get_settings
     from xhs_food.contracts import (
         DomainContract,
+        EventBusPort,
         ReliableTaskStorePort,
         TaskProgressProjectionPort,
     )
@@ -388,6 +390,10 @@ def build_legacy_composition_root(
         raise RuntimeError(
             "reliable_task_lifecycle requires an explicit PostgreSQL task projection store"
         )
+    if reliable_enabled and reliable_event_bus is not None and not isinstance(
+        reliable_event_bus, EventBusPort
+    ):
+        raise RuntimeError("reliable_event_bus must implement EventBusPort")
     owner_config = build_owner_config(get_settings(), target_settings)
 
     food_gateway, food_providers = build_food_tool_gateway(
@@ -628,6 +634,23 @@ def build_legacy_composition_root(
                 legacy=True,
             )
         )
+    if reliable_enabled:
+        repositories.register(
+            AdapterBinding(
+                name="reliable_task_store",
+                contract_version="reliable-task-store/v1",
+                factory=lambda: reliable_task_store,
+                legacy=False,
+            )
+        )
+        repositories.register(
+            AdapterBinding(
+                name="reliable_projection_store",
+                contract_version="task-projection/v1",
+                factory=lambda: reliable_projection_store,
+                legacy=False,
+            )
+        )
     state = root.registry("state")
     for name, factory in (
         ("task_state_legacy", legacy_state_store),
@@ -640,6 +663,15 @@ def build_legacy_composition_root(
                 contract_version="legacy-hot-state/v1",
                 factory=factory,
                 legacy=True,
+            )
+        )
+    if reliable_enabled and reliable_event_bus is not None:
+        state.register(
+            AdapterBinding(
+                name="reliable_event_bus",
+                contract_version="redis-event-bus/v1",
+                factory=lambda: reliable_event_bus,
+                legacy=False,
             )
         )
     target = root.registry("target_foundation")
@@ -732,6 +764,22 @@ def build_legacy_composition_root(
             registry_name="use_cases",
             binding_name="research_task",
         )
+        root.bind_logical(
+            "reliable_task_store",
+            registry_name="repositories",
+            binding_name="reliable_task_store",
+        )
+        root.bind_logical(
+            "reliable_projection_store",
+            registry_name="repositories",
+            binding_name="reliable_projection_store",
+        )
+        if reliable_event_bus is not None:
+            root.bind_logical(
+                "reliable_event_bus",
+                registry_name="state",
+                binding_name="reliable_event_bus",
+            )
     root.bind_logical(
         "food_pack",
         registry_name="domain_packs",
@@ -741,17 +789,23 @@ def build_legacy_composition_root(
             else "food_legacy"
         ),
     )
-    root.assert_legacy_only(
-        frozenset(
+    allowed_non_legacy = {
+        "domain_packs.food_1_0_0",
+        "domain_packs.registry",
+        "sources.food_place_capability",
+        "sources.food_reviews_capability",
+        "tools.food_tool_gateway",
+    }
+    if reliable_enabled:
+        allowed_non_legacy.update(
             {
-                "domain_packs.food_1_0_0",
-                "domain_packs.registry",
-                "sources.food_place_capability",
-                "sources.food_reviews_capability",
-                "tools.food_tool_gateway",
+                "repositories.reliable_task_store",
+                "repositories.reliable_projection_store",
             }
         )
-    )
+        if reliable_event_bus is not None:
+            allowed_non_legacy.add("state.reliable_event_bus")
+    root.assert_legacy_only(frozenset(allowed_non_legacy))
     root.activate()
     return root
 

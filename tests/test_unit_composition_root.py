@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 
 import pytest
@@ -66,6 +67,17 @@ class _ProjectionStoreFixture:
 
     async def delete(self, task_id: str) -> bool:
         return self.values.pop(task_id, None) is not None
+
+
+class _EventBusFixture:
+    async def publish(self, event: object) -> str:
+        del event
+        return "1-0"
+
+    async def subscribe(self, topic: str, after: str | None = None) -> AsyncIterator[object]:
+        del topic, after
+        if False:
+            yield None
 
 
 async def test_registry_freezes_after_activation_and_caches_instances() -> None:
@@ -292,6 +304,27 @@ async def test_reliable_root_uses_the_explicit_projection_store(
     try:
         coordinator = await root.resolve_logical("reliable_task_lifecycle")
         assert await coordinator.progress("task-1") == projection
+    finally:
+        await root.close()
+
+
+async def test_reliable_root_exposes_explicit_projection_and_event_bus_bindings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("MODULAR_RELIABLE_TASK_LIFECYCLE", "true")
+    task_store = _ReliableTaskStoreFixture()
+    projection_store = _ProjectionStoreFixture()
+    event_bus = _EventBusFixture()
+    root = build_legacy_composition_root(
+        reliable_policy=object(),
+        reliable_task_store=task_store,
+        reliable_projection_store=projection_store,
+        reliable_event_bus=event_bus,
+    )
+    try:
+        assert await root.resolve_logical("reliable_task_store") is task_store
+        assert await root.resolve_logical("reliable_projection_store") is projection_store
+        assert await root.resolve_logical("reliable_event_bus") is event_bus
     finally:
         await root.close()
 

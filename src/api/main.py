@@ -21,7 +21,6 @@ load_dotenv()
 
 from xhs_food.config import settings  # noqa: E402 — must come after load_dotenv
 
-
 # ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
@@ -86,17 +85,16 @@ limiter = Limiter(key_func=get_remote_address)
 # Routers (post-logging so module-level loguru calls are formatted)
 # ---------------------------------------------------------------------------
 
-from api.search import router as search_router  # noqa: E402
 from api.favorites import router as favorites_router  # noqa: E402
-from api.user import router as user_router  # noqa: E402
 from api.help import router as help_router  # noqa: E402
 from api.history import router as history_router  # noqa: E402
+from api.search import router as search_router  # noqa: E402
+from api.user import router as user_router  # noqa: E402
 from xhs_food.observability import (  # noqa: E402
     http_request_duration_seconds,
     http_requests_total,
     metrics_router,
 )
-
 
 # ---------------------------------------------------------------------------
 # Lifespan
@@ -123,6 +121,14 @@ async def lifespan(application: FastAPI):
         "reliable_task_lifecycle" in composition_root.logical_bindings
     )
     application.state.research_task = await composition_root.resolve_logical("modular_core")
+    if application.state.reliable_task_lifecycle:
+        application.state.reliable_projection_store = await composition_root.resolve_logical(
+            "reliable_projection_store"
+        )
+        if "reliable_event_bus" in composition_root.logical_bindings:
+            application.state.reliable_event_bus = await composition_root.resolve_logical(
+                "reliable_event_bus"
+            )
 
     storage = await get_user_storage_service()
     if storage._initialized:
