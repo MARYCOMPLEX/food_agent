@@ -176,7 +176,7 @@
 - [x] 11.7 实现 user-scoped cache/repository authorization、匿名会话隔离和已批准的匿名转实名迁移。
 - [x] 11.8 实现 `Domain allow-list ∩ request authorization ∩ personalization subset` 能力计算，禁止个性化启用未声明或未授权来源/工具。
 - [x] 11.9 实现版本化 Research Strategy，只调整深度、已授权来源优先级/子集、停止条件和 hard filters，不改变 Query Family identity。
-- [ ] 11.10 实现公共候选后的最终 reranker 和 explanation refs，禁止 Personalization 获取公共 Evidence/score 写端。
+- [x] 11.10 实现公共候选后的最终 reranker 和 explanation refs，禁止 Personalization 获取公共 Evidence/score 写端。
 - [ ] 11.11 实现收藏/忽略/点击/反馈的幂等 ingestion，并按 ADR 执行 consent/expiry/correction/export/delete。
 - [ ] 11.12 添加优先级、ContextAssembler 顺序/token budget、outbox 重放、缓存失效、能力越权、两用户同 Bundle 不同排序、匿名、跨用户攻击和 PostgreSQL/Redis memory outage tests。
 - [ ] 11.13 添加架构 gate，禁止 Mem0、Zep、LangGraph Store、Pydantic AI session 或 Redis 成为长期记忆权威，禁止公共 Family/Bundle/feature/score 在个性化前后发生内容哈希变化。

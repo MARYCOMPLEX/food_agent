@@ -146,6 +146,20 @@ Status: Partial implementation - tasks 11.1-11.5 qualified; 11.6-11.15 remain di
   workflow behavior. All public mutation flags remain literal `False`, and
   source IDs still require the capability intersection before execution.
 
+## Task 11.10 boundary
+
+- `PublicCandidate` is a read-only public score/features/evidence contract.
+  `PersonalizedReranker` can filter and rank these candidates using private
+  hard filters and ranking weights, but it cannot modify their public score,
+  public features, or Evidence.
+- `PersonalizedRanking` preserves each candidate's public score, emits
+  deterministic ranks and explanation refs, and carries a SHA-256 digest of
+  the complete public input set. Reordering the same public candidates leaves
+  the digest unchanged; changing a candidate changes it.
+- Personalization output flags are literal `False` for public Evidence,
+  features, and scores. Explanation refs point to policy or candidate
+  evidence refs; no private memory value is copied into the public result.
+
 ## Qualification commands
 
 ```powershell
@@ -172,6 +186,9 @@ uv run --frozen pytest -q tests/test_unit_b3_capabilities.py
 
 uv run --frozen pytest -q tests/test_unit_b3_strategy.py
 # 3 passed
+
+uv run --frozen pytest -q tests/test_unit_b3_reranker.py
+# 2 passed
 
 uv run --frozen pytest -q tests/test_unit_b3_schema.py tests/test_unit_b3_resolver.py tests/test_unit_b3_context.py tests/test_unit_b3_session_projection.py
 # 28 passed

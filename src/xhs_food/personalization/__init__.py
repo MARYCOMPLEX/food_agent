@@ -3,6 +3,7 @@
 from .capabilities import PersonalizationCapabilityResolver
 from .context_assembler import ContextAssembler
 from .memory_authorization import AnonymousMemoryClaimService, MemoryScopeAuthorizer
+from .reranker import PersonalizedReranker
 from .resolver import PreferenceResolver
 from .strategy import ResearchStrategyResolver
 
@@ -11,6 +12,7 @@ __all__ = [
     "ContextAssembler",
     "MemoryScopeAuthorizer",
     "PersonalizationCapabilityResolver",
+    "PersonalizedReranker",
     "PreferenceResolver",
     "ResearchStrategyResolver",
 ]

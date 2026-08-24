@@ -286,6 +286,7 @@ from .query_reuse_read import (
     stable_request_key_hash,
     stable_sample,
 )
+from .ranking import Digest, PersonalizedCandidate, PersonalizedRanking, PublicCandidate
 from .refresh_media import (
     EvidenceExtractionRequest,
     EvidenceExtractor,
@@ -421,6 +422,7 @@ __all__ = [
     "ContextMessage",
     "CurrentBundleRef",
     "DeltaCollectionResult",
+    "Digest",
     "DomainContract",
     "DomainContractMethod",
     "DomainContractPin",
@@ -509,11 +511,14 @@ __all__ = [
     "PlanStatus",
     "PlanStepStatus",
     "PersonalizationPolicy",
+    "PersonalizedCandidate",
+    "PersonalizedRanking",
     "PlaceCacheRepositoryPort",
     "PreferenceSnapshot",
     "ResearchStrategy",
     "ProcessingLimits",
     "PublicConstraint",
+    "PublicCandidate",
     "PersonalConstraint",
     "PublicEvidenceRepositoryPort",
     "PublicScoringPolicy",
