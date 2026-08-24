@@ -53,3 +53,63 @@ async def test_b0_redis_stream_replays_exclusively_and_expires_unknown_cursor() 
     finally:
         await events.delete_topic(topic)
         await client.aclose()
+
+
+@pytest.mark.live
+async def test_b0_redis_stream_trim_ttl_and_restart_expire_replay_cursor() -> None:
+    url = os.getenv("B0_REDIS_URL")
+    if not url:
+        pytest.skip("B0_REDIS_URL is required for live Redis qualification")
+
+    client = cast(Any, aioredis.from_url(url, decode_responses=True))
+    topic = "live-b0-redis-retention"
+    events = RedisEventBusAdapter(
+        client,
+        RedisHotStateContract(
+            event_read_block_ms=50,
+            event_stream_ttl_seconds=2,
+            event_stream_maxlen=1000,
+        ),
+    )
+
+    try:
+        await events.delete_topic(topic)
+        first_cursor = await events.publish(
+            EventEnvelope(
+                event_id="live-b0-retention-0",
+                topic=topic,
+                payload={"index": 0},
+                published_at=datetime.now(UTC),
+            )
+        )
+        for index in range(1, 1_101):
+            await events.publish(
+                EventEnvelope(
+                    event_id=f"live-b0-retention-{index}",
+                    topic=topic,
+                    payload={"index": index},
+                    published_at=datetime.now(UTC),
+                )
+            )
+
+        redis_key = f"events:{topic}:stream"
+        stream_length = await client.xlen(redis_key)
+        ttl_seconds = await client.ttl(redis_key)
+        # Redis XADD uses the adapter's approximate MAXLEN contract; the
+        # implementation may retain a small radix-tree boundary overrun.
+        assert 1_000 <= stream_length <= 1_024
+        assert ttl_seconds > 0
+
+        trimmed = events.subscribe(topic, after=first_cursor)
+        with pytest.raises(RedisReplayExpiredError):
+            await anext(trimmed)
+
+        # A Redis restart/flush removes the rebuildable stream but not the
+        # PostgreSQL task authority. The old browser cursor must resync.
+        await client.flushdb()
+        restarted = events.subscribe(topic, after=first_cursor)
+        with pytest.raises(RedisReplayExpiredError):
+            await anext(restarted)
+    finally:
+        await events.delete_topic(topic)
+        await client.aclose()

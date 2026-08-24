@@ -45,17 +45,18 @@ runtime environment in the table below.
 | Cancellation race | Cancel versus slow Activity yields exactly one terminal history event | PASS |
 | Deployment patch | Old history replays under `workflow.patched()` and new execution selects the new branch | PASS |
 | Application duplicate start | Temporal adapter concurrent starts resolve to the existing run; no Redis lock path | PASS (SDK adapter) |
-| PG commit/reconcile | Commit receipt is idempotent; crash-after-commit republish uses the same terminal ID | PENDING |
-| SSE retained cursor | `Last-Event-ID` resumes exclusively without creating a task | PENDING |
-| SSE expired cursor | Trim/TTL/restart returns `replay_expired/resync` and the PG snapshot | PENDING |
+| PG commit/reconcile | Commit receipt is idempotent; application failure injection after commit republishes the same terminal ID | PASS (application live) |
+| SSE retained cursor | Live FastAPI/Redis route resumes exclusively from `Last-Event-ID` without creating a task | PASS (application live) |
+| SSE expired cursor | Live FastAPI/Redis route maps stream loss to `replay_expired/resync` with the PostgreSQL snapshot | PASS (application live) |
 
 The first nine observations are implemented by eight isolated SDK/application tests; retry
 recovery and retry exhaustion share one test function. The worker row
 intentionally does not claim an in-flight process crash: the Windows
 Temporal test server's clean shutdown/restart path is the reproducible SDK
 check, while a process-level crash harness remains a deployment gate. The
-remaining rows require the application integration harness and a real
-PostgreSQL/Redis test stack; the SDK suite alone cannot prove them.
+application rows are qualified separately by the B0 live PostgreSQL, Redis,
+and HTTP/SSE suites; the SDK suite alone cannot prove them. Deployment-level
+process-crash and real Temporal service gates remain outside this record.
 
 The reliable cancellation case uses graceful signal handling: a signal that
 arrives during an Activity waits for that Activity to finish, then the
@@ -78,7 +79,7 @@ Fill this section from the command output, preserving failures verbatim:
 | Command | `uv run --frozen pytest -q -m live tests/test_temporal_qualification.py -ra` |
 | Result | `8 passed` |
 | Duration | `37.03s` (current frozen-lockfile run after reliable cancellation, worker binding, and rollback admission changes; prior runs `10.25s`-`39.42s`) |
-| Failure output | `none for the eight SDK/application tests; process-crash and external PostgreSQL/Redis/SSE integration remain out of scope` |
+| Failure output | `none for the eight SDK tests or the live PostgreSQL/Redis/HTTP/SSE application gates; process-crash and real Temporal service qualification remain out of scope` |
 
 If a future environment blocks the test server download, mark `Result` as
 `blocked`, retain the command and exception, and leave unexecuted case

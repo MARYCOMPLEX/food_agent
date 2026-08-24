@@ -200,6 +200,9 @@ class FailingRedis(FakeRedis):
         del script, numkeys, keys_and_args
         raise redis_errors.ConnectionError("fixture unavailable")
 
+    async def ping(self) -> object:
+        raise redis_errors.ConnectionError("fixture unavailable")
+
 
 @pytest.mark.unit
 async def test_rate_limit_dependency_failure_propagates_as_stable_contract_error() -> None:
@@ -212,6 +215,16 @@ async def test_rate_limit_dependency_failure_propagates_as_stable_contract_error
     assert caught.value.error.category is ErrorCategory.DEPENDENCY_UNAVAILABLE
     assert caught.value.error.boundary_ref == "cache.rate_limit.consume"
     assert isinstance(caught.value.__cause__, redis_errors.ConnectionError)
+
+
+@pytest.mark.unit
+async def test_event_bus_health_dependency_failure_is_stable() -> None:
+    with pytest.raises(FoundationAdapterError) as caught:
+        await RedisEventBusAdapter(FailingRedis()).ensure_available()
+
+    assert caught.value.error.scope is ErrorScope.EVENT_BUS
+    assert caught.value.error.category is ErrorCategory.DEPENDENCY_UNAVAILABLE
+    assert caught.value.error.boundary_ref == "event_bus.health"
 
 
 class BytesEventRedis(FakeRedis):

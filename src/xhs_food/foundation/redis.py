@@ -21,6 +21,8 @@ from .failures import FoundationAdapterError, foundation_failure_boundary
 
 
 class AsyncRedisClient(Protocol):
+    async def ping(self) -> object: ...
+
     async def get(self, key: str) -> object: ...
 
     async def set(
@@ -327,6 +329,15 @@ class RedisEventBusAdapter:
     ) -> None:
         self._client = client
         self._contract = contract or RedisHotStateContract()
+
+    async def ensure_available(self) -> None:
+        """Fail before an SSE response starts when Redis is unavailable."""
+
+        with foundation_failure_boundary(
+            scope=ErrorScope.EVENT_BUS,
+            operation="event_bus.health",
+        ):
+            await self._client.ping()
 
     async def publish(self, event: EventEnvelope) -> str:
         key = self._key(event.topic)

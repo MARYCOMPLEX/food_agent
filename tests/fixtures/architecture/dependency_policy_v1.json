@@ -149,6 +149,7 @@
     "get",
     "lrange",
     "ltrim",
+    "ping",
     "rpush",
     "set",
     "xadd",

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+from collections.abc import Awaitable, Callable
 from typing import Any, cast
 
 import pytest
@@ -63,13 +64,21 @@ class _LegacyPort:
 class _FailOncePublisher:
     """Inject one rebuildable EventBus failure after the PG commit barrier."""
 
-    def __init__(self, delegate: Any) -> None:
+    def __init__(
+        self,
+        delegate: Any,
+        *,
+        on_failure: Callable[[], Awaitable[None]] | None = None,
+    ) -> None:
         self._delegate = delegate
+        self._on_failure = on_failure
         self._failed = False
 
     async def publish_task_event(self, event: Any, *, idempotency_key: str) -> str:
         if not self._failed:
             self._failed = True
+            if self._on_failure is not None:
+                await self._on_failure()
             raise RuntimeError("injected Redis publication failure")
         return await self._delegate.publish_task_event(event, idempotency_key=idempotency_key)
 
@@ -139,8 +148,13 @@ async def test_b0_application_commits_postgres_before_redis_terminal_and_reconci
         reliable_policy_enabled=True,
     )
     policy.bind_owner(coordinator)
+
+    async def drop_redis_connection() -> None:
+        await redis_client.aclose()
+
     publisher = _FailOncePublisher(
-        ReliableTaskEventBusPublisher(redis_events, topic_resolver=lambda event: topic)
+        ReliableTaskEventBusPublisher(redis_events, topic_resolver=lambda event: topic),
+        on_failure=drop_redis_connection,
     )
     activities = ReliableResearchActivities(
         owner=coordinator,
@@ -149,6 +163,8 @@ async def test_b0_application_commits_postgres_before_redis_terminal_and_reconci
         publisher=publisher,
     )
     task_id: str | None = None
+    recovery_client: Any | None = None
+    recovery_events: RedisEventBusAdapter | None = None
 
     try:
         async with database.unit_of_work() as unit:
@@ -182,14 +198,25 @@ async def test_b0_application_commits_postgres_before_redis_terminal_and_reconci
             task.run_id or "",
         )
         assert committed == {"answer": "application-ok", "status": "completed"}
-        assert await activities.reconcile(
+        recovery_client = cast(Any, aioredis.from_url(redis_url, decode_responses=True))
+        recovery_events = RedisEventBusAdapter(recovery_client)
+        recovery_activities = ReliableResearchActivities(
+            owner=coordinator,
+            authority=authority,
+            executor=execute,
+            publisher=ReliableTaskEventBusPublisher(
+                recovery_events,
+                topic_resolver=lambda event: topic,
+            ),
+        )
+        assert await recovery_activities.reconcile(
             {
                 "task_id": task.task_id,
                 "workflow_id": task.workflow_id,
                 "run_id": task.run_id or "",
             }
         ) is True
-        stream = redis_events.subscribe(topic)
+        stream = recovery_events.subscribe(topic)
         terminal = await asyncio.wait_for(anext(stream), timeout=5)
         await cast(Any, stream).aclose()
         event_payload = cast(dict[str, Any], terminal.payload)
@@ -197,7 +224,10 @@ async def test_b0_application_commits_postgres_before_redis_terminal_and_reconci
         assert event_payload["eventType"] == "task.completed"
         assert task_event["task_id"] == task.task_id
     finally:
-        await redis_events.delete_topic(topic)
+        if recovery_events is not None:
+            await recovery_events.delete_topic(topic)
+        else:
+            await redis_events.delete_topic(topic)
         async with database.unit_of_work() as unit:
             if task_id is not None:
                 await unit.session_for_adapter().execute(
@@ -213,5 +243,8 @@ async def test_b0_application_commits_postgres_before_redis_terminal_and_reconci
                     {"task_id": task_id},
                 )
             await unit.commit()
-        await redis_client.aclose()
+        if recovery_client is not None:
+            await recovery_client.aclose()
+        else:
+            await redis_client.aclose()
         await database.aclose()

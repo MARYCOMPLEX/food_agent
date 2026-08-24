@@ -261,6 +261,18 @@ async def _reliable_sse_response(
     last_event_id: str | None,
 ) -> EventSourceResponse:
     bus = _reliable_event_bus(request)
+    ensure_available = getattr(bus, "ensure_available", None)
+    if callable(ensure_available):
+        try:
+            await ensure_available()
+        except Exception as exc:
+            error = getattr(exc, "error", None)
+            detail = (
+                error.model_dump(mode="json")
+                if isinstance(error, ContractError)
+                else _reliable_dependency_detail()
+            )
+            raise HTTPException(status_code=503, detail=detail) from exc
     projection_store = _reliable_projection_store(request)
     projection = await projection_store.get_by_session_id(session_id)
     if projection is None:
