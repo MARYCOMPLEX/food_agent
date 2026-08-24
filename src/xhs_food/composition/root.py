@@ -247,14 +247,15 @@ def build_legacy_composition_root(
     *,
     reliable_policy: object | None = None,
     reliable_task_store: object | None = None,
+    reliable_projection_store: object | None = None,
     reliable_task_lifecycle: bool | None = None,
 ) -> CompositionRoot:
     """Create the compatibility root with an atomically validated Food Pack.
 
     ``reliable_task_lifecycle`` is deliberately explicit.  When enabled, a
-    caller must provide a ``TemporalReliableResearchPolicy`` (and therefore
-    its PostgreSQL/Temporal adapters and durable task store); the root never
-    silently falls back to process-local task execution.
+    caller must provide a ``TemporalReliableResearchPolicy`` plus durable task
+    and PostgreSQL projection stores; the root never silently falls back to
+    process-local task execution or projection state.
     """
 
     from xhs_food.agents.poi_enricher import (
@@ -287,7 +288,11 @@ def build_legacy_composition_root(
     )
     from xhs_food.composition.legacy_research_task import LegacyResearchTaskFacade
     from xhs_food.config import get_settings
-    from xhs_food.contracts import DomainContract, ReliableTaskStorePort
+    from xhs_food.contracts import (
+        DomainContract,
+        ReliableTaskStorePort,
+        TaskProgressProjectionPort,
+    )
     from xhs_food.di import factories as legacy
     from xhs_food.domain_packs.food import load_food_contract_resources
     from xhs_food.domain_packs.food.pack import FoodBehavior
@@ -334,6 +339,12 @@ def build_legacy_composition_root(
     if reliable_enabled and not isinstance(reliable_task_store, ReliableTaskStorePort):
         raise RuntimeError(
             "reliable_task_lifecycle requires an explicit durable reliable task store"
+        )
+    if reliable_enabled and not isinstance(
+        reliable_projection_store, TaskProgressProjectionPort
+    ):
+        raise RuntimeError(
+            "reliable_task_lifecycle requires an explicit PostgreSQL task projection store"
         )
     owner_config = build_owner_config(get_settings(), target_settings)
 
@@ -462,6 +473,7 @@ def build_legacy_composition_root(
             LegacyResearchTaskFacade(),
             agent_runtime=runtime,
             scheduler=StepScheduler(food_gateway),
+            projection_store=reliable_projection_store,  # type: ignore[arg-type]
             reliable_task_store=reliable_task_store,  # type: ignore[arg-type]
             reliable_policy=reliable_policy,  # type: ignore[arg-type]
             agent_runtime_enabled=False,

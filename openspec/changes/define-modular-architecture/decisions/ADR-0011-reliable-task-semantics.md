@@ -248,8 +248,8 @@ Redis cursor classification:
 - `tests/fixtures/authority/sse_v1_replay_expired.sse`; and
 - [reliable_task_semantics_v1.json](../fixtures/reliable_task_semantics_v1.json).
 
-The isolated SDK/application qualification now passes seven tests covering
-eight observations (history replay, Pydantic AI model/tool Activities,
+The isolated SDK/application qualification now passes eight tests covering
+nine observations (history replay, duplicate Temporal admission, Pydantic AI model/tool Activities,
 retry/exhaustion, clean worker restart plus replay, SDK cancellation race,
 reliable cancellation receipt/event, and patched deployment replay). It does
 not prove an in-flight process crash or external PG/Redis/SSE integration;

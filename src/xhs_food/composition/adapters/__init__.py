@@ -7,6 +7,7 @@ from .evidence_bundle_repository import SQLAlchemyCandidateBundleRepository
 from .evidence_shadow_repository import SQLAlchemyCanonicalQueryShadowRepository
 from .llm import LegacyLLMProviderAdapter, ProviderModelGateway
 from .query_family_repository import SQLAlchemyQueryFamilyRepository
+from .reliable_events import ReliableTaskEventBusPublisher
 from .reliable_task_authority import (
     PostgresReliableTaskAuthority,
     PostgresReliableTaskStore,
@@ -54,6 +55,7 @@ __all__ = [
     "PostgresReliableTaskAuthority",
     "PostgresReliableTaskStore",
     "PostgresTaskProgressProjectionStore",
+    "ReliableTaskEventBusPublisher",
     "build_owner_config",
     "build_place_source_connector",
     "build_place_tool",

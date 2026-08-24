@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncIterator
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -10,6 +12,7 @@ import pytest
 from xhs_food.composition.adapters import (
     PostgresReliableTaskAuthority,
     PostgresReliableTaskStore,
+    ReliableTaskEventBusPublisher,
 )
 from xhs_food.composition.adapters.reliable_task_authority import _projection_is_older
 from xhs_food.contracts import (
@@ -18,6 +21,7 @@ from xhs_food.contracts import (
     RequestPolicy,
     ResearchOperation,
     ResearchRequest,
+    TaskEvent,
     TaskProgressProjection,
     TaskStatus,
     WorkflowRun,
@@ -168,6 +172,22 @@ class _ReliableTaskStore:
         self.saves += 1
         self.records[task.task_id] = (task, request)
         return task
+
+
+class _EventBus:
+    def __init__(self) -> None:
+        self.events: list[Any] = []
+
+    async def publish(self, event: Any) -> str:
+        self.events.append(event)
+        return f"stream:{len(self.events)}"
+
+    async def subscribe(
+        self, topic: str, after: str | None = None
+    ) -> AsyncIterator[Any]:
+        del topic, after
+        if False:  # pragma: no cover - protocol-only fixture path
+            yield self.events[0]
 
 
 def _request(
@@ -399,6 +419,34 @@ async def test_postgres_authority_uses_one_transaction_and_idempotent_receipt() 
     assert duplicate.already_committed is True
     assert duplicate_unit.commits == 1
     assert len(duplicate_session.statements) == 2
+
+
+@pytest.mark.unit
+async def test_reliable_event_publisher_maps_task_event_to_event_bus_envelope() -> None:
+    event_bus = _EventBus()
+    publisher = ReliableTaskEventBusPublisher(
+        event_bus,
+        topic_resolver=lambda event: f"session:{event.task_id}",
+    )
+    event = TaskEvent(
+        event_id="task-1:run-1:completed",
+        task_id="task-1",
+        event_type="task.completed",
+        occurred_at=datetime(2026, 8, 24, tzinfo=UTC),
+        turn_id="1",
+        status=TaskStatus.COMPLETED,
+        payload={"result": {"answer": "ok"}},
+    )
+
+    entry_id = await publisher.publish_task_event(event, idempotency_key=event.event_id)
+
+    assert entry_id == "stream:1"
+    envelope = event_bus.events[0]
+    assert envelope.event_id == event.event_id
+    assert envelope.topic == "session:task-1"
+    assert envelope.payload["eventType"] == "task.completed"
+    assert envelope.payload["idempotencyKey"] == event.event_id
+    assert envelope.payload["taskEvent"]["status"] == "completed"
 
 
 @pytest.mark.unit

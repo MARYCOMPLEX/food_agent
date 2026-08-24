@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, datetime
 
 import pytest
 
@@ -13,6 +14,7 @@ from xhs_food.composition import (
     RegistryState,
     build_legacy_composition_root,
 )
+from xhs_food.contracts import TaskProgressProjection, TaskStatus
 from xhs_food.protocols.mcp import MCPToolRegistry
 
 
@@ -35,6 +37,35 @@ class _FlakyClosable(_Closable):
         if self._failures_remaining:
             self._failures_remaining -= 1
             raise RuntimeError(f"{self._name} close failed")
+
+
+class _ReliableTaskStoreFixture:
+    async def get(self, task_id: str):
+        del task_id
+        return None
+
+    async def admit(self, task, request):
+        del request
+        return task, True
+
+    async def save(self, task, request):
+        del request
+        return task
+
+
+class _ProjectionStoreFixture:
+    def __init__(self) -> None:
+        self.values: dict[str, TaskProgressProjection] = {}
+
+    async def get(self, task_id: str) -> TaskProgressProjection | None:
+        return self.values.get(task_id)
+
+    async def put(self, projection: TaskProgressProjection) -> TaskProgressProjection:
+        self.values[projection.task_id] = projection
+        return projection
+
+    async def delete(self, task_id: str) -> bool:
+        return self.values.pop(task_id, None) is not None
 
 
 async def test_registry_freezes_after_activation_and_caches_instances() -> None:
@@ -228,6 +259,41 @@ def test_reliable_root_requires_an_explicit_durable_task_store(
     monkeypatch.setenv("MODULAR_RELIABLE_TASK_LIFECYCLE", "true")
     with pytest.raises(RuntimeError, match="durable reliable task store"):
         build_legacy_composition_root(reliable_policy=object())
+
+
+def test_reliable_root_requires_an_explicit_postgres_projection_store(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("MODULAR_RELIABLE_TASK_LIFECYCLE", "true")
+    with pytest.raises(RuntimeError, match="PostgreSQL task projection store"):
+        build_legacy_composition_root(
+            reliable_policy=object(),
+            reliable_task_store=_ReliableTaskStoreFixture(),
+        )
+
+
+async def test_reliable_root_uses_the_explicit_projection_store(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("MODULAR_RELIABLE_TASK_LIFECYCLE", "true")
+    projection_store = _ProjectionStoreFixture()
+    projection = TaskProgressProjection(
+        task_id="task-1",
+        turn_id="1",
+        status=TaskStatus.RUNNING,
+        updated_at=datetime(2026, 8, 24, tzinfo=UTC),
+    )
+    await projection_store.put(projection)
+    root = build_legacy_composition_root(
+        reliable_policy=object(),
+        reliable_task_store=_ReliableTaskStoreFixture(),
+        reliable_projection_store=projection_store,
+    )
+    try:
+        coordinator = await root.resolve_logical("reliable_task_lifecycle")
+        assert await coordinator.progress("task-1") == projection
+    finally:
+        await root.close()
 
 
 async def test_s4_composition_root_registers_validated_food_pack_and_legacy_fallback() -> None:
