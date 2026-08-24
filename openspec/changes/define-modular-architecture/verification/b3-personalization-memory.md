@@ -174,6 +174,18 @@ Status: Partial implementation - tasks 11.1-11.5 qualified; 11.6-11.15 remain di
   PostgreSQL is called. Raw consent token material is not copied into public
   Evidence or strategy output.
 
+## Task 11.12 boundary
+
+- The B3 unit matrix covers memory priority and expired exclusion, fixed
+  ContextAssembler order and token ceilings, strategy/capability denial,
+  outbox commit-before-project/retry behavior, user/anonymous scope attacks,
+  same-public-bundle different-user ranking, and both Redis and PostgreSQL
+  projection outages.
+- Failure tests assert dependency errors remain visible and no process-local
+  cross-request memory is created. Cache miss is the only path that rebuilds
+  from PostgreSQL; an unavailable authority or Redis is not converted into an
+  empty success.
+
 ## Qualification commands
 
 ```powershell
@@ -206,6 +218,9 @@ uv run --frozen pytest -q tests/test_unit_b3_reranker.py
 
 uv run --frozen pytest -q tests/test_unit_b3_feedback.py
 # 3 passed
+
+uv run --frozen pytest -q tests/test_unit_b3_reranker.py tests/test_unit_b3_session_projection.py tests/test_unit_b3_schema.py tests/test_unit_b3_authorization.py tests/test_unit_b3_capabilities.py tests/test_unit_b3_strategy.py tests/test_unit_b3_feedback.py tests/test_unit_b3_context.py
+# 37 passed
 
 uv run --frozen pytest -q tests/test_unit_b3_schema.py tests/test_unit_b3_resolver.py tests/test_unit_b3_context.py tests/test_unit_b3_session_projection.py
 # 28 passed

@@ -79,3 +79,40 @@ def test_reranker_digest_is_stable_and_changes_when_public_input_changes() -> No
     assert first.public_input_digest == second.public_input_digest
     assert first.public_input_digest != changed.public_input_digest
 
+
+@pytest.mark.unit
+def test_two_users_can_rank_same_public_bundle_differently_without_mutating_it() -> None:
+    candidates = (
+        PublicCandidate(
+            candidate_id="restaurant-local",
+            public_score=0.7,
+            public_features={"locality": 1.0},
+            public_attributes={},
+            evidence_refs=("evidence-local",),
+        ),
+        PublicCandidate(
+            candidate_id="restaurant-popular",
+            public_score=0.8,
+            public_features={"locality": 0.0},
+            public_attributes={},
+            evidence_refs=("evidence-popular",),
+        ),
+    )
+    local_policy = _policy().model_copy(
+        update={
+            "hard_filters": {},
+            "ranking_weights": {"locality": 0.3},
+            "policy_id": "policy-local",
+        }
+    )
+    popular_policy = local_policy.model_copy(
+        update={"ranking_weights": {"locality": -0.3}, "policy_id": "policy-popular"}
+    )
+    reranker = PersonalizedReranker()
+    local = reranker.rerank(candidates, local_policy)
+    popular = reranker.rerank(candidates, popular_policy)
+
+    assert local.candidates[0].candidate_id == "restaurant-local"
+    assert popular.candidates[0].candidate_id == "restaurant-popular"
+    assert local.public_input_digest == popular.public_input_digest
+    assert candidates[0].public_score == 0.7

@@ -133,3 +133,19 @@ async def test_projection_does_not_hide_redis_failure_with_local_state() -> None
         await projection.recent(_scope(), 20)
     assert authority.calls == []
 
+
+@pytest.mark.unit
+async def test_projection_surfaces_postgres_rebuild_failure() -> None:
+    class FailingAuthority(_Authority):
+        async def list_conversation_turns(
+            self, scope: object, *, limit: int
+        ) -> tuple[MemoryConversationTurn, ...]:
+            del scope, limit
+            raise ConnectionError("postgres unavailable")
+
+    projection = MemorySessionProjection(
+        RedisUserSessionWindow(_Redis()),
+        FailingAuthority(()),
+    )
+    with pytest.raises(ConnectionError, match="postgres unavailable"):
+        await projection.recent(_scope(), 20)
