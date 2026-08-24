@@ -1,6 +1,6 @@
 # B0 Temporal And Pydantic AI Qualification
 
-Status: Partial pass - SDK, application, and local process-crash qualification passed; target-service and external-store gates remain pending
+Status: Partial pass - SDK, application, local process-crash, and PG/Temporal crash-reconciliation qualification passed; target-service and restart gates remain pending
 
 Milestone: B0 (`Reliable Task Semantics`)
 
@@ -18,6 +18,7 @@ Source suite:
 
 - [`tests/test_temporal_qualification.py`](../../../../tests/test_temporal_qualification.py)
 - [`tests/test_live_b0_process_crash.py`](../../../../tests/test_live_b0_process_crash.py)
+- [`tests/test_live_b0_process_crash_reconciliation.py`](../../../../tests/test_live_b0_process_crash_reconciliation.py)
 - [Temporal Python SDK documentation](https://docs.temporal.io/develop/python)
 - [Pydantic AI Temporal durable execution documentation](https://pydantic.dev/docs/ai/capabilities/durable_execution/temporal/)
 
@@ -45,6 +46,7 @@ runtime environment in the table below.
 | Retry exhaustion | Exhausted Activity produces one failed Workflow and the configured attempt count | PASS |
 | Worker stop/restart | Clean worker stop, fresh worker execution, and explicit history replay pass; this is not a process-level crash test | PASS (limited) |
 | Process-level worker crash | First OS worker exits with code 71 after Activity start; replacement worker completes the same Workflow and persisted history | PASS (local Temporal dev server) |
+| PG/Temporal crash-after-commit | PostgreSQL receipt/projection survive an OS worker exit with code 72 before publish; replacement completes the same Workflow and Redis has one terminal event | PASS (live PostgreSQL/Redis + local Temporal dev server) |
 | Reliable cancellation | Reliable Research signal reaches cancellation Activity, commits a receipt, maps `task.cancelled`, and publishes one idempotent terminal event | PASS |
 | Cancellation race | Cancel versus slow Activity yields exactly one terminal history event | PASS |
 | Deployment patch | Old history replays under `workflow.patched()` and new execution selects the new branch | PASS |
@@ -53,16 +55,20 @@ runtime environment in the table below.
 | SSE retained cursor | Live FastAPI/Redis route resumes exclusively from `Last-Event-ID` without creating a task | PASS (application live) |
 | SSE expired cursor | Live FastAPI/Redis route maps stream loss to `replay_expired/resync` with the PostgreSQL snapshot | PASS (application live) |
 
-The first thirteen observations are implemented by fourteen isolated
-SDK/application tests; retry recovery and retry exhaustion share one test
-function. The process-crash test proves that a replacement OS worker resumes
+The fourteen observations listed here are covered by fifteen isolated
+SDK/application tests in the combined live command; retry recovery and retry
+exhaustion share one test function, and the Redis retention/TTL coverage uses
+two tests. The process-crash test proves that a replacement OS worker resumes
 the same Workflow ID after the first worker exits with code 71. Temporal may
 reassign an in-flight Activity task without appending a second
 `ACTIVITY_TASK_STARTED` event; the test therefore requires an Activity start
 and completion plus `WORKFLOW_EXECUTION_COMPLETED`, rather than assuming a
-retry-event shape. The application rows are qualified separately by the B0
-live PostgreSQL, Redis, and HTTP/SSE suites. A real deployed Temporal service,
-restart smoke, and production lifespan binding remain outside this record.
+retry-event shape. The PG/Temporal crash-after-commit test verifies the
+committed receipt and projection before replacement, then asserts one terminal
+Redis event after recovery. The application rows are qualified separately by
+the B0 live PostgreSQL, Redis, and HTTP/SSE suites. A real deployed Temporal
+service, restart smoke, and production lifespan binding remain outside this
+record.
 
 The reliable cancellation case uses graceful signal handling: a signal that
 arrives during an Activity waits for that Activity to finish, then the
@@ -85,7 +91,7 @@ Fill this section from the command output, preserving failures verbatim:
 | Command | `uv run --frozen pytest -q -m live tests/test_temporal_qualification.py -ra` |
 | Result | `8 passed` |
 | Duration | `37.63s` (current frozen-lockfile run; prior runs `10.25s`-`39.42s`) |
-| Failure output | `none for the eight SDK tests; the combined B0 live gate including PostgreSQL, Redis, HTTP/SSE, and local process-crash qualification also passed; real Temporal service qualification remains out of scope` |
+| Failure output | `none for the eight SDK tests or the fifteen-test combined B0 live gate; real Temporal service qualification remains out of scope` |
 
 If a future environment blocks the test server download, mark `Result` as
 `blocked`, retain the command and exception, and leave unexecuted case
