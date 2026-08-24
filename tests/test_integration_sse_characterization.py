@@ -9,7 +9,12 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from xhs_food.events.bus import STREAM_START, InMemoryEventBus
+from xhs_food.contracts import ContractError, ErrorCategory, ErrorScope
+from xhs_food.events.bus import (
+    STREAM_START,
+    EventBusDependencyError,
+    InMemoryEventBus,
+)
 from xhs_food.events.types import SearchEvent, SearchEventType
 
 FIXTURES = Path(__file__).parent / "fixtures" / "sse_characterization"
@@ -168,3 +173,42 @@ async def test_error_is_terminal_and_uses_error_payload_field(
         b'id: mem-1\r\nevent: error\r\ndata: {"error": "source unavailable"}\r\n\r\n'
     )
     assert b"after_terminal" not in response.content
+
+
+async def test_reliable_sse_dependency_failure_is_explicit_http_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from api.search import routes
+
+    async def _get_bus(*, require_redis: bool = False) -> object:
+        assert require_redis is True
+        raise EventBusDependencyError(
+            ContractError(
+                code="EVENT_BUS_DEPENDENCY_UNAVAILABLE",
+                category=ErrorCategory.DEPENDENCY_UNAVAILABLE,
+                scope=ErrorScope.EVENT_BUS,
+                retryable=True,
+                boundary_ref="event_bus.redis_connect",
+            )
+        )
+
+    monkeypatch.setattr(routes, "get_event_bus", _get_bus)
+    app = FastAPI()
+    app.state.reliable_task_lifecycle = True
+    app.include_router(routes.router, prefix="/v1/search")
+
+    with TestClient(app) as client:
+        response = client.get("/v1/search/stream/reliable-session")
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == {
+        "schema_version": "1.0",
+        "code": "EVENT_BUS_DEPENDENCY_UNAVAILABLE",
+        "category": "dependency_unavailable",
+        "scope": "event_bus",
+        "retryable": True,
+        "terminal": False,
+        "message": None,
+        "boundary_ref": "event_bus.redis_connect",
+        "details": {},
+    }

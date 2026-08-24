@@ -14,7 +14,7 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Path
+from fastapi import APIRouter, Depends, Header, HTTPException, Path, Request
 from sse_starlette.sse import EventSourceResponse
 
 from api.schemas import (
@@ -22,7 +22,7 @@ from api.schemas import (
     SearchStatusResponse,
     UnifiedSearchRequest,
 )
-from xhs_food.contracts import ResearchTaskNotFoundError, ResearchTaskPort
+from xhs_food.contracts import ContractError, ResearchTaskNotFoundError, ResearchTaskPort
 from xhs_food.events.bus import STREAM_START, get_event_bus
 
 from .dependencies import get_research_task
@@ -88,6 +88,7 @@ async def unified_search(
 
 @router.get("/stream/{sessionId}")
 async def search_stream(
+    request: Request,
     sessionId: str = Path(..., description="会话ID"),
     last_event_id: str | None = Header(None, alias="Last-Event-ID"),
 ):
@@ -97,7 +98,18 @@ async def search_stream(
     it back as ``Last-Event-ID`` on reconnect. The EventBus replays from
     that id, so the client needs no special reconnection logic.
     """
-    bus = await get_event_bus()
+    reliable_enabled = bool(getattr(request.app.state, "reliable_task_lifecycle", False))
+    try:
+        bus = await (
+            get_event_bus(require_redis=True)
+            if reliable_enabled
+            else get_event_bus()
+        )
+    except RuntimeError as exc:
+        error = getattr(exc, "error", None)
+        if not isinstance(error, ContractError):
+            raise
+        raise HTTPException(status_code=503, detail=error.model_dump(mode="json")) from exc
     start_from = last_event_id or STREAM_START
 
     async def generate() -> AsyncGenerator[dict, None]:

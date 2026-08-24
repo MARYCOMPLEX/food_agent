@@ -119,6 +119,9 @@ async def lifespan(application: FastAPI):
 
     composition_root = build_legacy_composition_root()
     application.state.composition_root = composition_root
+    application.state.reliable_task_lifecycle = (
+        "reliable_task_lifecycle" in composition_root.logical_bindings
+    )
     application.state.research_task = await composition_root.resolve_logical("modular_core")
 
     storage = await get_user_storage_service()
