@@ -14,6 +14,7 @@ from xhs_food.contracts import (
     ErrorCategory,
     ErrorScope,
     TaskEvent,
+    TaskProgressProjection,
     TaskStatus,
 )
 from xhs_food.experience import EventMappingError, ReliableEventMapper
@@ -156,6 +157,44 @@ def test_reliable_mapper_projects_failed_and_cancelled_to_stable_error() -> None
         "code": "TASK_CANCELLED",
         "message": "任务已取消",
         "retryable": False,
+    }
+
+
+@pytest.mark.unit
+def test_reliable_mapper_builds_expired_cursor_resync_from_authority_snapshot() -> None:
+    mapper = ReliableEventMapper()
+    projection = TaskProgressProjection(
+        task_id="task-authority-1",
+        session_id="session-authority-1",
+        turn_id="2",
+        status=TaskStatus.COMPLETED,
+        progress=1.0,
+        updated_at=NOW,
+    )
+
+    expired = mapper.replay_expired(
+        projection,
+        session_id="session-authority-1",
+        snapshot={
+            "snapshotVersion": 7,
+            "status": "completed",
+            "terminal": {"event": "done", "message": "搜索完成"},
+        },
+    )
+
+    assert expired.event == "replay_expired"
+    assert expired.data == {
+        "schemaVersion": "v1",
+        "sessionId": "session-authority-1",
+        "taskId": "task-authority-1",
+        "turnId": 2,
+        "reason": "cursor_not_retained",
+        "action": "resync",
+        "snapshot": {
+            "snapshotVersion": 7,
+            "status": "completed",
+            "terminal": {"event": "done", "message": "搜索完成"},
+        },
     }
 
 

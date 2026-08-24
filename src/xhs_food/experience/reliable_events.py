@@ -4,13 +4,16 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from xhs_food.contracts import ContractPayload, TaskEvent, TaskStatus
+from xhs_food.contracts import ContractPayload, TaskEvent, TaskProgressProjection, TaskStatus
 
 from .events import EventMappingError, StableEvent
 
 
 def _turn_id(event: TaskEvent) -> int:
-    value = event.turn_id
+    return _parse_turn_id(event.turn_id)
+
+
+def _parse_turn_id(value: str | None) -> int:
     try:
         turn_id = int(value or "0")
     except ValueError as exc:
@@ -94,6 +97,31 @@ class ReliableEventMapper:
             cancelled=expected is TaskStatus.CANCELLED,
         )
         return StableEvent(event="error", data=payload)
+
+    def replay_expired(
+        self,
+        projection: TaskProgressProjection,
+        *,
+        session_id: str,
+        snapshot: ContractPayload,
+    ) -> StableEvent:
+        """Build the single resync control event for an expired Redis cursor."""
+
+        if not session_id:
+            raise EventMappingError("reliable event session_id must be non-empty")
+        turn_id = _parse_turn_id(projection.turn_id)
+        return StableEvent(
+            event="replay_expired",
+            data={
+                "schemaVersion": "v1",
+                "sessionId": session_id,
+                "taskId": projection.task_id,
+                "turnId": turn_id,
+                "reason": "cursor_not_retained",
+                "action": "resync",
+                "snapshot": dict(snapshot),
+            },
+        )
 
 
 __all__ = ["ReliableEventMapper"]
