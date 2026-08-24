@@ -58,7 +58,7 @@ flag without an explicitly injected Temporal/PostgreSQL policy.
 | 8.8 | Redis outage semantics | PENDING | Verify started Workflow/committed result survives Redis outage; new live SSE/realtime admission returns `dependency-unavailable`; no process-local production fallback. |
 | 8.9 | HTTP/SSE compatibility and post-commit terminal publication | PARTIAL | Offline completed and failed commit-before-terminal tests plus terminal event-type tests pass; run route/mapper tests for completed/error/cancelled, replay-expired, same task/turn, and legacy differential behavior. |
 | 8.10 | Dependency/runtime prohibition gate | PASS (static, needs final scan) | No B0 code introduces Redis lock/lease, ARQ, Celery, LangGraph, or second scheduler. Re-run import/dependency scan before commit. |
-| 8.11 | Disable/rebind legacy and independent revert | PARTIAL | The independent Git revert drill passed for the implementation head (`aee493d -> 1c12ceb`) with an identical base tree and clean detached worktree; production flag flip/rebind and runtime no-new-admission checks remain pending. |
+| 8.11 | Disable/rebind legacy and independent revert | PARTIAL | The independent Git revert drill passed for implementation head `c869e5e` against `0aac006` with an identical base tree and clean detached worktree; production flag flip/rebind and runtime no-new-admission checks remain pending. |
 
 ## Offline Evidence Already Available
 
@@ -72,7 +72,7 @@ uv run --frozen pytest -q tests/test_unit_s3_redis_contract.py
   # 8 passed in 3.08s
 
 uv run --frozen pytest -q -m "not live" -ra --durations=0
-  # 851 passed, 15 deselected, 2 warnings in 52.41s
+  # 854 passed, 15 deselected, 2 warnings in 52.92s
 
 uv lock --check
 # passed
@@ -123,7 +123,7 @@ AI `TestModel`; it does not contact a real provider or write application data.
 uv run --frozen pytest -q -m live tests/test_temporal_qualification.py
 ```
 
-Recorded SDK result: `8 passed` in `38.20s` on Python `3.12.0`, Temporal SDK
+Recorded SDK result: `8 passed` in `36.27s` on Python `3.12.0`, Temporal SDK
 `1.31.0`, Pydantic AI `2.5.1`, Windows 11 build `22631`, UTC
 `2026-08-24`. The first nine qualification observations are implemented by
 eight isolated tests; retry recovery and exhaustion share one test function.
@@ -201,16 +201,16 @@ unexecuted command.
 
 | Field | Value |
 |---|---|
-| Implementation commit | `78e7ea3` (durable owner/projection implementation; live PostgreSQL qualification pending) |
-| Qualification commit | `050890af0c6a39e25f7d9483e52fcfc2a8228f62` |
+| Implementation commit | `c869e5e` (durable owner, queue quota, projection injection, and EventBus publisher; live PostgreSQL qualification pending) |
+| Qualification commit | `c869e5e` |
 | Python/runtime | `CPython 3.12.x` |
 | Temporal SDK / service | `1.31.0 / official time-skipping test server` |
 | Pydantic AI | `2.5.1` |
 | PostgreSQL / Redis | `16 / 7.4` |
-| Focused unit count/duration | `19 passed` in the B0 reliable-task unit module (current run included in the 82-test targeted gate) |
+| Focused unit count/duration | `19 passed` in the B0 reliable-task unit module; `54 passed` in the B0/Composition/architecture/Redis targeted gate |
 | Redis contract count/duration | `8 passed in 3.08s` |
-| Live qualification count/duration | `8 passed in 36.78s` |
-| Full non-live count/duration | `851 passed, 15 deselected, 2 warnings in 54.78s` |
+| Live qualification count/duration | `8 passed in 36.27s` |
+| Full non-live count/duration | `854 passed, 15 deselected, 2 warnings in 52.92s` |
 | `uv lock --check` | `pass` |
 | Ruff / Pyright | `targeted changed-file Ruff pass; targeted Pyright 0 errors; legacy full-tree baseline remains noisy` |
 | `openspec validate define-modular-architecture --strict` | `pass` |
@@ -226,10 +226,10 @@ using the procedure in `b0-reliable-task-rollback.md`:
 
 | Revert evidence | Value |
 |---|---|
-| Base commit/tree | `aee493dd3a29c8c2364cfd9badb71b32615d8b6c / b64d0c0076bf4503dbfec13c3fcaf3f9c62e08d8` |
-| B0 head/tree | `050890a / 92562300aa78f48c21c0764f3c51b954a994a81a` |
-| Generated revert commits | `5aa4365` (revert `050890a`), `72ceefa` (revert `1c12ceb`); detached worktree removed |
+| Base commit/tree | `0aac00632186d6b4e5b12170fccfbbaf23fa4f8a / 7757c6bede8ba202435a142edd5f2c820a89a74d` |
+| B0 head/tree | `c869e5e / aa59e8831f13a00addfb61375a870ca43c4b30a9` |
+| Generated revert commits | `none (detached worktree used --no-commit revert); worktree removed` |
 | Reverted tree equals base | `pass` |
-| Reverted test count/duration | `728 passed, 5 deselected, 2 warnings in 65.80s` |
+| Reverted test count/duration | `not rerun; tree identity and empty diff were the drill assertions` |
 | Empty diff and clean status | `pass` |
 | Worktree cleanup/prune | `pass` |
