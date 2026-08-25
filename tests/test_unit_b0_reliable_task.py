@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import pytest
+from temporalio.exceptions import ApplicationError
 
 from xhs_food.composition.adapters import (
     PostgresReliableTaskAuthority,
@@ -758,6 +759,38 @@ async def test_terminal_event_type_matches_failed_and_cancelled_status() -> None
             "run_id": "run-cancelled",
         }
     ) is False
+
+
+@pytest.mark.unit
+async def test_terminal_event_rejects_unknown_status_without_publishing() -> None:
+    workflow = _Workflow()
+    publisher = InMemoryReliableTaskEventPublisher()
+    policy = TemporalReliableResearchPolicy(workflow)
+    coordinator = ResearchCoordinator(
+        _LegacyPort(), reliable_policy=policy, reliable_policy_enabled=True
+    )
+    policy.bind_owner(coordinator)
+    task = await coordinator.submit(_request())
+    activities = ReliableResearchActivities(
+        owner=coordinator,
+        authority=InMemoryReliableTaskAuthority(),
+        executor=_result_payload,
+        publisher=publisher,
+    )
+
+    with pytest.raises(ApplicationError, match="valid task status"):
+        await activities.publish_terminal(
+            {
+                "event_id": f"{task.task_id}:invalid",
+                "task_id": task.task_id,
+                "workflow_id": task.workflow_id,
+                "run_id": task.run_id,
+                "status": "unknown",
+                "result": {},
+                "idempotency_key": f"{task.task_id}:invalid",
+            }
+        )
+    assert publisher.events == {}
 
 
 @pytest.mark.unit

@@ -799,7 +799,12 @@ class ReliableResearchActivities:
     async def publish_terminal(self, raw: Mapping[str, Any]) -> bool:
         event_id = _required_text(raw, "event_id")
         task_id = _required_text(raw, "task_id")
-        status = TaskStatus(str(raw.get("status")))
+        try:
+            status = TaskStatus(str(raw.get("status")))
+        except ValueError as exc:
+            raise ApplicationError(
+                "terminal event requires a valid task status", type="ValidationError"
+            ) from exc
         result = raw.get("result")
         payload: ContractPayload = {
             "result": {str(key): item for key, item in result.items()}
