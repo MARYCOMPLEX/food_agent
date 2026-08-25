@@ -1,0 +1,64 @@
+# syntax=docker/dockerfile:1.7
+# Release image: CPython 3.12, frozen dependencies, and a non-root runtime.
+
+FROM node:20-slim AS node-deps
+
+WORKDIR /node-build
+COPY src/xhs_food/auth/_node/package.json src/xhs_food/auth/_node/package-lock.json* ./
+RUN if [ -f package-lock.json ]; then npm ci --omit=dev; else npm install --omit=dev; fi
+
+FROM python:3.12-slim AS builder
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_PYTHON_DOWNLOADS=never
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl ca-certificates build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
+    && mv /root/.local/bin/uv /usr/local/bin/uv
+
+WORKDIR /app
+COPY pyproject.toml uv.lock ./
+COPY README.md ./README.md
+COPY src/ /app/src/
+RUN uv sync --no-dev --frozen
+
+FROM python:3.12-slim AS runtime
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PATH="/app/.venv/bin:$PATH" \
+    PYTHONPATH="/app/src"
+
+COPY --from=node:20-slim /usr/local/bin/node /usr/local/bin/node
+COPY --from=node:20-slim /usr/local/lib/node_modules /usr/local/lib/node_modules
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libpq5 ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --system --gid 1001 app \
+    && useradd --system --uid 1001 --gid app --home /app --shell /usr/sbin/nologin app
+
+WORKDIR /app
+COPY --from=builder --chown=app:app /app/.venv /app/.venv
+COPY --chown=app:app src/ /app/src/
+COPY --chown=app:app scripts/ /app/scripts/
+COPY --chown=app:app alembic/ /app/alembic/
+COPY --chown=app:app alembic.ini pyproject.toml /app/
+COPY --from=node-deps --chown=app:app /node-build/node_modules /app/src/xhs_food/auth/_node/node_modules
+
+RUN mkdir -p /app/logs /app/.xhs_profiles \
+    && chown -R app:app /app/logs /app/.xhs_profiles
+
+USER app
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).status==200 else 1)"
+
+CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]

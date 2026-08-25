@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-08-25
+goal: Contracted legacy paths are removable without breaking consumers or
+  restore guarantees.

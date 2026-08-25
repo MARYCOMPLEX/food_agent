@@ -14,6 +14,13 @@ depends_on = None
 def upgrade() -> None:
     """Provision only additive private-memory tables; never inspect legacy data."""
 
+    # Alembic's default version table is VARCHAR(32); this revision identifier
+    # is intentionally longer. Widen the Alembic-owned bookkeeping column
+    # before Alembic records the new head so clean and N-1 upgrades converge.
+    op.execute(
+        "ALTER TABLE alembic_version "
+        "ALTER COLUMN version_num TYPE VARCHAR(128)"
+    )
     for table in B3_MEMORY_TABLES:
         op.create_table(table.name, *table.columns, *table.constraints)
     for index in B3_MEMORY_INDEXES:

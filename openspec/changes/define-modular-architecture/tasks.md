@@ -217,7 +217,7 @@
 - [ ] 14.3 在目标完整栈 PostgreSQL 16+pgvector/pg_trgm、Redis、Temporal、S3-compatible ObjectStore 和 Pydantic AI provider fake 上运行同一 backend contract suite；no-infra、Redis-only、PostgreSQL-only 和 InMemory EventBus 仅运行 legacy characterization，不得标记为目标生产支持模式。
 - [ ] 14.4 在 Chromium desktop/mobile 及已批准 Firefox/WebKit 组合运行 HTTP/SSE reconnect、search、favorites、history 和 profile e2e。
 - [ ] 14.5 在 UTF-8 中文、UTC、Asia/Shanghai、固定时钟和已批准 locale 下验证 canonicalization、timestamps 和 freshness。
-- [ ] 14.6 构建 Python 3.12 non-root Linux image，并对 PostgreSQL 16、Redis、Temporal server/workers 和 MinIO Compose 栈运行 health、端口、卷权限、restart、Alembic migration 和三类 Task Queue smoke tests。
+- [x] 14.6 构建 Python 3.12 non-root Linux image，并对 PostgreSQL 16、Redis、Temporal server/workers 和 MinIO Compose 栈运行 health、端口、卷权限、restart、Alembic migration 和三类 Task Queue smoke tests。
 - [ ] 14.7 从空库和 N-1 fixture 运行唯一 Alembic upgrade path，执行 downgrade/restore 演练并扫描新代码，确认没有旁路 migration、运行时建表或与 SQLAlchemy metadata 冲突的 schema authority。
 - [ ] 14.8 验证 BGE-M3 `profile_v1` 的模型标识、1024 维、cosine 索引、dual-write/backfill cursor、质量门禁、profile read pointer 原子切换/回滚、跨 profile 查询拒绝和旧 `VECTOR(4096)` 非破坏兼容。
 - [ ] 14.9 运行 Redis contract gate：20 条/24 小时会话窗口、SSE 1 小时/`MAXLEN 1000`、缓存可重建、限流和短幂等；注入 Redis outage，验证无锁/租约/durable state 且无生产 in-memory fallback。
@@ -228,4 +228,4 @@
 - [ ] 14.14 对每个 S0-S5/B0-B5 里程碑分别归档测试结果、指标阈值、feature binding、schema/profile version 和独立 revert 演练。
 - [ ] 14.15 运行 `openspec validate --strict`、全量 CI 和 dependency graph 检查，确认没有跳过的 requirement scenario。
 - [ ] 14.16 更新架构图、合同目录、运行手册和兼容性 ledger，使其由实际注册表/schema 生成或 CI 校验。
-- [ ] 14.17 创建后续 legacy-contraction change，只在完整发布周期、无旧消费者和 restore 演练证明后计划删除旧路径/字段；本 change 首轮实现不执行删除。
+- [x] 14.17 创建后续 legacy-contraction change，只在完整发布周期、无旧消费者和 restore 演练证明后计划删除旧路径/字段；本 change 首轮实现不执行删除。

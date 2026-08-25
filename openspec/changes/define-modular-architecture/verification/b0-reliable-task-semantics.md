@@ -72,7 +72,7 @@ uv run --frozen pytest -q tests/test_unit_s3_redis_contract.py
   # 11 passed in 3.17s
 
 uv run --frozen pytest -q -m "not live" -ra --durations=0
-  # 872 passed, 24 deselected, 2 warnings in 53.71s
+  # 955 passed, 24 deselected, 2 warnings in 108.26s
 
 uv lock --check
 # passed
@@ -286,7 +286,7 @@ unexecuted command.
 | Redis contract count/duration | `11 passed in 3.17s` offline; `3 passed in 8.20s` live B0 streams and restart smoke |
 | Live qualification count/duration | `9 passed in 39.93s` |
 | Live application binding count/duration | `1 passed in 12.63s`; live HTTP/SSE `1 passed in 7.99s`; local process-crash `1 passed in 19.78s`; PG/Temporal crash-after-commit `1 passed in 44.28s`; current combined Temporal/PostgreSQL/Redis/application/process gate `17 passed in 119.27s` |
-| Full non-live count/duration | `872 passed, 24 deselected, 2 warnings in 53.71s` |
+| Full non-live count/duration | `955 passed, 24 deselected, 2 warnings in 108.26s` |
 | `uv lock --check` | `pass` |
 | Ruff / Pyright | `targeted changed-file Ruff pass; targeted Pyright 0 errors; legacy full-tree baseline remains noisy` |
 | `openspec validate define-modular-architecture --strict` | `pass` |

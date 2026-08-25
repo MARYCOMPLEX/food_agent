@@ -72,6 +72,7 @@ def test_b3_migration_is_additive_and_scoped_to_memory_authority() -> None:
         assert f"CREATE TABLE {table}" in upgrade
         assert f"DROP TABLE {table}" in downgrade
     assert "CREATE TABLE IF NOT EXISTS" not in upgrade
+    assert "ALTER TABLE alembic_version" in upgrade
     assert "chat_history" not in upgrade
     assert "DROP TABLE chat_history" not in downgrade
     assert "ix_memory_records_scope_status" in upgrade
