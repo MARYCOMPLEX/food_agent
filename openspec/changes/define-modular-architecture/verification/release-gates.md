@@ -37,7 +37,7 @@ Recorded: 2026-08-25
 | 14.13 dependency/import scan | **PASS** | Architecture/dependency tests and `uv.lock` scan reject ARQ, Celery, LangGraph, OpenAI Agents SDK, LiteLLM, Mem0, Zep, Redis locks/Redlock and a second migration/runtime authority. |
 | 14.14 milestone archive | **PASS (records)** | S0-S5 and B0-B5 verification records include commands, counts, versions, feature bindings and rollback runbooks. Release-gate status remains separate from milestone implementation status. |
 | 14.15 strict OpenSpec/CI/dependency graph | **PARTIAL** | `openspec validate define-modular-architecture --strict`, `uv lock --check`, full non-live pytest and architecture dependency graph pass. Frontend lint/build and target deployment CI are pending. |
-| 14.16 architecture/docs drift | **PARTIAL** | Versioned HTML/Draw.io references, ADR index, contract fixtures and runbooks exist. A generated registry/schema drift check and refreshed diagram content are still pending. |
+| 14.16 architecture/docs drift | **PASS (local)** | Added `tests/test_architecture_docs_drift.py`, which registers the live Food/Travel manifests and schema bundles, checks the contract catalog, validates architecture HTML/Draw.io anchors, verifies ADR-0009 compatibility anchors, and requires S0-S5/B0-B5 verification plus rollback assets. The Draw.io reference was refreshed to remove obsolete ARQ/OpenAI Agents SDK/Responses labels and reflect Pydantic AI V2, Temporal, Redis hot state, and Food/Travel Packs. Focused gate: `3 passed`. |
 | 14.17 legacy contraction follow-up | **PASS** | The follow-up `legacy-contraction` change is created as a planning-only change. This change deletes no legacy path or field. |
 
 ## Reproducible Commands
@@ -47,6 +47,7 @@ uv sync --frozen --extra dev
 uv lock --check
 uv run --frozen pytest -q -m "not live" -ra --durations=0
 uv run --frozen pytest -q tests/test_release_gate_manifests.py
+uv run --frozen pytest -q tests/test_architecture_docs_drift.py
 uv run --frozen ruff check src tests/test_release_gate_manifests.py
 openspec validate define-modular-architecture --strict
 docker build --file Dockerfile.release --tag xhs-food-agent:release-gate .
