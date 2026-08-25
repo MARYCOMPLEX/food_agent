@@ -201,14 +201,14 @@
 
 ## 13. B5 Travel Pack Proof
 
-- [ ] 13.1 根据 Domain Contract 创建 Travel Pack manifest，声明景点、路线、季节、门票、拥挤度、游玩时长和适合人群。
-- [ ] 13.2 定义 Travel EvidenceType、FeatureSet、ScoringPolicy、freshness/coverage/stopping、allowed tool input/output schema 和 Agent final output schema fixtures。
-- [ ] 13.3 声明 Travel 所需来源能力并注册相应 SourceConnector，不创建 Travel 专属 runtime、证据库、刷新、记忆、队列或存储。
-- [ ] 13.4 实现 Travel allowed tools 和输出 adapter，确保客户端不接收伪装成 Restaurant 的结果。
-- [ ] 13.5 让 Travel 查询复用共享 Canonical Query、Family、Bundle、Coordinator、Personalization 和 Refresh ports。
-- [ ] 13.6 添加 invalid/incomplete Pack、malformed tool input/output/final output、恢复后 schema version 固定、unauthorized tool、Connector failure 和 Pack exception 隔离 tests。
-- [ ] 13.7 运行 Food 全回归及 Travel contract/e2e，证明 Travel 注册或失败不改变 Food 行为。
-- [ ] 13.8 注销 Travel version 并确认共享核心和 Food 无需回滚；将 B5 作为独立提交。
+- [x] 13.1 根据 Domain Contract 创建 Travel Pack manifest，声明景点、路线、季节、门票、拥挤度、游玩时长和适合人群。
+- [x] 13.2 定义 Travel EvidenceType、FeatureSet、ScoringPolicy、freshness/coverage/stopping、allowed tool input/output schema 和 Agent final output schema fixtures。
+- [x] 13.3 声明 Travel 所需来源能力并注册相应 SourceConnector，不创建 Travel 专属 runtime、证据库、刷新、记忆、队列或存储。
+- [x] 13.4 实现 Travel allowed tools 和输出 adapter，确保客户端不接收伪装成 Restaurant 的结果。
+- [x] 13.5 让 Travel 查询复用共享 Canonical Query、Family、Bundle、Coordinator、Personalization 和 Refresh ports。
+- [x] 13.6 添加 invalid/incomplete Pack、malformed tool input/output/final output、恢复后 schema version 固定、unauthorized tool、Connector failure 和 Pack exception 隔离 tests。
+- [x] 13.7 运行 Food 全回归及 Travel contract/e2e，证明 Travel 注册或失败不改变 Food 行为。
+- [x] 13.8 注销 Travel version 并确认共享核心和 Food 无需回滚；将 B5 作为独立提交。
 
 ## 14. Verification And Release Gates
 

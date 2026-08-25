@@ -40,6 +40,8 @@ from .state import (
     LegacySessionWindowAdapter,
     LegacyStateStoreAdapter,
 )
+from .travel_output import TravelOutputAdapter
+from .travel_tools import TravelPlaceLookupProvider, build_travel_tool_gateway
 
 __all__ = [
     "DisabledPublicEvidenceRepository",
@@ -74,4 +76,7 @@ __all__ = [
     "build_place_source_connector",
     "build_place_tool",
     "build_xhs_source_connector",
+    "TravelOutputAdapter",
+    "TravelPlaceLookupProvider",
+    "build_travel_tool_gateway",
 ]
