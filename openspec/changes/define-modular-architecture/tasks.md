@@ -221,7 +221,7 @@
 - [ ] 14.7 从空库和 N-1 fixture 运行唯一 Alembic upgrade path，执行 downgrade/restore 演练并扫描新代码，确认没有旁路 migration、运行时建表或与 SQLAlchemy metadata 冲突的 schema authority。
 - [x] 14.8 验证 BGE-M3 `profile_v1` 的模型标识、1024 维、cosine 索引、dual-write/backfill cursor、质量门禁、profile read pointer 原子切换/回滚、跨 profile 查询拒绝和旧 `VECTOR(4096)` 非破坏兼容。
 - [x] 14.9 运行 Redis contract gate：20 条/24 小时会话窗口、SSE 1 小时/`MAXLEN 1000`、缓存可重建、限流和短幂等；注入 Redis outage，验证无锁/租约/durable state 且无生产 in-memory fallback。
-- [ ] 14.10 运行 Temporal replay、determinism、Pydantic AI model/tool Activity 映射、Workflow ID single-flight、worker rollout、三 Task Queue 隔离、PG/Temporal reconciliation、取消、重试耗尽和 failed-workflow operator runbook gate。
+- [x] 14.10 运行 Temporal replay、determinism、Pydantic AI model/tool Activity 映射、Workflow ID single-flight、worker rollout、三 Task Queue 隔离、PG/Temporal reconciliation、取消、重试耗尽和 failed-workflow operator runbook gate。
 - [x] 14.11 运行 S3/boto3/MinIO 合同和故障矩阵，覆盖大对象流式传输、hash 去重、加密配置、签名 URL、缺失/损坏对象、上传成功后 metadata transaction abort、不可发现孤儿的幂等清理和数据库不内嵌二进制。
 - [x] 14.12 运行 OpenTelemetry trace continuity/脱敏和 Prometheus 指标语义/cardinality gates，覆盖 API -> Temporal workflow/activity -> PostgreSQL/Redis/S3 的 correlation。
 - [x] 14.13 扫描运行时依赖和 imports，确认核心仅有一个 Pydantic AI Agent runtime 和一个 Temporal durable runtime，不含 ARQ、Celery、LangGraph、OpenAI Agents SDK、LiteLLM、Mem0、Zep、Redis lock/Redlock 或第二套迁移权威。
