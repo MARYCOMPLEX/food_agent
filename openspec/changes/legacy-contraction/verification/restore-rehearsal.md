@@ -80,6 +80,29 @@ This proves the retained Temporal history can be handed to a replacement
 worker and that a failed execution can be located and retried. It does not
 prove that an external production deployment has no old consumers.
 
+## Schema Authority Preflight
+
+The repository-local AST probe is the repeatable 14.7 source scan:
+
+```powershell
+uv run --frozen python scripts/qualification_schema_authority.py
+```
+
+Observed on 2026-08-25:
+
+```text
+schemaVersion: schema-authority-probe/v1
+status: pending_legacy_contraction
+unexpectedFindings: []
+legacyFindings: 8 registered runtime DDL sources
+```
+
+Exit code `2` is intentional while the compatibility ledger still retains
+legacy runtime DDL. An unregistered runtime DDL source returns exit `1`; once
+the approved contraction removes all allowlisted paths, the same probe returns
+exit `0`. The probe excludes Alembic, tests, and virtual environments and does
+not modify source code or database state.
+
 ## Gate Interpretation And Cleanup
 
 - The restore prerequisite is `PASS` and is safe to repeat with new disposable
