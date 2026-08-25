@@ -28,7 +28,7 @@ Recorded: 2026-08-25
 | 14.4 browser matrix | **GAP** | Frontend contract fixtures exist; Chromium/Firefox/WebKit reconnect and profile e2e are not yet executed. |
 | 14.5 encoding/time/freshness | **PASS (local)** | Canonical Query fixture includes UTF-8 Chinese and `Asia/Shanghai`; evidence timestamps normalize to UTC; freshness and connector tests use injected fixed clocks. |
 | 14.6 non-root image/Compose smoke | **PASS (local)** | `docker build --file Dockerfile.release --tag xhs-food-agent:release-gate .` succeeded. `docker compose -f docker-compose.release.yml up -d --wait --no-build` brought PostgreSQL 16/pgvector, Redis 7, Temporal 1.28.2, MinIO, migration, and app healthy; migration exited 0, app `/health` returned `{"status":"ok","service":"xhs-food-agent","version":"1.0.0"}`, `id` reported UID/GID 1001, and `alembic_version` was `20260824_0007_b3_personalization_memory` with the `vector` extension present. The three serialized queue smoke containers (`research`, `refresh`, `media`) each exited 0 with `OOMKilled=false`; app restart recovered to healthy. An initial parallel queue launch reproduced a research smoke exit 139, so the manifest now serializes the qualification probes through `service_completed_successfully`. |
-| 14.7 Alembic upgrade/downgrade/restore | **PARTIAL** | Alembic is the only target schema authority; additive revisions and clean/N-1 fixtures pass. A live empty-database upgrade plus downgrade/restore rehearsal is pending. |
+| 14.7 Alembic upgrade/downgrade/restore | **PARTIAL** | A disposable `release_gate_rehearsal` database completed `upgrade head`, `downgrade base`, and a second `upgrade head`. A 37,470-byte `pg_dump` was restored into a dropped/recreated database with `ON_ERROR_STOP=1`; the restored database reported `20260824_0007_b3_personalization_memory`, `vector`, `pg_trgm`, and 26 public tables. Clean/N-1 fixtures also pass. The source scan still finds legacy runtime `CREATE TABLE IF NOT EXISTS` paths in `src/xhs_food/services`, `src/scripts`, and `scripts/migrate_sse_recovery.py`; removal is explicitly deferred to `legacy-contraction`. |
 | 14.8 BGE-M3 `profile_v1` | **PASS (fixture)** | The fixture pins `bge-m3/v1`, 1024 dimensions, normalized cosine distance, profile-aware index metadata, dual-write cursor and pointer rollback tests. No external model download is claimed. |
 | 14.9 Redis contract/outage | **PASS (local/live evidence)** | Session 20/24h, stream 1h/`MAXLEN 1000`, rebuild, rate-limit, short idempotency, replay-expiry and outage semantics pass. Redis is not a lock, lease, queue, or durable task store. |
 | 14.10 Temporal/operator gate | **PARTIAL** | Seven isolated SDK qualification tests pass, including determinism, model/tool Activities, retry, cancellation and patched replay; application cancellation and PG/Temporal reconciliation evidence pass. Production rollout, multi-worker smoke and operator recovery remain pending. |
@@ -66,8 +66,8 @@ claim.
 ## Closure Criteria
 
 The release gate can move from **Partial qualification** to **Qualified** only
-after the Ubuntu run, browser matrix, Docker/Compose smoke, live Alembic
-restore, target-stack correlation and operator rollout probes have attached
-their exact command output and environment. Until then, the approved support
-matrix remains CPython 3.12 on Ubuntu/Windows x86_64 with the documented probe
+after the Ubuntu run, browser matrix, target-stack correlation, operator
+rollout probes, and the legacy runtime-schema contraction have attached their
+exact command output and environment. Until then, the approved support matrix
+remains CPython 3.12 on Ubuntu/Windows x86_64 with the documented probe
 boundaries.
