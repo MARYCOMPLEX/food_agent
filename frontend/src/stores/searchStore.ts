@@ -187,7 +187,11 @@ function connectSSE(
     set({ eventSource: null })
   })
 
-  es.addEventListener('error', () => {
+  es.addEventListener('error', (e) => {
+    // EventSource uses the same event name for transport failures. Those
+    // events have no data and must reach `onerror` so the stream can reconnect.
+    const raw = (e as MessageEvent<string>).data
+    if (typeof raw !== 'string' || !raw.trim()) return
     set({ eventCount: get().eventCount + 1, status: 'error' })
     es.close()
     set({ eventSource: null })
