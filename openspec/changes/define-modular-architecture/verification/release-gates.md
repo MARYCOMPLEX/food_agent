@@ -36,7 +36,7 @@ Recorded: 2026-08-25
 | 14.12 OTel/Prometheus | **PASS (contract)** | Trace correlation, secret/URL/preference redaction and bounded label-cardinality tests pass. End-to-end API -> Temporal -> PostgreSQL/Redis/S3 trace capture is a deployment probe. |
 | 14.13 dependency/import scan | **PASS** | `uv run --frozen pytest -q tests/test_unit_architecture_boundaries.py tests/test_unit_dependency_ledger.py tests/test_unit_b3_architecture.py` passed 17 tests; `uv lock --check` passed. The AST/import/lock scan rejects ARQ, Celery, LangGraph, OpenAI Agents SDK, LiteLLM, Mem0, Zep, Redis locks/Redlock, forbidden database pools/runtime DDL, and a second migration/runtime authority. |
 | 14.14 milestone archive | **PASS (records)** | S0-S5 and B0-B5 verification records include commands, counts, versions, feature bindings and rollback runbooks. Release-gate status remains separate from milestone implementation status. |
-| 14.15 strict OpenSpec/CI/dependency graph | **PARTIAL** | `openspec validate define-modular-architecture --strict`, `uv lock --check`, full non-live pytest and architecture dependency graph pass. Frontend lint/build and target deployment CI are pending. |
+| 14.15 strict OpenSpec/CI/dependency graph | **PARTIAL (local CI mirror)** | `openspec validate define-modular-architecture --strict`, `openspec validate legacy-contraction --strict`, `uv sync --frozen --extra dev --python 3.12`, `uv lock --check`, critical Ruff (`E9,F63,F7,F82`), frontend `npm ci`, `npm run lint`, and `npm run build` all pass locally. The backend CI-equivalent command `uv run --frozen pytest --cov=src --cov-report=xml -m "unit or integration" -ra --durations=0` passed `961 passed, 24 deselected, 2 warnings` in `178.17s`. Full Ruff remains `796 errors` in the existing non-blocking/`continue-on-error` baseline, so this is not a clean CI qualification; Ubuntu, target deployment CI, and browser/production probes remain pending. |
 | 14.16 architecture/docs drift | **PASS (local)** | Added `tests/test_architecture_docs_drift.py`, which registers the live Food/Travel manifests and schema bundles, checks the contract catalog, validates architecture HTML/Draw.io anchors, verifies ADR-0009 compatibility anchors, and requires S0-S5/B0-B5 verification plus rollback assets. The Draw.io reference was refreshed to remove obsolete ARQ/OpenAI Agents SDK/Responses labels and reflect Pydantic AI V2, Temporal, Redis hot state, and Food/Travel Packs. Focused gate: `3 passed`. |
 | 14.17 legacy contraction follow-up | **PASS** | The follow-up `legacy-contraction` change is created as a planning-only change. This change deletes no legacy path or field. |
 
@@ -52,6 +52,14 @@ uv run --frozen pytest -q tests/test_unit_architecture_boundaries.py tests/test_
 uv lock --check
 uv run --frozen ruff check src tests/test_release_gate_manifests.py
 openspec validate define-modular-architecture --strict
+openspec validate legacy-contraction --strict
+uv run --frozen ruff check src/ tests/ --select E9,F63,F7,F82
+Push-Location frontend
+npm ci
+npm run lint
+npm run build
+Pop-Location
+uv run --frozen pytest --cov=src --cov-report=xml -m "unit or integration" -ra --durations=0
 docker build --file Dockerfile.release --tag xhs-food-agent:release-gate .
 docker compose -f docker-compose.release.yml up -d --wait --no-build
 docker compose -f docker-compose.release.yml ps -a
