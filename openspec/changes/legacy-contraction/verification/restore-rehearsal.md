@@ -103,8 +103,8 @@ f-string SQL fragments. An unregistered runtime DDL source returns exit `1`;
 once the approved contraction removes all allowlisted paths, the same probe
 returns exit `0`. The probe excludes Alembic, tests, and virtual environments
 and does not modify source code or database state. Hosted CI run
-[`32848307329`](https://github.com/MARYCOMPLEX/food_agent/actions/runs/32848307329)
-executed the same preflight and uploaded the JSON report.
+[`32849665982`](https://github.com/MARYCOMPLEX/food_agent/actions/runs/32849665982)
+at commit `803bbaa` executed the same preflight and uploaded the JSON report.
 
 ## Gate Interpretation And Cleanup
 
