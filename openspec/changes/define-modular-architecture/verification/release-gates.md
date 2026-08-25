@@ -23,7 +23,7 @@ Recorded: 2026-08-25
 | Task | Result | Evidence and limitation |
 |---|---|---|
 | 14.1 Python 3.12 blocking gate | **PASS (Windows + Ubuntu 24.04 container)** | Windows `uv sync --frozen --extra dev`, `uv lock --check`, and backend CI mirror pass. An Ubuntu `24.04` LTS container using CPython `3.12.3` ran the frozen backend gate with the Compose PostgreSQL/Redis services: `961 passed, 24 deselected, 2 warnings in 255.25s`; a separate read-only Ubuntu lock check also passed. The hosted Ubuntu runner itself remains an environment probe, not a claim about GitHub runner parity. |
-| 14.2 OS/Python probes | **PARTIAL** | `scripts/qualification_platform_probe.py` records `platform-probe/v1`, runtime/host match, and an explicit `productionSupportMatrixChanged: false`. The GitHub `macos-14` arm64 job is non-blocking (`continue-on-error`) and uploads the probe artifact; a hosted macOS result is not present in this local run. CPython 3.13 remains outside the support range. Neither result expands production support. |
+| 14.2 OS/Python probes | **PASS (probe)** | GitHub Actions run [`32843387574`](https://github.com/MARYCOMPLEX/food_agent/actions/runs/32843387574) at commit `a8b7049` completed the `macos-14` arm64 job successfully. The runner reported Darwin/arm64 with CPython `3.12.10`; `platform-probe/v1` returned `status=pass`, `python312=true`, `hostMatch=true`, and `productionSupportMatrixChanged=false`. The CPython 3.13 probe remains explicitly outside the `>=3.12,<3.13` support range. This evidence validates compatibility only and does not expand the production matrix beyond CPython 3.12 on Ubuntu/Windows x86_64. |
 | 14.3 target service contract suite | **PASS (local complete stack)** | The release Compose stack is healthy with PostgreSQL `16.14` + `pg_trgm 1.6`/`vector 0.8.2`, Redis `7.4.9`, Temporal `1.28.2`, and MinIO. An isolated CPython `3.12.12` runner joined that network; live B2 PostgreSQL/pgvector/pg_trgm qualification passed (`1 passed in 15.34s`) and the CI backend command passed (`961 passed, 24 deselected, 2 warnings in 242.58s`). A real `Boto3ObjectStore` put/get/stat/signed-URL/delete smoke against MinIO also passed. Target CI and production provider deployment remain separate closure gaps. |
 | 14.4 browser matrix | **PASS (local mock-API matrix)** | `uv run --frozen python scripts/qualification_frontend_browser_matrix.py` passed search, first-503 SSE reconnect, favorites, history, and profile FAQ for Chromium, Firefox, and WebKit at desktop `1280x900` and mobile `390x844` (six browser/viewport runs). The API/provider boundary is mocked; production browser/deployment traffic remains a separate probe. |
 | 14.5 encoding/time/freshness | **PASS (local)** | Canonical Query fixture includes UTF-8 Chinese and `Asia/Shanghai`; evidence timestamps normalize to UTC; freshness and connector tests use injected fixed clocks. |
@@ -41,6 +41,19 @@ Recorded: 2026-08-25
 | 14.17 legacy contraction follow-up | **PASS** | The follow-up `legacy-contraction` change is created as a planning-only change. This change deletes no legacy path or field. |
 
 ## Reproducible Commands
+
+Hosted macOS probe evidence:
+
+```text
+run: 32843387574
+commit: a8b7049cd9b453061670dfb55ff8a83d1c19bb5b
+runner: macos-14 (arm64)
+python: 3.12.10
+status: pass
+hostMatch: true
+productionSupportMatrixChanged: false
+jobs: macOS probe, backend, frontend = success
+```
 
 ```powershell
 uv sync --frozen --extra dev
