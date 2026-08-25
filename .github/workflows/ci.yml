@@ -96,12 +96,30 @@ jobs:
         # Live and browser suites run in their dedicated, credentialed jobs.
         run: uv run --frozen pytest --cov=src --cov-report=xml -m "unit or integration"
 
+      - name: Record schema authority preflight
+        run: |
+          set +e
+          uv run --frozen python scripts/qualification_schema_authority.py --output schema-authority-probe.json
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ] && [ "$status" -ne 2 ]; then
+            exit "$status"
+          fi
+
       - name: Upload coverage artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: coverage-xml
           path: coverage.xml
+          if-no-files-found: ignore
+
+      - name: Upload schema authority evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: schema-authority-probe
+          path: schema-authority-probe.json
           if-no-files-found: ignore
 
   frontend:
