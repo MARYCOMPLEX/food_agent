@@ -98,10 +98,13 @@ legacyFindings: 8 registered runtime DDL sources
 ```
 
 Exit code `2` is intentional while the compatibility ledger still retains
-legacy runtime DDL. An unregistered runtime DDL source returns exit `1`; once
-the approved contraction removes all allowlisted paths, the same probe returns
-exit `0`. The probe excludes Alembic, tests, and virtual environments and does
-not modify source code or database state.
+legacy runtime DDL. The probe covers literal SQL, string concatenation, and
+f-string SQL fragments. An unregistered runtime DDL source returns exit `1`;
+once the approved contraction removes all allowlisted paths, the same probe
+returns exit `0`. The probe excludes Alembic, tests, and virtual environments
+and does not modify source code or database state. Hosted CI run
+[`32848307329`](https://github.com/MARYCOMPLEX/food_agent/actions/runs/32848307329)
+executed the same preflight and uploaded the JSON report.
 
 ## Gate Interpretation And Cleanup
 
