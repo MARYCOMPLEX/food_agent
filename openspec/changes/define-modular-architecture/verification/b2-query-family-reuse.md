@@ -104,6 +104,10 @@ Target-stack local qualification on 2026-08-25:
 - an isolated CPython `3.12.12` runner joined the Compose network and ran
   `tests/test_live_b2_query_reuse.py` against the PostgreSQL service:
   `1 passed in 15.34s`;
+- the same target runner was repeated on 2026-08-26 after rebuilding the
+  current working-tree image and re-installing the frozen lockfile; the live
+  PostgreSQL/pgvector/pg_trgm CAS qualification passed:
+  `1 passed in 88.60s` (cold dependency installation included);
 - the same runner, with `DATABASE_URL`, Redis, Temporal, and deterministic
   provider fakes exercised by the suite, ran the CI backend command:
   `961 passed, 24 deselected, 2 warnings in 242.58s`.
