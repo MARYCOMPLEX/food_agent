@@ -575,7 +575,7 @@ Coordinator 负责总预算、超时、取消、重试和幂等；Gateway 负责
 
 1. 对应 characterization 或 contract suite 在声明矩阵上通过。
 2. 新增 failure-injection 场景已运行，且没有未分类失败或数据污染。
-3. `openspec validate --strict` 和架构依赖检查通过。
+3. `openspec validate define-modular-architecture --strict` 和架构依赖检查通过；每个后续 change 使用自身名称执行 strict 校验。
 4. 变更范围只包含该里程碑，提交可独立 revert。
 5. 回滚命令/开关、数据影响和观察指标已演练并记录。
 6. 未决 Open Question 要么不影响该阶段，要么已有明确 ADR；不得隐式采用默认值。

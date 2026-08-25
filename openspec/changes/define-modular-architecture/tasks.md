@@ -226,6 +226,6 @@
 - [ ] 14.12 运行 OpenTelemetry trace continuity/脱敏和 Prometheus 指标语义/cardinality gates，覆盖 API -> Temporal workflow/activity -> PostgreSQL/Redis/S3 的 correlation。
 - [ ] 14.13 扫描运行时依赖和 imports，确认核心仅有一个 Pydantic AI Agent runtime 和一个 Temporal durable runtime，不含 ARQ、Celery、LangGraph、OpenAI Agents SDK、LiteLLM、Mem0、Zep、Redis lock/Redlock 或第二套迁移权威。
 - [ ] 14.14 对每个 S0-S5/B0-B5 里程碑分别归档测试结果、指标阈值、feature binding、schema/profile version 和独立 revert 演练。
-- [ ] 14.15 运行 `openspec validate --strict`、全量 CI 和 dependency graph 检查，确认没有跳过的 requirement scenario。
+- [ ] 14.15 运行 `openspec validate define-modular-architecture --strict`（以及已创建的后续 change 使用对应 change 名称）、全量 CI 和 dependency graph 检查，确认没有跳过的 requirement scenario。
 - [ ] 14.16 更新架构图、合同目录、运行手册和兼容性 ledger，使其由实际注册表/schema 生成或 CI 校验。
 - [x] 14.17 创建后续 legacy-contraction change，只在完整发布周期、无旧消费者和 restore 演练证明后计划删除旧路径/字段；本 change 首轮实现不执行删除。
