@@ -118,6 +118,22 @@ and error-classification gates all passed with approval
 `b2-fixture-canary-20260824`. This approval is explicitly scoped to the fixed
 fixture and does not approve a production canary.
 
+The fail-closed evaluator is available for reviewable observation digests:
+
+```powershell
+uv run --frozen python scripts/qualification_b2_canary.py `
+  tests/fixtures/authority/b2_qualification_v1.json `
+  --output b2-canary-report.json
+```
+
+It returns exit `0` for a passing approved sample, `1` for failed thresholds,
+and `2` for blocked input (including missing/rejected approval). Passing a
+fixture approval through `--require-production-scope` remains blocked because
+its scope is not `production/`; a production canary must provide a separate
+owner approval bound to the exact observation and threshold digest. The CLI
+accepts digests and aggregate measurements only; it does not collect traffic
+or expose user-level observations.
+
 The target-stack 10.12 gate remains `BLOCKED`: the local repository smoke and
 backend contract suite now pass, but PostgreSQL 16 + pg_trgm + pgvector
 recall/latency measurements across the approved sample, source-request

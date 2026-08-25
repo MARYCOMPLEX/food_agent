@@ -128,3 +128,40 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  platform-probe:
+    name: macOS arm64 compatibility probe (non-blocking)
+    runs-on: macos-14
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.14"
+
+      - name: Verify frozen lock and install dependencies
+        run: |
+          uv lock --check
+          uv sync --frozen --extra dev --python 3.12
+
+      - name: Record macOS arm64 probe
+        run: uv run --frozen python scripts/qualification_platform_probe.py --expected-os Darwin --expected-arch arm64 --output platform-probe.json
+
+      - name: Run platform-independent contract probes
+        run: uv run --frozen pytest -q tests/test_unit_contract_sdk.py tests/test_architecture_docs_drift.py tests/test_b2_canary_cli.py tests/test_platform_probe.py
+
+      - name: Upload platform probe evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-arm64-platform-probe
+          path: platform-probe.json
+          if-no-files-found: ignore
