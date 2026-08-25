@@ -97,17 +97,33 @@ Observed on 2026-08-24 with PostgreSQL 16.14 and pgvector:
 - `uv lock --check`: passed
 - targeted Ruff check: passed
 
+Target-stack local qualification on 2026-08-25:
+
+- the release Compose stack was healthy with PostgreSQL `16.14`, `pg_trgm 1.6`,
+  `vector 0.8.2`, Redis `7.4.9`, Temporal `1.28.2`, and MinIO;
+- an isolated CPython `3.12.12` runner joined the Compose network and ran
+  `tests/test_live_b2_query_reuse.py` against the PostgreSQL service:
+  `1 passed in 15.34s`;
+- the same runner, with `DATABASE_URL`, Redis, Temporal, and deterministic
+  provider fakes exercised by the suite, ran the CI backend command:
+  `961 passed, 24 deselected, 2 warnings in 242.58s`.
+
+This is target-stack local evidence for repository connectivity and the backend
+contract suite. It does not measure a production traffic sample, exercise a
+deployed model provider, or constitute the owner-approved B2 canary.
+
 Offline B2 qualification fixture (2026-08-24): `pass`; result equivalence,
 deterministic/trigram/vector recall, P95 latency, source-request reduction,
 and error-classification gates all passed with approval
 `b2-fixture-canary-20260824`. This approval is explicitly scoped to the fixed
 fixture and does not approve a production canary.
 
-The target-stack 10.12 gate remains `BLOCKED`: PostgreSQL 16 + pg_trgm +
-pgvector recall/latency measurements, source-request reduction from sampled
-legacy traffic, and owner-approved threshold values for OQ-6/OQ-7 have not
-been captured in this environment. The evaluator fails closed when this
-approval is absent or its input digest changes.
+The target-stack 10.12 gate remains `BLOCKED`: the local repository smoke and
+backend contract suite now pass, but PostgreSQL 16 + pg_trgm + pgvector
+recall/latency measurements across the approved sample, source-request
+reduction from sampled legacy traffic, and owner-approved threshold values for
+OQ-6/OQ-7 have not been captured. The evaluator fails closed when this approval
+is absent or its input digest changes.
 
 Task 10.13 rollback qualification: `PASS (offline)`. Read reuse defaults to
 `off`, the explicit refresh service remains unbound from the current HTTP
