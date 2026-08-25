@@ -925,5 +925,8 @@ def test_resolved_poi_boundary_violations_are_not_baselined() -> None:
     assert not {call for call in calls if call.endswith(".search_poi")}
 
     assert policy["allowed_compatibility_imports"] == [
-        "xhs_food.agents.poi_enricher|xhs_food.composition.legacy_poi.build_legacy_poi_ports"
+        "xhs_food.agents.poi_enricher|xhs_food.composition.legacy_poi.build_legacy_poi_ports",
+        "xhs_food.services.postgres_storage|xhs_food.foundation.schema_authority.SchemaNotReadyError",
+        "xhs_food.services.postgres_storage|xhs_food.foundation.schema_authority.assert_postgres_schema_ready",
+        "xhs_food.services.user_storage.service|xhs_food.foundation.schema_authority.assert_postgres_schema_ready",
     ]

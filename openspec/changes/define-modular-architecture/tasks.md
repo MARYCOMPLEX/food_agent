@@ -218,7 +218,7 @@
 - [x] 14.4 在 Chromium desktop/mobile 及已批准 Firefox/WebKit 组合运行 HTTP/SSE reconnect、search、favorites、history 和 profile e2e。
 - [x] 14.5 在 UTF-8 中文、UTC、Asia/Shanghai、固定时钟和已批准 locale 下验证 canonicalization、timestamps 和 freshness。
 - [x] 14.6 构建 Python 3.12 non-root Linux image，并对 PostgreSQL 16、Redis、Temporal server/workers 和 MinIO Compose 栈运行 health、端口、卷权限、restart、Alembic migration 和三类 Task Queue smoke tests。
-- [ ] 14.7 从空库和 N-1 fixture 运行唯一 Alembic upgrade path，执行 downgrade/restore 演练并扫描新代码，确认没有旁路 migration、运行时建表或与 SQLAlchemy metadata 冲突的 schema authority。
+- [x] 14.7 从空库和 N-1 fixture 运行唯一 Alembic upgrade path，执行 downgrade/restore 演练并扫描新代码，确认没有旁路 migration、运行时建表或与 SQLAlchemy metadata 冲突的 schema authority。
 - [x] 14.8 验证 BGE-M3 `profile_v1` 的模型标识、1024 维、cosine 索引、dual-write/backfill cursor、质量门禁、profile read pointer 原子切换/回滚、跨 profile 查询拒绝和旧 `VECTOR(4096)` 非破坏兼容。
 - [x] 14.9 运行 Redis contract gate：20 条/24 小时会话窗口、SSE 1 小时/`MAXLEN 1000`、缓存可重建、限流和短幂等；注入 Redis outage，验证无锁/租约/durable state 且无生产 in-memory fallback。
 - [x] 14.10 运行 Temporal replay、determinism、Pydantic AI model/tool Activity 映射、Workflow ID single-flight、worker rollout、三 Task Queue 隔离、PG/Temporal reconciliation、取消、重试耗尽和 failed-workflow operator runbook gate。

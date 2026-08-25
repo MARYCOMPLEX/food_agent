@@ -16,16 +16,6 @@ from typing import Any, Dict, List, Optional
 from loguru import logger
 
 
-# SQL to add embedding column (if pgvector is available)
-# Dimension 4096 supports most common embedding models
-ADD_EMBEDDING_COLUMN_SQL = """
-ALTER TABLE chat_history ADD COLUMN IF NOT EXISTS embedding VECTOR(4096);
-"""
-
-# Enable pgvector extension
-ENABLE_PGVECTOR_SQL = "CREATE EXTENSION IF NOT EXISTS vector;"
-
-
 class VectorSearchMixin:
     """
     Mixin providing vector similarity search via pgvector.

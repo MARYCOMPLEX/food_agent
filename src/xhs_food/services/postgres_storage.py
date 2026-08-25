@@ -17,11 +17,11 @@ from typing import Any, Dict, List, Optional
 
 from loguru import logger
 
-from xhs_food.services.postgres_vector import (
-    ADD_EMBEDDING_COLUMN_SQL,
-    ENABLE_PGVECTOR_SQL,
-    VectorSearchMixin,
+from xhs_food.foundation.schema_authority import (
+    SchemaNotReadyError,
+    assert_postgres_schema_ready,
 )
+from xhs_food.services.postgres_vector import VectorSearchMixin
 
 try:
     import asyncpg
@@ -29,24 +29,6 @@ try:
 except ImportError:
     ASYNCPG_AVAILABLE = False
     logger.warning("asyncpg not installed, PostgresStorage will be disabled")
-
-
-# SQL for table creation (without pgvector)
-CREATE_TABLE_SQL_BASE = """
-CREATE TABLE IF NOT EXISTS chat_history (
-    id BIGSERIAL PRIMARY KEY,
-    session_id UUID NOT NULL,
-    user_id UUID,
-    role VARCHAR(20) NOT NULL,
-    content TEXT NOT NULL,
-    metadata JSONB DEFAULT '{}',
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_chat_session_id ON chat_history(session_id);
-CREATE INDEX IF NOT EXISTS idx_chat_user_id ON chat_history(user_id);
-CREATE INDEX IF NOT EXISTS idx_chat_created_at ON chat_history(created_at DESC);
-"""
 
 
 @dataclass
@@ -134,7 +116,7 @@ class PostgresStorage(VectorSearchMixin):
             return f"postgresql://{user}@{host}:{port}/{db}"
 
     async def initialize(self) -> bool:
-        """Initialize database connection and create tables."""
+        """Initialize against the schema provisioned by Alembic."""
         if not ASYNCPG_AVAILABLE:
             logger.warning("asyncpg not available, PostgresStorage disabled")
             return False
@@ -153,15 +135,33 @@ class PostgresStorage(VectorSearchMixin):
             self._pgvector_available = False
 
             async with self._pool.acquire() as conn:
-                # Create base table first (no embedding column)
-                await conn.execute(CREATE_TABLE_SQL_BASE)
+                await assert_postgres_schema_ready(
+                    conn,
+                    {
+                        "chat_history": (
+                            "id",
+                            "session_id",
+                            "user_id",
+                            "role",
+                            "content",
+                            "metadata",
+                            "created_at",
+                        )
+                    },
+                )
 
-                # Try to enable pgvector and add embedding column
+                # pgvector is optional for legacy reads, but its extension and
+                # embedding column are still provisioned only by Alembic.
                 try:
-                    await conn.execute(ENABLE_PGVECTOR_SQL)
-                    await conn.execute(ADD_EMBEDDING_COLUMN_SQL)
+                    await assert_postgres_schema_ready(
+                        conn,
+                        {"chat_history": ("embedding",)},
+                        extensions=("vector",),
+                    )
                     self._pgvector_available = True
                     logger.info("pgvector enabled, embedding search available")
+                except SchemaNotReadyError as e:
+                    logger.warning(f"pgvector schema is not ready: {e}. Vector search disabled.")
                 except Exception as e:
                     logger.warning(f"pgvector not available: {e}. Vector search disabled.")
 

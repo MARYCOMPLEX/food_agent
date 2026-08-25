@@ -56,7 +56,10 @@
     "legacy_script": ["contracts", "legacy_script"]
   },
   "allowed_compatibility_imports": [
-    "xhs_food.agents.poi_enricher|xhs_food.composition.legacy_poi.build_legacy_poi_ports"
+    "xhs_food.agents.poi_enricher|xhs_food.composition.legacy_poi.build_legacy_poi_ports",
+    "xhs_food.services.postgres_storage|xhs_food.foundation.schema_authority.SchemaNotReadyError",
+    "xhs_food.services.postgres_storage|xhs_food.foundation.schema_authority.assert_postgres_schema_ready",
+    "xhs_food.services.user_storage.service|xhs_food.foundation.schema_authority.assert_postgres_schema_ready"
   ],
   "target_third_party_allowlist": {
     "contracts": ["jsonschema", "pydantic", "pydantic_core", "referencing"],

@@ -1,9 +1,9 @@
 """Fail-closed scan for runtime schema authority drift.
 
-The target architecture allows Alembic to own schema changes. Runtime DDL in
-the explicitly inventoried legacy adapters remains visible during the
-contraction window, so the probe distinguishes those known findings from new
-or unregistered runtime DDL.
+The target architecture allows Alembic to own PostgreSQL schema changes. The
+probe distinguishes new or unregistered PostgreSQL DDL from the explicitly
+scoped SQLite request-log telemetry store, whose schema is not part of the
+PostgreSQL/Alembic authority.
 """
 
 from __future__ import annotations
@@ -30,6 +30,7 @@ _LEGACY_PATHS = frozenset(
         "src/xhs_food/services/user_storage/service.py",
     }
 )
+_TELEMETRY_PATHS = frozenset({"src/xhs_food/spider/core/logger.py"})
 _SKIP_PARTS = frozenset({".venv", ".venv-win", "__pycache__", "alembic"})
 
 
@@ -92,8 +93,17 @@ def scan(root: Path) -> dict[str, object]:
         for path in _python_files(root)
         for finding in _findings(path, root)
     )
-    legacy = tuple(finding for finding in all_findings if finding.path in _LEGACY_PATHS)
-    unexpected = tuple(finding for finding in all_findings if finding.path not in _LEGACY_PATHS)
+    telemetry = tuple(finding for finding in all_findings if finding.path in _TELEMETRY_PATHS)
+    legacy = tuple(
+        finding
+        for finding in all_findings
+        if finding.path in _LEGACY_PATHS and finding.path not in _TELEMETRY_PATHS
+    )
+    unexpected = tuple(
+        finding
+        for finding in all_findings
+        if finding.path not in _LEGACY_PATHS and finding.path not in _TELEMETRY_PATHS
+    )
     status: Literal["pass", "pending_legacy_contraction", "fail"]
     if unexpected:
         status = "fail"
@@ -105,8 +115,10 @@ def scan(root: Path) -> dict[str, object]:
         "schemaVersion": SCHEMA_VERSION,
         "status": status,
         "legacyFindings": [asdict(item) for item in legacy],
+        "telemetryFindings": [asdict(item) for item in telemetry],
         "unexpectedFindings": [asdict(item) for item in unexpected],
         "legacyPathAllowlist": sorted(_LEGACY_PATHS),
+        "telemetryPathAllowlist": sorted(_TELEMETRY_PATHS),
     }
 
 

@@ -344,10 +344,24 @@ async def test_pgvector_failure_keeps_postgres_enabled_and_skips_embedding_write
             self.executed: list[str] = []
             self.insert_sql: str | None = None
 
+        async def fetch(self, sql: str, _args: Any) -> list[dict[str, str]]:
+            if "information_schema.columns" in sql:
+                return [
+                    {"table_name": "chat_history", "column_name": column}
+                    for column in (
+                        "id",
+                        "session_id",
+                        "user_id",
+                        "role",
+                        "content",
+                        "metadata",
+                        "created_at",
+                    )
+                ]
+            raise RuntimeError("vector extension unavailable")
+
         async def execute(self, sql: str) -> str:
             self.executed.append(sql)
-            if sql == postgres_mod.ENABLE_PGVECTOR_SQL:
-                raise RuntimeError("vector extension unavailable")
             return "OK"
 
         async def fetchval(self, sql: str, *_args: Any) -> int:
@@ -394,7 +408,7 @@ async def test_pgvector_failure_keeps_postgres_enabled_and_skips_embedding_write
     assert record_id == 41
     assert connection.insert_sql is not None
     assert "embedding" not in connection.insert_sql
-    assert postgres_mod.ADD_EMBEDDING_COLUMN_SQL not in connection.executed
+    assert connection.executed == []
 
 
 async def test_redis_startup_failures_fall_back_to_process_local_adapters(

@@ -96,27 +96,32 @@ Observed on 2026-08-25:
 
 ```text
 schemaVersion: schema-authority-probe/v1
-status: pending_legacy_contraction
+status: pass
 unexpectedFindings: []
-legacyFindings: 8 registered runtime DDL sources
+legacyFindings: 0
+telemetryFindings: 1 explicitly classified SQLite request-log source
 ```
 
-Exit code `2` is intentional while the compatibility ledger still retains
-legacy runtime DDL. The probe covers literal SQL, string concatenation, and
-f-string SQL fragments. An unregistered runtime DDL source returns exit `1`;
-once the approved contraction removes all allowlisted paths, the same probe
-returns exit `0`. The probe excludes Alembic, tests, and virtual environments
-and does not modify source code or database state. Hosted CI run
+Exit code `0` is expected because no PostgreSQL runtime DDL remains. The probe
+covers literal SQL, string concatenation, and f-string SQL fragments. An
+unregistered runtime DDL source returns exit `1`; the SQLite request-log table
+is reported separately as local telemetry. The probe excludes Alembic, tests,
+and virtual environments and does not modify source code or database state.
+Hosted CI run
 [`32849665982`](https://github.com/MARYCOMPLEX/food_agent/actions/runs/32849665982)
 at commit `803bbaa` executed the same preflight and uploaded the JSON report.
 
 ## Gate Interpretation And Cleanup
 
+Runtime DDL paths are retained only as compatibility inventory entries; the
+PostgreSQL implementations are now read-only or Alembic delegates.
+
 - The restore prerequisite is `PASS` and is safe to repeat with new disposable
   database names.
-- Runtime DDL paths listed in
+- Compatibility entrypoint paths listed in
   [`compatibility-ledger.md`](../references/compatibility-ledger.md) remain
-  present and are intentionally not deleted.
+  present and are intentionally not deleted; the PostgreSQL paths now
+  delegate to Alembic rather than issuing DDL.
 - Complete release-cycle consumer evidence and owner approval are still
   required before any contraction row can move to removal.
 - The disposable databases and in-container dump are cleaned after evidence

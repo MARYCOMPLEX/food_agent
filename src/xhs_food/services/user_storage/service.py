@@ -17,18 +17,13 @@ except ImportError:
     ASYNCPG_AVAILABLE = False
     logger.warning("asyncpg not installed, UserStorageService will be disabled")
 
+from xhs_food.foundation.schema_authority import assert_postgres_schema_ready
+
 from .converters import ConverterMixin
-from .models import Favorite, User
+from .models import User
 from .repository import RepositoryMixin
+from .schema import REQUIRED_COLUMNS
 from .search_results import SearchResultsMixin
-from .schema import (
-    CREATE_FAVORITES_TABLE,
-    CREATE_HISTORY_TABLE,
-    CREATE_RESTAURANTS_TABLE,
-    CREATE_SEARCH_RESULTS_TABLE,
-    CREATE_USERS_TABLE,
-    ENABLE_EXTENSIONS_SQL,
-)
 
 
 class UserStorageService(ConverterMixin, RepositoryMixin, SearchResultsMixin):
@@ -82,7 +77,7 @@ class UserStorageService(ConverterMixin, RepositoryMixin, SearchResultsMixin):
         return f"postgresql://{user}@{host}:{port}/{db}"
 
     async def initialize(self) -> bool:
-        """Initialize database connection and create tables."""
+        """Initialize against the schema provisioned by Alembic."""
         if not ASYNCPG_AVAILABLE:
             logger.warning("asyncpg not available, UserStorageService disabled")
             return False
@@ -99,23 +94,11 @@ class UserStorageService(ConverterMixin, RepositoryMixin, SearchResultsMixin):
             )
 
             async with self._pool.acquire() as conn:
-                # Enable required extensions first
-                try:
-                    await conn.execute(ENABLE_EXTENSIONS_SQL)
-                except Exception as ext_err:
-                    logger.warning(f"Could not enable extensions: {ext_err}")
-
-                await conn.execute(CREATE_USERS_TABLE)
-                # Migration: Add username if missing
-                try:
-                    await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS username VARCHAR(50) UNIQUE")
-                except Exception:
-                    pass  # Column might exist or error is benign in dev
-
-                await conn.execute(CREATE_RESTAURANTS_TABLE)
-                await conn.execute(CREATE_FAVORITES_TABLE)
-                await conn.execute(CREATE_HISTORY_TABLE)
-                await conn.execute(CREATE_SEARCH_RESULTS_TABLE)
+                await assert_postgres_schema_ready(
+                    conn,
+                    REQUIRED_COLUMNS,
+                    extensions=("pgcrypto", "uuid-ossp"),
+                )
 
                 # Ensure anonymous user exists
                 await self._ensure_anonymous_user(conn)

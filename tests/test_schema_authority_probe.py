@@ -14,7 +14,7 @@ SCRIPT = ROOT / "scripts" / "qualification_schema_authority.py"
 pytestmark = pytest.mark.unit
 
 
-def test_current_tree_reports_only_registered_legacy_runtime_ddl() -> None:
+def test_current_tree_has_no_postgres_runtime_ddl_and_classifies_local_telemetry() -> None:
     completed = subprocess.run(
         [sys.executable, str(SCRIPT)],
         cwd=ROOT,
@@ -24,20 +24,18 @@ def test_current_tree_reports_only_registered_legacy_runtime_ddl() -> None:
     )
     report = json.loads(completed.stdout)
 
-    assert completed.returncode == 2
+    assert completed.returncode == 0
     assert report["schemaVersion"] == "schema-authority-probe/v1"
-    assert report["status"] == "pending_legacy_contraction"
+    assert report["status"] == "pass"
+    assert report["legacyFindings"] == []
+    assert report["telemetryFindings"] == [
+        {
+            "path": "src/xhs_food/spider/core/logger.py",
+            "line": 19,
+            "statement": "CREATE TABLE",
+        }
+    ]
     assert report["unexpectedFindings"] == []
-    assert {item["path"] for item in report["legacyFindings"]} == {
-        "scripts/migrate_sse_recovery.py",
-        "scripts/migrate_turn_id.py",
-        "src/scripts/migrate_favorites.py",
-        "src/xhs_food/services/postgres_storage.py",
-        "src/xhs_food/services/postgres_vector.py",
-        "src/xhs_food/spider/core/logger.py",
-        "src/xhs_food/services/user_storage/schema.py",
-        "src/xhs_food/services/user_storage/service.py",
-    }
 
 
 def test_unregistered_runtime_ddl_is_a_blocking_failure(tmp_path: Path) -> None:

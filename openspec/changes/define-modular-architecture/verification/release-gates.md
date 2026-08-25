@@ -28,7 +28,7 @@ Recorded: 2026-08-25
 | 14.4 browser matrix | **PASS (local mock-API matrix)** | `uv run --frozen python scripts/qualification_frontend_browser_matrix.py` passed search, first-503 SSE reconnect, favorites, history, and profile FAQ for Chromium, Firefox, and WebKit at desktop `1280x900` and mobile `390x844` (six browser/viewport runs). The API/provider boundary is mocked; production browser/deployment traffic remains a separate probe. |
 | 14.5 encoding/time/freshness | **PASS (local)** | Canonical Query fixture includes UTF-8 Chinese and `Asia/Shanghai`; evidence timestamps normalize to UTC; freshness and connector tests use injected fixed clocks. |
 | 14.6 non-root image/Compose smoke | **PASS (local)** | `docker build --file Dockerfile.release --tag xhs-food-agent:release-gate .` succeeded. `docker compose -f docker-compose.release.yml up -d --wait --no-build` brought PostgreSQL 16/pgvector, Redis 7, Temporal 1.28.2, MinIO, migration, and app healthy; migration exited 0, app `/health` returned `{"status":"ok","service":"xhs-food-agent","version":"1.0.0"}`, `id` reported UID/GID 1001, and `alembic_version` is now `20260825_0008_legacy_schema` with the `vector` extension present. The six legacy application tables are part of the 32-table application schema. The three serialized queue smoke containers (`research`, `refresh`, `media`) each exited 0 with `OOMKilled=false`; app restart recovered to healthy. An initial parallel queue launch reproduced a research smoke exit 139, so the manifest now serializes the qualification probes through `service_completed_successfully`. |
-| 14.7 Alembic upgrade/downgrade/restore | **PARTIAL** | Revision `20260825_0008_legacy_schema` now adopts `users`, `favorites`, `search_history`, `search_results`, `restaurants`, and `chat_history` into the single Alembic chain. The release stack upgraded from `0007`, and a disposable N-1/pre-turn database added `turn_id/query`, removed the single-column `session_id` uniqueness, and created the composite unique index. Empty-table downgrade/re-upgrade passed; populated-table downgrade fails closed and preserves the version/data for restore. The current release stack reports head `20260825_0008_legacy_schema` and 32 public application tables. The schema-authority probe still returns `pending_legacy_contraction` with `unexpectedFindings=[]` and eight allowlisted legacy runtime DDL sources; removing those initializers and scripts remains explicitly deferred to `legacy-contraction`. |
+| 14.7 Alembic upgrade/downgrade/restore | **PASS (local)** | Revision `20260825_0008_legacy_schema` adopts `users`, `favorites`, `search_history`, `search_results`, `restaurants`, and `chat_history` into the single Alembic chain. The release stack upgraded from `0007`, and a disposable N-1/pre-turn database added `turn_id/query`, removed the single-column `session_id` uniqueness, and created the composite unique index. Empty-table downgrade/re-upgrade passed; populated-table downgrade fails closed and preserves the version/data for restore. The current release stack reports head `20260825_0008_legacy_schema` and 32 public application tables. Legacy PostgreSQL adapters now perform read-only readiness checks, and historical migration paths delegate to `alembic upgrade head`. The schema-authority probe returns `pass` with `unexpectedFindings=[]`, `legacyFindings=[]`, and one explicitly classified SQLite telemetry finding. |
 | 14.8 BGE-M3 `profile_v1` | **PASS (fixture)** | The fixture pins `bge-m3/v1`, 1024 dimensions, normalized cosine distance, profile-aware index metadata, dual-write cursor and pointer rollback tests. No external model download is claimed. |
 | 14.9 Redis contract/outage | **PASS (local/live evidence)** | Session 20/24h, stream 1h/`MAXLEN 1000`, rebuild, rate-limit, short idempotency, replay-expiry and outage semantics pass. Redis is not a lock, lease, queue, or durable task store. |
 | 14.10 Temporal/operator gate | **PASS (local target stack)** | Nine isolated SDK qualification tests pass (`9 passed in 70.17s`). Against the real release Compose Temporal `1.28.2` service, `uv run --frozen python scripts/qualification_temporal_release_matrix.py` passed research/refresh/media queue isolation, clean worker handoff, retry exhaustion, visibility lookup, and same-Workflow-ID operator retry (`worker_rollout=PASS retry_exhaustion=PASS operator_retry=PASS`). The isolated CPython 3.12.12 target runner also passed `tests/test_live_b0_target_stack.py` (`1 passed in 22.40s`) against real PostgreSQL/Redis/Temporal, proving PG commit survives Redis loss and reconciles one terminal event. Production multi-worker rollout remains a deployment closure probe. |
@@ -65,7 +65,7 @@ uv run --frozen pytest -q tests/test_b2_canary_cli.py tests/test_platform_probe.
 uv run --frozen pytest -q tests/test_schema_authority_probe.py
 uv run --frozen python scripts/qualification_b2_canary.py tests/fixtures/authority/b2_qualification_v1.json
 uv run --frozen python scripts/qualification_platform_probe.py --expected-os Darwin --expected-arch arm64 --output platform-probe.json
-# Exit 2 is the expected pending state until legacy-contraction is approved.
+# Exit 0 is expected; SQLite request-log telemetry is reported separately.
 uv run --frozen python scripts/qualification_schema_authority.py
 uv run --frozen pytest -q tests/test_unit_architecture_boundaries.py tests/test_unit_dependency_ledger.py tests/test_unit_b3_architecture.py
 uv lock --check
@@ -102,7 +102,9 @@ claim.
 ## Closure Criteria
 
 The release gate can move from **Partial qualification** to **Qualified** only
-after production Temporal rollout evidence and the legacy runtime-schema
-contraction have attached their exact command output and environment. Until
-then, the approved support matrix remains CPython 3.12 on Ubuntu/Windows x86_64
-with the documented probe boundaries.
+after production Temporal rollout evidence and the remaining deployment
+provider evidence have attached their exact command output and environment.
+Legacy compatibility entrypoint deletion remains governed by the separate
+`legacy-contraction` release-cycle and owner-approval gates. Until then, the
+approved support matrix remains CPython 3.12 on Ubuntu/Windows x86_64 with the
+documented probe boundaries.

@@ -1,6 +1,6 @@
 # Legacy Schema Baseline Evidence
 
-Status: **PASS for clean/N-1/pre-turn migration behavior; runtime DDL contraction remains pending**
+Status: **PASS for clean/N-1/pre-turn migration behavior and PostgreSQL schema authority**
 
 Recorded: `2026-08-25` on the local release Compose stack (`PostgreSQL 16 +
 pgvector/pg_trgm`, Alembic `1.19.1`).
@@ -39,7 +39,8 @@ Observed release head:
 ```
 
 The app then initialized both legacy asyncpg adapters successfully after
-normalizing the release SQLAlchemy DSN scheme:
+normalizing the release SQLAlchemy DSN scheme and verifying the Alembic-owned
+tables/extensions without issuing schema DDL:
 
 ```text
 UserStorageService initialized successfully
@@ -73,7 +74,10 @@ be deleted: users`; the Alembic version and row remained unchanged.
 ## Boundary
 
 This closes the missing-table deployment gap and establishes the migration
-authority. It does not remove the legacy runtime initializers or historical
-one-shot scripts. The schema-authority probe therefore remains intentionally
-`pending_legacy_contraction` until one complete release cycle, consumer owner
-approval, and restore evidence authorize each removal.
+authority. Legacy asyncpg adapters now fail closed when the Alembic schema is
+absent; they do not create tables, add columns, or enable extensions. The
+historical one-shot paths remain as compatibility entrypoints that delegate to
+`alembic upgrade head`, so the separate `legacy-contraction` change still
+controls their eventual removal. The local schema-authority probe reports
+`pass` with the SQLite request-log table listed separately as non-PostgreSQL
+telemetry.

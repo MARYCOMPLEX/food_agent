@@ -80,12 +80,12 @@ discovered first. Alembic remains the only target schema authority.
 
 | ID | Runtime DDL path | Affected authority | Replacement/owner | Removal state |
 |---|---|---|---|---|
-| `ddl.chat-history` | `src/xhs_food/services/postgres_storage.py` (`chat_history`, indexes) | PostgreSQL business facts | Alembic chat/history revisions | `PENDING_RELEASE_CYCLE`; `PENDING_CONSUMER_APPROVAL`; `PENDING_RESTORE` |
-| `ddl.chat-vector` | `src/xhs_food/services/postgres_vector.py` (`ALTER TABLE`, extension) | PostgreSQL embedding facts | Alembic profile/embedding revisions | `PENDING_RELEASE_CYCLE`; `PENDING_CONSUMER_APPROVAL`; `PENDING_RESTORE` |
-| `ddl.user-storage` | `src/xhs_food/services/user_storage/schema.py` and `service.py` (`users`, `favorites`, `search_history`, `search_results`, `restaurants`) | PostgreSQL user/history facts | Alembic legacy baseline plus additive revisions | `PENDING_RELEASE_CYCLE`; `PENDING_CONSUMER_APPROVAL`; `PENDING_RESTORE` |
-| `ddl.favorites-script` | `src/scripts/migrate_favorites.py` | PostgreSQL user/favorite facts | Alembic user/favorite revisions | `PENDING_RELEASE_CYCLE`; `PENDING_CONSUMER_APPROVAL`; `PENDING_RESTORE` |
-| `ddl.sse-recovery-script` | `scripts/migrate_sse_recovery.py` | PostgreSQL history/result facts | Alembic history/result revisions | `PENDING_RELEASE_CYCLE`; `PENDING_CONSUMER_APPROVAL`; `PENDING_RESTORE` |
-| `ddl.turn-id-script` | `scripts/migrate_turn_id.py` | `search_results.turn_id` and index | Alembic expand/baseline migration | `PENDING_RELEASE_CYCLE`; `PENDING_CONSUMER_APPROVAL`; `PENDING_RESTORE` |
+| `ddl.chat-history` | `src/xhs_food/services/postgres_storage.py` (legacy adapter readiness contract) | PostgreSQL business facts | Alembic chat/history revisions | `PENDING_RELEASE_CYCLE`; `PENDING_CONSUMER_APPROVAL`; `PENDING_RESTORE` |
+| `ddl.chat-vector` | `src/xhs_food/services/postgres_vector.py` (legacy vector capability contract) | PostgreSQL embedding facts | Alembic profile/embedding revisions | `PENDING_RELEASE_CYCLE`; `PENDING_CONSUMER_APPROVAL`; `PENDING_RESTORE` |
+| `ddl.user-storage` | `src/xhs_food/services/user_storage/schema.py` and `service.py` (read-only table contract) | PostgreSQL user/history facts | Alembic legacy baseline plus additive revisions | `PENDING_RELEASE_CYCLE`; `PENDING_CONSUMER_APPROVAL`; `PENDING_RESTORE` |
+| `ddl.favorites-script` | `src/scripts/migrate_favorites.py` (Alembic compatibility entrypoint) | PostgreSQL user/favorite facts | Alembic user/favorite revisions | `PENDING_RELEASE_CYCLE`; `PENDING_CONSUMER_APPROVAL`; `PENDING_RESTORE` |
+| `ddl.sse-recovery-script` | `scripts/migrate_sse_recovery.py` (Alembic compatibility entrypoint) | PostgreSQL history/result facts | Alembic history/result revisions | `PENDING_RELEASE_CYCLE`; `PENDING_CONSUMER_APPROVAL`; `PENDING_RESTORE` |
+| `ddl.turn-id-script` | `scripts/migrate_turn_id.py` (Alembic compatibility entrypoint) | `search_results.turn_id` and index | Alembic expand/baseline migration | `PENDING_RELEASE_CYCLE`; `PENDING_CONSUMER_APPROVAL`; `PENDING_RESTORE` |
 | `ddl.request-log` | `src/xhs_food/spider/core/logger.py` (`request_logs`) | Operational logging | Observability exporter/storage contract | `PENDING_RELEASE_CYCLE`; `PENDING_CONSUMER_APPROVAL`; `PENDING_RESTORE` |
 
 ## Evidence And Approval Record
@@ -98,7 +98,7 @@ complete production release cycle.
 |---|---|---|
 | Consumer inventory | Repository callers and public exports listed above; external fleet callers unknown | `ADR-0009-legacy-gap-disposition.md`, this ledger |
 | Release-cycle evidence | Missing; no owner approval attached | `legacy-contraction/tasks.md` task 1.2 remains open |
-| Clean/N-1 Alembic restore | Local rehearsal recorded; source runtime DDL still present | `define-modular-architecture/verification/release-gates.md` task 14.7 |
+| Clean/N-1 Alembic restore | Local rehearsal recorded; PostgreSQL runtime DDL probe passes; compatibility entrypoints remain | `define-modular-architecture/verification/release-gates.md` task 14.7 |
 | Temporal history replay | Local SDK/target-stack qualification recorded | `define-modular-architecture/verification/b0-temporal-qualification.md` and `release-gates.md` |
 | Rollback | Existing S2-S5/B0-B4 runbooks and explicit `MODULAR_*` bindings | `define-modular-architecture/runbooks/` |
 

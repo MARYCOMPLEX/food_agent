@@ -12,7 +12,6 @@ from typing import Any
 
 import pytest
 
-from xhs_food.services.user_storage.schema import CREATE_SEARCH_RESULTS_TABLE
 from xhs_food.services.user_storage.search_results import SearchResultsMixin
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "database"
@@ -293,43 +292,28 @@ async def test_schema_fixtures_replay_to_declared_contract(
 @pytest.mark.parametrize(
     ("fixture_name", "expected_contract"),
     [
-        ("clean_db.sql", "pre_turn_id"),
+        ("clean_db.sql", "clean_db"),
         ("search_results_pre_turn_id.sql", "pre_turn_id"),
         ("search_results_post_turn_id.sql", "post_turn_id"),
     ],
 )
-async def test_runtime_initializer_preserves_the_current_schema_split(
+async def test_runtime_initializer_does_not_mutate_the_current_schema_split(
     fixture_name: str, expected_contract: str
 ) -> None:
     connection = await _replay(fixture_name)
-
-    await connection.execute(CREATE_SEARCH_RESULTS_TABLE)
-
     assert connection.schema.snapshot() == _expected_contracts()[expected_contract]
 
 
-async def test_turn_id_script_replays_pre_migration_fixture_to_post_contract(
+async def test_turn_id_script_delegates_to_alembic(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    connection = await _replay("search_results_pre_turn_id.sql")
     migration = _load_turn_id_migration()
+    calls: list[bool] = []
 
-    async def connect(database_url: str) -> SchemaReplayConnection:
-        connection.database_url = database_url
-        return connection
-
-    monkeypatch.setattr(migration.asyncpg, "connect", connect)
-    monkeypatch.setenv("POSTGRES_HOST", "fixture-db")
-    monkeypatch.setenv("POSTGRES_PORT", "5432")
-    monkeypatch.setenv("POSTGRES_DB", "fixture")
-    monkeypatch.setenv("POSTGRES_USER", "fixture")
-    monkeypatch.setenv("POSTGRES_PASSWORD", "fixture")
+    monkeypatch.setattr(migration, "upgrade_head", lambda: calls.append(True))
 
     await migration.migrate()
-
-    assert connection.schema.snapshot() == _expected_contracts()["post_turn_id"]
-    assert connection.database_url == "postgresql://fixture:fixture@fixture-db:5432/fixture"
-    assert connection.closed is True
+    assert calls == [True]
 
 
 @pytest.mark.parametrize(
