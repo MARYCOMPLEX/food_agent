@@ -294,7 +294,8 @@ class TemporalWorkflowAdapter:
             getattr(description, "status", "unknown")
         )
         run_id = (
-            getattr(getattr(description, "execution", None), "run_id", None)
+            getattr(description, "run_id", None)
+            or getattr(getattr(description, "execution", None), "run_id", None)
             or getattr(handle, "run_id", None)
             or "unknown"
         )

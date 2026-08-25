@@ -112,6 +112,13 @@ class _WorkflowHandle:
         self.terminated.append(reason)
 
 
+class _SdkWorkflowHandle(_WorkflowHandle):
+    async def describe(self) -> Any:
+        # Temporal Python SDK WorkflowExecutionDescription exposes run_id
+        # directly; the base fake covers the older compatibility shape.
+        return SimpleNamespace(status=SimpleNamespace(name="FAILED"), run_id=self.run_id)
+
+
 class _WorkflowClient:
     def __init__(self) -> None:
         self.handle = _WorkflowHandle("research:task-1", "run-old")
@@ -144,6 +151,23 @@ class _WorkflowClient:
         if run_id is not None:
             assert run_id == self.handle.run_id
         return self.handle
+
+
+@pytest.mark.unit
+async def test_temporal_describe_reads_sdk_workflow_execution_shape() -> None:
+    client = _WorkflowClient()
+    client.handle = _SdkWorkflowHandle("research:task-1", "run-sdk")
+    adapter = TemporalWorkflowAdapter(
+        client,
+        task_queues=TemporalTaskQueues(),
+        enabled=True,
+    )
+
+    described = await adapter.describe("research:task-1")
+
+    assert described is not None
+    assert described.run_id == "run-sdk"
+    assert described.status == "failed"
 
 
 @pytest.mark.unit
