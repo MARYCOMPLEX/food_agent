@@ -104,6 +104,12 @@ class PostgresStorage(VectorSearchMixin):
         # Build database URL from environment if not provided
         if not self._database_url:
             self._database_url = self._build_database_url()
+        if self._database_url:
+            # The release manifest uses SQLAlchemy's async driver scheme;
+            # asyncpg itself accepts the plain PostgreSQL URI scheme only.
+            self._database_url = self._database_url.replace(
+                "postgresql+asyncpg://", "postgresql://", 1
+            )
 
     def _build_database_url(self) -> Optional[str]:
         """Build database URL from environment variables."""

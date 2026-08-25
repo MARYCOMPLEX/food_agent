@@ -33,6 +33,7 @@ from .memory_schema import (
     preference_snapshots,
     session_state,
 )
+from .legacy_schema import LEGACY_METADATA, LEGACY_TABLES
 from .object_store import Boto3ObjectStore, minio_s3_client_factory
 from .observability import (
     EvidenceShadowTelemetry,
@@ -74,6 +75,8 @@ __all__ = [
     "B3_MEMORY_TABLES",
     "FoundationAdapterError",
     "MEMORY_METADATA",
+    "LEGACY_METADATA",
+    "LEGACY_TABLES",
     "EvidenceShadowTelemetry",
     "PersonalizationCanaryTelemetry",
     "RefreshMediaTelemetry",

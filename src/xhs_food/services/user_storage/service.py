@@ -53,6 +53,12 @@ class UserStorageService(ConverterMixin, RepositoryMixin, SearchResultsMixin):
 
     def __init__(self, database_url: Optional[str] = None):
         self._database_url = database_url or self._build_database_url()
+        if self._database_url:
+            # The release manifest uses SQLAlchemy's async driver scheme;
+            # asyncpg itself accepts the plain PostgreSQL URI scheme only.
+            self._database_url = self._database_url.replace(
+                "postgresql+asyncpg://", "postgresql://", 1
+            )
         self._pool: Optional[asyncpg.Pool] = None
         self._initialized = False
 

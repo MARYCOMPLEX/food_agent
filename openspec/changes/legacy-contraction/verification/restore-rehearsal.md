@@ -8,6 +8,10 @@ disposable databases only and did not modify `xhs_food_agent`.
 
 ## Clean, Downgrade, And Re-Upgrade
 
+The pre-baseline head used by the rehearsal was
+`20260824_0007_b3_personalization_memory`; the current head after the legacy
+schema adoption is `20260825_0008_legacy_schema`.
+
 Disposable database: `legacy_contraction_rehearsal_20260825`
 
 ```powershell
@@ -19,7 +23,7 @@ docker compose -f docker-compose.release.yml -p food-agent-release-gate run --rm
 
 Observed result:
 
-- clean `upgrade head`: revisions `0001` through `0007` completed;
+- clean `upgrade head`: revisions `0001` through `0008` completed;
 - `downgrade base`: all seven revisions downgraded transactionally;
 - second `upgrade head`: all seven revisions completed again.
 
@@ -37,8 +41,8 @@ docker compose -f docker-compose.release.yml -p food-agent-release-gate exec -T 
 Observed output:
 
 ```text
-20260824_0007_b3_personalization_memory
-26
+20260825_0008_legacy_schema
+32
 ```
 
 ## Dump And Restore
@@ -55,10 +59,10 @@ docker compose -f docker-compose.release.yml -p food-agent-release-gate exec -T 
 Observed output:
 
 ```text
-20260824_0007_b3_personalization_memory
+20260825_0008_legacy_schema
 pg_trgm
 vector
-26
+32
 ```
 
 ## Temporal History Replay And Operator Recovery
