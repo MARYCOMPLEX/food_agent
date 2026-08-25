@@ -58,3 +58,38 @@ def test_unregistered_runtime_ddl_is_a_blocking_failure(tmp_path: Path) -> None:
     assert report["unexpectedFindings"] == [
         {"path": "unexpected.py", "line": 1, "statement": "CREATE TABLE"}
     ]
+
+
+@pytest.mark.parametrize(
+    ("source", "statement"),
+    (
+        (
+            'TABLE = "unexpected_" + name\nSQL = "CREATE TABLE " + TABLE\n',
+            "CREATE TABLE",
+        ),
+        (
+            'name = "unexpected"\nSQL = f"ALTER TABLE {name} ADD COLUMN value text"\n',
+            "ALTER TABLE",
+        ),
+    ),
+)
+def test_dynamic_runtime_ddl_is_a_blocking_failure(
+    tmp_path: Path, source: str, statement: str
+) -> None:
+    (tmp_path / "unexpected.py").write_text(source, encoding="utf-8")
+
+    completed = subprocess.run(
+        [sys.executable, str(SCRIPT), "--root", str(tmp_path)],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    report = json.loads(completed.stdout)
+
+    assert completed.returncode == 1
+    assert report["status"] == "fail"
+    assert report["legacyFindings"] == []
+    assert report["unexpectedFindings"] == [
+        {"path": "unexpected.py", "line": 2, "statement": statement}
+    ]

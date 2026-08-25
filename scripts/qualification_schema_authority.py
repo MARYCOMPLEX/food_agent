@@ -55,21 +55,37 @@ def _findings(path: Path, root: Path) -> tuple[DdlFinding, ...]:
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     except (OSError, SyntaxError):
         return ()
-    findings: list[DdlFinding] = []
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Constant) or not isinstance(node.value, str):
-            continue
-        match = _DDL_PATTERN.search(node.value)
+    findings: dict[tuple[int, str], DdlFinding] = {}
+
+    def add(node: ast.AST, value: str) -> None:
+        match = _DDL_PATTERN.search(value)
         if match is None:
-            continue
-        findings.append(
-            DdlFinding(
-                path=path.relative_to(root).as_posix(),
-                line=getattr(node, "lineno", 0),
-                statement=" ".join(match.group(1).upper().split()),
-            )
+            return
+        statement = " ".join(match.group(1).upper().split())
+        line = getattr(node, "lineno", 0)
+        findings[(line, statement)] = DdlFinding(
+            path=path.relative_to(root).as_posix(),
+            line=line,
+            statement=statement,
         )
-    return tuple(findings)
+
+    def render(node: ast.AST) -> str:
+        """Render static SQL fragments while retaining dynamic expressions."""
+
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            return node.value
+        if isinstance(node, ast.JoinedStr):
+            return "".join(render(item) for item in node.values)
+        if isinstance(node, ast.FormattedValue):
+            return "<dynamic>"
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+            return render(node.left) + render(node.right)
+        return ""
+
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Constant, ast.JoinedStr, ast.BinOp)):
+            add(node, render(node))
+    return tuple(findings[key] for key in sorted(findings))
 
 
 def scan(root: Path) -> dict[str, object]:
