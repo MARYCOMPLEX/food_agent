@@ -1,8 +1,7 @@
 # B0 Temporal And Pydantic AI Qualification
 
-Status: Partial pass - the first eight local observations pass in seven isolated
-tests; worker restart is limited, and process-crash, application PG/Redis, and
-deployed-service gates remain pending
+Status: Partial pass - ten local observations pass in nine isolated tests;
+worker restart is limited, and deployed-service rollout gates remain pending
 
 Milestone: B0 (`Reliable Task Semantics`)
 
@@ -48,10 +47,12 @@ runtime environment in the table below.
 | Cancellation race | Cancel versus slow Activity yields exactly one terminal history event | PASS |
 | Deployment patch | Old history replays under `workflow.patched()` and new execution selects the new branch | PASS |
 | Reliable cancellation | Reliable Research signal reaches cancellation Activity, commits a receipt, maps `task.cancelled`, and publishes one idempotent terminal event | PASS |
+| Workflow ID admission | Concurrent duplicate starts return the same `workflow_id/run_id` without a Redis lock or second task | PASS |
+| Duplicate commit Activity | Redelivered commit Activity returns the original receipt and leaves one authority record | PASS |
 
-The first eight observations listed here are implemented by seven isolated
-tests in the SDK qualification command (`7 passed`, `34.35s` in the recorded
-run); retry recovery and retry exhaustion share one test function. The worker
+The ten observations listed here are implemented by nine isolated tests in the
+SDK qualification command (`9 passed`, `70.17s` in the recorded run); retry
+recovery and retry exhaustion share one test function. The worker
 stop/restart observation is intentionally marked limited because it uses a
 clean worker replacement and explicit replay rather than an OS process crash.
 Temporal may reassign an in-flight Activity task without appending a second
@@ -59,10 +60,10 @@ Temporal may reassign an in-flight Activity task without appending a second
 completion and a terminal Workflow result rather than assuming a retry-event
 shape.
 
-This record does not claim process-level worker-crash recovery, PostgreSQL
-commit/reconcile, Redis replay/restart, or deployed Temporal service restart.
-Those remain explicit B0/B4 qualification gates and must retain their own
-failure evidence before the milestone is considered fully qualified.
+This SDK-only record does not claim process-level worker-crash recovery,
+PostgreSQL commit/reconcile, Redis replay/restart, or deployed Temporal service
+restart. The first three have separate live B0 records; deployed-service
+rollout remains an explicit B0/B4 qualification gate.
 
 The reliable cancellation case uses graceful signal handling: a signal that
 arrives during an Activity waits for that Activity to finish, then the
@@ -76,16 +77,16 @@ Fill this section from the command output, preserving failures verbatim:
 
 | Field | Value |
 |---|---|
-| Date/time (UTC) | `2026-08-24` |
+| Date/time (UTC) | `2026-08-25` |
 | Host/OS | `DESKTOP-OVTL170 / Windows-11-10.0.22631-SP0` |
 | Python | `3.12.0` |
 | Temporal SDK | `1.31.0` |
 | Pydantic AI | `2.5.1` |
 | Test server mode | `time-skipping` |
-| Command | `uv run --frozen pytest -q -m live tests/test_temporal_qualification.py -ra` |
-| Result | `7 passed` |
-| Duration | `34.35s` (recorded frozen-lockfile run) |
-| Failure output | `none for the seven SDK tests; process-crash, application PG/Redis, and deployed Temporal service qualification remain out of scope` |
+| Command | `uv run --frozen pytest -q -m live tests/test_temporal_qualification.py -ra --durations=0` |
+| Result | `9 passed` |
+| Duration | `70.17s` (recorded frozen-lockfile run) |
+| Failure output | `none for the nine SDK tests; deployed Temporal service qualification remains out of scope` |
 
 If a future environment blocks the test server download, mark `Result` as
 `blocked`, retain the command and exception, and leave unexecuted case
@@ -106,9 +107,11 @@ The qualification passes only if:
 6. the reliable application cancellation test commits the authoritative
    cancellation receipt and emits one `task.cancelled` event;
 7. the patched deployment replays old history before taking the new branch;
-8. application PostgreSQL commit-before-terminal and Redis replay-expiry
+8. duplicate Workflow admission and commit Activity delivery remain
+   idempotent;
+9. application PostgreSQL commit-before-terminal and Redis replay-expiry
    behavior are qualified in their separate live gates; and
-9. no test uses an in-memory authority as a production binding or introduces a
+10. no test uses an in-memory authority as a production binding or introduces a
    second task runtime.
 
 When these conditions are met, copy the exact result and commit SHA into
