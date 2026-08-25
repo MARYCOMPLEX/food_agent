@@ -1,10 +1,10 @@
 ## 1. Evidence And Inventory
 
-- [ ] 1.1 Export the current compatibility ledger and identify every legacy
+- [x] 1.1 Export the current compatibility ledger and identify every legacy
   route, DTO, Python export, adapter, and configuration binding.
 - [ ] 1.2 Attach consumer evidence for one complete release cycle and approve
   the removal owner and rollback command for each candidate.
-- [ ] 1.3 Run clean/N-1 Alembic restore and Temporal history replay before any
+- [x] 1.3 Run clean/N-1 Alembic restore and Temporal history replay before any
   removal is activated.
 
 ## 2. Incremental Removal
