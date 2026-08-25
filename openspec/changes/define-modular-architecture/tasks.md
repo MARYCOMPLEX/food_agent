@@ -215,7 +215,7 @@
 - [x] 14.1 在 Ubuntu/Windows 的 Python 3.12 blocking runtime 上执行 `uv sync --frozen`、`uv lock --check`、backend characterization、contract、architecture 和 failure-injection suites；锁文件或 interpreter 漂移必须失败。
 - [ ] 14.2 在 macOS/arm64 和其他已批准 Python 版本上运行 probe suites，记录与 Python 3.12 基线的差异；probe 结果不得静默扩大生产支持矩阵。
 - [x] 14.3 在目标完整栈 PostgreSQL 16+pgvector/pg_trgm、Redis、Temporal、S3-compatible ObjectStore 和 Pydantic AI provider fake 上运行同一 backend contract suite；no-infra、Redis-only、PostgreSQL-only 和 InMemory EventBus 仅运行 legacy characterization，不得标记为目标生产支持模式。
-- [ ] 14.4 在 Chromium desktop/mobile 及已批准 Firefox/WebKit 组合运行 HTTP/SSE reconnect、search、favorites、history 和 profile e2e。
+- [x] 14.4 在 Chromium desktop/mobile 及已批准 Firefox/WebKit 组合运行 HTTP/SSE reconnect、search、favorites、history 和 profile e2e。
 - [x] 14.5 在 UTF-8 中文、UTC、Asia/Shanghai、固定时钟和已批准 locale 下验证 canonicalization、timestamps 和 freshness。
 - [x] 14.6 构建 Python 3.12 non-root Linux image，并对 PostgreSQL 16、Redis、Temporal server/workers 和 MinIO Compose 栈运行 health、端口、卷权限、restart、Alembic migration 和三类 Task Queue smoke tests。
 - [ ] 14.7 从空库和 N-1 fixture 运行唯一 Alembic upgrade path，执行 downgrade/restore 演练并扫描新代码，确认没有旁路 migration、运行时建表或与 SQLAlchemy metadata 冲突的 schema authority。
