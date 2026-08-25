@@ -55,19 +55,17 @@ def _findings(path: Path, root: Path) -> tuple[DdlFinding, ...]:
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     except (OSError, SyntaxError):
         return ()
-    findings: dict[tuple[int, str], DdlFinding] = {}
+    findings: dict[tuple[int, int, str], DdlFinding] = {}
 
     def add(node: ast.AST, value: str) -> None:
-        match = _DDL_PATTERN.search(value)
-        if match is None:
-            return
-        statement = " ".join(match.group(1).upper().split())
         line = getattr(node, "lineno", 0)
-        findings[(line, statement)] = DdlFinding(
-            path=path.relative_to(root).as_posix(),
-            line=line,
-            statement=statement,
-        )
+        for match in _DDL_PATTERN.finditer(value):
+            statement = " ".join(match.group(1).upper().split())
+            findings[(line, match.start(), statement)] = DdlFinding(
+                path=path.relative_to(root).as_posix(),
+                line=line,
+                statement=statement,
+            )
 
     def render(node: ast.AST) -> str:
         """Render static SQL fragments while retaining dynamic expressions."""

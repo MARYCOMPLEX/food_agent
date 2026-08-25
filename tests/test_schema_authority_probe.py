@@ -42,7 +42,10 @@ def test_current_tree_reports_only_registered_legacy_runtime_ddl() -> None:
 
 def test_unregistered_runtime_ddl_is_a_blocking_failure(tmp_path: Path) -> None:
     source = tmp_path / "unexpected.py"
-    source.write_text('SQL = "CREATE TABLE unexpected (id integer)"\n', encoding="utf-8")
+    source.write_text(
+        'SQL = "CREATE TABLE unexpected (id integer); CREATE INDEX idx_unexpected "\n',
+        encoding="utf-8",
+    )
     completed = subprocess.run(
         [sys.executable, str(SCRIPT), "--root", str(tmp_path)],
         cwd=ROOT,
@@ -56,7 +59,8 @@ def test_unregistered_runtime_ddl_is_a_blocking_failure(tmp_path: Path) -> None:
     assert report["status"] == "fail"
     assert report["legacyFindings"] == []
     assert report["unexpectedFindings"] == [
-        {"path": "unexpected.py", "line": 1, "statement": "CREATE TABLE"}
+        {"path": "unexpected.py", "line": 1, "statement": "CREATE TABLE"},
+        {"path": "unexpected.py", "line": 1, "statement": "CREATE INDEX"},
     ]
 
 
