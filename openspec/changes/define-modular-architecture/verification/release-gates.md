@@ -34,7 +34,7 @@ Recorded: 2026-08-25
 | 14.10 Temporal/operator gate | **PARTIAL** | Seven isolated SDK qualification tests pass, including determinism, model/tool Activities, retry, cancellation and patched replay; application cancellation and PG/Temporal reconciliation evidence pass. Production rollout, multi-worker smoke and operator recovery remain pending. |
 | 14.11 S3/MinIO failure matrix | **PASS (contract)** | boto3/MinIO adapter tests cover streaming, hash de-duplication, content/size allow-list, encryption fail-closed behavior, signed URL policy, missing/corrupt objects, metadata abort and orphan cleanup. A deployed MinIO failure run is pending. |
 | 14.12 OTel/Prometheus | **PASS (contract)** | Trace correlation, secret/URL/preference redaction and bounded label-cardinality tests pass. End-to-end API -> Temporal -> PostgreSQL/Redis/S3 trace capture is a deployment probe. |
-| 14.13 dependency/import scan | **PASS** | Architecture/dependency tests and `uv.lock` scan reject ARQ, Celery, LangGraph, OpenAI Agents SDK, LiteLLM, Mem0, Zep, Redis locks/Redlock and a second migration/runtime authority. |
+| 14.13 dependency/import scan | **PASS** | `uv run --frozen pytest -q tests/test_unit_architecture_boundaries.py tests/test_unit_dependency_ledger.py tests/test_unit_b3_architecture.py` passed 17 tests; `uv lock --check` passed. The AST/import/lock scan rejects ARQ, Celery, LangGraph, OpenAI Agents SDK, LiteLLM, Mem0, Zep, Redis locks/Redlock, forbidden database pools/runtime DDL, and a second migration/runtime authority. |
 | 14.14 milestone archive | **PASS (records)** | S0-S5 and B0-B5 verification records include commands, counts, versions, feature bindings and rollback runbooks. Release-gate status remains separate from milestone implementation status. |
 | 14.15 strict OpenSpec/CI/dependency graph | **PARTIAL** | `openspec validate define-modular-architecture --strict`, `uv lock --check`, full non-live pytest and architecture dependency graph pass. Frontend lint/build and target deployment CI are pending. |
 | 14.16 architecture/docs drift | **PASS (local)** | Added `tests/test_architecture_docs_drift.py`, which registers the live Food/Travel manifests and schema bundles, checks the contract catalog, validates architecture HTML/Draw.io anchors, verifies ADR-0009 compatibility anchors, and requires S0-S5/B0-B5 verification plus rollback assets. The Draw.io reference was refreshed to remove obsolete ARQ/OpenAI Agents SDK/Responses labels and reflect Pydantic AI V2, Temporal, Redis hot state, and Food/Travel Packs. Focused gate: `3 passed`. |
@@ -48,6 +48,8 @@ uv lock --check
 uv run --frozen pytest -q -m "not live" -ra --durations=0
 uv run --frozen pytest -q tests/test_release_gate_manifests.py
 uv run --frozen pytest -q tests/test_architecture_docs_drift.py
+uv run --frozen pytest -q tests/test_unit_architecture_boundaries.py tests/test_unit_dependency_ledger.py tests/test_unit_b3_architecture.py
+uv lock --check
 uv run --frozen ruff check src tests/test_release_gate_manifests.py
 openspec validate define-modular-architecture --strict
 docker build --file Dockerfile.release --tag xhs-food-agent:release-gate .
