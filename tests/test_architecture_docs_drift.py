@@ -59,6 +59,8 @@ def test_architecture_references_and_compatibility_ledger_have_required_anchors(
     html = (CHANGE / "references" / "food-agent-unified-architecture.html").read_text(
         encoding="utf-8"
     )
+    runtime_html_path = CHANGE / "references" / "food-agent-runtime-architecture.html"
+    runtime_html = runtime_html_path.read_text(encoding="utf-8")
     drawio = (
         CHANGE / "references" / "food-agent-extensible-evidence-architecture.drawio"
     ).read_text(encoding="utf-8")
@@ -77,6 +79,18 @@ def test_architecture_references_and_compatibility_ledger_have_required_anchors(
         "Travel Pack",
     ):
         assert label in html
+    for label in (
+        "FastAPI",
+        "Pydantic AI V2",
+        "Temporal Workers",
+        "PostgreSQL 16",
+        "Redis 7.4",
+        "S3-compatible ObjectStore",
+        "B2 10.12",
+        "codex/define-modular-architecture-s0",
+    ):
+        assert label in runtime_html
+    assert runtime_html_path.is_file()
     for label in ("Research", "Evidence", "PostgreSQL", "MinIO", "Temporal", "Travel Pack", "Redis 7 Hot State"):
         assert label in drawio
     for adr in ("ADR-0001", "ADR-0002", "ADR-0009", "ADR-0013"):

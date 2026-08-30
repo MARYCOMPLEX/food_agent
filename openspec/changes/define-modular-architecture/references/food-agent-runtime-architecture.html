@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>XHS Food Agent · Runtime Architecture</title>
+  <style>
+    :root {
+      --ink: #e8f0ef;
+      --muted: #91a6a5;
+      --bg: #0d1517;
+      --panel: #132124;
+      --panel-2: #172a2e;
+      --line: #2b4548;
+      --cyan: #55d6cf;
+      --cyan-soft: #173f41;
+      --amber: #efbd68;
+      --amber-soft: #42351f;
+      --violet: #b7a7f4;
+      --violet-soft: #30294a;
+      --blue: #8fc6ff;
+      --blue-soft: #203b57;
+      --green: #75dd9a;
+      --green-soft: #204932;
+      --coral: #ff8b78;
+      --coral-soft: #4d2927;
+      --shadow: 0 22px 70px rgba(0, 0, 0, .28);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      color: var(--ink);
+      background: var(--bg);
+      font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+      letter-spacing: 0;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: .25;
+      background-image: linear-gradient(rgba(85, 214, 207, .04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(85, 214, 207, .04) 1px, transparent 1px);
+      background-size: 32px 32px;
+      mask-image: linear-gradient(to bottom, #000, transparent 85%);
+    }
+    button { font: inherit; }
+    .shell { position: relative; max-width: 1680px; margin: 0 auto; padding: 28px 28px 48px; }
+    .topbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 28px; margin-bottom: 18px; }
+    .eyebrow { display: inline-flex; align-items: center; gap: 9px; color: var(--cyan); font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+    .eyebrow::before { content: ""; width: 25px; height: 2px; background: var(--coral); }
+    h1 { margin: 9px 0 7px; max-width: 900px; color: #f4fbfa; font-family: Georgia, "Songti SC", serif; font-size: clamp(31px, 4vw, 54px); line-height: 1.02; }
+    .lead { max-width: 920px; margin: 0; color: var(--muted); font-size: 14px; line-height: 1.75; }
+    .branch { margin-top: 13px; color: var(--muted); font-family: Consolas, monospace; font-size: 12px; }
+    .branch code { color: var(--cyan); }
+    .metrics { display: grid; grid-template-columns: repeat(2, minmax(120px, 1fr)); gap: 8px; min-width: 270px; }
+    .metric { padding: 11px 13px; border: 1px solid var(--line); border-radius: 7px; background: rgba(19, 33, 36, .88); box-shadow: var(--shadow); }
+    .metric strong { display: block; color: #f4fbfa; font-size: 19px; }
+    .metric span { color: var(--muted); font-size: 11px; line-height: 1.3; }
+    .statusbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+    .status { display: inline-flex; align-items: center; gap: 7px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); background: rgba(19, 33, 36, .86); font-size: 11px; }
+    .status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px rgba(117, 221, 154, .12); }
+    .status.pending { color: #f1cf93; border-color: #795d2e; background: rgba(66, 53, 31, .55); }
+    .status.pending::before { background: var(--amber); box-shadow: 0 0 0 3px rgba(239, 189, 104, .12); }
+    .workspace { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 15px; align-items: stretch; }
+    .canvas, .inspector { min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 9px; background: rgba(19, 33, 36, .92); box-shadow: var(--shadow); }
+    .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-bottom: 1px solid var(--line); background: #15282b; }
+    .toolbar-title { color: var(--muted); font-size: 12px; }
+    .toolbar-title strong { color: var(--ink); }
+    .toolbar-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+    .toolbar-actions button { padding: 6px 9px; border: 1px solid #38565a; border-radius: 5px; color: var(--muted); background: #102023; cursor: pointer; font-size: 11px; }
+    .toolbar-actions button:hover { border-color: var(--cyan); color: var(--ink); }
+    .toolbar-actions button.active { border-color: var(--cyan); color: #071416; background: var(--cyan); font-weight: 700; }
+    .svg-wrap { position: relative; height: min(72vh, 830px); min-height: 640px; overflow: hidden; cursor: grab; background: #0f1b1d; }
+    .svg-wrap.dragging { cursor: grabbing; }
+    #architecture { display: block; width: 100%; height: 100%; user-select: none; }
+    .canvas-note { position: absolute; left: 13px; bottom: 11px; color: #6c8584; font-size: 10px; pointer-events: none; }
+    .legend { display: flex; flex-wrap: wrap; gap: 12px 17px; padding: 10px 13px; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; }
+    .legend-item { display: inline-flex; align-items: center; gap: 6px; }
+    .swatch { width: 12px; height: 12px; border: 1px solid; border-radius: 3px; }
+    .swatch.authority { border-color: var(--cyan); background: var(--cyan-soft); }
+    .swatch.runtime { border-color: var(--violet); background: var(--violet-soft); }
+    .swatch.adapter { border-color: var(--amber); background: var(--amber-soft); }
+    .swatch.storage { border-color: var(--blue); background: var(--blue-soft); }
+    .swatch.pending { border-color: var(--amber); background: transparent; border-style: dashed; }
+    .inspector { display: flex; flex-direction: column; }
+    .inspector-head { padding: 18px 17px 15px; border-bottom: 1px solid var(--line); background: #15282b; }
+    .inspector-kicker { color: var(--cyan); font-size: 10px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+    .inspector h2 { margin: 7px 0 7px; color: #f4fbfa; font-family: Georgia, "Songti SC", serif; font-size: 25px; line-height: 1.12; }
+    .inspector-lead { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.65; }
+    .inspector-body { padding: 16px 17px; overflow: auto; }
+    .section { margin-bottom: 18px; }
+    .section h3 { margin: 0 0 7px; color: var(--cyan); font-size: 10px; letter-spacing: .13em; text-transform: uppercase; }
+    .section p { margin: 0; color: #c1cfce; font-size: 12px; line-height: 1.65; }
+    .detail-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+    .detail-list li { position: relative; padding-left: 13px; color: #c1cfce; font-size: 12px; line-height: 1.52; }
+    .detail-list li::before { content: ""; position: absolute; left: 0; top: .63em; width: 5px; height: 5px; border-radius: 50%; background: var(--coral); }
+    .stack { display: flex; flex-wrap: wrap; gap: 5px; }
+    .stack span { padding: 4px 6px; border: 1px solid #3a5a5c; border-radius: 4px; color: #b8d7d4; background: #112426; font-family: Consolas, monospace; font-size: 10px; }
+    .boundary { padding: 9px 10px; border-left: 2px solid var(--amber); color: #e7c98f; background: var(--amber-soft); font-size: 11px; line-height: 1.55; }
+    .inspector-foot { margin-top: auto; padding: 12px 17px; border-top: 1px solid var(--line); color: #718987; font-size: 10px; line-height: 1.55; }
+    .below { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 15px; margin-top: 15px; min-width: 0; }
+    .card { min-width: 0; padding: 17px; border: 1px solid var(--line); border-radius: 8px; background: rgba(19, 33, 36, .9); }
+    .card h2 { margin: 0 0 8px; color: #f4fbfa; font-family: Georgia, "Songti SC", serif; font-size: 20px; }
+    .card p, .card li { color: var(--muted); font-size: 12px; line-height: 1.6; }
+    .card p { margin: 0 0 9px; }
+    .card ul { display: grid; gap: 5px; margin: 0; padding-left: 17px; }
+    .command { display: block; max-width: 100%; margin: 7px 0; padding: 8px 9px; overflow-x: auto; border: 1px solid #2c484b; border-radius: 5px; color: #c4ece7; background: #0d191b; font-family: Consolas, monospace; font-size: 11px; white-space: nowrap; }
+    .note { padding: 10px; border-left: 2px solid var(--coral); color: #e0b0a7; background: var(--coral-soft); font-size: 11px; line-height: 1.55; }
+    .lane { fill: rgba(19, 33, 36, .4); stroke: #274346; stroke-width: 1.2; stroke-dasharray: 6 6; }
+    .lane-label { fill: #668281; font-size: 12px; font-weight: 800; letter-spacing: .14em; }
+    .node { cursor: pointer; outline: none; }
+    .node rect { stroke-width: 1.7; transition: filter .18s ease, stroke-width .18s ease, opacity .18s ease; }
+    .node:hover rect, .node:focus rect, .node.selected rect { filter: drop-shadow(0 8px 12px rgba(0, 0, 0, .34)); stroke-width: 3; }
+    .node.dimmed { opacity: .2; }
+    .node-title { fill: #eff8f7; font-size: 16px; font-weight: 750; }
+    .node-kicker { fill: #8ca8a6; font-size: 10px; font-weight: 800; letter-spacing: .08em; }
+    .node-line { fill: #bbcecc; font-size: 11px; }
+    .node-tech { fill: #71d1ca; font-family: Consolas, monospace; font-size: 10px; }
+    .node.authority rect { fill: var(--cyan-soft); stroke: var(--cyan); }
+    .node.runtime rect { fill: var(--violet-soft); stroke: var(--violet); }
+    .node.adapter rect { fill: var(--amber-soft); stroke: var(--amber); }
+    .node.storage rect { fill: var(--blue-soft); stroke: var(--blue); }
+    .node.output rect { fill: var(--coral-soft); stroke: var(--coral); }
+    .node.pending rect { fill: rgba(66, 53, 31, .36); stroke: var(--amber); stroke-dasharray: 7 4; }
+    .node.external rect { fill: #1d292a; stroke: #718483; }
+    .edge { fill: none; stroke: #668483; stroke-width: 1.5; marker-end: url(#arrow); }
+    .edge.dashed { stroke-dasharray: 6 5; }
+    .edge.authority { stroke: var(--cyan); stroke-width: 2.2; marker-end: url(#arrow-cyan); }
+    .edge.pending { stroke: var(--amber); stroke-dasharray: 6 5; marker-end: url(#arrow-amber); }
+    .edge-label { fill: #86a09f; font-size: 10px; paint-order: stroke; stroke: #0f1b1d; stroke-width: 4px; stroke-linejoin: round; }
+    .edge-label.authority { fill: var(--cyan); font-weight: 800; }
+    .edge-label.pending { fill: var(--amber); font-weight: 800; }
+    .callout { fill: #15282b; stroke: #3e6263; stroke-width: 1; }
+    .callout-title { fill: #d8ece9; font-size: 11px; font-weight: 800; }
+    .callout-text { fill: #8ca8a6; font-size: 10px; }
+    @media (max-width: 1200px) { .workspace { grid-template-columns: 1fr; } .inspector { min-height: 340px; } .below { grid-template-columns: 1fr; } }
+    @media (max-width: 720px) {
+      .shell { padding: 19px 12px 32px; }
+      .topbar { flex-direction: column; }
+      .metrics { width: 100%; min-width: 0; }
+      .toolbar { align-items: flex-start; flex-direction: column; }
+      .toolbar-actions { justify-content: flex-start; }
+      .svg-wrap { height: 620px; min-height: 0; overflow-x: auto; overflow-y: hidden; }
+      #architecture { width: 1020px; min-width: 1020px; height: 612px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">Runtime Architecture · OpenSpec Baseline</div>
+        <h1>新系统运行架构</h1>
+        <p class="lead">这是当前仓库实现的运行视图：浏览器通过 FastAPI 进入 Composition Root，研究由唯一的 Pydantic AI V2 runtime 规划，经 Tool Gateway 访问来源；Temporal 持有唯一可执行历史，PostgreSQL 持有业务事实，Redis 只承担可重建热状态。</p>
+        <div class="branch">当前分支：<code>codex/define-modular-architecture-s0</code> · 已跟踪 <code>origin/codex/define-modular-architecture-s0</code></div>
+      </div>
+      <div class="metrics" aria-label="架构状态摘要">
+        <div class="metric"><strong>S0–S5 / B0–B5</strong><span>代码与验证记录已同步</span></div>
+        <div class="metric"><strong>189 / 190</strong><span>OpenSpec 条件已完成 / 待生产证据</span></div>
+        <div class="metric"><strong>Python 3.12</strong><span>release qualification 基线</span></div>
+        <div class="metric"><strong>3 queues</strong><span>Research · Refresh · Media</span></div>
+      </div>
+    </header>
+
+    <div class="statusbar" aria-label="验证状态">
+      <span class="status">本地 release Compose 已验证</span>
+      <span class="status">Alembic schema authority 已锁定</span>
+      <span class="status">Temporal / PostgreSQL / Redis / MinIO 合同通过</span>
+      <span class="status pending">B2 10.12 需要真实生产 canary + owner approval</span>
+    </div>
+
+    <div class="workspace">
+      <section class="canvas" aria-label="运行时架构 SVG 图">
+        <div class="toolbar">
+          <div class="toolbar-title"><strong id="view-title">系统总览</strong> · 点击模块查看技术栈和交互</div>
+          <div class="toolbar-actions">
+            <button type="button" data-mode="overview" class="active">总览</button>
+            <button type="button" data-mode="request">请求链路</button>
+            <button type="button" data-mode="authority">事实权威</button>
+            <button type="button" data-mode="operations">运行与回退</button>
+          </div>
+        </div>
+        <div class="svg-wrap" id="svg-wrap">
+          <svg id="architecture" viewBox="0 0 1500 900" role="img" aria-label="XHS Food Agent 运行时架构图">
+            <defs>
+              <marker id="arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#668483" /></marker>
+              <marker id="arrow-cyan" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#55d6cf" /></marker>
+              <marker id="arrow-amber" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#efbd68" /></marker>
+            </defs>
+            <g id="viewport"></g>
+          </svg>
+          <div class="canvas-note">拖动画布 · 滚轮缩放 · 双击或点击节点查看详情</div>
+        </div>
+        <div class="legend" aria-label="图例">
+          <span class="legend-item"><i class="swatch authority"></i>权威边界</span>
+          <span class="legend-item"><i class="swatch runtime"></i>运行时 / 编排</span>
+          <span class="legend-item"><i class="swatch adapter"></i>端口 / 适配器</span>
+          <span class="legend-item"><i class="swatch storage"></i>基础设施</span>
+          <span class="legend-item"><i class="swatch pending"></i>待生产证据</span>
+        </div>
+      </section>
+
+      <aside class="inspector" aria-live="polite">
+        <div class="inspector-head">
+          <div class="inspector-kicker" id="inspector-kicker">SYSTEM</div>
+          <h2 id="inspector-title">系统总览</h2>
+          <p class="inspector-lead" id="inspector-lead">点击节点查看它在当前仓库中的技术栈、运行方式和交互方向。</p>
+        </div>
+        <div class="inspector-body">
+          <section class="section"><h3>职责</h3><p id="inspector-responsibility"></p></section>
+          <section class="section"><h3>技术栈</h3><div class="stack" id="inspector-stack"></div></section>
+          <section class="section"><h3>主要交互</h3><ul class="detail-list" id="inspector-interactions"></ul></section>
+          <section class="section"><h3>边界</h3><div class="boundary" id="inspector-boundary"></div></section>
+        </div>
+        <div class="inspector-foot">图中“权威”表示可写事实或唯一执行来源；虚线表示可重建、只读或待启用路径。模块只能通过项目拥有的 port / contract 交互。</div>
+      </aside>
+    </div>
+
+    <section class="below">
+      <article class="card">
+        <h2>如何运行</h2>
+        <p>生产/验收路径使用 release manifest；默认 compose 仍保留为 legacy characterization，不应当作完整目标栈。</p>
+        <code class="command">docker compose -f docker-compose.release.yml up -d --wait</code>
+        <code class="command">docker compose -f docker-compose.release.yml exec -T migrate alembic upgrade head</code>
+        <code class="command">uv run --frozen uvicorn api.main:app --host 0.0.0.0 --port 8000</code>
+      </article>
+      <article class="card">
+        <h2>一次请求怎么走</h2>
+        <ul>
+          <li>Browser 发送 HTTP/JSON；任务进度通过 SSE 订阅 Redis Stream。</li>
+          <li>FastAPI 只负责传输、身份、限流、DTO 和 use-case 调用。</li>
+          <li>ResearchCoordinator 形成 typed plan；Pydantic AI 只能调用 Tool Gateway。</li>
+          <li>Temporal Workflow/Activity 执行确定性边界；PG commit 后才发 terminal event。</li>
+          <li>查询路径为 deterministic key → <code>pg_trgm</code> → BGE-M3 <code>profile_v1</code> pgvector。</li>
+        </ul>
+      </article>
+      <article class="card">
+        <h2>当前发布边界</h2>
+        <div class="note">当前分支的代码、文档、测试和远端已同步。唯一未闭合项是 B2 `10.12`：真实生产流量样本、召回/延迟/请求减少/错误分类观测，以及 release owner 对 canary 的批准。</div>
+        <ul style="margin-top: 10px">
+          <li>PostgreSQL：业务事实、记忆、Bundle、task projection、outbox。</li>
+          <li>Temporal：唯一 executable checkpoint，Workflow ID 表达 single-flight。</li>
+          <li>Redis：session 热窗口、SSE stream、短幂等、限流；不是锁、队列或事实库。</li>
+          <li>S3/MinIO：只保存二进制；元数据和 provenance 在 PostgreSQL。</li>
+        </ul>
+      </article>
+    </section>
+  </main>
+
+  <script>
+    const nodes = [
+      { id: "browser", x: 32, y: 62, w: 238, h: 108, kind: "output", kicker: "CLIENT", title: "浏览器体验层", lines: ["React 19 · TypeScript · Vite 8", "REST / SSE · Zustand · Playwright"], tech: "frontend/" },
+      { id: "api", x: 330, y: 62, w: 260, h: 108, kind: "authority", kicker: "TRANSPORT", title: "FastAPI API", lines: ["Uvicorn · Pydantic DTO · SlowAPI", "Search / History / Favorites / User"], tech: "src/api/main.py" },
+      { id: "provider", x: 1230, y: 62, w: 238, h: 108, kind: "external", kicker: "PROVIDER ADAPTERS", title: "模型与平台来源", lines: ["OpenAI / SiliconFlow / DeepSeek", "XHS / Amap / MCP 外部 transport"], tech: "adapters only" },
+      { id: "root", x: 32, y: 238, w: 250, h: 142, kind: "adapter", kicker: "COMPOSITION ROOT", title: "组合根", lines: ["BindingRegistry · lifecycle", "legacy / reliable feature flags", "唯一装配具体 adapter"], tech: "composition/root.py" },
+      { id: "coordinator", x: 335, y: 218, w: 260, h: 162, kind: "runtime", kicker: "RESEARCH OWNER", title: "ResearchCoordinator", lines: ["ResearchPlan · budget · stop", "cancel · retry · recovery", "业务语义状态迁移唯一 owner"], tech: "orchestrator/coordinator.py" },
+      { id: "agent", x: 650, y: 218, w: 255, h: 162, kind: "runtime", kicker: "ONE AGENT RUNTIME", title: "Pydantic AI V2", lines: ["typed dependencies / tools", "typed output validation", "model call stays in Activities"], tech: "pydantic-ai-slim[temporal]" },
+      { id: "gateway", x: 955, y: 218, w: 255, h: 162, kind: "adapter", kicker: "CAPABILITY BOUNDARY", title: "Tool Gateway", lines: ["allowed tools + schema checks", "Source / Repository / Object ports", "Agent 不直连平台或数据库"], tech: "contracts + adapters" },
+      { id: "packs", x: 1260, y: 218, w: 208, h: 162, kind: "adapter", kicker: "DOMAIN PACKS", title: "Food / Travel", lines: ["manifest · ontology", "features · scoring · output", "共享 runtime，不复制系统"], tech: "domain_packs/" },
+      { id: "temporal", x: 330, y: 510, w: 260, h: 112, kind: "authority", kicker: "DURABLE HISTORY", title: "Temporal Server", lines: ["Workflow ID = single-flight", "history = executable checkpoint"], tech: "temporalio 1.31 / 1.28.2" },
+      { id: "workers", x: 650, y: 500, w: 560, h: 132, kind: "runtime", kicker: "ISOLATED WORKERS", title: "Temporal Workers", lines: ["Research queue · Refresh queue · Media queue", "Activity retry / heartbeat / cancellation", "Pydantic AI plugin + connector activities"], tech: "research / refresh / media" },
+      { id: "postgres", x: 32, y: 720, w: 272, h: 138, kind: "storage", kicker: "FACT AUTHORITY", title: "PostgreSQL 16", lines: ["business facts · memory · outbox", "task_progress_projection · Bundle CAS", "pg_trgm + pgvector (BGE-M3 1024 cosine)"], tech: "SQLAlchemy 2 Async · asyncpg" },
+      { id: "redis", x: 340, y: 720, w: 272, h: 138, kind: "storage", kicker: "REBUILDABLE HOT STATE", title: "Redis 7.4", lines: ["session: 20 messages / 24h", "SSE: 1h / MAXLEN 1000", "rate limit · short idempotency"], tech: "redis.asyncio · Streams" },
+      { id: "object", x: 648, y: 720, w: 272, h: 138, kind: "storage", kicker: "BINARY AUTHORITY", title: "S3-compatible ObjectStore", lines: ["raw media · derived artifacts", "content hash · multipart · signed URL", "PG 保存 object ref + provenance"], tech: "boto3 / local MinIO" },
+      { id: "observe", x: 956, y: 720, w: 254, h: 138, kind: "storage", kicker: "OPERATIONS", title: "Telemetry", lines: ["trace correlation + redaction", "Prometheus counters / histograms", "health · queue lag · failures"], tech: "OpenTelemetry + Prometheus" },
+      { id: "alembic", x: 1254, y: 510, w: 214, h: 112, kind: "pending", kicker: "SCHEMA AUTHORITY", title: "Alembic", lines: ["唯一 migration authority", "runtime DDL fail-closed", "upgrade head before app"], tech: "alembic/versions/" }
+    ];
+
+    const edges = [
+      ["browser", "api", "HTTP JSON + SSE", "authority"],
+      ["api", "root", "resolve use-case", ""],
+      ["root", "coordinator", "bind ports", ""],
+      ["coordinator", "agent", "typed plan / model", "authority"],
+      ["agent", "gateway", "typed tool call", "authority"],
+      ["gateway", "packs", "allowed capability", ""],
+      ["gateway", "provider", "source / model adapter", "dashed"],
+      ["coordinator", "temporal", "start / signal / cancel", "authority"],
+      ["temporal", "workers", "workflow task queue", "authority"],
+      ["workers", "postgres", "commit facts + projection", "authority"],
+      ["workers", "redis", "event stream / hot state", "dashed"],
+      ["workers", "object", "media bytes", ""],
+      ["workers", "observe", "traces / metrics", "dashed"],
+      ["alembic", "postgres", "upgrade head", "pending"],
+      ["postgres", "api", "history / snapshot", "dashed"],
+      ["redis", "api", "resume SSE", "dashed"]
+    ];
+
+    const catalog = {
+      overview: { kicker: "SYSTEM", title: "系统总览", lead: "当前分支的可运行目标栈与兼容运行路径。", responsibility: "把浏览器请求分成传输、编排、持久执行、事实存储和可重建热状态，确保每种能力只有一个权威所有者。", stack: ["FastAPI", "Pydantic AI V2", "Temporal", "PostgreSQL 16", "Redis 7.4", "S3 / MinIO"], interactions: ["HTTP/SSE 进入 FastAPI，再由 Composition Root 解析绑定。", "研究计划由 ResearchCoordinator 管理，模型只能通过 Tool Gateway 申请能力。", "Temporal 运行 workflow/activity；PostgreSQL 提交成功后才发布终态事件。"], boundary: "本图按当前代码与 release Compose 绘制。B2 10.12 的真实生产 canary 仍是外部发布门槛。" },
+      browser: { kicker: "CLIENT", title: "浏览器体验层", lead: "当前 frontend 目录中的 React/Vite 客户端。", responsibility: "消费稳定 HTTP、SSE、history、favorites、profile 和 task DTO；只负责展示和用户交互。", stack: ["React 19", "TypeScript", "Vite 8", "Zustand", "React Router 7", "Playwright"], interactions: ["发送搜索/刷新请求，接收稳定 JSON envelope。", "通过 SSE 读取任务进度；断线时使用 event cursor/resync。", "不直接连接 Redis、Temporal、PostgreSQL 或来源平台。"], boundary: "前端是传输边界的消费者；旧响应假设与目标合同的差异必须由兼容 mapper 处理。" },
+      api: { kicker: "TRANSPORT", title: "FastAPI API", lead: "Uvicorn 进程承载 HTTP、SSE、限流、CORS 和生命周期。", responsibility: "把请求解析为用例输入，初始化 Composition Root、storage 和 event bus，并映射 legacy/reliable 两套合同。", stack: ["FastAPI", "Uvicorn", "Pydantic 2", "SSE-Starlette", "SlowAPI", "OpenTelemetry"], interactions: ["启动时根据 feature flag 选择 legacy 或 reliable runtime bindings。", "请求进入 Search/History/Favorites/User/Help routers。", "关闭时按依赖逆序关闭 storage、event bus、composition bindings。"], boundary: "路由不拥有领域决策、平台签名、SQL 查询或 Temporal workflow 细节。" },
+      root: { kicker: "COMPOSITION ROOT", title: "组合根", lead: "所有具体实现只在这里被注册、解析和关闭。", responsibility: "把 ports/contracts 绑定到 legacy 或 target adapters，集中管理生命周期和可切换的 feature flags。", stack: ["BindingRegistry", "CompositionRoot", "Python 3.12", "feature flags"], interactions: ["装配 AgentRuntime、Temporal、Redis、PostgreSQL、ObjectStore 和 Domain Pack。", "为 reliable_task_lifecycle 强制要求显式 Temporal/PG policy，不静默回退到进程内状态。", "同一 port 可在测试、legacy、release 环境替换 adapter。"], boundary: "Composition Root 可以看到具体技术栈；Domain Pack、Orchestrator 和 contracts 不得导入平台内部类型。" },
+      coordinator: { kicker: "RESEARCH OWNER", title: "ResearchCoordinator", lead: "研究语义状态迁移的唯一 owner。", responsibility: "构建 ResearchPlan，管理预算、停止条件、取消、重试、恢复和查询复用策略。", stack: ["typed ResearchPlan", "Pydantic models", "ToolGateway port", "ContextAssembler"], interactions: ["从 Canonical Query/Family 读取 freshness、coverage 和 evidence refs。", "接收 Personalization 的临时策略上下文，不把私有偏好写入公共 identity。", "通过 Temporal adapter 启动可靠任务，并读取 PG projection 做 recover view。"], boundary: "不直接访问 XHS/Amap、Redis、Temporal client、SQLAlchemy session 或对象存储。" },
+      agent: { kicker: "ONE AGENT RUNTIME", title: "Pydantic AI V2", lead: "核心路径唯一 Agent runtime。", responsibility: "以 typed dependencies、typed tools、typed output 负责规划和结构化模型调用；非确定性 I/O 由 Activities 承载。", stack: ["pydantic-ai-slim 2.5", "OpenAI-compatible providers", "Temporal durable plugin", "typed output"], interactions: ["模型决定下一步工具意图，但只能调用 Tool Gateway。", "工具输入/输出经过 schema 校验；错误进入统一 failure taxonomy。", "在 Temporal Activity history 中可 replay，Workflow sandbox 不执行普通模型 loop。"], boundary: "不引入第二套 Agent/graph/store runtime；ARQ、Celery、LangGraph、OpenAI Agents SDK、Mem0、Zep 不进入核心。" },
+      gateway: { kicker: "CAPABILITY BOUNDARY", title: "Tool Gateway", lead: "Agent 与外部能力之间的唯一 typed 门。", responsibility: "根据 Domain Pack allow-list 和 request authorization 暴露工具，校验输入输出并把平台差异终止在 adapters。", stack: ["project-owned ports", "Pydantic contracts", "MCP Python SDK adapter", "SourceGateway"], interactions: ["调用 XHS/Amap/未来来源 Connector，返回 CanonicalSourceBatch。", "调用 Repository/ObjectStore/MediaProcessor，但不暴露 provider client。", "把 rate limit、timeout、malformed、partial 和 provider failure 统一分类。"], boundary: "Agent、Domain Pack 和 Orchestrator 不得越过 Gateway 直接读写平台。" },
+      packs: { kicker: "DOMAIN PACKS", title: "Food / Travel", lead: "领域语义的插件，不是第二套系统。", responsibility: "声明实体、证据类型、特征、评分、停止规则、允许来源和最终输出 schema。", stack: ["Food Pack v1.0.0", "Travel Pack v1.0.0", "DomainContract", "manifest registry"], interactions: ["Food Pack 定义餐厅、菜品、口味、本地性和可信度。", "Travel Pack 定义景点、路线、季节、门票、拥挤度和时长。", "两个 Pack 共享 Coordinator、Evidence、Memory、Temporal、Redis、PG 和 ObjectStore。"], boundary: "新领域只能注册 Pack；不得复制 Agent、队列、证据库、刷新、记忆或数据库连接池。" },
+      temporal: { kicker: "DURABLE HISTORY", title: "Temporal Server", lead: "Research、Refresh、Media 的唯一可执行历史。", responsibility: "保存 workflow history、Workflow ID single-flight、retry、signal、cancel 和 operator recovery。", stack: ["Temporal Python SDK 1.31", "Temporal server 1.28.2", "gRPC", "namespace default"], interactions: ["API 通过 Workflow ID 启动/复用/取消 Workflow。", "Activity 负责模型、工具、Connector、Repository 和提交屏障。", "Worker crash 后由 history replay/reschedule 恢复，不依赖 Redis task state。"], boundary: "PostgreSQL projection 只供查询和 reconciliation，不能驱动 executable replay。" },
+      workers: { kicker: "ISOLATED WORKERS", title: "Temporal Workers", lead: "按 workload 隔离配额，避免后台刷新耗尽前台研究。", responsibility: "执行三类队列的 Workflow/Activity，并应用 timeout、retry、heartbeat、non-retryable failure 和 graceful cancellation。", stack: ["research queue", "refresh queue", "media queue", "PydanticAIPlugin", "worker quotas"], interactions: ["Research 优先级最高；Refresh/Media 按独立 quota 启用。", "写 PG 事实和 projection，发布 Redis SSE 事件，上传媒体到 ObjectStore。", "失败不切 current Bundle pointer；旧 Bundle 继续提供 stale/partial 读取。"], boundary: "不创建 broker 式 dead-letter、Redis lease 或第二套 durable scheduler。" },
+      postgres: { kicker: "FACT AUTHORITY", title: "PostgreSQL 16", lead: "业务事实和可查询投影的唯一权威。", responsibility: "保存 Query Family、Evidence、Bundle、memory、outbox、task_progress_projection、object metadata 和 activation pointers。", stack: ["PostgreSQL 16", "pg_trgm 1.6", "pgvector 0.8", "SQLAlchemy 2 Async", "asyncpg"], interactions: ["Alembic upgrade head 创建/升级唯一 schema。", "CAS 保护 Bundle/current pointer 和 terminal commit。", "查询复用顺序：deterministic key → pg_trgm → BGE-M3 profile_v1 vector。"], boundary: "运行时不得 DDL；不要维护第二套 asyncpg pool/schema authority。" },
+      redis: { kicker: "REBUILDABLE HOT STATE", title: "Redis 7.4", lead: "低延迟运行态，不是事实库。", responsibility: "承载 session 热窗口、SSE Stream、短幂等和 rate limit；丢失后从 PostgreSQL 或 Temporal 重建。", stack: ["Redis 7.4", "redis.asyncio", "Redis Streams", "TTL / MAXLEN"], interactions: ["每 session 保留最近 20 条，TTL 24 小时。", "SSE stream TTL 1 小时、MAXLEN 1000；窗口外返回 replay_expired/resync。", "Redis 故障时已启动 Workflow 仍可由 Temporal/PG 完成；新 SSE 请求显式返回 dependency-unavailable。"], boundary: "禁止 lock、lease、Redlock、durable task queue、Bundle activation authority。" },
+      object: { kicker: "BINARY AUTHORITY", title: "S3 / MinIO", lead: "对象字节的存储层，元数据仍由 PostgreSQL 管理。", responsibility: "以 content hash、大小、类型和 provenance 保存原始媒体与 DerivedArtifact。", stack: ["boto3", "S3-compatible API", "MinIO release image", "multipart / SHA-256"], interactions: ["生产使用 boto3 S3；开发/CI release Compose 使用 MinIO。", "Media Workflow 流式上传、校验、去重并返回 ObjectRef。", "上传成功但 PG metadata transaction 失败时，孤儿对象进入最终清理，不进入业务读路径。"], boundary: "Domain Pack 和 Agent 只看 ObjectStore port；不把原始字节放进 Redis、PG JSON 或 prompt。" },
+      observe: { kicker: "OPERATIONS", title: "Telemetry", lead: "低基数、脱敏、可替换的可观测性边界。", responsibility: "关联 API → Workflow → Activity → PG/Redis/ObjectStore 的 trace，并暴露健康、队列、吞吐和失败指标。", stack: ["OpenTelemetry SDK", "FastAPI/httpx/Redis/SQLAlchemy instrumentation", "Prometheus client"], interactions: ["记录 queue lag、retry exhaustion、source error、object I/O 和 freshness/coverage。", "脱敏 secret、signed URL、偏好值和高基数 task/object ID。", "release gate 通过 contract；端到端 provider/trace correlation 仍需部署证据。"], boundary: "观测数据不能成为业务事实或任务恢复来源。" },
+      alembic: { kicker: "SCHEMA AUTHORITY", title: "Alembic", lead: "PostgreSQL schema 的唯一迁移入口。", responsibility: "在 app 运行前按 revision 顺序创建/升级 schema，并为 N-1/restore 提供可审计路径。", stack: ["Alembic 1.19", "alembic/versions", "upgrade head", "fail-closed readiness"], interactions: ["release Compose 的 migrate service 先于 app 成功退出。", "旧 migrate_* 兼容脚本委托 alembic upgrade head。", "缺表、列或 extension 时 adapter 只读 readiness 失败，不动态建表。"], boundary: "不允许 runtime CREATE TABLE、平行 migration chain 或手工 schema drift。" }
+    };
+
+    const state = { mode: "overview", selected: "overview", scale: 1, panX: 0, panY: 0 };
+    const svg = document.getElementById("architecture");
+    const viewport = document.getElementById("viewport");
+    const wrap = document.getElementById("svg-wrap");
+    const nodeMap = Object.fromEntries(nodes.map(node => [node.id, node]));
+
+    function escapeHtml(value) { return String(value).replace(/[&<>"']/g, ch => ({"&":"&amp;", "<":"&lt;", ">":"&gt;", "\"":"&quot;", "'":"&#39;"}[ch])); }
+    function anchor(from, to) {
+      const dx = (to.x + to.w / 2) - (from.x + from.w / 2);
+      const dy = (to.y + to.h / 2) - (from.y + from.h / 2);
+      if (Math.abs(dx) >= Math.abs(dy)) return { s: [dx >= 0 ? from.x + from.w : from.x, from.y + from.h / 2], t: [dx >= 0 ? to.x : to.x + to.w, to.y + to.h / 2] };
+      return { s: [from.x + from.w / 2, dy >= 0 ? from.y + from.h : from.y], t: [to.x + to.w / 2, dy >= 0 ? to.y : to.y + to.h] };
+    }
+    function lane(x, y, w, h, label) { return `<rect class="lane" x="${x}" y="${y}" width="${w}" height="${h}" rx="10"/><text class="lane-label" x="${x + 18}" y="${y + 28}">${label}</text>`; }
+    function nodeMarkup(node) {
+      const lines = node.lines.map((line, i) => `<text class="node-line" x="${node.x + 14}" y="${node.y + 64 + i * 17}">${escapeHtml(line)}</text>`).join("");
+      const selected = node.id === state.selected ? " selected" : "";
+      const dimmed = isDimmed(node.id) ? " dimmed" : "";
+      return `<g class="node ${node.kind}${selected}${dimmed}" data-id="${node.id}" tabindex="0" role="button" aria-label="${escapeHtml(node.title)}"><title>${escapeHtml(node.title)}</title><rect x="${node.x}" y="${node.y}" width="${node.w}" height="${node.h}" rx="7"/><text class="node-kicker" x="${node.x + 14}" y="${node.y + 20}">${escapeHtml(node.kicker)}</text><text class="node-title" x="${node.x + 14}" y="${node.y + 43}">${escapeHtml(node.title)}</text>${lines}<text class="node-tech" x="${node.x + 14}" y="${node.y + node.h - 13}">${escapeHtml(node.tech)}</text></g>`;
+    }
+    function edgeMarkup(edge) {
+      const from = nodeMap[edge[0]], to = nodeMap[edge[1]];
+      const a = anchor(from, to), points = [a.s, a.t];
+      const d = points.map((p, i) => `${i ? "L" : "M"}${p[0]} ${p[1]}`).join(" ");
+      const mid = points[0].map((value, i) => (value + points[1][i]) / 2);
+      const kind = edge[3] || "";
+      return `<path class="edge ${kind}" data-edge="${edge[0]}:${edge[1]}" d="${d}"/><text class="edge-label ${kind}" x="${mid[0] + 5}" y="${mid[1] - 6}">${escapeHtml(edge[2])}</text>`;
+    }
+    function isDimmed(id) {
+      if (state.mode === "overview") return false;
+      const groups = {
+        request: ["browser", "api", "root", "coordinator", "agent", "gateway", "provider", "temporal", "workers", "postgres", "redis"],
+        authority: ["coordinator", "temporal", "workers", "postgres", "redis", "object", "alembic", "observe"],
+        operations: ["temporal", "workers", "postgres", "redis", "object", "observe", "alembic", "api"]
+      };
+      return !(groups[state.mode] || []).includes(id);
+    }
+    function render() {
+      const labels = [lane(20, 24, 1458, 178, "01  EXPERIENCE / TRANSPORT"), lane(20, 210, 1458, 254, "02  COMPOSITION / RESEARCH / DOMAIN"), lane(20, 490, 1458, 154, "03  DURABLE EXECUTION"), lane(20, 660, 1458, 218, "04  FACTS / HOT STATE / OBJECTS / OBSERVABILITY")].join("");
+      viewport.innerHTML = `<g class="graph" transform="translate(${state.panX} ${state.panY}) scale(${state.scale})">${labels}${edges.map(edgeMarkup).join("")}${nodes.map(nodeMarkup).join("")}<g><rect class="callout" x="1225" y="430" width="243" height="48" rx="6"/><text class="callout-title" x="1240" y="451">启用条件</text><text class="callout-text" x="1240" y="466">feature flag + contract + rollback</text></g></g>`;
+      bindNodes();
+    }
+    function bindNodes() {
+      viewport.querySelectorAll(".node").forEach(node => {
+        node.addEventListener("click", event => { event.stopPropagation(); select(node.dataset.id); });
+        node.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); select(node.dataset.id); } });
+      });
+    }
+    function select(id) {
+      state.selected = id;
+      const info = catalog[id] || catalog.overview;
+      document.getElementById("inspector-kicker").textContent = info.kicker;
+      document.getElementById("inspector-title").textContent = info.title;
+      document.getElementById("inspector-lead").textContent = info.lead;
+      document.getElementById("inspector-responsibility").textContent = info.responsibility;
+      document.getElementById("inspector-stack").innerHTML = info.stack.map(item => `<span>${escapeHtml(item)}</span>`).join("");
+      document.getElementById("inspector-interactions").innerHTML = info.interactions.map(item => `<li>${escapeHtml(item)}</li>`).join("");
+      document.getElementById("inspector-boundary").textContent = info.boundary;
+      viewport.querySelectorAll(".node").forEach(node => node.classList.toggle("selected", node.dataset.id === id));
+    }
+    function setMode(mode) {
+      state.mode = mode;
+      state.selected = "overview";
+      document.getElementById("view-title").textContent = ({ overview: "系统总览", request: "请求链路", authority: "事实权威", operations: "运行与回退" })[mode];
+      document.querySelectorAll("[data-mode]").forEach(button => button.classList.toggle("active", button.dataset.mode === mode));
+      render();
+      select("overview");
+    }
+    document.querySelectorAll("[data-mode]").forEach(button => button.addEventListener("click", () => setMode(button.dataset.mode)));
+    let dragging = false, startX = 0, startY = 0, originX = 0, originY = 0;
+    wrap.addEventListener("pointerdown", event => { dragging = true; wrap.classList.add("dragging"); startX = event.clientX; startY = event.clientY; originX = state.panX; originY = state.panY; wrap.setPointerCapture(event.pointerId); });
+    wrap.addEventListener("pointermove", event => { if (!dragging) return; state.panX = originX + (event.clientX - startX); state.panY = originY + (event.clientY - startY); render(); });
+    wrap.addEventListener("pointerup", () => { dragging = false; wrap.classList.remove("dragging"); });
+    wrap.addEventListener("wheel", event => { event.preventDefault(); state.scale = Math.max(.72, Math.min(1.35, state.scale + (event.deltaY > 0 ? -.05 : .05))); render(); }, { passive: false });
+    render();
+    select("overview");
+  </script>
+</body>
+</html>
