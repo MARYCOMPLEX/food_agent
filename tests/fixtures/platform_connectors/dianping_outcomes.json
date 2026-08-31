@@ -1,0 +1,10 @@
+{
+  "fixture_version": "dianping-provider/v1",
+  "outcomes": [
+    {"name": "valid_empty", "http_status": 200, "item_count": 0},
+    {"name": "authentication_expired", "http_status": 401},
+    {"name": "challenge", "http_status": 403},
+    {"name": "rate_limited", "http_status": 429},
+    {"name": "malformed", "http_status": 200}
+  ]
+}

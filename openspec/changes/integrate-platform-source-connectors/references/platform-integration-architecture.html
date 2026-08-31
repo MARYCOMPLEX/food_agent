@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>XHS Food Agent · 平台连接器架构</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b1220;
+      --panel: #111827;
+      --panel-2: #172554;
+      --line: #334155;
+      --text: #e5eefb;
+      --muted: #9fb0c8;
+      --cyan: #7dd3fc;
+      --violet: #c4b5fd;
+      --teal: #5eead4;
+      --amber: #fbbf24;
+      --rose: #fb7185;
+      font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); line-height: 1.5; }
+    header { padding: 28px clamp(18px, 4vw, 64px); background: linear-gradient(120deg,#0ea5e9,#4f46e5); }
+    h1 { margin: 0 0 4px; font-size: clamp(24px, 3vw, 38px); }
+    header p { margin: 0; color: #dbeafe; }
+    main { max-width: 1800px; margin: 0 auto; padding: 22px clamp(18px, 4vw, 64px) 48px; }
+    .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 0 0 18px; }
+    button { border: 1px solid #64748b; border-radius: 999px; background: #172033; color: var(--text); padding: 7px 13px; cursor: pointer; }
+    button[aria-pressed="true"] { border-color: var(--cyan); background: #12314a; }
+    .hint { color: var(--muted); font-size: 13px; margin-left: auto; }
+    .diagram { background: #0f172a; border: 1px solid var(--line); border-radius: 16px; padding: 10px; box-shadow: 0 16px 40px #0005; overflow: auto; }
+    .diagram img { display: block; width: 100%; min-width: 980px; height: auto; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin-top: 20px; }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+    .card[data-layer="edge"] { border-top: 3px solid var(--cyan); }
+    .card[data-layer="durable"] { border-top: 3px solid var(--violet); }
+    .card[data-layer="authority"] { border-top: 3px solid var(--teal); }
+    .card[data-layer="provider"] { border-top: 3px solid var(--rose); }
+    .card h2 { font-size: 17px; margin: 0 0 4px; }
+    .path { color: var(--cyan); font: 600 12px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace; word-break: break-word; }
+    .card p { margin: 9px 0 0; color: var(--muted); font-size: 14px; }
+    .card ul { margin: 9px 0 0; padding-left: 19px; color: var(--text); font-size: 14px; }
+    .card li + li { margin-top: 4px; }
+    section { margin-top: 24px; }
+    section > h2 { font-size: 20px; margin: 0 0 10px; color: #bae6fd; }
+    table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; font-size: 14px; }
+    th, td { padding: 10px 12px; border-bottom: 1px solid #263449; text-align: left; vertical-align: top; }
+    th { background: #172554; color: #dbeafe; }
+    tr:last-child td { border-bottom: 0; }
+    code { color: #bae6fd; background: #0b1930; padding: 1px 4px; border-radius: 4px; }
+    .flow { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; align-items: stretch; }
+    .step { position: relative; background: #172033; border: 1px solid #475569; border-radius: 10px; padding: 12px; min-height: 94px; }
+    .step strong { display: block; color: var(--cyan); margin-bottom: 4px; }
+    .step small { color: var(--muted); }
+    .step:not(:last-child)::after { content: "→"; position: absolute; right: -14px; top: 32px; color: var(--cyan); font-size: 22px; z-index: 2; }
+    @media (max-width: 700px) { .step:not(:last-child)::after { content: "↓"; right: 50%; top: auto; bottom: -22px; } .flow { grid-template-columns: 1fr; gap: 22px; } .hint { width: 100%; margin-left: 0; } }
+    .warning { border-left: 4px solid var(--amber); background: #2c2108; padding: 12px 15px; border-radius: 8px; color: #fde68a; }
+    footer { color: var(--muted); font-size: 12px; padding-top: 26px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>XHS Food Agent · 平台连接器集成架构</h1>
+    <p>OpenSpec <code>integrate-platform-source-connectors</code> · branch <code>codex/integrate-platform-source-connectors</code> · 版本化、可回滚、按租户/平台账号隔离</p>
+  </header>
+  <main>
+    <div class="toolbar" aria-label="diagram filters">
+      <button type="button" data-filter="all" aria-pressed="true">全部模块</button>
+      <button type="button" data-filter="edge" aria-pressed="false">边缘/API</button>
+      <button type="button" data-filter="durable" aria-pressed="false">编排/Temporal</button>
+      <button type="button" data-filter="authority" aria-pressed="false">权限/状态</button>
+      <button type="button" data-filter="provider" aria-pressed="false">平台适配器</button>
+      <span class="hint">点击筛选仅影响下方模块卡片；完整连接关系见 SVG。</span>
+    </div>
+
+    <div class="diagram">
+      <img src="./platform-integration-architecture.svg" alt="平台连接器分层架构图">
+    </div>
+
+    <section aria-labelledby="module-heading">
+      <h2 id="module-heading">模块、技术栈与运行位置</h2>
+      <div class="grid" id="module-grid">
+        <article class="card" data-layer="edge"><h2>Web UI / API 客户端</h2><div class="path">frontend/ · React 19 · Vite · Zustand</div><p>浏览器调用 REST，并通过 SSE 接收进度、断线重放和终态快照。</p><ul><li>运行：浏览器/静态前端开发服务器</li><li>边界：只持有公开会话 ID，不持有平台 Cookie</li></ul></article>
+        <article class="card" data-layer="edge"><h2>FastAPI 应用</h2><div class="path">src/api/main.py · Uvicorn · SlowAPI · SSE-Starlette</div><p>统一搜索、历史、收藏、用户和健康接口；负责输入校验、CORS、限流和事件流。</p><ul><li>运行：<code>app</code> 容器，端口 8000（release 映射 18000）</li><li>交互：调用 Composition Root/Use Case，不直接导入上游爬虫运行时</li></ul></article>
+        <article class="card" data-layer="edge"><h2>平台控制面 API</h2><div class="path">src/api/platform.py · /v1/platform/*</div><p>账号注册、登录/重认证、QR 状态、QR presentation、取消和 readiness 路由。</p><ul><li>运行：同一 FastAPI app；路由只接受 opaque <code>credential_ref</code></li><li>交互：<code>app.state.platform_runtime_factory</code> 注入 authority/codec/workflow；缺失时返回 503 disabled</li></ul></article>
+        <article class="card" data-layer="edge"><h2>Composition Root</h2><div class="path">src/xhs_food/composition/root.py<br>platform_bindings.py</div><p>唯一负责注册表、生命周期、feature flag 和依赖 readiness；新平台注册在独立 <code>platform</code> registry。</p><ul><li>默认：平台绑定完全关闭，legacy <code>xhs_compat</code> 不变</li><li>回滚：关闭 flag，不改公共指针或历史证据</li></ul></article>
+        <article class="card" data-layer="edge"><h2>Canonical Contracts</h2><div class="path">src/xhs_food/contracts · Pydantic v2</div><p><code>CollectRequest</code>、Query Family、Evidence 保持兼容；账号引用和会话版本位于独立 invocation envelope。</p><ul><li>禁止把 Cookie、QR、签名输入写入公开模型</li><li>错误统一为 <code>ContractError</code> 分类</li></ul></article>
+
+        <article class="card" data-layer="durable"><h2>Domain / Agent 编排</h2><div class="path">orchestrator/ · agents/ · domain_packs/</div><p>ResearchCoordinator、StepScheduler、Food Pack、意图解析、评论分析和 POI 补充组成业务流水线。</p><ul><li>目标运行时：Pydantic AI V2（可替换端口）</li><li>兼容：legacy facade 仍可按默认配置使用</li></ul></article>
+        <article class="card" data-layer="durable"><h2>Source Gateway + Capability Mux</h2><div class="path">gateways/platform_gateway.py<br>gateways/capabilities.py</div><p>先授权再取账号/会话，获取 PG lease 后构造一次性 connector；按 source/version 显式解决 capability 冲突。</p><ul><li>顺序：admission → grant → account → session → lease → provider</li><li>退出：关闭 connector、清零内存 material、释放 lease</li></ul></article>
+        <article class="card" data-layer="durable"><h2>Temporal Durable Runtime</h2><div class="path">foundation/temporal.py · temporalio</div><p>唯一持久化执行引擎；Research、Refresh、Media 队列隔离，Account-auth 队列为可选资格化队列。</p><ul><li>每个队列有并发/优先级配额和 bounded retry/heartbeat</li><li>Workflow history 只含脱敏引用和状态</li></ul></article>
+        <article class="card" data-layer="durable"><h2>Activity Worker / Sidecar</h2><div class="path">Temporal Worker · optional provider sidecar</div><p>Activity 内只创建一个账号对应的 provider client；同步上游调用放入线程或隔离进程。</p><ul><li>Spider_XHS Node signer 需 hash-pin、CPU/内存/时限约束</li><li>不启动上游 API、SQLite scheduler 或 retry queue</li></ul></article>
+        <article class="card" data-layer="durable"><h2>登录应用服务</h2><div class="path">src/xhs_food/experience/platform_login.py</div><p>把 HTTP 命令转换为 account-scoped login use case；校验 principal、grant、幂等键和 opaque credential handle。</p><ul><li>注入 Temporal <code>WorkflowPort</code> 或本地 qualification coordinator</li><li>只返回脱敏 flow/challenge/presentation metadata</li></ul></article>
+
+        <article class="card" data-layer="authority"><h2>Account Authority</h2><div class="path">foundation/platform_accounts.py<br>platform_account_repository.py</div><p>PostgreSQL/Alembic 管理账号、会话、登录流、grant、lease、health。自然键为 tenant × channel × account。</p><ul><li>渠道：<code>dianping</code>、<code>xhs_pc</code>、<code>xhs_creator</code></li><li>会话：AES-GCM envelope + key metadata + digest，CAS 版本</li></ul></article>
+        <article class="card" data-layer="authority"><h2>PostgreSQL / Alembic</h2><div class="path">SQLAlchemy 2 Async + asyncpg · PostgreSQL 16 + pgvector/pg_trgm</div><p>业务事实、Evidence、账号 authority 和 schema readiness 的唯一持久化来源；迁移只能由 Alembic 执行。</p><ul><li>运行：release compose 的 <code>postgres</code> 与一次性 <code>migrate</code></li><li>禁止：运行时 CREATE TABLE、上游 SQLite authority</li></ul></article>
+        <article class="card" data-layer="authority"><h2>Redis Hot State</h2><div class="path">foundation/redis.py · Redis 7</div><p>短期会话窗口、SSE stream、登录状态投影、限流和可重建热数据。</p><ul><li>运行：<code>redis</code> 服务；AOF 可用于重启恢复投影</li><li>禁止：作为 lease/lock、长期账号事实或任务 checkpoint</li></ul></article>
+        <article class="card" data-layer="authority"><h2>ObjectStore</h2><div class="path">foundation/object_store.py · boto3 · S3/MinIO</div><p>二进制介质引用和短 TTL QR 对象；生产使用 S3，开发/CI 使用 MinIO。</p><ul><li>只向 API 暴露时限 presentation reference</li><li>终态/过期后清理 QR，媒体由 Media queue 延后处理</li></ul></article>
+
+        <article class="card" data-layer="provider"><h2>Dianping Connector</h2><div class="path">gateways/platform_sources.py<br>composition/adapters/platforms.py</div><p>复用已审核快照的 auth/search/detail/reviews 协议模块，Playwright context 按 Activity 创建和销毁。</p><ul><li>源 ID：<code>dianping</code>；能力：place.lookup、reviews.search、media.refs</li><li>排除：上游 FastAPI、SQLite、risk manager、CLI、worker</li></ul></article>
+        <article class="card" data-layer="provider"><h2>Spider_XHS PC Connector</h2><div class="path">XhsPcSourceConnector · pinned Spider_XHS</div><p>规范化 note search/detail/comments/media，分页受限，URL 去除 <code>xsec_token</code> 等 access query。</p><ul><li>渠道独立：<code>xhs_pc</code> 的签名器/会话不与 Creator 共享</li><li>错误映射：406/429/risk/auth-expired/timeout → ContractError</li></ul></article>
+        <article class="card" data-layer="provider"><h2>Spider_XHS Creator Connector</h2><div class="path">XhsCreatorSourceConnector · pinned Spider_XHS</div><p>当前只注册账号自有内容读取和健康探针；发布、上传、排期和业务 API 明确未注册。</p><ul><li>源公共 ID 仍为 <code>xhs</code>，账号 channel 单独为 <code>xhs_creator</code></li><li>能力缺失时返回稳定 dependency/unregistered 错误</li></ul></article>
+        <article class="card" data-layer="provider"><h2>外部平台与 LLM</h2><div class="path">Dianping / Xiaohongshu · OpenAI-compatible endpoint</div><p>外部响应只在 adapter 边界出现；LLM 可配置 SiliconFlow/OpenAI/DeepSeek，旧高德 place capability 保持兼容。</p><ul><li>观测指标只使用低基数 platform/status/code</li><li>凭据由 vault/KMS 或注入 codec 提供，不进入日志</li></ul></article>
+      </div>
+    </section>
+
+    <section aria-labelledby="flow-heading">
+      <h2 id="flow-heading">一次账号绑定采集的交互顺序</h2>
+      <div class="flow">
+        <div class="step"><strong>1 · Request</strong><small>公开 CollectRequest + opaque account_ref/session_version</small></div>
+        <div class="step"><strong>2 · Admission</strong><small>SourceControl 限流/熔断，不暴露账号存在性</small></div>
+        <div class="step"><strong>3 · Authorize</strong><small>PG grant → tenant/channel/account lookup</small></div>
+        <div class="step"><strong>4 · Session</strong><small>读取 active version，codec 解密到 Activity 内存</small></div>
+        <div class="step"><strong>5 · Lease</strong><small>PG durable lease，防止同账号 mutable client 并发</small></div>
+        <div class="step"><strong>6 · Provider</strong><small>connector 调用并规范化 canonical batch</small></div>
+        <div class="step"><strong>7 · Finalize</strong><small>health/event → close → zeroize → release；SSE 只发脱敏状态</small></div>
+      </div>
+    </section>
+
+    <section aria-labelledby="flags-heading">
+      <h2 id="flags-heading">运行开关与状态</h2>
+      <table>
+        <thead><tr><th>配置</th><th>默认</th><th>作用</th><th>缺失依赖时</th></tr></thead>
+        <tbody>
+          <tr><td><code>MODULAR_PLATFORM_CONNECTORS_ENABLED</code></td><td>false</td><td>平台 registry 总开关</td><td>保持 legacy 路由</td></tr>
+          <tr><td><code>MODULAR_PLATFORM_DIANPING_ENABLED</code></td><td>false</td><td>启用 Dianping source binding</td><td>readiness=dependency-unavailable</td></tr>
+          <tr><td><code>MODULAR_PLATFORM_XHS_ENABLED</code></td><td>false</td><td>启用 XHS PC/Creator channel</td><td>不回退为隐式新 provider</td></tr>
+          <tr><td><code>MODULAR_PLATFORM_LOGIN_ENABLED</code></td><td>false</td><td>请求登录控制面</td><td>需 auth queue、authority、codec、login service</td></tr>
+          <tr><td><code>MODULAR_TEMPORAL_ACCOUNT_AUTH_ENABLED</code></td><td>false</td><td>启用独立 account-auth worker</td><td>manual-import-only / disabled</td></tr>
+          <tr><td><code>MODULAR_PLATFORM_PROVIDER_MODE</code></td><td>in_process</td><td>协议模块进程内；可切 sidecar</td><td>sidecar 未注入 transport 则 fail-closed</td></tr>
+          <tr><td><code>app.state.platform_runtime_factory</code></td><td>未设置</td><td>由部署/测试显式注入 authority、codec、factory、workflow、ObjectStore</td><td>未设置时不构造 provider 或内存账号 authority；平台 API 返回 disabled</td></tr>
+          <tr><td><code>MODULAR_PLATFORM_PROVENANCE_REF</code> + license ref</td><td>空</td><td>绑定上游 SHA、依赖 digest、审批记录</td><td>production/commercial activation blocked</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section aria-labelledby="boundary-heading">
+      <h2 id="boundary-heading">不可跨越的边界</h2>
+      <div class="warning"><strong>当前 intake 仍是非生产资格状态。</strong> 两个上游快照都需要 owner/legal approval、审查后的依赖 digest 和（Spider_XHS）hash-pinned Node signer。没有这些证据时，代码允许 synthetic/unit qualification，但 Composition Root 必须报告 disabled/dependency-unavailable，不能用 fallback 掩盖配置缺失。</div>
+      <table style="margin-top:12px">
+        <thead><tr><th>边界</th><th>允许</th><th>禁止</th></tr></thead>
+        <tbody>
+          <tr><td>账号隔离</td><td>PG natural key tenant × channel × account_ref、grant、lease、CAS</td><td>环境级 Cookie、进程全局 profile、跨平台复用 session</td></tr>
+          <tr><td>秘密</td><td>AES-GCM ciphertext、key ref/version、digest、opaque flow/object ref</td><td>Cookie、QR bytes、Authorization、signer input 出现在 Temporal/SSE/evidence/log</td></tr>
+          <tr><td>上游代码</td><td>allow-list 的 protocol/auth 模块或 typed sidecar</td><td>FastAPI app、SQLite task table、CLI writer、独立 worker/retry queue</td></tr>
+          <tr><td>回滚</td><td>关 flag、停止新 activity、排空队列、保留历史</td><td>重写 Query Family/public pointer、破坏性删除账号或 Evidence</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <footer>生成于 2026-08-31 · 图形源：同目录 <code>platform-integration-architecture.svg</code> · 以代码与 OpenSpec 变更为准。</footer>
+  </main>
+  <script>
+    const buttons = [...document.querySelectorAll('[data-filter]')];
+    const cards = [...document.querySelectorAll('#module-grid .card')];
+    buttons.forEach((button) => button.addEventListener('click', () => {
+      const filter = button.dataset.filter;
+      buttons.forEach((item) => item.setAttribute('aria-pressed', String(item === button)));
+      cards.forEach((card) => { card.hidden = filter !== 'all' && card.dataset.layer !== filter; });
+    }));
+  </script>
+</body>
+</html>

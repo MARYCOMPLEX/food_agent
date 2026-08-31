@@ -1,0 +1,17 @@
+{
+  "fixture_version": "spider-xhs-pc/v1",
+  "operation": "comments",
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "comment_id": "xhs-comment-001",
+        "note_id": "xhs-note-001",
+        "user_id": "xhs-user-002",
+        "text": "收藏了。"
+      }
+    ],
+    "has_more": false,
+    "next_cursor": null
+  }
+}

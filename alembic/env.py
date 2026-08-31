@@ -14,6 +14,7 @@ from alembic import context
 from xhs_food.foundation.evidence_schema import SHADOW_METADATA
 from xhs_food.foundation.legacy_schema import LEGACY_METADATA
 from xhs_food.foundation.memory_schema import MEMORY_METADATA
+from xhs_food.foundation.platform_account_schema import PLATFORM_ACCOUNT_METADATA
 
 config = context.config
 if config.config_file_name is not None:
@@ -21,7 +22,12 @@ if config.config_file_name is not None:
 
 # Keep every checked-in SQLAlchemy schema metadata visible to Alembic's
 # autogenerate and schema-authority checks. Revisions remain the only writer.
-target_metadata = (SHADOW_METADATA, MEMORY_METADATA, LEGACY_METADATA)
+target_metadata = (
+    SHADOW_METADATA,
+    MEMORY_METADATA,
+    LEGACY_METADATA,
+    PLATFORM_ACCOUNT_METADATA,
+)
 
 
 def run_migrations_offline() -> None:

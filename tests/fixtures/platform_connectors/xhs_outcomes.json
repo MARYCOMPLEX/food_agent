@@ -1,0 +1,10 @@
+{
+  "fixture_version": "spider-xhs-pc/v1",
+  "outcomes": [
+    {"name": "valid_empty", "code": 0, "item_count": 0},
+    {"name": "authentication_expired", "code": 401},
+    {"name": "risk_challenge", "code": 406},
+    {"name": "rate_limited", "code": 429},
+    {"name": "malformed", "code": 200}
+  ]
+}

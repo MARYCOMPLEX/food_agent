@@ -1,0 +1,25 @@
+{
+  "fixture_version": "dianping-provider/v1",
+  "operation": "reviews",
+  "status": "success",
+  "shop_id": "dp-shop-001",
+  "items": [
+    {
+      "review_id": "dp-review-001",
+      "user_name": "示例用户",
+      "rating": 4.5,
+      "text": "味道很好，服务周到。",
+      "created_at": "2026-08-17",
+      "images": [
+        {
+          "media_id": "dp-media-001",
+          "url": "https://img.example.test/dp-media-001.jpg"
+        }
+      ]
+    }
+  ],
+  "pagination": {
+    "next_start_index": 10,
+    "has_next": true
+  }
+}

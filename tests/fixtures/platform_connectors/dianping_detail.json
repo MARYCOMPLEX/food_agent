@@ -1,0 +1,15 @@
+{
+  "fixture_version": "dianping-provider/v1",
+  "operation": "place_detail",
+  "status": "success",
+  "shop": {
+    "shop_id": "dp-shop-001",
+    "name": "示例火锅店",
+    "url": "https://www.dianping.com/shop/dp-shop-001",
+    "address": "徐汇区示例路 1 号",
+    "latitude": 31.1882,
+    "longitude": 121.4365,
+    "coordinate_system": "gcj02",
+    "average_price": 108
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "fixture_version": "dianping-provider/v1",
+  "operation": "place_search",
+  "status": "success",
+  "items": [
+    {
+      "shop_id": "dp-shop-001",
+      "name": "示例火锅店",
+      "url": "https://www.dianping.com/shop/dp-shop-001",
+      "rating": 4.5,
+      "review_count": 1234,
+      "average_price": 108,
+      "address": "徐汇区示例路 1 号",
+      "tags": ["火锅", "聚餐"]
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "max_page": 5,
+    "has_next": true,
+    "next_page": 2
+  }
+}

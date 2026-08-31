@@ -64,12 +64,12 @@
   "target_third_party_allowlist": {
     "contracts": ["jsonschema", "pydantic", "pydantic_core", "referencing"],
     "composition": ["dotenv", "fastapi", "loguru", "slowapi", "uvicorn"],
-      "compatibility_adapter": ["langchain_core", "pydantic", "sqlalchemy"],
+      "compatibility_adapter": ["langchain_core", "pydantic", "qrcode", "sqlalchemy"],
     "domain_pack": [],
     "gateway": ["pydantic"],
     "evidence": ["pydantic"],
     "orchestrator": ["jsonschema", "pydantic", "pydantic_ai", "temporalio"],
-    "target_foundation": ["boto3", "botocore", "opentelemetry", "pgvector", "prometheus_client", "pydantic", "pydantic_settings", "redis", "sqlalchemy", "temporalio"]
+    "target_foundation": ["Crypto", "boto3", "botocore", "opentelemetry", "pgvector", "prometheus_client", "pydantic", "pydantic_settings", "redis", "sqlalchemy", "temporalio"]
   },
   "owner_port_consumer_module_prefixes": [
     "xhs_food.agents",

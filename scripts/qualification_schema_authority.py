@@ -31,7 +31,10 @@ _LEGACY_PATHS = frozenset(
     }
 )
 _TELEMETRY_PATHS = frozenset({"src/xhs_food/spider/core/logger.py"})
-_SKIP_PARTS = frozenset({".venv", ".venv-win", "__pycache__", "alembic"})
+# Ignore local virtual-environment/build trees.  Qualification scans source
+# files only; third-party packages may contain illustrative SQL strings that
+# are not runtime schema authority and would otherwise create false findings.
+_SKIP_PARTS = frozenset({".venv", ".venv-win", ".venv-auth", "__pycache__", "alembic"})
 
 
 @dataclass(frozen=True)

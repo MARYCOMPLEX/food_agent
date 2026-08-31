@@ -1,0 +1,65 @@
+schema: platform-provider-import-boundary/v1
+generated_for_change: integrate-platform-source-connectors
+
+# This file is an intake policy, not a Python import path.  Adapters must load
+# these modules through a project-owned namespace or an explicitly isolated
+# sidecar; top-level upstream packages are never added to xhs_food imports.
+providers:
+  dianping:
+    repository: MARYCOMPLEX/dazhongdianping
+    commit: ffbc1d413ed1c83602212bc1fec12b57cd2b423d
+    allowed_modules:
+      - dz_engine.auth.dianping
+      - dz_engine.auth.qr
+      - dz_engine.providers.dianping.search
+      - dz_engine.providers.dianping.details
+      - dz_engine.providers.dianping.reviews
+    excluded_modules:
+      - dz_engine.backend
+      - dz_engine.risk
+      - dz_engine.cli
+      - dz_engine.__main__
+    excluded_behaviors:
+      - fastapi_application
+      - sqlite_authority
+      - standalone_worker
+      - cli_writer
+      - upstream_retry_queue
+  xhs_spider:
+    repository: cv-cat/Spider_XHS
+    commit: e1888d712519040f5fcc294baeac4b9505b25c98
+    allowed_modules:
+      - apis.xhs_pc_apis
+      - apis.xhs_pc_login_apis
+      - apis.xhs_creator_apis
+      - apis.xhs_creator_login_apis
+      - xhs_utils.xhs_auth
+      - xhs_utils.xhs_pc
+      - xhs_utils.xhs_creator
+    excluded_modules:
+      - main
+      - spider.spider
+      - apis.xhs_pugongying_apis
+      - apis.xhs_qianfan_apis
+    excluded_behaviors:
+      - cli_writer
+      - data_spider
+      - excel_writer
+      - creator_publish
+      - process_global_env_cookie
+      - standalone_retry_queue
+
+forbidden_runtime_patterns:
+  - arq
+  - celery
+  - langgraph
+  - openai_agents
+  - redis_lock
+  - redlock
+  - sqlite_task_queue
+  - create_task_scheduler
+
+activation:
+  license_status: unknown
+  production_enabled: false
+  owner_approval_ref: null

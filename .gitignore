@@ -106,6 +106,7 @@ Desktop.ini
 *.bak
 *.cache
 .cache/
+.state/
 tmp/
 temp/
 

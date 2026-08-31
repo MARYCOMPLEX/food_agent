@@ -14,6 +14,22 @@ from .memory_session_projection import (
     SESSION_WINDOW_TTL_SECONDS,
     MemorySessionProjection,
 )
+from .platform_login import (
+    InMemoryXhsLoginFlowStateStore,
+    XhsCredentialResolver,
+    XhsLoginFlowStateStore,
+    XhsLoginProvider,
+    XhsLoginProviderFactory,
+    build_xhs_login_provider_factory,
+)
+from .platforms import (
+    DianpingProviderFactory,
+    ProviderDependencyStatus,
+    ProviderUnavailableError,
+    XhsProviderFactory,
+    build_dianping_provider_factory,
+    build_xhs_provider_factory,
+)
 from .query_family_repository import SQLAlchemyQueryFamilyRepository
 from .reliable_events import ReliableTaskEventBusPublisher
 from .reliable_task_authority import (
@@ -79,4 +95,16 @@ __all__ = [
     "TravelOutputAdapter",
     "TravelPlaceLookupProvider",
     "build_travel_tool_gateway",
+    "DianpingProviderFactory",
+    "ProviderDependencyStatus",
+    "ProviderUnavailableError",
+    "XhsProviderFactory",
+    "build_dianping_provider_factory",
+    "build_xhs_provider_factory",
+    "InMemoryXhsLoginFlowStateStore",
+    "XhsCredentialResolver",
+    "XhsLoginFlowStateStore",
+    "XhsLoginProvider",
+    "XhsLoginProviderFactory",
+    "build_xhs_login_provider_factory",
 ]
