@@ -1,0 +1,163 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1180" viewBox="0 0 1800 1180" role="img" aria-labelledby="title desc">
+  <title id="title">Food Agent 前台、管理端与账号微服务架构</title>
+  <desc id="desc">展示浏览器前台、主应用管理后台、Research Agent、HTTP/MCP 账号服务适配层、PostgreSQL、Redis、Temporal、ObjectStore 以及 XHS 和大众点评上游服务之间的边界和交互。</desc>
+  <defs>
+    <marker id="arrow-blue" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2563eb"/></marker>
+    <marker id="arrow-orange" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#d97706"/></marker>
+    <marker id="arrow-purple" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#7c3aed"/></marker>
+    <marker id="arrow-red" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#dc2626"/></marker>
+    <style>
+      .title { font: 700 28px 'Segoe UI', 'Microsoft YaHei', sans-serif; fill: #111827; }
+      .subtitle { font: 400 15px 'Segoe UI', 'Microsoft YaHei', sans-serif; fill: #4b5563; }
+      .zone-title { font: 700 17px 'Segoe UI', 'Microsoft YaHei', sans-serif; fill: #111827; }
+      .node-title { font: 700 16px 'Segoe UI', 'Microsoft YaHei', sans-serif; fill: #111827; }
+      .node-body { font: 400 13px 'Segoe UI', 'Microsoft YaHei', sans-serif; fill: #374151; }
+      .small { font: 400 12px 'Segoe UI', 'Microsoft YaHei', sans-serif; fill: #4b5563; }
+      .edge-label { font: 600 12px 'Segoe UI', 'Microsoft YaHei', sans-serif; fill: #374151; paint-order: stroke; stroke: #ffffff; stroke-width: 5px; stroke-linejoin: round; }
+      .zone { stroke-width: 2; rx: 14; }
+      .node { stroke-width: 1.5; rx: 10; }
+      .edge { fill: none; stroke-width: 2.5; }
+    </style>
+  </defs>
+  <rect width="1800" height="1180" fill="#f8fafc"/>
+  <text x="40" y="42" class="title">Food Agent 当前架构：前台、管理端与上游账号服务</text>
+  <text x="40" y="70" class="subtitle">HTTP/REST/SSE 负责业务操作；MCP 只负责能力发现与受控调用；账号凭据和浏览器状态永远留在上游服务。</text>
+
+  <g transform="translate(1180 38)">
+    <line x1="0" y1="0" x2="42" y2="0" class="edge" stroke="#2563eb" marker-end="url(#arrow-blue)"/>
+    <text x="52" y="5" class="small">业务调用 / SSE</text>
+    <line x1="150" y1="0" x2="192" y2="0" class="edge" stroke="#7c3aed" stroke-dasharray="8 6" marker-end="url(#arrow-purple)"/>
+    <text x="202" y="5" class="small">MCP discovery</text>
+    <line x1="330" y1="0" x2="372" y2="0" class="edge" stroke="#dc2626" stroke-dasharray="7 5" marker-end="url(#arrow-red)"/>
+    <text x="382" y="5" class="small">禁止边界</text>
+  </g>
+
+  <!-- Consumer frontend -->
+  <rect x="40" y="110" width="420" height="420" class="zone" fill="#eff6ff" stroke="#60a5fa"/>
+  <text x="65" y="145" class="zone-title">前台用户端 · Browser</text>
+  <text x="65" y="168" class="small">React 19 + TypeScript + Vite + Tailwind + Zustand</text>
+  <rect x="70" y="195" width="360" height="245" class="node" fill="#dbeafe" stroke="#2563eb"/>
+  <text x="95" y="228" class="node-title">User Web App</text>
+  <text x="95" y="255" class="node-body">探索工作台 / 多轮研究会话</text>
+  <text x="95" y="279" class="node-body">餐厅详情 / 证据来源 / 收藏</text>
+  <text x="95" y="303" class="node-body">历史记录 / 用户偏好与记忆</text>
+  <text x="95" y="327" class="node-body">账号状态 / 扫码登录 / 重新认证</text>
+  <text x="95" y="365" class="small">只持有 session_id、account_ref、flow_id 等引用</text>
+  <text x="95" y="389" class="small">不接触 Cookie、Token、storage state、signer</text>
+  <rect x="70" y="462" width="360" height="40" class="node" fill="#ffffff" stroke="#93c5fd"/>
+  <text x="90" y="487" class="small">X-Device-Id（当前身份方式；正式后台需 JWT/OIDC）</text>
+
+  <!-- Admin frontend -->
+  <rect x="40" y="560" width="420" height="480" class="zone" fill="#fff7ed" stroke="#fb923c"/>
+  <text x="65" y="595" class="zone-title">主应用管理端 · Console</text>
+  <text x="65" y="618" class="small">独立权限、审计和运维入口，不等于上游账号后台</text>
+  <rect x="70" y="645" width="360" height="275" class="node" fill="#ffedd5" stroke="#d97706"/>
+  <text x="95" y="678" class="node-title">Admin Console</text>
+  <text x="95" y="705" class="node-body">服务健康 / descriptor / capability 版本</text>
+  <text x="95" y="729" class="node-body">MCP 工具 allow-list 与 side-effect 审批</text>
+  <text x="95" y="753" class="node-body">Research / Refresh / Media 任务监控</text>
+  <text x="95" y="777" class="node-body">Query Family / Evidence / Domain Pack</text>
+  <text x="95" y="801" class="node-body">租户、账号引用、审计、canary、回滚</text>
+  <text x="95" y="840" class="small">仅看脱敏投影与聚合指标</text>
+  <text x="95" y="864" class="small">不能查看 provider 原始凭据或浏览器状态</text>
+  <rect x="70" y="945" width="360" height="62" class="node" fill="#ffffff" stroke="#fdba74"/>
+  <text x="90" y="970" class="small">角色：operator / admin / release_manager</text>
+  <text x="90" y="991" class="small">当前代码尚未实现完整 RBAC，需单独补齐</text>
+
+  <!-- Main application -->
+  <rect x="500" y="110" width="630" height="930" class="zone" fill="#f9fafb" stroke="#64748b"/>
+  <text x="530" y="145" class="zone-title">主应用 · Food Agent</text>
+  <text x="530" y="168" class="small">FastAPI / Experience / Research Orchestrator / Composition Root</text>
+  <rect x="540" y="195" width="550" height="105" class="node" fill="#ffedd5" stroke="#d97706"/>
+  <text x="565" y="228" class="node-title">API &amp; Experience Boundary</text>
+  <text x="565" y="254" class="node-body">REST：搜索、收藏、历史、用户、平台账号</text>
+  <text x="565" y="278" class="node-body">SSE：进度、事件、恢复；统一错误 envelope</text>
+  <text x="565" y="294" class="small">不直接实例化 provider SDK 或 httpx 客户端</text>
+  <rect x="540" y="335" width="550" height="120" class="node" fill="#e0e7ff" stroke="#4f46e5"/>
+  <text x="565" y="368" class="node-title">Research Orchestrator</text>
+  <text x="565" y="394" class="node-body">Pydantic AI：意图、计划、工具调用、结构化输出</text>
+  <text x="565" y="418" class="node-body">Temporal：Research / Refresh / Media durable workflow</text>
+  <text x="565" y="442" class="small">任务执行权威在 Temporal；业务投影由 PostgreSQL 提供</text>
+  <rect x="540" y="490" width="260" height="170" class="node" fill="#fef3c7" stroke="#d97706"/>
+  <text x="565" y="523" class="node-title">Evidence Intelligence</text>
+  <text x="565" y="549" class="node-body">Canonical Source</text>
+  <text x="565" y="573" class="node-body">Query Family / Freshness</text>
+  <text x="565" y="597" class="node-body">Bundle / media / quality</text>
+  <text x="565" y="629" class="small">公共证据，不混入用户偏好</text>
+  <rect x="830" y="490" width="260" height="170" class="node" fill="#f3e8ff" stroke="#7c3aed"/>
+  <text x="855" y="523" class="node-title">Account Service Registry</text>
+  <text x="855" y="549" class="node-body">频道隔离：xhs_pc / creator / dianping</text>
+  <text x="855" y="573" class="node-body">HTTP client：账号、登录、source</text>
+  <text x="855" y="597" class="node-body">MCP client：initialize / tools/list / call</text>
+  <text x="855" y="629" class="small">descriptor 过期或漂移时 fail-closed</text>
+  <rect x="540" y="700" width="550" height="300" class="node" fill="#ecfdf5" stroke="#16a34a"/>
+  <text x="565" y="733" class="node-title">Foundation · 数据与运行态</text>
+  <rect x="565" y="760" width="235" height="92" class="node" fill="#dcfce7" stroke="#16a34a"/>
+  <text x="585" y="790" class="node-title">PostgreSQL 16</text>
+  <text x="585" y="816" class="node-body">业务事实权威、Evidence、Memory、outbox</text>
+  <rect x="830" y="760" width="235" height="92" class="node" fill="#fee2e2" stroke="#ef4444"/>
+  <text x="850" y="790" class="node-title">Redis 7.4</text>
+  <text x="850" y="816" class="node-body">SSE、短期幂等、限流、热投影</text>
+  <rect x="565" y="875" width="235" height="92" class="node" fill="#fef3c7" stroke="#d97706"/>
+  <text x="585" y="905" class="node-title">Temporal Service</text>
+  <text x="585" y="931" class="node-body">唯一 durable execution / retry / cancel</text>
+  <rect x="830" y="875" width="235" height="92" class="node" fill="#e0f2fe" stroke="#0284c7"/>
+  <text x="850" y="905" class="node-title">ObjectStore</text>
+  <text x="850" y="931" class="node-body">QR/媒体二进制与短期 signed ref</text>
+
+  <!-- Upstream service boundary -->
+  <rect x="1180" y="110" width="570" height="930" class="zone" fill="#f5f3ff" stroke="#8b5cf6"/>
+  <text x="1210" y="145" class="zone-title">上游账号微服务 · 独立部署</text>
+  <text x="1210" y="168" class="small">每个服务拥有自己的账号数据库、profile、signer、provider runtime</text>
+  <rect x="1220" y="195" width="500" height="210" class="node" fill="#ede9fe" stroke="#7c3aed"/>
+  <text x="1245" y="228" class="node-title">xhs-account-service</text>
+  <text x="1245" y="254" class="node-body">channels：xhs_pc / xhs_creator</text>
+  <text x="1245" y="280" class="node-body">HTTP：capabilities / accounts / login / source</text>
+  <text x="1245" y="304" class="node-body">MCP：只发布已批准的 read_only / account_login</text>
+  <text x="1245" y="342" class="small">上游内部：XHS provider、Playwright/Node、signer</text>
+  <text x="1245" y="366" class="small">XHS Creator publishing/upload 默认不注册</text>
+  <rect x="1220" y="450" width="500" height="210" class="node" fill="#e0f2fe" stroke="#0284c7"/>
+  <text x="1245" y="483" class="node-title">dianping-account-service</text>
+  <text x="1245" y="509" class="node-body">channel：dianping</text>
+  <text x="1245" y="535" class="node-body">独立 HTTP/MCP endpoint 与 capability catalog</text>
+  <text x="1245" y="559" class="node-body">独立账号、浏览器 context、session、health</text>
+  <text x="1245" y="597" class="small">不与 XHS 共享 Cookie、profile、lease 或 signer</text>
+  <rect x="1220" y="720" width="500" height="250" class="node" fill="#f3f4f6" stroke="#6b7280" stroke-dasharray="7 5"/>
+  <text x="1245" y="753" class="node-title">Provider Service Admin · 不属于主应用</text>
+  <text x="1245" y="780" class="node-body">账号数据库 / QR worker / Browser profiles</text>
+  <text x="1245" y="804" class="node-body">Cookie / storage state / signer state</text>
+  <text x="1245" y="828" class="node-body">风控挑战 / provider 原始响应 / 依赖升级</text>
+  <text x="1245" y="866" class="small">这是上游项目自己的管理端</text>
+  <text x="1245" y="889" class="small">主应用只能通过 opaque reference 获取投影</text>
+
+  <!-- Operational flow -->
+  <path d="M430 310 H540" class="edge" stroke="#2563eb" marker-end="url(#arrow-blue)"/>
+  <text x="462" y="298" class="edge-label">REST / SSE</text>
+  <path d="M430 780 H485 V250 H540" class="edge" stroke="#d97706" marker-end="url(#arrow-orange)"/>
+  <text x="445" y="766" class="edge-label">管理 API</text>
+  <path d="M815 250 V335" class="edge" stroke="#d97706" marker-end="url(#arrow-orange)"/>
+  <path d="M815 455 V490 H670" class="edge" stroke="#2563eb" marker-end="url(#arrow-blue)"/>
+  <text x="680" y="478" class="edge-label">Evidence / Domain Pack</text>
+  <path d="M815 455 V490 H960" class="edge" stroke="#7c3aed" marker-end="url(#arrow-purple)"/>
+  <text x="900" y="478" class="edge-label">账号能力</text>
+  <path d="M960 490 V420 H1220 V300" class="edge" stroke="#2563eb" marker-end="url(#arrow-blue)"/>
+  <text x="1085" y="407" class="edge-label">HTTP operational</text>
+  <path d="M1090 575 H1160 V555 H1220" class="edge" stroke="#7c3aed" stroke-dasharray="8 6" marker-end="url(#arrow-purple)"/>
+  <text x="1088" y="558" class="edge-label">MCP discovery/call</text>
+  <path d="M1470 405 V720" class="edge" stroke="#7c3aed" marker-end="url(#arrow-purple)"/>
+  <path d="M1470 660 V720" class="edge" stroke="#7c3aed" marker-end="url(#arrow-purple)"/>
+  <text x="1490" y="700" class="edge-label">provider-owned state</text>
+  <path d="M815 455 V700" class="edge" stroke="#16a34a" marker-end="url(#arrow-blue)"/>
+  <text x="828" y="690" class="edge-label">业务事实 / 任务投影</text>
+  <path d="M700 455 V700" class="edge" stroke="#d97706" marker-end="url(#arrow-orange)"/>
+  <text x="565" y="690" class="edge-label">Bundle / refresh</text>
+
+  <!-- Forbidden boundary -->
+  <path d="M430 420 C700 520 1020 1010 1220 845" class="edge" stroke="#dc2626" stroke-dasharray="9 7" marker-end="url(#arrow-red)"/>
+  <rect x="605" y="1015" width="650" height="42" rx="8" fill="#fef2f2" stroke="#fca5a5"/>
+  <text x="625" y="1042" class="small" fill="#b91c1c">禁止：浏览器/主应用直连 provider、保存 Cookie、读取 profile 或把 MCP 当 durable authority</text>
+
+  <!-- Footer -->
+  <text x="40" y="1120" class="small">数据权威：PostgreSQL 业务事实；Temporal 执行恢复；Redis 仅可重建热状态；ObjectStore 保存二进制。</text>
+  <text x="40" y="1145" class="small">当前前端已有搜索、收藏、历史、Profile 雏形；管理端、账号列表和完整 RBAC 属于后续前端重构范围。</text>
+</svg>

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Food Agent 架构：前台、管理端与上游账号服务</title>
+  <style>
+    :root { color-scheme: light; font-family: "Segoe UI", "Microsoft YaHei", sans-serif; }
+    body { margin: 0; background: #f8fafc; color: #111827; }
+    header { display: flex; align-items: center; gap: 8px; padding: 12px 18px; border-bottom: 1px solid #e5e7eb; background: #fff; position: sticky; top: 0; z-index: 2; }
+    h1 { font-size: 16px; margin: 0 auto 0 0; }
+    button { border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; padding: 6px 10px; cursor: pointer; font-size: 13px; }
+    button:hover { background: #eff6ff; border-color: #60a5fa; }
+    main { padding: 18px; }
+    .canvas { overflow: auto; border: 1px solid #dbe3ef; background: #fff; box-shadow: 0 3px 16px #0f172a12; }
+    .zoom-wrap { transform-origin: top left; width: 1800px; height: 1180px; transition: transform .15s ease; }
+    .zoom-wrap img { display: block; width: 1800px; height: 1180px; }
+    .notes { max-width: 1800px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 14px; }
+    .notes section { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px 14px; }
+    .notes h2 { font-size: 14px; margin: 0 0 8px; }
+    .notes p { font-size: 12px; line-height: 1.65; margin: 0; color: #4b5563; }
+    @media (max-width: 900px) { .notes { grid-template-columns: 1fr; } header { position: static; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Food Agent 当前架构</h1>
+    <button id="minus" type="button" aria-label="缩小">−</button>
+    <button id="reset" type="button">100%</button>
+    <button id="plus" type="button" aria-label="放大">＋</button>
+    <button id="open" type="button">在新窗口打开 SVG</button>
+  </header>
+  <main>
+    <div class="canvas" id="canvas" aria-label="架构图画布">
+      <div class="zoom-wrap" id="diagram"><img src="architecture-admin-frontend.svg" alt="Food Agent 前台、管理端与上游账号服务架构图"></div>
+    </div>
+    <div class="notes">
+      <section><h2>前台用户端</h2><p>负责搜索、研究会话、餐厅结果、收藏、历史、偏好和账号扫码登录。只使用公开合同和 opaque references。</p></section>
+      <section><h2>主应用管理端</h2><p>负责服务健康、MCP 能力审批、任务、证据、Domain Pack、租户、审计、canary 和回滚。只读取脱敏投影。</p></section>
+      <section><h2>上游账号服务后台</h2><p>XHS 与大众点评分别拥有真实账号数据库、浏览器 profile、QR worker、Cookie 和 signer。该后台不属于主应用。</p></section>
+    </div>
+  </main>
+  <script>
+    (() => {
+      const wrap = document.getElementById('diagram');
+      let scale = 1;
+      const render = () => {
+        wrap.style.transform = `scale(${scale})`;
+        document.getElementById('reset').textContent = `${Math.round(scale * 100)}%`;
+      };
+      document.getElementById('plus').addEventListener('click', () => { scale = Math.min(1.6, scale + 0.1); render(); });
+      document.getElementById('minus').addEventListener('click', () => { scale = Math.max(0.5, scale - 0.1); render(); });
+      document.getElementById('reset').addEventListener('click', () => { scale = 1; render(); });
+      document.getElementById('open').addEventListener('click', () => window.open('architecture-admin-frontend.svg', '_blank', 'noopener'));
+      document.getElementById('canvas').addEventListener('wheel', (event) => {
+        if (!event.ctrlKey) return;
+        event.preventDefault();
+        scale = Math.max(0.5, Math.min(1.6, scale + (event.deltaY < 0 ? 0.05 : -0.05)));
+        render();
+      }, { passive: false });
+    })();
+  </script>
+</body>
+</html>
