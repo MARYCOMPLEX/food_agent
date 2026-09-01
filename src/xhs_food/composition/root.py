@@ -570,6 +570,7 @@ def build_legacy_composition_root(
     platform_provenance_ref: str | None = None,
     platform_license_approval_ref: str | None = None,
     platform_dependency_digests: Mapping[str, str] | None = None,
+    account_service_registry: object | None = None,
 ) -> CompositionRoot:
     """Create the compatibility root with an atomically validated Food Pack.
 
@@ -659,6 +660,10 @@ def build_legacy_composition_root(
         Any,
         target_settings if target_settings is not None else TargetSettings(),
     )
+    if account_service_registry is None:
+        from xhs_food.composition.account_services import build_account_service_registry
+
+        account_service_registry = build_account_service_registry(target_settings)
     reliable_enabled = (
         target_settings.reliable_task_lifecycle
         if reliable_task_lifecycle is None
@@ -940,6 +945,21 @@ def build_legacy_composition_root(
         )
 
     root = CompositionRoot()
+    if account_service_registry is not None:
+        service_registry = root.registry("account_services")
+        service_registry.register(
+            AdapterBinding(
+                name="remote",
+                contract_version="account-service-registry/v1",
+                factory=lambda: account_service_registry,
+                legacy=False,
+            )
+        )
+        root.bind_logical(
+            "account_services",
+            registry_name="account_services",
+            binding_name="remote",
+        )
     if platform_assembly is not None:
         # Keep provider factories and the account-bound gateway in their own
         # registry.  The existing ``sources.xhs_compat`` binding is untouched
@@ -1365,6 +1385,8 @@ def build_legacy_composition_root(
             for binding in root.registry("platform").bindings.values()
             if binding.enabled
         )
+    if account_service_registry is not None:
+        allowed_non_legacy.add("account_services.remote")
     root.assert_legacy_only(frozenset(allowed_non_legacy))
     root.activate()
     return root

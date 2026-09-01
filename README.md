@@ -229,6 +229,20 @@ Canonical contracts → PostgreSQL/Evidence`；QR/媒体字节走 `ObjectStore`�
 [`platform-integration-architecture.svg`](openspec/changes/integrate-platform-source-connectors/references/platform-integration-architecture.svg) ·
 [`platform-integration-architecture.html`](openspec/changes/integrate-platform-source-connectors/references/platform-integration-architecture.html)。
 
+### 独立账号微服务与 MCP（新适配层）
+
+账号状态可以从主应用拆到两个独立上游：`xhs-account-service` 负责
+`xhs_pc`/`xhs_creator`，`dianping-account-service` 负责 `dianping`。主应用通过
+`src/xhs_food/contracts/account_service.py` 和
+`src/xhs_food/gateways/account_service.py` 的 HTTP/MCP 适配层调用它们，不导入
+上游 Python 包，也不保存 Cookie、浏览器 profile、二维码字节或 signer 状态。
+只需在 `MODULAR_ACCOUNT_SERVICES_FILE` 或 `MODULAR_ACCOUNT_SERVICES_JSON` 中写入
+两个服务的 URL、频道、能力白名单和 `auth_ref`，Composition Root 会在启动时刷新
+能力并按频道路由。HTTP 是账号/登录/数据调用的权威边界，MCP 只做动态能力发现和
+allow-list 工具调用。部署示例与完整 endpoint 清单见
+[`docs/account-services.md`](docs/account-services.md) 和
+[`docker-compose.account-services.yml`](docker-compose.account-services.yml)。
+
 ### 启用步骤（默认保持关闭）
 
 ```powershell

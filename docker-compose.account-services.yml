@@ -1,0 +1,29 @@
+# Optional local wiring for independently deployed provider account services.
+# The images are deployment inputs and are intentionally not bundled here.
+
+services:
+  xhs-account-service:
+    image: ${XHS_ACCOUNT_SERVICE_IMAGE:-xhs-account-service:local}
+    environment:
+      SERVICE_ID: xhs-account
+      PLATFORM_CHANNELS: xhs_pc,xhs_creator
+      HTTP_PORT: "8101"
+      ACCOUNT_DATABASE_URL: ${XHS_ACCOUNT_DATABASE_URL:-postgresql://USER:PASSWORD@HOST:PORT/xhs_accounts}
+      ACCOUNT_OBJECT_STORE_ENDPOINT: ${XHS_ACCOUNT_OBJECT_STORE_ENDPOINT:-http://HOST:PORT}
+      SERVICE_AUTH_REF: ${XHS_SERVICE_AUTH_REF:-SERVICE_AUTH_REF}
+    ports:
+      - "${XHS_ACCOUNT_SERVICE_PORT:-8101}:8101"
+    restart: unless-stopped
+
+  dianping-account-service:
+    image: ${DIANPING_ACCOUNT_SERVICE_IMAGE:-dianping-account-service:local}
+    environment:
+      SERVICE_ID: dianping-account
+      PLATFORM_CHANNELS: dianping
+      HTTP_PORT: "8102"
+      ACCOUNT_DATABASE_URL: ${DIANPING_ACCOUNT_DATABASE_URL:-postgresql://USER:PASSWORD@HOST:PORT/dianping_accounts}
+      ACCOUNT_OBJECT_STORE_ENDPOINT: ${DIANPING_ACCOUNT_OBJECT_STORE_ENDPOINT:-http://HOST:PORT}
+      SERVICE_AUTH_REF: ${DIANPING_SERVICE_AUTH_REF:-SERVICE_AUTH_REF}
+    ports:
+      - "${DIANPING_ACCOUNT_SERVICE_PORT:-8102}:8102"
+    restart: unless-stopped

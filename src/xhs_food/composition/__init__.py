@@ -1,5 +1,10 @@
 """Composition Root and adapter registry lifecycle."""
 
+from .account_services import (
+    AccountServiceRegistry,
+    AccountServiceRegistryError,
+    build_account_service_registry,
+)
 from .root import (
     AdapterBinding,
     BindingRegistry,
@@ -21,6 +26,8 @@ from .root import (
 )
 
 __all__ = [
+    "AccountServiceRegistry",
+    "AccountServiceRegistryError",
     "AdapterBinding",
     "BindingRegistry",
     "CompositionRoot",
@@ -32,6 +39,7 @@ __all__ = [
     "RegistryState",
     "ReliableRuntimeBindings",
     "build_account_auth_worker",
+    "build_account_service_registry",
     "build_media_worker",
     "build_platform_bindings",
     "build_legacy_composition_root",

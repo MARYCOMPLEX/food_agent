@@ -1,5 +1,12 @@
 """Project-owned Source and Tool Gateway implementations."""
 
+from .account_service import (
+    AccountServiceClientPort,
+    AuthHeaderProvider,
+    HttpAccountServiceClient,
+    McpAccountServiceClient,
+    RemoteAccountServiceError,
+)
 from .capabilities import (
     CapabilityCollisionError,
     CapabilityMultiplexer,
@@ -44,6 +51,8 @@ from .tools import ProviderResult, SchemaToolGateway, ToolRegistration
 from .xhs import SourceAdapterError, XHSSourceConnector
 
 __all__ = [
+    "AccountServiceClientPort",
+    "AuthHeaderProvider",
     "AmapPlaceSourceConnector",
     "DianpingPlatformSourceConnector",
     "DianpingProviderPort",
@@ -72,6 +81,9 @@ __all__ = [
     "PlatformGatewayCode",
     "PlatformGatewayError",
     "PlatformSourceGateway",
+    "HttpAccountServiceClient",
+    "McpAccountServiceClient",
+    "RemoteAccountServiceError",
     "CapabilityCollisionError",
     "CapabilityMultiplexer",
     "CapabilityNotRegisteredError",

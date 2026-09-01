@@ -48,6 +48,13 @@ class TargetSettings(BaseSettings):
     platform_provider_mode: Literal["in_process", "sidecar"] = "in_process"
     platform_lease_ttl_seconds: int = Field(default=180, ge=1, le=86_400)
 
+    # Provider account services are external, independently deployable HTTP
+    # and/or MCP services.  The JSON value contains only service metadata and
+    # opaque auth references; it never contains a token or cookie.
+    account_services_json: str | None = None
+    account_services_file: str | None = None
+    account_service_refresh_seconds: int = Field(default=60, ge=5, le=86_400)
+
     temporal_address: str = "localhost:7233"
     temporal_namespace: str = "default"
     temporal_research_queue: str = "research"
@@ -144,6 +151,14 @@ class TargetSettings(BaseSettings):
                 or any(character.isspace() or ord(character) < 32 for character in value)
             ):
                 raise ValueError(f"{name} must be non-empty and whitespace-free when supplied")
+        if self.account_services_json and self.account_services_file:
+            raise ValueError("account_services_json and account_services_file are mutually exclusive")
+        for name, value in (
+            ("account_services_json", self.account_services_json),
+            ("account_services_file", self.account_services_file),
+        ):
+            if value is not None and any(ord(character) < 32 for character in value):
+                raise ValueError(f"{name} must not contain control characters")
         if len(self.object_store_allowed_content_types) != len(
             set(self.object_store_allowed_content_types)
         ):

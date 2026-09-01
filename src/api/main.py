@@ -363,8 +363,29 @@ async def lifespan(application: FastAPI):
                 await _close_platform_runtime(platform_cleanup)
             raise
     application.state.composition_root = composition_root
+    from xhs_food.composition.account_services import (
+        AccountServiceRegistry,
+        RemotePlatformLoginServiceAdapter,
+    )
+
+    application.state.account_service_registry = None
+    if "account_services" in composition_root.logical_bindings:
+        resolved_registry = await composition_root.resolve_logical("account_services")
+        if not isinstance(resolved_registry, AccountServiceRegistry):
+            raise RuntimeError("account_services binding must resolve to AccountServiceRegistry")
+        application.state.account_service_registry = resolved_registry
+        try:
+            await resolved_registry.refresh()
+        except Exception:
+            logger.warning("Remote account-service capability refresh failed")
     application.state.platform_runtime = platform_runtime
     application.state.platform_login_service = platform_kwargs.get("platform_login_service")
+    if application.state.platform_login_service is None and isinstance(
+        application.state.account_service_registry, AccountServiceRegistry
+    ):
+        application.state.platform_login_service = RemotePlatformLoginServiceAdapter(
+            application.state.account_service_registry
+        )
     application.state.platform_readiness = getattr(composition_root, "platform_readiness", None)
     application.state.reliable_runtime = reliable_runtime
     application.state.reliable_task_lifecycle = (
