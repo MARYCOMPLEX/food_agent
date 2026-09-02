@@ -8,7 +8,13 @@ one-line change here plus an entry in ``.env.example``.
 from __future__ import annotations
 
 from functools import lru_cache
+import os
 from typing import List, Literal, Optional
+
+for _proxy_key in ("NO_PROXY", "no_proxy"):
+    _val = os.environ.get(_proxy_key)
+    if _val and "::" in _val:
+        os.environ[_proxy_key] = ",".join(p.strip() for p in _val.split(",") if "::" not in p and p.strip())
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
