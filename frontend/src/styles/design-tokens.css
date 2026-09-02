@@ -1,0 +1,389 @@
+/* Cobalt Lab theme tokens.
+   The structure follows the Stitch export, while active neutrals are tuned for
+   the product's cleaner white UI direction. Import before feature styles. */
+:root {
+  /* Active neutral scale.
+     The Stitch export used warm paper neutrals; the product theme intentionally
+     shifts surfaces to crisp white and clean cool-neutral separation. */
+  --color-neutral-0: #ffffff;
+  --color-neutral-50: #ffffff;
+  --color-neutral-75: #ffffff;
+  --color-neutral-100: #f8f9fb;
+  --color-neutral-125: #f6f7fa;
+  --color-neutral-150: #f5f7fa;
+  --color-neutral-200: #f1f3f6;
+  --color-neutral-250: #eceff3;
+  --color-neutral-275: #e9edf2;
+  --color-neutral-300: #e4e8ee;
+  --color-neutral-325: #e1e5ec;
+  --color-neutral-350: #dce1e8;
+  --color-neutral-375: #d7dde6;
+  --color-neutral-400: #d1d7e0;
+  --color-neutral-425: #cbd2dd;
+  --color-neutral-450: #c4ccd8;
+  --color-neutral-500: #b9c2cf;
+  --color-neutral-550: #adb6c4;
+  --color-neutral-560: #a6b0bf;
+  --color-neutral-650: #7d8797;
+  --color-neutral-700: #667085;
+  --color-neutral-725: #667085;
+  --color-neutral-750: #4b5565;
+  --color-neutral-775: #475467;
+  --color-neutral-800: #344054;
+  --color-neutral-850: #334155;
+  --color-neutral-900: #101828;
+  --color-neutral-925: #111827;
+  --color-neutral-950: #0f172a;
+
+  /* Exact Cobalt interaction and state scales. */
+  --color-brand-50-exact: #edf0ff;
+  --color-brand-75-exact: #f0f0ff;
+  --color-brand-100-exact: #eeebfe;
+  --color-brand-150-exact: #dce2ff;
+  --color-brand-200-exact: #d8d2fb;
+  --color-brand-250-exact: #c8beff;
+  --color-brand-300-exact: #b8c2ff;
+  --color-brand-350-exact: #9c91ff;
+  --color-brand-400-exact: #6a60e8;
+  --color-brand-450-exact: #5b6cff;
+  --color-brand-500-exact: #4f46e4;
+  --color-brand-550-exact: #3b30d9;
+  --color-brand-600-exact: #3526cc;
+  --color-brand-650-exact: #2f35d5;
+  --color-brand-700-exact: #2a1faf;
+
+  --color-success-50-exact: #ecfdf5;
+  --color-success-75-exact: #e9f8f0;
+  --color-success-100-exact: #e8f8f1;
+  --color-success-500-exact: #10b981;
+  --color-success-550-exact: #10a67d;
+  --color-success-600-exact: #16a34a;
+  --color-success-625-exact: #22c55e;
+  --color-success-650-exact: #057a55;
+  --color-success-700-exact: #047857;
+  --color-success-750-exact: #047856;
+
+  --color-warning-50-exact: #fff9d7;
+  --color-warning-75-exact: #fff2d7;
+  --color-warning-500-exact: #f59e0b;
+  --color-warning-600-exact: #d97706;
+  --color-warning-700-exact: #c56b00;
+  --color-warning-750-exact: #f97316;
+
+  --color-danger-50-exact: #fdf1f1;
+  --color-danger-500-exact: #ee4444;
+  --color-danger-550-exact: #ef4444;
+  --color-danger-600-exact: #d33a3a;
+  --color-danger-650-exact: #c42828;
+  --color-danger-700-exact: #b91b1b;
+
+  --color-info-50-exact: #ebfdff;
+  --color-info-75-exact: #f6feff;
+  --color-info-500-exact: #06b6d3;
+  --color-info-700-exact: #0e7490;
+
+  /* Semantic surfaces use the active white theme; product accents stay aligned
+     with the exported interaction color system. */
+  --color-background: var(--color-neutral-75);
+  --color-surface: var(--color-neutral-75);
+  --color-surface-bright: var(--color-neutral-75);
+  --color-surface-dim: var(--color-neutral-350);
+  --color-surface-container-lowest: var(--color-neutral-0);
+  --color-surface-container-low: var(--color-neutral-100);
+  --color-surface-container: var(--color-neutral-200);
+  --color-surface-container-high: var(--color-neutral-250);
+  --color-surface-container-highest: var(--color-neutral-275);
+  --color-surface-variant: var(--color-neutral-275);
+  --color-surface-tint: #4d44e2;
+  --color-outline: var(--color-neutral-725);
+  --color-outline-variant: var(--color-neutral-400);
+  --color-on-background: var(--color-neutral-925);
+  --color-on-surface: var(--color-neutral-925);
+  --color-on-surface-variant: var(--color-neutral-800);
+  --color-inverse-surface: var(--color-neutral-900);
+  --color-inverse-on-surface: var(--color-neutral-100);
+
+  --color-primary: var(--color-brand-600-exact);
+  --color-primary-container: var(--color-brand-500-exact);
+  --color-primary-fixed: #e2dfff;
+  --color-primary-fixed-dim: #c3c0ff;
+  --color-on-primary: var(--color-neutral-0);
+  --color-on-primary-container: #dad7ff;
+  --color-on-primary-fixed: #0f0069;
+  --color-on-primary-fixed-variant: #3323cb;
+  --color-inverse-primary: #c3c0ff;
+
+  --color-secondary: #006879;
+  --color-secondary-container: #57dffe;
+  --color-secondary-fixed: #aaedff;
+  --color-secondary-fixed-dim: #4cd7f5;
+  --color-on-secondary: var(--color-neutral-0);
+  --color-on-secondary-container: #006171;
+  --color-on-secondary-fixed: #001f26;
+  --color-on-secondary-fixed-variant: #004e5c;
+
+  --color-tertiary: #7d2f00;
+  --color-tertiary-container: #a44000;
+  --color-tertiary-fixed: #ffdbcc;
+  --color-tertiary-fixed-dim: #ffb695;
+  --color-on-tertiary: var(--color-neutral-0);
+  --color-on-tertiary-container: #ffd1bd;
+  --color-on-tertiary-fixed: #351000;
+  --color-on-tertiary-fixed-variant: #7c2e00;
+
+  --color-error: #ba1a1a;
+  --color-error-container: #ffdad6;
+  --color-on-error: var(--color-neutral-0);
+  --color-on-error-container: #93000a;
+
+  /* Product accents that are present in the exported screens. */
+  --color-citation: var(--color-info-500-exact);
+  --color-citation-container: rgb(6 182 211 / 10%);
+  --color-citation-hover: #0891b2;
+  --color-success: var(--color-success-500-exact);
+  --color-warning: var(--color-warning-500-exact);
+  --color-danger: var(--color-danger-550-exact);
+
+  /* Clean white application canvas and supporting neutral surfaces. */
+  --color-canvas: var(--color-neutral-50);
+  --color-border-muted: var(--color-neutral-300);
+  --color-border-default: var(--color-neutral-400);
+  --color-border-field: var(--color-neutral-325);
+  --color-border-strong: var(--color-neutral-650);
+  --color-text-muted: var(--color-neutral-700);
+  --color-text-secondary-exact: var(--color-neutral-750);
+  --color-text-tertiary-exact: var(--color-neutral-775);
+  --color-text-disabled: var(--color-neutral-550);
+  --color-bg-hover: var(--color-neutral-125);
+  --color-bg-muted: var(--color-neutral-150);
+  --color-bg-disabled: var(--color-neutral-275);
+
+  /* RGB channels for translucent UI. */
+  --color-background-rgb: 255 255 255;
+  --color-surface-rgb: 255 255 255;
+  --color-primary-rgb: 53 38 204;
+  --color-primary-container-rgb: 79 70 228;
+  --color-on-surface-variant-rgb: 70 69 85;
+  --color-citation-rgb: 6 182 211;
+
+  /* Compatibility aliases used by existing modules. */
+  --color-bg-canvas: var(--color-canvas);
+  --color-bg-surface: var(--color-surface-container-lowest);
+  --color-bg-subtle: var(--color-surface-container-low);
+  --color-border: var(--color-outline-variant);
+  --color-text-primary: var(--color-on-surface);
+  --color-text-secondary: var(--color-on-surface-variant);
+  --color-text-tertiary: var(--color-outline);
+  --color-brand-50: var(--color-brand-50-exact);
+  --color-brand-100: var(--color-brand-100-exact);
+  --color-brand-200: var(--color-primary-fixed-dim);
+  --color-brand-300: var(--color-primary-fixed-dim);
+  --color-brand-400: var(--color-surface-tint);
+  --color-brand-500: var(--color-primary-container);
+  --color-brand-600: var(--color-brand-550-exact);
+  --color-brand-700: var(--color-brand-700-exact);
+  --color-success-500: var(--color-success);
+  --color-warning-500: var(--color-warning);
+  --color-danger-500: var(--color-error);
+  --color-info-500: var(--color-citation);
+
+  /* Legacy prototype aliases. Prefer --color-* in new code. */
+  --background: var(--color-background);
+  --surface: var(--color-surface);
+  --surface-bright: var(--color-surface-bright);
+  --surface-dim: var(--color-surface-dim);
+  --surface-lowest: var(--color-surface-container-lowest);
+  --surface-low: var(--color-surface-container-low);
+  --surface-container: var(--color-surface-container);
+  --surface-high: var(--color-surface-container-high);
+  --surface-highest: var(--color-surface-container-highest);
+  --surface-variant: var(--color-surface-variant);
+  --outline: var(--color-outline);
+  --outline-variant: var(--color-outline-variant);
+  --on-surface: var(--color-on-surface);
+  --on-variant: var(--color-on-surface-variant);
+  --primary: var(--color-primary);
+  --primary-container: var(--color-primary-container);
+  --primary-fixed: var(--color-primary-fixed);
+  --primary-fixed-dim: var(--color-primary-fixed-dim);
+  --secondary: var(--color-secondary);
+  --secondary-container: var(--color-secondary-container);
+  --tertiary: var(--color-tertiary);
+  --tertiary-fixed: var(--color-tertiary-fixed);
+  --error: var(--color-error);
+  --error-container: var(--color-error-container);
+
+  /* KG entity colors from the existing product spec. */
+  --color-kg-concept: var(--color-primary-container);
+  --color-kg-method: var(--color-success);
+  --color-kg-dataset: var(--color-warning);
+  --color-kg-metric: var(--color-citation);
+  --color-kg-author: #a855f7;
+  --color-kg-venue: #ec4899;
+
+  /* Elevation, focus, motion and stacking. */
+  --shadow-none: none;
+  --shadow-xs: 0 1px 2px rgb(15 15 20 / 4%);
+  --shadow-sm: 0 4px 12px rgb(15 15 20 / 6%);
+  --shadow-md: 0 4px 12px rgb(15 15 20 / 8%);
+  --shadow-lg: 0 12px 32px rgb(15 15 20 / 10%);
+  --shadow-toast: 0 12px 32px rgb(15 15 20 / 12%);
+  --shadow-dropdown: 0 20px 48px rgb(28 27 27 / 18%), 0 2px 8px rgb(28 27 27 / 8%);
+  --shadow-raised-brand: 0 8px 18px rgb(79 70 229 / 18%);
+  --shadow-dot-contrast: 0 0 0 3px var(--color-alpha-white-86);
+  --shadow-citation-ring: 0 0 0 1px var(--color-citation) inset;
+  --shadow-bottom-bar: 0 -6px 20px var(--color-alpha-shadow-5);
+  --shadow-kg-node: 0 6px 18px var(--color-alpha-shadow-8);
+  --shadow-kg-node-selected: 0 0 0 7px var(--color-brand-150-exact), 0 10px 30px var(--color-alpha-primary-28);
+  --shadow-failure-popover: 0 10px 30px var(--color-alpha-black-4);
+  --shadow-modal: var(--shadow-lg);
+  --shadow-side-drawer: -12px 0 32px rgb(15 15 20 / 10%);
+  --shadow-side-drawer-subtle: -4px 0 16px rgb(15 15 20 / 6%);
+  --shadow-composer: 0 4px 20px -4px rgb(0 0 0 / 5%);
+  --shadow-review-draft: 0 4px 12px var(--color-alpha-shadow-4);
+  --shadow-composer-focus: 0 0 0 3px var(--color-alpha-primary-10), var(--shadow-composer);
+  --shadow-dropdown-trigger-focus: 0 0 0 1px var(--color-primary-container), 0 8px 22px var(--color-alpha-primary-12);
+  --shadow-focus: 0 0 0 3px rgb(79 70 229 / 20%);
+  --shadow-focus-danger: 0 0 0 3px rgb(238 68 68 / 20%);
+  --shadow-focus-citation: 0 0 0 2px rgb(6 182 211 / 16%);
+  --shadow-inset-primary-left: inset 3px 0 0 var(--color-primary);
+  --shadow-inset-primary-bottom: inset 0 -3px 0 var(--color-primary-container);
+
+  --color-alpha-shadow-4: rgb(15 15 20 / 4%);
+  --color-alpha-shadow-5: rgb(15 15 20 / 5%);
+  --color-alpha-shadow-6: rgb(15 15 20 / 6%);
+  --color-alpha-shadow-8: rgb(15 15 20 / 8%);
+  --color-alpha-shadow-10: rgb(15 15 20 / 10%);
+  --color-alpha-shadow-12: rgb(15 15 20 / 12%);
+  --color-alpha-overlay-scrim: rgb(15 15 20 / 48%);
+  --color-alpha-modal-scrim: rgb(15 15 20 / 40%);
+  --color-alpha-drawer-scrim: rgb(15 15 20 / 30%);
+  --color-alpha-black-4: rgb(0 0 0 / 4%);
+  --color-alpha-black-5: rgb(0 0 0 / 5%);
+  --color-alpha-white-22: rgb(255 255 255 / 22%);
+  --color-alpha-white-86: rgb(255 255 255 / 86%);
+  --color-alpha-white-92: rgb(255 255 255 / 92%);
+  --color-alpha-white-94: rgb(255 255 255 / 94%);
+  --color-alpha-surface-82: rgb(255 255 255 / 82%);
+  --color-alpha-surface-96: rgb(255 255 255 / 96%);
+  --color-alpha-primary-6: rgb(53 38 204 / 6%);
+  --color-alpha-primary-8: rgb(53 38 204 / 8%);
+  --color-alpha-primary-10: rgb(53 38 204 / 10%);
+  --color-alpha-primary-12: rgb(53 38 204 / 12%);
+  --color-alpha-primary-18: rgb(79 70 229 / 18%);
+  --color-alpha-primary-20: rgb(79 70 229 / 20%);
+  --color-alpha-primary-28: rgb(79 70 229 / 28%);
+  --color-alpha-primary-40: rgb(53 38 204 / 40%);
+  --color-alpha-primary-container-42: rgb(79 70 228 / 42%);
+  --color-alpha-primary-container-68: rgb(79 70 228 / 68%);
+  --color-alpha-primary-fixed-26: rgb(226 223 255 / 26%);
+  --color-alpha-outline-variant-72: rgb(209 215 224 / 72%);
+  --color-alpha-danger-20: rgb(186 26 26 / 20%);
+  --color-alpha-danger-25: rgb(238 68 68 / 25%);
+  --color-alpha-danger-container-28: rgb(255 218 214 / 28%);
+  --color-alpha-success-35: rgb(16 185 129 / 35%);
+  --color-alpha-citation-10: rgb(6 182 211 / 10%);
+  --color-alpha-citation-16: rgb(6 182 211 / 16%);
+  --color-alpha-citation-24: rgb(6 182 211 / 24%);
+  --color-alpha-citation-35: rgb(6 182 211 / 35%);
+  --color-alpha-citation-55: rgb(6 182 211 / 55%);
+
+  --motion-duration-fast: 120ms;
+  --motion-duration-normal: 150ms;
+  --motion-duration-medium: 160ms;
+  --motion-duration-modal: 200ms;
+  --motion-duration-spring: 320ms;
+  --motion-duration-highlight: 800ms;
+  --motion-duration-blink: 1000ms;
+  --motion-ease-standard: ease-out;
+  --motion-ease-emphasized: cubic-bezier(.2, .8, .2, 1);
+  --motion-ease-spring: cubic-bezier(.34, 1.56, .64, 1);
+
+  --z-base: 0;
+  --z-raised: 1;
+  --z-content: 2;
+  --z-local: 5;
+  --z-queue: 90;
+  --z-sidebar: 100;
+  --z-sticky: 20;
+  --z-shell: 200;
+  --z-dropdown: 320;
+  --z-drawer: 2000;
+  --z-modal: 3000;
+  --z-cmdk: 3050;
+  --z-popover: 3100;
+  --z-tooltip: 3200;
+  --z-toast: 4000;
+
+  /* Radius scale.
+     Components should prefer semantic aliases below instead of raw pixels. */
+  --radius-none: 0;
+  --radius-3: 3px;
+  --radius-4: 4px;
+  --radius-5: 5px;
+  --radius-6: 6px;
+  --radius-7: 7px;
+  --radius-8: 8px;
+  --radius-9: 9px;
+  --radius-10: 10px;
+  --radius-11: 11px;
+  --radius-12: 12px;
+  --radius-14: 14px;
+  --radius-20: 20px;
+  --radius-full: 999px;
+
+  --radius-2xs: var(--radius-3);
+  --radius-xs: var(--radius-4);
+  --radius-sm: var(--radius-6);
+  --radius-md: var(--radius-8);
+  --radius-lg: var(--radius-10);
+  --radius-xl: var(--radius-12);
+  --radius-2xl: var(--radius-14);
+  --radius-pill: var(--radius-full);
+
+  /* Semantic radius aliases for enterprise UI surfaces. */
+  --radius-control: var(--radius-md);
+  --radius-field: var(--radius-lg);
+  --radius-card: var(--radius-md);
+  --radius-panel: var(--radius-xl);
+  --radius-popover: var(--radius-xl);
+  --radius-dialog: var(--radius-2xl);
+  --radius-modal: var(--radius-2xl);
+  --radius-drawer: var(--radius-none);
+  --radius-indicator: var(--radius-pill);
+
+  /* Project scrollbar */
+  --scrollbar-size: 8px;
+  --scrollbar-thumb: rgb(var(--color-on-surface-variant-rgb) / 42%);
+  --scrollbar-thumb-hover: rgb(var(--color-on-surface-variant-rgb) / 62%);
+  --scrollbar-track: transparent;
+}
+
+* {
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: var(--radius-pill);
+  background-color: var(--scrollbar-thumb);
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}

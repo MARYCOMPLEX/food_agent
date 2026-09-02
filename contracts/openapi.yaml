@@ -1,0 +1,1870 @@
+openapi: 3.1.0
+info:
+  title: XHS Food Agent API
+  description: 小红书美食智能推荐 Agent — Production API
+  version: 1.0.0
+paths:
+  /v1/search/:
+    post:
+      tags:
+      - search
+      summary: Unified Search
+      description: Single entry point — branches on ``(sessionId, query)`` presence.
+      operationId: unified_search_v1_search__post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UnifiedSearchRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/search/stream/{sessionId}:
+    get:
+      tags:
+      - search
+      summary: Search Stream
+      description: 'Server-sent events with Redis-Stream-backed replay.
+
+
+        The browser''s ``EventSource`` records ``id:`` on every event and sends
+
+        it back as ``Last-Event-ID`` on reconnect. The EventBus replays from
+
+        that id, so the client needs no special reconnection logic.'
+      operationId: search_stream_v1_search_stream__sessionId__get
+      parameters:
+      - name: sessionId
+        in: path
+        required: true
+        schema:
+          type: string
+          description: 会话ID
+          title: Sessionid
+        description: 会话ID
+      - name: sseVersion
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sseversion
+      - name: Last-Event-ID
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Last-Event-Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/search/status/{sessionId}:
+    get:
+      tags:
+      - search
+      summary: Search Status
+      operationId: search_status_v1_search_status__sessionId__get
+      parameters:
+      - name: sessionId
+        in: path
+        required: true
+        schema:
+          type: string
+          description: 会话ID
+          title: Sessionid
+        description: 会话ID
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchStatusResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/search/results/{sessionId}:
+    get:
+      tags:
+      - search
+      summary: Search Results
+      operationId: search_results_v1_search_results__sessionId__get
+      parameters:
+      - name: sessionId
+        in: path
+        required: true
+        schema:
+          type: string
+          description: 会话ID
+          title: Sessionid
+        description: 会话ID
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResultsResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/favorites:
+    get:
+      tags:
+      - favorites
+      summary: Get Favorites
+      description: Get all user's favorites with full restaurant details.
+      operationId: get_favorites_v1_favorites_get
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      - name: X-Device-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Device-Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - favorites
+      summary: Add Favorite
+      description: 'Add a restaurant to favorites.
+
+
+        Requires the restaurant to exist in the restaurants table.'
+      operationId: add_favorite_v1_favorites_post
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      - name: X-Device-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Device-Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FavoriteAddRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FavoriteResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/favorites/{restaurantId}:
+    delete:
+      tags:
+      - favorites
+      summary: Remove Favorite
+      description: Remove a restaurant from favorites.
+      operationId: remove_favorite_v1_favorites__restaurantId__delete
+      parameters:
+      - name: restaurantId
+        in: path
+        required: true
+        schema:
+          type: string
+          description: 餐厅Hash ID (32字符)
+          title: Restaurantid
+        description: 餐厅Hash ID (32字符)
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      - name: X-Device-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Device-Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FavoriteResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/favorites/{restaurantId}/check:
+    get:
+      tags:
+      - favorites
+      summary: Check Favorite
+      description: Check if a restaurant is in favorites.
+      operationId: check_favorite_v1_favorites__restaurantId__check_get
+      parameters:
+      - name: restaurantId
+        in: path
+        required: true
+        schema:
+          type: string
+          description: 餐厅Hash ID (32字符)
+          title: Restaurantid
+        description: 餐厅Hash ID (32字符)
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      - name: X-Device-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Device-Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/user/profile:
+    get:
+      tags:
+      - user
+      summary: Get Profile
+      description: Get current user profile with stats.
+      operationId: get_profile_v1_user_profile_get
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      - name: X-Device-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Device-Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    put:
+      tags:
+      - user
+      summary: Update Profile
+      description: Update user profile.
+      operationId: update_profile_v1_user_profile_put
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      - name: X-Device-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Device-Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserProfileUpdateRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/user/stats/{type}:
+    get:
+      tags:
+      - user
+      summary: Get Stats
+      description: Get detailed stats list.
+      operationId: get_stats_v1_user_stats__type__get
+      parameters:
+      - name: type
+        in: path
+        required: true
+        schema:
+          type: string
+          description: '统计类型: saved, reviews, visited'
+          title: Type
+        description: '统计类型: saved, reviews, visited'
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      - name: X-Device-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Device-Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/user/settings:
+    get:
+      tags:
+      - user
+      summary: Get Settings
+      description: Get complete user settings.
+      operationId: get_settings_v1_user_settings_get
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      - name: X-Device-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Device-Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    put:
+      tags:
+      - user
+      summary: Update Settings Batch
+      description: Batch update settings.
+      operationId: update_settings_batch_v1_user_settings_put
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      - name: X-Device-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Device-Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserSettingsUpdateRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/user/preferences:
+    put:
+      tags:
+      - user
+      summary: Update Preferences
+      description: Update only preferences.
+      operationId: update_preferences_v1_user_preferences_put
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      - name: X-Device-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Device-Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              title: Request
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/user/notifications:
+    put:
+      tags:
+      - user
+      summary: Update Notifications
+      description: Update only notification settings.
+      operationId: update_notifications_v1_user_notifications_put
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      - name: X-Device-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Device-Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              title: Request
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/help/faqs:
+    get:
+      tags:
+      - help
+      summary: Get Faqs
+      description: Get FAQ list.
+      operationId: get_faqs_v1_help_faqs_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /v1/help/feedback:
+    post:
+      tags:
+      - help
+      summary: Submit Feedback
+      description: Submit user feedback.
+      operationId: submit_feedback_v1_help_feedback_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeedbackRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/history:
+    get:
+      tags:
+      - history
+      summary: Get History
+      description: Get search history list.
+      operationId: get_history_v1_history_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          description: 返回数量限制
+          default: 20
+          title: Limit
+        description: 返回数量限制
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          description: 偏移量
+          default: 0
+          title: Offset
+        description: 偏移量
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      - name: X-Device-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Device-Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - history
+      summary: Add History
+      description: Add a search to history.
+      operationId: add_history_v1_history_post
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      - name: X-Device-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Device-Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HistoryAddRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - history
+      summary: Clear History
+      description: Clear all history.
+      operationId: clear_history_v1_history_delete
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      - name: X-Device-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Device-Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/history/{historyId}:
+    delete:
+      tags:
+      - history
+      summary: Delete History Item
+      description: Delete a single history item.
+      operationId: delete_history_item_v1_history__historyId__delete
+      parameters:
+      - name: historyId
+        in: path
+        required: true
+        schema:
+          type: string
+          description: 历史记录ID
+          title: Historyid
+        description: 历史记录ID
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      - name: X-Device-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Device-Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/platform/readiness:
+    get:
+      tags:
+      - platform
+      summary: Platform Readiness
+      operationId: platform_readiness_v1_platform_readiness_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                title: Response Platform Readiness V1 Platform Readiness Get
+  /v1/platform/account-services/{platform}/tools:
+    get:
+      tags:
+      - platform
+      summary: List Account Service Tools
+      description: Expose the refreshed, redacted MCP tool catalog to an agent.
+      operationId: list_account_service_tools_v1_platform_account_services__platform__tools_get
+      parameters:
+      - name: platform
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Platform
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      - name: X-Device-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Device-Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                title: Response List Account Service Tools V1 Platform Account Services  Platform  Tools
+                  Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/platform/account-services/{platform}/tools/{tool_name}:
+    post:
+      tags:
+      - platform
+      summary: Call Account Service Tool
+      description: Call one allow-listed MCP tool with opaque tenant context only.
+      operationId: call_account_service_tool_v1_platform_account_services__platform__tools__tool_name__post
+      parameters:
+      - name: platform
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Platform
+      - name: tool_name
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Tool Name
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      - name: X-Device-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Device-Id
+      requestBody:
+        content:
+          application/json:
+            schema:
+              anyOf:
+              - $ref: '#/components/schemas/AccountServiceToolCallRequest'
+              - type: 'null'
+              title: Body
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                title: Response Call Account Service Tool V1 Platform Account Services  Platform  Tools  Tool
+                  Name  Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/platform/account-services/{platform}/invoke:
+    post:
+      tags:
+      - platform
+      summary: Invoke Account Service Source
+      description: Invoke an account-bound upstream source with tenant context injected.
+      operationId: invoke_account_service_source_v1_platform_account_services__platform__invoke_post
+      parameters:
+      - name: platform
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Platform
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      - name: X-Device-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Device-Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountServiceInvokeRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                title: Response Invoke Account Service Source V1 Platform Account
+                  Services  Platform  Invoke Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/platform/accounts:
+    post:
+      tags:
+      - platform
+      summary: Register Platform Account
+      operationId: register_platform_account_v1_platform_accounts_post
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      - name: X-Device-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Device-Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlatformAccountCreateRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                title: Response Register Platform Account V1 Platform Accounts Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/platform/accounts/{platform}/{account_ref}:
+    get:
+      tags:
+      - platform
+      summary: Get Platform Account
+      operationId: get_platform_account_v1_platform_accounts__platform___account_ref__get
+      parameters:
+      - name: platform
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Platform
+      - name: account_ref
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Account Ref
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      - name: X-Device-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Device-Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                title: Response Get Platform Account V1 Platform Accounts  Platform   Account
+                  Ref  Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/platform/accounts/{platform}/{account_ref}/login/qr:
+    post:
+      tags:
+      - platform
+      summary: Start Qr Login
+      operationId: start_qr_login_v1_platform_accounts__platform___account_ref__login_qr_post
+      parameters:
+      - name: platform
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Platform
+      - name: account_ref
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Account Ref
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency-Key
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      - name: X-Device-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Device-Id
+      requestBody:
+        content:
+          application/json:
+            schema:
+              anyOf:
+              - $ref: '#/components/schemas/PlatformLoginStartRequest'
+              - type: 'null'
+              title: Body
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                title: Response Start Qr Login V1 Platform Accounts  Platform   Account
+                  Ref  Login Qr Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/platform/accounts/{platform}/{account_ref}/login:
+    post:
+      tags:
+      - platform
+      summary: Start Platform Login
+      operationId: start_platform_login_v1_platform_accounts__platform___account_ref__login_post
+      parameters:
+      - name: platform
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Platform
+      - name: account_ref
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Account Ref
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency-Key
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      - name: X-Device-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Device-Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlatformLoginStartRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                title: Response Start Platform Login V1 Platform Accounts  Platform   Account
+                  Ref  Login Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/platform/accounts/{platform}/{account_ref}/login/re-auth:
+    post:
+      tags:
+      - platform
+      summary: Reauthenticate Platform Account
+      operationId: reauthenticate_platform_account_v1_platform_accounts__platform___account_ref__login_re_auth_post
+      parameters:
+      - name: platform
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Platform
+      - name: account_ref
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Account Ref
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency-Key
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      - name: X-Device-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Device-Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlatformReauthRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                title: Response Reauthenticate Platform Account V1 Platform Accounts  Platform   Account
+                  Ref  Login Re Auth Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/platform/login/{flow_id}/poll:
+    post:
+      tags:
+      - platform
+      summary: Poll Platform Login
+      operationId: poll_platform_login_v1_platform_login__flow_id__poll_post
+      parameters:
+      - name: flow_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Flow Id
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency-Key
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      - name: X-Device-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Device-Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                title: Response Poll Platform Login V1 Platform Login  Flow Id  Poll
+                  Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/platform/login/{flow_id}/qr:
+    get:
+      tags:
+      - platform
+      summary: Get Platform Login Qr
+      operationId: get_platform_login_qr_v1_platform_login__flow_id__qr_get
+      parameters:
+      - name: flow_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Flow Id
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      - name: X-Device-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Device-Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                title: Response Get Platform Login Qr V1 Platform Login  Flow Id  Qr
+                  Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/platform/login/{flow_id}/cancel:
+    post:
+      tags:
+      - platform
+      summary: Cancel Platform Login
+      operationId: cancel_platform_login_v1_platform_login__flow_id__cancel_post
+      parameters:
+      - name: flow_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Flow Id
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      - name: X-Device-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Device-Id
+      requestBody:
+        content:
+          application/json:
+            schema:
+              anyOf:
+              - $ref: '#/components/schemas/PlatformCancelRequest'
+              - type: 'null'
+              title: Body
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                title: Response Cancel Platform Login V1 Platform Login  Flow Id  Cancel
+                  Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/platform/login/{flow_id}/status:
+    get:
+      tags:
+      - platform
+      summary: Get Platform Login Status Explicit
+      operationId: get_platform_login_status_explicit_v1_platform_login__flow_id__status_get
+      parameters:
+      - name: flow_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Flow Id
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      - name: X-Device-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Device-Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                title: Response Get Platform Login Status Explicit V1 Platform Login  Flow
+                  Id  Status Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/platform/login/{flow_id}:
+    get:
+      tags:
+      - platform
+      summary: Get Platform Login Status
+      operationId: get_platform_login_status_v1_platform_login__flow_id__get
+      parameters:
+      - name: flow_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Flow Id
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      - name: X-Device-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Device-Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                title: Response Get Platform Login Status V1 Platform Login  Flow
+                  Id  Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /metrics:
+    get:
+      summary: Metrics Endpoint
+      description: Expose Prometheus metrics in the text exposition format.
+      operationId: metrics_endpoint_metrics_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /health:
+    get:
+      summary: Health Check
+      operationId: health_check_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+components:
+  schemas:
+    AccountServiceInvokeRequest:
+      properties:
+        account_ref:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$
+          title: Account Ref
+        capability:
+          type: string
+          maxLength: 128
+          minLength: 1
+          title: Capability
+        correlation_id:
+          type: string
+          maxLength: 128
+          minLength: 1
+          title: Correlation Id
+        query:
+          additionalProperties: true
+          type: object
+          title: Query
+        expected_session_version:
+          anyOf:
+          - type: integer
+            minimum: 1.0
+          - type: 'null'
+          title: Expected Session Version
+        timeout_seconds:
+          type: number
+          maximum: 300.0
+          exclusiveMinimum: 0.1
+          title: Timeout Seconds
+          default: 30.0
+      additionalProperties: false
+      type: object
+      required:
+      - account_ref
+      - capability
+      - correlation_id
+      title: AccountServiceInvokeRequest
+    AccountServiceToolCallRequest:
+      properties:
+        arguments:
+          additionalProperties: true
+          type: object
+          title: Arguments
+      additionalProperties: false
+      type: object
+      title: AccountServiceToolCallRequest
+    FavoriteAddRequest:
+      properties:
+        restaurantId:
+          type: string
+          title: Restaurantid
+          description: 餐厅Hash ID (32字符)
+      type: object
+      required:
+      - restaurantId
+      title: FavoriteAddRequest
+      description: POST /v1/favorites 请求体.
+    FavoriteResponse:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        message:
+          type: string
+          title: Message
+          default: ''
+        isFavorite:
+          type: boolean
+          title: Isfavorite
+          default: false
+      type: object
+      title: FavoriteResponse
+      description: 收藏操作响应.
+    FeedbackRequest:
+      properties:
+        type:
+          type: string
+          title: Type
+          description: '类型: bug, feature, other'
+        content:
+          type: string
+          title: Content
+          description: 反馈内容
+        contact:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Contact
+      type: object
+      required:
+      - type
+      - content
+      title: FeedbackRequest
+      description: POST /v1/help/feedback 请求体.
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    HistoryAddRequest:
+      properties:
+        query:
+          type: string
+          title: Query
+          description: 搜索查询
+        resultsCount:
+          type: integer
+          title: Resultscount
+          description: 结果数量
+          default: 0
+        location:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Location
+          description: 搜索位置
+      type: object
+      required:
+      - query
+      title: HistoryAddRequest
+      description: POST /v1/history 请求体.
+    PlatformAccountCreateRequest:
+      properties:
+        platform:
+          type: string
+          maxLength: 32
+          minLength: 1
+          title: Platform
+        account_ref:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$
+          title: Account Ref
+        alias:
+          type: string
+          maxLength: 128
+          minLength: 1
+          title: Alias
+        permissions:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Permissions
+      additionalProperties: false
+      type: object
+      required:
+      - platform
+      - account_ref
+      - alias
+      title: PlatformAccountCreateRequest
+    PlatformCancelRequest:
+      properties:
+        reason:
+          anyOf:
+          - type: string
+            maxLength: 128
+          - type: 'null'
+          title: Reason
+      additionalProperties: false
+      type: object
+      title: PlatformCancelRequest
+    PlatformLoginStartRequest:
+      properties:
+        mode:
+          type: string
+          maxLength: 16
+          minLength: 1
+          title: Mode
+          default: qr
+        credential_ref:
+          anyOf:
+          - type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$
+          - type: 'null'
+          title: Credential Ref
+        idempotency_key:
+          anyOf:
+          - type: string
+            maxLength: 128
+            minLength: 1
+          - type: 'null'
+          title: Idempotency Key
+      additionalProperties: false
+      type: object
+      title: PlatformLoginStartRequest
+    PlatformReauthRequest:
+      properties:
+        mode:
+          type: string
+          maxLength: 16
+          minLength: 1
+          title: Mode
+          default: qr
+        credential_ref:
+          anyOf:
+          - type: string
+            maxLength: 128
+            minLength: 1
+            pattern: ^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$
+          - type: 'null'
+          title: Credential Ref
+        idempotency_key:
+          anyOf:
+          - type: string
+            maxLength: 128
+            minLength: 1
+          - type: 'null'
+          title: Idempotency Key
+      additionalProperties: false
+      type: object
+      title: PlatformReauthRequest
+      description: Re-authentication command; raw phone/cookie values are not fields.
+    SearchResultsResponse:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        data:
+          additionalProperties: true
+          type: object
+          title: Data
+      type: object
+      title: SearchResultsResponse
+      description: GET /v1/search/results/{sessionId} 响应体.
+    SearchStatusResponse:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        data:
+          additionalProperties: true
+          type: object
+          title: Data
+      type: object
+      title: SearchStatusResponse
+      description: GET /v1/search/status/{sessionId} 响应体.
+    UnifiedSearchRequest:
+      properties:
+        query:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Query
+          description: 搜索查询（新查询/追问时必填）
+        sessionId:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sessionid
+          description: 会话ID（复用现有会话时填写）
+        location:
+          anyOf:
+          - additionalProperties:
+              type: number
+            type: object
+          - type: 'null'
+          title: Location
+          description: 位置坐标 {lat, lng}
+      type: object
+      title: UnifiedSearchRequest
+      description: 'POST /v1/search 统一请求体.
+
+
+        智能判断操作类型：
+
+        - 无 sessionId → 新查询（必须有 query）
+
+        - 有 sessionId + query → 追问/继续对话
+
+        - 有 sessionId + 无 query → 恢复历史会话'
+    UserProfileUpdateRequest:
+      properties:
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+        username:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Username
+        email:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Email
+        location:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Location
+      type: object
+      title: UserProfileUpdateRequest
+      description: PUT /v1/user/profile 请求体.
+    UserSettingsUpdateRequest:
+      properties:
+        notifications:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Notifications
+        privacy:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Privacy
+        preferences:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Preferences
+      type: object
+      title: UserSettingsUpdateRequest
+      description: PUT /v1/user/settings 请求体 (批量更新).
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
