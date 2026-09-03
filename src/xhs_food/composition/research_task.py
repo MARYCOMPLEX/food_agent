@@ -1,4 +1,4 @@
-"""Legacy ResearchTask facade assembled only by the Composition Root."""
+"""HTTP task facade assembled only by the Composition Root."""
 
 from __future__ import annotations
 
@@ -10,8 +10,8 @@ from typing import Any, cast
 
 from loguru import logger
 
-from api.search import state as legacy_state
-from api.search import tasks as legacy_tasks
+from api.search import state as search_state
+from api.search import tasks as search_tasks
 from xhs_food.contracts import (
     AgentToolExecutionContext,
     ContextMessage,
@@ -34,8 +34,8 @@ TaskRunner = Callable[
 TaskSpawner = Callable[[Coroutine[Any, Any, None]], object]
 
 
-class LegacyResearchTaskFacade:
-    """Keep the frozen API policy while delegating execution to legacy modules."""
+class ResearchTaskFacade:
+    """Expose task lifecycle while delegating execution to the active Agent."""
 
     def __init__(
         self,
@@ -57,7 +57,7 @@ class LegacyResearchTaskFacade:
         tool_context: AgentToolExecutionContext | None = None,
     ) -> ResearchTaskAdmission:
         session_id = self._session_id_factory()
-        await legacy_state.update_state(
+        await search_state.update_state(
             session_id,
             status="loading",
             query=query,
@@ -97,12 +97,12 @@ class LegacyResearchTaskFacade:
         *,
         tool_context: AgentToolExecutionContext | None = None,
     ) -> ResearchTaskAdmission:
-        state = await legacy_state.load_state(session_id)
+        state = await search_state.load_state(session_id)
         if state is None:
             state = await self._restore_state_from_storage(session_id)
 
         turn_id = (state.get("turn_id") or 1) + 1
-        await legacy_state.update_state(
+        await search_state.update_state(
             session_id,
             status="loading",
             query=query,
@@ -123,12 +123,12 @@ class LegacyResearchTaskFacade:
         return self._admission(session_id, ResearchOperation.REFINE, turn_id=turn_id)
 
     async def recover(self, session_id: str) -> ContractPayload:
-        return await legacy_tasks.build_recovery_payload(
+        return await search_tasks.build_recovery_payload(
             session_id, result_mapper=self._result_mapper
         )
 
     async def status(self, session_id: str) -> ContractPayload | None:
-        state = await legacy_state.load_state(session_id)
+        state = await search_state.load_state(session_id)
         if state is None:
             return None
         emitter = await get_emitter(session_id)
@@ -142,7 +142,7 @@ class LegacyResearchTaskFacade:
         )
 
     async def results(self, session_id: str) -> ContractPayload | None:
-        state = await legacy_state.load_state(session_id)
+        state = await search_state.load_state(session_id)
         if state is None:
             return None
         return self._result_mapper.to_http_results(session_id, state)
@@ -156,7 +156,7 @@ class LegacyResearchTaskFacade:
         if self._task_runner is not None:
             run = self._task_runner(session_id, query, tool_context)
         else:
-            run = legacy_tasks.run_stream_search(
+            run = search_tasks.run_stream_search(
                 session_id,
                 query,
                 result_mapper=self._result_mapper,
@@ -182,7 +182,7 @@ class LegacyResearchTaskFacade:
             raise ResearchTaskNotFoundError("Session not found")
 
         all_results = await storage.get_all_search_results(session_id)
-        state = await legacy_state.update_state(
+        state = await search_state.update_state(
             session_id,
             status="completed",
             query=first_result.get("query", ""),
@@ -202,7 +202,7 @@ class LegacyResearchTaskFacade:
             for restaurant in first_result.get("restaurants", [])
             if restaurant.get("name")
         )
-        orchestrator = legacy_state.get_orchestrator(session_id)
+        orchestrator = search_state.get_orchestrator(session_id)
         orchestrator.restore_context(
             ResearchContextSnapshot(
                 messages=messages,
@@ -218,4 +218,4 @@ class LegacyResearchTaskFacade:
         return state
 
 
-__all__ = ["LegacyResearchTaskFacade"]
+__all__ = ["ResearchTaskFacade"]

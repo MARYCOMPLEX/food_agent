@@ -40,8 +40,6 @@ class User:
     id: str
     device_id: Optional[str] = None
     name: str = "Guest"
-    device_id: Optional[str] = None
-    name: str = "Guest"
     username: Optional[str] = None
     email: Optional[str] = None
     avatar: Optional[str] = None
@@ -53,7 +51,6 @@ class User:
     def to_dict(self) -> Dict[str, Any]:
         return {
             "id": self.id,
-            "deviceId": self.device_id,
             "deviceId": self.device_id,
             "name": self.name,
             "username": self.username,
@@ -117,6 +114,7 @@ class Restaurant:
     address: Optional[str] = None
     city: Optional[str] = None
     district: Optional[str] = None
+    region: Optional[str] = None
     business_area: Optional[str] = None
     location: Optional[str] = None  # lat,lng
     rating: Optional[float] = None
@@ -131,8 +129,28 @@ class Restaurant:
     must_try: List[Dict[str, str]] = field(default_factory=list)
     black_list: List[Dict[str, str]] = field(default_factory=list)
     stats: Dict[str, str] = field(default_factory=dict)
-    photos: List[Dict[str, str]] = field(default_factory=list)
+    photos: List[Any] = field(default_factory=list)
     source_notes: List[str] = field(default_factory=list)
+    provider_refs: Dict[str, str] = field(default_factory=dict)
+    profile_url: Optional[str] = None
+    source_url: Optional[str] = None
+    image_url: Optional[str] = None
+    category: Optional[str] = None
+    review_count: Optional[int] = None
+    average_price: Optional[float] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    coordinate_system: Optional[str] = None
+    geo: Dict[str, Any] = field(default_factory=dict)
+    recommended_dishes: List[str] = field(default_factory=list)
+    promotions: List[Any] = field(default_factory=list)
+    profile_metadata: Dict[str, Any] = field(default_factory=dict)
+    review_completeness: Dict[str, Any] = field(default_factory=dict)
+    profile_gaps: List[Dict[str, Any]] = field(default_factory=list)
+    source_payload: Any = None
+    source_updated_at: Optional[datetime] = None
+    profile_fetched_at: Optional[datetime] = None
+    profile_refresh_status: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -146,6 +164,7 @@ class Restaurant:
             "location": self.location,
             "city": self.city,
             "district": self.district,
+            "region": self.region,
             "businessArea": self.business_area,
             "tel": self.tel,
             "rating": self.rating,
@@ -159,6 +178,30 @@ class Restaurant:
             "warning": self.warning,
             "photos": self.photos,
             "sourceNotes": self.source_notes,
+            "providerRefs": self.provider_refs,
+            "profileUrl": self.profile_url,
+            "sourceUrl": self.source_url,
+            "imageUrl": self.image_url,
+            "category": self.category,
+            "reviewCount": self.review_count,
+            "averagePrice": self.average_price,
+            "latitude": self.latitude,
+            "longitude": self.longitude,
+            "coordinateSystem": self.coordinate_system,
+            "geo": self.geo,
+            "recommendedDishes": self.recommended_dishes,
+            "promotions": self.promotions,
+            "profileMetadata": self.profile_metadata,
+            "reviewCompleteness": self.review_completeness,
+            "profileGaps": self.profile_gaps,
+            "sourcePayload": self.source_payload,
+            "sourceUpdatedAt": self.source_updated_at.isoformat()
+            if self.source_updated_at
+            else None,
+            "profileFetchedAt": self.profile_fetched_at.isoformat()
+            if self.profile_fetched_at
+            else None,
+            "profileRefreshStatus": self.profile_refresh_status,
             "mustTry": self.must_try,
             "blackList": self.black_list,
             "stats": self.stats,

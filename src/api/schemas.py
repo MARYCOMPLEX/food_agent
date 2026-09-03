@@ -6,7 +6,9 @@ API Schemas - Pydantic 请求/响应模型.
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from xhs_food.contracts import PlatformChannel
 
 # =============================================================================
 # Loading Steps
@@ -26,16 +28,6 @@ class LoadingStep(BaseModel):
 # =============================================================================
 
 
-class SearchStartRequest(BaseModel):
-    """POST /v1/search/start 请求体.
-
-    [DEPRECATED] 建议使用 POST /v1/search 统一接口。
-    """
-
-    query: str = Field(..., description="搜索查询")
-    location: dict[str, float] | None = Field(None, description="位置坐标 {lat, lng}")
-
-
 class UnifiedSearchRequest(BaseModel):
     """POST /v1/search 统一请求体.
 
@@ -49,8 +41,11 @@ class UnifiedSearchRequest(BaseModel):
     sessionId: str | None = Field(None, description="会话ID（复用现有会话时填写）")
     location: dict[str, float] | None = Field(None, description="位置坐标 {lat, lng}")
     platforms: list[str] = Field(
-        default_factory=lambda: ["xhs_pc"],
-        description="本次允许使用的 MCP 平台",
+        default_factory=lambda: [
+            PlatformChannel.XHS_PC.value,
+            PlatformChannel.DIANPING.value,
+        ],
+        description="本次允许使用的 MCP 平台；默认先取 XHS 评论，再用点评补充店铺档案",
     )
     accountRefs: dict[str, str] = Field(
         default_factory=dict,
@@ -61,9 +56,19 @@ class UnifiedSearchRequest(BaseModel):
         description="按平台固定的账户会话版本",
     )
 
+    @field_validator("platforms")
+    @classmethod
+    def validate_platforms(cls, values: list[str]) -> list[str]:
+        if not values:
+            raise ValueError("platforms must contain at least one MCP platform")
+        normalized = [PlatformChannel(value).value for value in values]
+        if len(normalized) != len(set(normalized)):
+            raise ValueError("platforms must not contain duplicates")
+        return normalized
+
 
 class SearchStartResponse(BaseModel):
-    """POST /v1/search/start 响应体."""
+    """POST /v1/search/ response envelope."""
 
     success: bool = True
     data: dict[str, Any] = Field(default_factory=dict)
@@ -74,13 +79,6 @@ class SearchStatusResponse(BaseModel):
 
     success: bool = True
     data: dict[str, Any] = Field(default_factory=dict)
-
-
-class RefineRequest(BaseModel):
-    """POST /v1/search/refine 请求体."""
-
-    sessionId: str = Field(..., description="会话ID")
-    query: str = Field(..., description="追问查询")
 
 
 # =============================================================================

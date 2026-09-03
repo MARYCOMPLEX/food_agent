@@ -22,12 +22,10 @@ __all__ = [
     "FoodSearchIntent",
     "XHSFoodResponse",
     "RestaurantRecommendation",
-    "SearchPhase",
     "CommentWeight",
     "CrossValidationResult",
     "RecommendationLevel",
     "WanghongScore",
-    "FollowUpType",
     "ConversationContext",
 ]
 
@@ -37,12 +35,10 @@ _EXPORT_MODULES = {
     "FoodSearchIntent": "xhs_food.schemas",
     "XHSFoodResponse": "xhs_food.schemas",
     "RestaurantRecommendation": "xhs_food.schemas",
-    "SearchPhase": "xhs_food.schemas",
     "CommentWeight": "xhs_food.schemas",
     "CrossValidationResult": "xhs_food.schemas",
     "RecommendationLevel": "xhs_food.schemas",
     "WanghongScore": "xhs_food.schemas",
-    "FollowUpType": "xhs_food.schemas",
     "ConversationContext": "xhs_food.schemas",
 }
 

@@ -203,7 +203,7 @@ onUnmounted(() => {
             <StatusBadge status="ready" size="sm" />
           </div>
           <p class="text-xs text-[var(--color-text-secondary)]">
-            负责餐厅 POI 详情、营业时间与避雷交叉核验。
+            负责从大众点评补充店铺身份、位置、图片、菜品与营业信息。
           </p>
           <div class="text-[11px] text-[var(--color-text-tertiary)] font-mono">
             channel: dianping · schema: v1.0

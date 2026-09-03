@@ -2,7 +2,7 @@
 """Food category mapping (single source of truth).
 
 Replaces duplicated CATEGORY_MAPPING definitions previously found in
-``agents/intent_parser.py`` and ``orchestrator/follow_up.py``.
+``agents/intent_parser.py`` and the comment-first research workflow.
 """
 from __future__ import annotations
 

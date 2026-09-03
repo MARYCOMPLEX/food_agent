@@ -388,7 +388,7 @@
       },
       "type": "array",
       "title": "Platforms",
-      "description": "本次允许使用的 MCP 平台"
+      "description": "本次允许使用的 MCP 平台；默认先取 XHS 评论，再用点评补充店铺档案"
     },
     "accountRefs": {
       "additionalProperties": {

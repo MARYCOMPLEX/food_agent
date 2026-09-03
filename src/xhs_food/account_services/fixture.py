@@ -34,6 +34,8 @@ def create_fixture_app(
     accounts: dict[tuple[str, str, str], dict[str, Any]] = {}
     flows: dict[str, dict[str, Any]] = {}
     flow_numbers = itertools.count(1)
+    xhs_enabled = any(item.value.startswith("xhs_") for item in channels)
+    dianping_enabled = PlatformChannel.DIANPING in channels
 
     def now() -> datetime:
         return datetime.now(UTC)
@@ -63,7 +65,14 @@ def create_fixture_app(
                 "contract_version": ACCOUNT_SERVICE_CONTRACT_VERSION,
                 "protocol": "http+mcp",
                 "platform_channels": [item.value for item in channels],
-                "capabilities": ["account.register", "account.read", "account.login", "source.invoke", "notes.search", "place.lookup"],
+                "capabilities": [
+                    "account.register",
+                    "account.read",
+                    "account.login",
+                    "source.invoke",
+                    *(["notes.search", "notes.detail", "comments.search"] if xhs_enabled else []),
+                    *(["places.search", "places.detail", "reviews.search"] if dianping_enabled else []),
+                ],
                 "login_modes": ["qr", "credential"],
                 "expires_at": (now() + timedelta(minutes=5)).isoformat(),
                 "refreshed_at": now().isoformat(),
@@ -189,12 +198,39 @@ def create_fixture_app(
                 "serverInfo": {"name": service_id, "version": "fixture-v1"},
             }
         elif method == "tools/list":
+            tools = [
+                {
+                    "name": "notes.search",
+                    "description": "Read Xiaohongshu notes with comments",
+                    "capability": "notes.search",
+                    "inputSchema": {"type": "object"},
+                    "side_effect": "read_only",
+                },
+                {
+                    "name": "account.login",
+                    "description": "Start account login",
+                    "capability": "account.login",
+                    "inputSchema": {"type": "object"},
+                    "side_effect": "account_login",
+                },
+            ]
+            if dianping_enabled:
+                tools.extend(
+                    {
+                        "name": name,
+                        "description": description,
+                        "capability": name,
+                        "inputSchema": {"type": "object"},
+                        "side_effect": "read_only",
+                    }
+                    for name, description in (
+                        ("places.search", "Read Dianping shop search results"),
+                        ("places.detail", "Read Dianping shop details"),
+                        ("reviews.search", "Read Dianping shop reviews"),
+                    )
+                )
             result = {
-                "tools": [
-                    {"name": "notes.search", "description": "Read notes", "capability": "notes.search", "inputSchema": {"type": "object"}, "side_effect": "read_only"},
-                    {"name": "account.login", "description": "Start account login", "capability": "account.login", "inputSchema": {"type": "object"}, "side_effect": "account_login"},
-                    {"name": "provider.publish", "description": "Not enabled", "capability": "provider.publish", "inputSchema": {"type": "object"}, "side_effect": "publish"},
-                ]
+                "tools": tools
             }
         elif method == "tools/call":
             params: dict[str, Any] = {}

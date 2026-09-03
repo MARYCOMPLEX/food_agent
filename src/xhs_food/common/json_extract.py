@@ -3,7 +3,7 @@
 
 LLMs frequently wrap JSON in markdown code fences or prose. This helper
 centralizes the parsing strategies previously duplicated across
-``intent_parser``, ``analyzer`` and ``follow_up``.
+``intent_parser`` and ``analyzer``.
 """
 from __future__ import annotations
 

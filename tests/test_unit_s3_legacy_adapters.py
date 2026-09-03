@@ -11,14 +11,12 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from pydantic import SecretStr
 
-from xhs_food.agents.poi_enricher import POIEnricherAgent
 from xhs_food.composition.adapters import (
     DisabledPublicEvidenceRepository,
     LegacyEventBusAdapter,
     LegacyFavoritesRepositoryAdapter,
     LegacyHistoryRepositoryAdapter,
     LegacyLLMProviderAdapter,
-    LegacyPlaceCacheRepositoryAdapter,
     LegacySearchResultRepositoryAdapter,
     LegacySessionRepositoryAdapter,
     LegacySessionWindowAdapter,
@@ -448,68 +446,3 @@ async def test_legacy_session_window_and_disabled_public_evidence_contracts() ->
 
     with pytest.raises(TargetAdapterDisabled, match="public-evidence-repository"):
         await evidence.get_bundle("bundle-1")
-
-
-@pytest.mark.unit
-async def test_poi_cache_query_stays_inside_repository_owner(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    class Connection:
-        def __init__(self) -> None:
-            self.calls: list[tuple[str, tuple[Any, ...]]] = []
-
-        async def fetchrow(self, statement: str, *arguments: Any) -> object | None:
-            self.calls.append((" ".join(statement.split()), arguments))
-            if len(self.calls) == 1:
-                return None
-            return {"id": "restaurant-1", "name": "Fixture Restaurant"}
-
-    class Acquire:
-        def __init__(self, connection: Connection) -> None:
-            self.connection = connection
-
-        async def __aenter__(self) -> Connection:
-            return self.connection
-
-        async def __aexit__(self, *_args: Any) -> None:
-            return None
-
-    class Pool:
-        def __init__(self, connection: Connection) -> None:
-            self.connection = connection
-
-        def acquire(self) -> Acquire:
-            return Acquire(self.connection)
-
-    connection = Connection()
-    repository = RepositoryMixin()
-    setattr(repository, "_initialized", True)
-    setattr(repository, "_pool", Pool(connection))
-
-    cached = await repository.get_cached_restaurant_by_name("Fixture")
-
-    assert cached == {"id": "restaurant-1", "name": "Fixture Restaurant"}
-    assert connection.calls[0][1] == ("Fixture",)
-    assert connection.calls[1][1] == ("Fixture%", "%Fixture")
-    assert "WHERE name = $1" in connection.calls[0][0]
-    assert "name ILIKE $1 OR name ILIKE $2" in connection.calls[1][0]
-
-    class PublicStorage:
-        def __init__(self) -> None:
-            self.names: list[str] = []
-
-        async def get_cached_restaurant_by_name(self, name: str) -> dict[str, str]:
-            self.names.append(name)
-            return {"id": "restaurant-2"}
-
-    public_storage = PublicStorage()
-
-    async def get_storage() -> PublicStorage:
-        return public_storage
-
-    cache = LegacyPlaceCacheRepositoryAdapter(get_storage)
-    agent = POIEnricherAgent()
-    agent.configure_place_cache(cache)
-
-    assert await agent._get_cached_poi("Public Fixture") == {"id": "restaurant-2"}
-    assert public_storage.names == ["Public Fixture"]

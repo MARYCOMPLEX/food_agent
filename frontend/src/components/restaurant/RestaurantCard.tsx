@@ -30,8 +30,12 @@ const MID_SCORE_THRESHOLD = 0.4
 const SPRING_EXPAND = { type: 'spring' as const, stiffness: 300, damping: 28, mass: 0.8 }
 
 function pickCover(r: Restaurant): string | null {
-  const poiPhoto = r.poi_details?.photos?.[0]
-  if (poiPhoto) return poiPhoto
+  const profile = r.shopProfile
+  const profilePhoto = profile?.imageUrl
+    ?? profile?.images?.map((item) =>
+      typeof item === 'string' ? item : item.url ?? item.image_url ?? item.src,
+    ).find(Boolean)
+  if (profilePhoto) return profilePhoto
   const mustTryImg = r.mustTry.find((m) => m.img)?.img
   return mustTryImg ?? null
 }
@@ -201,17 +205,17 @@ function BlackListBlock({ items }: BlackListBlockProps) {
   )
 }
 
-interface POIBlockProps {
-  poi: Restaurant['poi_details']
+interface ShopProfileBlockProps {
+  profile: Restaurant['shopProfile']
 }
 
-function POIBlock({ poi }: POIBlockProps) {
-  if (!poi) return null
+function ShopProfileBlock({ profile }: ShopProfileBlockProps) {
+  if (!profile) return null
   const items = [
-    { icon: MapPin, text: poi.address },
-    { icon: Phone, text: poi.tel },
-    { icon: ClockIcon, text: poi.opentime },
-    { icon: Star, text: poi.rating ? `评分 ${poi.rating}` : undefined },
+    { icon: MapPin, text: profile.address },
+    { icon: Phone, text: profile.phone },
+    { icon: ClockIcon, text: profile.openingHours },
+    { icon: Star, text: profile.rating ? `评分 ${profile.rating}` : undefined },
   ].filter((i): i is { icon: typeof MapPin; text: string } => Boolean(i.text))
 
   if (!items.length) return null
@@ -324,7 +328,7 @@ export function RestaurantCard({ restaurant: r, index = 0 }: RestaurantCardProps
                 <MustTryBlock items={r.mustTry} />
                 <BlackListBlock items={r.blackList} />
                 <StatsBar stats={r.stats} />
-                <POIBlock poi={r.poi_details} />
+                <ShopProfileBlock profile={r.shopProfile} />
                 {r.source_notes.length > 0 && (
                   <p className="text-[11px] text-muted-foreground pt-0.5">
                     来源 · {r.source_notes.length} 篇小红书笔记

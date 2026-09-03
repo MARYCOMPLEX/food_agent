@@ -28,7 +28,14 @@ async def test_fixture_supports_isolated_qr_flow_and_mcp_discovery() -> None:
         service_id="xhs-fixture",
         base_url="http://fixture.test",
         channels=(PlatformChannel.XHS_PC, PlatformChannel.XHS_CREATOR),
-        capabilities=("account.register", "account.read", "account.login", "notes.search", "place.lookup"),
+        capabilities=(
+            "account.register",
+            "account.read",
+            "account.login",
+            "notes.search",
+            "notes.detail",
+            "comments.search",
+        ),
     )
     async with httpx.AsyncClient(transport=transport, base_url="http://fixture.test") as http_client:
         client = HttpAccountServiceClient(config, client=http_client)

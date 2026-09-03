@@ -11,14 +11,10 @@ from pydantic_ai.models.test import TestModel
 
 from api.deps import get_current_user_id
 from api.platform import router as platform_router
-from xhs_food.composition import build_legacy_composition_root
+from xhs_food.composition import build_composition_root
 from xhs_food.composition.agent_tools import (
     AccountServiceAgentToolCatalog,
     build_agent_tool_policy,
-)
-from xhs_food.composition.managed_search import (
-    ManagedMcpSearchTool,
-    bind_managed_search_context,
 )
 from xhs_food.contracts import (
     AgentDependencies,
@@ -309,39 +305,6 @@ async def test_catalog_normalizes_standard_text_json_content() -> None:
     await catalog.release(snapshot.snapshot_ref)
 
 
-@pytest.mark.asyncio
-async def test_food_search_uses_managed_snapshot_and_never_falls_back() -> None:
-    registry = _Registry()
-    catalog = AccountServiceAgentToolCatalog(registry, _policy())  # type: ignore[arg-type]
-    search = ManagedMcpSearchTool(catalog, catalog)
-
-    missing = await search.execute(
-        keyword="自贡",
-        count=10,
-        sort_type="most_comments",
-        include_details=True,
-        include_comments=True,
-    )
-    assert missing.success is False
-    assert missing.error_message == "MANAGED_SEARCH_CONTEXT_MISSING"
-    assert registry.calls == []
-
-    with bind_managed_search_context(_context()):
-        result = await search.execute(
-            keyword="自贡",
-            count=10,
-            sort_type="most_comments",
-            include_details=True,
-            include_comments=True,
-        )
-        assert await search.health() is True
-
-    assert result.success is True
-    assert result.data == {"notes": []}
-    assert registry.calls[-1][0] is PlatformChannel.XHS_PC
-    assert registry.calls[-1][2]["keyword"] == "自贡"
-
-
 class _StaticGateway:
     def __init__(self) -> None:
         self.calls: list[str] = []
@@ -432,7 +395,7 @@ async def test_runtime_exposes_and_routes_native_managed_tool() -> None:
 
 @pytest.mark.asyncio
 async def test_composition_binds_catalog_only_for_explicit_policy() -> None:
-    disabled = build_legacy_composition_root(target_settings=TargetSettings(_env_file=None))
+    disabled = build_composition_root(target_settings=TargetSettings(_env_file=None))
     assert "agent_tool_catalog" not in disabled.logical_bindings
     await disabled.close()
 
@@ -448,7 +411,7 @@ async def test_composition_binds_catalog_only_for_explicit_policy() -> None:
             '"allowed_capabilities":["notes.search"]}'
         ),
     )
-    root = build_legacy_composition_root(target_settings=settings)
+    root = build_composition_root(target_settings=settings)
     assert "agent_tool_catalog" in root.logical_bindings
     resolved = await root.resolve_logical("agent_tool_catalog")
     assert isinstance(resolved, AccountServiceAgentToolCatalog)

@@ -8,7 +8,7 @@ const DEFAULT_PIPELINE: PipelineStep[] = [
   { id: 'xhs_search', label: '搜索小红书笔记', status: 'pending' },
   { id: 'comment_analysis', label: '分析评论内容', status: 'pending' },
   { id: 'cross_validation', label: '交叉验证店铺', status: 'pending' },
-  { id: 'poi_enrichment', label: '获取地址信息', status: 'pending' },
+  { id: 'shop_profile_enrichment', label: '补充大众点评店铺档案', status: 'pending' },
   { id: 'result_generation', label: '生成推荐结果', status: 'pending' },
 ]
 

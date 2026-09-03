@@ -11,7 +11,7 @@ const defaultStepLabels: Record<string, string> = {
   search: '🔍 笔记检索：抓取小红书与大众点评真实内容',
   analyzer: '📊 口碑分析：识别网红套路与本地人真实好评',
   verifier: '🛡️ 交叉核验：多源比对价格、营业状态与避雷项',
-  poi_enricher: '📍 POI 补充：补齐地址、电话与经纬度坐标',
+  shop_profile_enrichment: '📍 大众点评档案：补齐地址、菜品、图片与营业信息',
 }
 
 function getStepLabel(step: LoadingStep): string {

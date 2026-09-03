@@ -1,4 +1,4 @@
-"""Pure projection from internal task events to the legacy SSE contract."""
+"""Pure projection from internal task events to the stable SSE contract."""
 
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ _STEP_ALIASES: Final[Mapping[str, str]] = MappingProxyType(
         "cross_validation": "step4",
         "step5": "step5",
         "entity_enrichment": "step5",
-        "poi_enrichment": "step5",
+        "shop_profile_enrichment": "step5",
         "step6": "step6",
         "result_generation": "step6",
     }
@@ -127,7 +127,7 @@ _EVENT_DISPATCH: Final[Mapping[str, _PayloadMapper]] = MappingProxyType(
 
 
 class StableEventMapper:
-    """Map internal events to the unchanged legacy SSE vocabulary and payload."""
+    """Map internal events to the stable SSE vocabulary and payload."""
 
     def map(self, event: TaskEvent) -> StableEvent:
         try:

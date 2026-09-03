@@ -8,7 +8,7 @@ const STEP_ICONS: Record<string, typeof Target> = {
   xhs_search: BookOpen,
   comment_analysis: MessageSquare,
   cross_validation: CheckCheck,
-  poi_enrichment: MapPin,
+  shop_profile_enrichment: MapPin,
   result_generation: UtensilsCrossed,
 }
 

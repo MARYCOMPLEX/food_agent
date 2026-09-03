@@ -48,7 +48,7 @@ def test_compatibility_ledger_is_explicitly_evidence_gated() -> None:
         "src/xhs_food/schemas/__init__.py",
         "src/xhs_food/services/__init__.py",
         "src/xhs_food/agents/__init__.py",
-        "src/xhs_food/composition/legacy_research_task.py",
+        "src/xhs_food/composition/research_task.py",
         "src/xhs_food/composition/adapters/repositories.py",
         "src/xhs_food/services/user_storage/schema.py",
         "src/xhs_food/services/postgres_storage.py",

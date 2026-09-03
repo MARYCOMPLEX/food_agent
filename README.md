@@ -18,7 +18,7 @@
 
 ---
 
-*一个基于 LLM 的智能美食推荐系统，通过分析小红书社区真实用户评论，*  
+*一个基于 LLM 的智能美食推荐系统，通过分析小红书评论证据，*
 *识别本地人推荐的隐藏美食，过滤网红流量店，帮你找到真正值得打卡的美食。*
 
 <br/>
@@ -49,7 +49,7 @@
 
 - ✅ AI 智能分析评论，识别本地人口碑店
 - ✅ 多维度信任评分，自动过滤营销内容
-- ✅ 4 阶段搜索策略，挖掘隐藏美食
+- ✅ 评论优先取证，再用大众点评补齐店铺资料
 - ✅ 一句话搜索，秒出靠谱推荐
 
 </td>
@@ -65,7 +65,8 @@
 <td width="50%">
 
 ### 🧠 智能分析引擎
-- **4阶段搜索策略** — 广撒网、挖隐藏、定向验证、细分搜索
+- **评论优先取证** — 从小红书评论中的纠正、争议和本地人线索发现候选店
+- **店铺档案补全** — 通过大众点评店铺档案补充地址、坐标、图片、菜品和活动
 - **评论权重系统** — 识别本地人 vs 游客的真实评价
 - **网红店过滤** — 自动识别并过滤过度营销内容
 
@@ -91,7 +92,7 @@
 <td width="50%">
 
 ### 🔧 灵活配置
-- **多 LLM 支持** — SiliconFlow / OpenAI / DeepSeek
+- **OpenAI-compatible LLM** — 可选择 gpt-5.6-sol 等受控模型
 - **独立 Embedding** — 可配置专用向量模型
 - **明确失败语义** — MCP、策略或账号上下文缺失时 fail-closed
 
@@ -158,7 +159,7 @@ Spider、签名器、浏览器登录、Cookie 或本地 provider。
 │         ▼                  ▼    ▼                     ▼              │
 │  ┌─────────────┐   ┌───────────────────────────┐  ┌───────────────┐ │
 │  │   Redis     │   │      PostgreSQL           │  │  LLM Service  │ │
-│  │ (L1 Cache)  │   │  + pgvector (L2 Storage)  │  │ (SiliconFlow) │ │
+│  │ (L1 Cache)  │   │  + pgvector (L2 Storage)  │  │ (OpenAI-compatible) │ │
 │  └─────────────┘   └───────────────────────────┘  └───────────────┘ │
 │         ┌────────────────────────────┴───────────────────────┐    │
 │         ▼                                                    ▼    │
@@ -169,15 +170,20 @@ Spider、签名器、浏览器登录、Cookie 或本地 provider。
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-### 多 Agent 协作流程
+### Agent 内部流程
 
 ```mermaid
 flowchart LR
-    A[用户查询] --> B[IntentParser<br/>意图解析]
-    B --> C[Managed MCP Tool<br/>账号绑定采集]
-    C --> D[Analyzer<br/>评论分析]
-    D --> E[POIEnricher<br/>信息补充]
-    E --> F[推荐结果]
+    A[用户消息 + 完整会话上下文] --> B[IntentParser]
+    B --> C[XHS Comment Lead Collector]
+    C --> D[Evidence Ledger<br/>canonical lifecycle]
+    C --> E[Analyzer<br/>争议/本地人/菜品线索]
+    E --> F[Decision Policy<br/>候选排序与过滤]
+    F --> G[Shop Profile Service<br/>freshness/cache]
+    G --> H[Dianping Shop Enricher]
+    H --> I[Shop Profile Repository<br/>restaurants]
+    E --> J[Response + evidence refs]
+    I --> J
 ```
 
 ---
@@ -205,7 +211,7 @@ Agent 原生工具另有一层默认拒绝的应用策略
 
 ```dotenv
 MODULAR_ACCOUNT_SERVICES_JSON='[{"service_id":"xhs-account","base_url":"http://XHS_HOST","mcp_url":"http://XHS_HOST/mcp","protocol":"http+mcp","channels":["xhs_pc","xhs_creator"]},{"service_id":"dianping-account","base_url":"http://DP_HOST","mcp_url":"http://DP_HOST/mcp","protocol":"http+mcp","channels":["dianping"]}]'
-MODULAR_AGENT_MCP_TOOL_POLICY_JSON='{"enabled":true,"allowed_platforms":["xhs_pc","dianping"],"allowed_capabilities":["notes.search","place.lookup","reviews.search"]}'
+MODULAR_AGENT_MCP_TOOL_POLICY_JSON='{"enabled":true,"allowed_platforms":["xhs_pc","dianping"],"allowed_capabilities":["notes.search","notes.detail","comments.search","places.search","places.detail","reviews.search"]}'
 ```
 
 应用启动时刷新远端 descriptor 和 `tools/list`。`GET /v1/platform/readiness`
@@ -296,8 +302,8 @@ uv run pytest -q -m "not live"
 ### 搜索接口
 
 ```bash
-# 普通搜索
-curl -X POST http://localhost:8000/v1/search/start \
+# 新建会话
+curl -X POST http://localhost:8000/v1/search/ \
   -H "Content-Type: application/json" \
   -d '{"query": "成都本地人常去的老火锅"}'
 
@@ -308,11 +314,13 @@ curl -N "http://localhost:8000/v1/search/stream/{sessionId}"
 ### 会话管理
 
 ```bash
-# 创建新会话
-curl -X POST http://localhost:8000/api/v1/session/create
+# 同一会话继续研究（仍走统一入口）
+curl -X POST http://localhost:8000/v1/search/ \
+  -H "Content-Type: application/json" \
+  -d '{"sessionId": "<sessionId>", "query": "评论里争议最大的菜是什么？"}'
 
-# 断线恢复
-curl http://localhost:8000/v1/search/recover/{sessionId}
+# 查询会话状态
+curl http://localhost:8000/v1/search/status/{sessionId}
 ```
 
 <details>
@@ -321,10 +329,10 @@ curl http://localhost:8000/v1/search/recover/{sessionId}
 | 方法 | 端点 | 说明 |
 |------|------|------|
 | `GET` | `/health` | 健康检查 |
-| `POST` | `/v1/search/start` | 启动搜索 |
+| `POST` | `/v1/search/` | 新建或继续一轮研究 |
 | `GET` | `/v1/search/stream/{id}` | SSE 流式搜索 |
-| `GET` | `/v1/search/recover/{id}` | 断线恢复 |
-| `POST` | `/v1/search/refine` | 多轮追问 |
+| `GET` | `/v1/search/status/{id}` | 查询研究状态 |
+| `GET` | `/v1/search/results/{id}` | 查询研究结果 |
 | `GET` | `/v1/favorites` | 收藏列表 |
 | `POST` | `/v1/favorites` | 添加收藏 |
 | `GET` | `/v1/history` | 搜索历史 |
@@ -346,14 +354,21 @@ xhs_food_agent/
 │   │   └── README.md             # 📖 模块文档
 │   │
 │   └── 📁 xhs_food/              # 核心 Agent 模块
-│       ├── orchestrator.py       # 🎯 主编排器
-│       ├── schemas.py            # 数据模型
+│       ├── orchestrator/          # Agent facade and transport projection
+│       ├── schemas/               # API and conversation models
 │       │
 │       ├── 📁 agents/            # 子 Agent
 │       │   ├── intent_parser.py  # 意图解析
-│       │   ├── analyzer.py       # 结果分析
-│       │   ├── poi_enricher.py   # POI 补充
+│       │   ├── analyzer.py       # 评论证据分析
 │       │   └── README.md         # 📖 模块文档
+│       │
+│       ├── 📁 research/           # 评论优先研究用例
+│       │   ├── workflow.py       # 单一多轮研究流程
+│       │   ├── sources.py        # XHS/点评 source adapters
+│       │   ├── mcp.py            # 固定 MCP catalog/session
+│       │   ├── evidence.py       # canonical 评论证据账本
+│       │   ├── profile_service.py # 低频档案刷新策略
+│       │   └── repository.py     # 店铺档案持久化端口
 │       │
 │       ├── 📁 services/          # 💾 核心服务
 │       │   ├── llm_service.py    # LLM 封装
@@ -380,7 +395,7 @@ src/
     ├── contracts/tool_catalog.py           # Agent 工具 catalog/executor 端口
     ├── composition/account_services.py     # 服务注册与频道路由
     ├── composition/agent_tools.py          # 策略过滤、快照和固定路由执行
-    ├── composition/managed_search.py       # SearchToolPort 的 MCP 实现
+    ├── research/mcp.py                      # 研究 source 的 MCP 实现
     └── gateways/account_service.py         # HTTP/MCP transport
 ```
 
@@ -394,7 +409,7 @@ src/
 | [services/README.md](src/xhs_food/services/README.md) | 服务层配置与使用 |
 | [api/README.md](src/api/README.md) | API 端点与 SSE 规范 |
 | [Account Service 接入](docs/account-services.md) | HTTP/MCP 配置、工具策略和错误边界 |
-| [Agent MCP OpenSpec](openspec/changes/refactor-agent-mcp-tool-orchestration/design.md) | catalog、快照、上下文注入和搜索链路 |
+| [Comment-first OpenSpec](openspec/changes/comment-first-agent-cutover/design.md) | 评论证据优先、点评店铺档案和 source ports |
 
 ---
 
@@ -405,8 +420,9 @@ src/
 ```bash
 # ========== LLM API ==========
 OPENAI_API_KEY="sk-xxx"
-OPENAI_API_BASE="https://api.siliconflow.cn/v1/"
-DEFAULT_LLM_MODEL="Qwen/Qwen3-8B"
+OPENAI_API_BASE="https://api.gojia.cloud/v1/"
+DEFAULT_LLM_MODEL="gpt-5.6-sol"
+LLM_REASONING_EFFORT="medium"
 
 # ========== Redis (可选) ==========
 REDIS_HOST=localhost
@@ -434,9 +450,8 @@ Account Service、Agent MCP 策略和 ObjectStore 的完整变量模板以仓库
 
 | 提供商 | API Base | 推荐模型 |
 |--------|----------|----------|
-| SiliconFlow | `https://api.siliconflow.cn/v1/` | `Qwen/Qwen3-8B` |
-| OpenAI | `https://api.openai.com/v1/` | `gpt-4o-mini` |
-| DeepSeek | `https://api.deepseek.com/v1/` | `deepseek-chat` |
+| Gojia / OpenAI-compatible | `https://api.gojia.cloud/v1/` | `gpt-5.6-sol` |
+| OpenAI-compatible endpoint | provider-specific | administrator allow-listed model |
 
 ---
 

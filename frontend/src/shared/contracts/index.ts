@@ -10,7 +10,7 @@ export type LoginMode = 'qr' | 'manual'
 export type FlowState = 'pending' | 'polling' | 'success' | 'expired' | 'risk' | 'failed' | 'cancelled'
 export type ReadinessState = 'ready' | 'degraded' | 'dependency-unavailable' | 'disabled'
 export type SearchActionType = 'new_search' | 'refine' | 'recover'
-export type ResearchStepId = 'intent_parser' | 'search' | 'analyzer' | 'poi_enricher' | 'verifier'
+export type ResearchStepId = 'intent_parser' | 'comment_collection' | 'comment_analysis' | 'evidence_collection' | 'shop_profile_enrichment' | 'result_generation'
 export type StepStatus = 'pending' | 'loading' | 'done' | 'error'
 export type UserStatType = 'saved' | 'reviews' | 'visited'
 
@@ -58,12 +58,52 @@ export interface Restaurant {
   sourceNotesCount?: number | null
   sourceCommentsCount?: number | null
   updatedAt?: string | null
+  shopProfile?: ShopProfile | null
+  evidenceRefs?: string[]
+  evidenceSummary?: Record<string, any>
+  sourceGaps?: Array<Record<string, any>>
+}
+
+export interface ShopProfile {
+  providerRefs?: Record<string, string>
+  name?: string | null
+  alias?: string | null
+  url?: string | null
+  sourceUrl?: string | null
+  imageUrl?: string | null
+  images?: Array<string | Record<string, any>>
+  address?: string | null
+  city?: string | null
+  district?: string | null
+  region?: string | null
+  businessArea?: string | null
+  location?: string | null
+  latitude?: number | null
+  longitude?: number | null
+  coordinateSystem?: string | null
+  geo?: Record<string, any>
+  phone?: string | null
+  rating?: number | null
+  reviewCount?: number | null
+  averagePrice?: number | null
+  category?: string | null
+  openingHours?: string | null
+  recommendedDishes?: string[]
+  promotions?: unknown[]
+  tags?: string[]
+  attributes?: Record<string, any>
+  reviewCompleteness?: Record<string, any>
+  profileOutcome?: string
+  profileGaps?: Array<Record<string, any>>
 }
 
 export interface UnifiedSearchRequest {
   query?: string
   sessionId?: string
   location?: { lat: number, lng: number } | null
+  platforms?: PlatformChannel[]
+  accountRefs?: Record<string, string>
+  expectedSessionVersions?: Record<string, number>
   city?: string
   budget?: string
   taste?: string

@@ -25,14 +25,9 @@ from .repositories import (
     DisabledPublicEvidenceRepository,
     LegacyFavoritesRepositoryAdapter,
     LegacyHistoryRepositoryAdapter,
-    LegacyPlaceCacheRepositoryAdapter,
     LegacySearchResultRepositoryAdapter,
     LegacySessionRepositoryAdapter,
     LegacyUserRepositoryAdapter,
-)
-from .sources import (
-    build_place_source_connector,
-    build_place_tool,
 )
 from .state import (
     LegacyEventBusAdapter,
@@ -58,7 +53,6 @@ __all__ = [
     "LegacyFavoritesRepositoryAdapter",
     "LegacyHistoryRepositoryAdapter",
     "LegacyLLMProviderAdapter",
-    "LegacyPlaceCacheRepositoryAdapter",
     "LegacyEventBusAdapter",
     "LegacySearchResultRepositoryAdapter",
     "LegacySessionRepositoryAdapter",
@@ -72,8 +66,6 @@ __all__ = [
     "PostgresTaskProgressProjectionStore",
     "ReliableTaskEventBusPublisher",
     "build_owner_config",
-    "build_place_source_connector",
-    "build_place_tool",
     "TravelOutputAdapter",
     "TravelPlaceLookupProvider",
     "build_travel_tool_gateway",

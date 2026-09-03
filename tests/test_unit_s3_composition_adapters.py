@@ -7,7 +7,7 @@ from dataclasses import FrozenInstanceError
 import pytest
 from pydantic import ValidationError
 
-from xhs_food.composition import DisabledBindingError, build_legacy_composition_root
+from xhs_food.composition import DisabledBindingError, build_composition_root
 from xhs_food.composition.adapters import build_owner_config
 from xhs_food.config import Settings
 from xhs_food.foundation import Boto3ObjectStore, TargetSettings
@@ -48,8 +48,8 @@ def test_target_settings_validate_task_queues_and_owner_views_are_read_only() ->
 
 
 @pytest.mark.unit
-async def test_legacy_composition_keeps_every_target_binding_disabled() -> None:
-    root = build_legacy_composition_root()
+async def test_composition_keeps_optional_target_bindings_disabled() -> None:
+    root = build_composition_root()
     try:
         target = root.registries["target_foundation"].bindings
         assert set(target) == {
@@ -61,11 +61,8 @@ async def test_legacy_composition_keeps_every_target_binding_disabled() -> None:
             "observability",
         }
         assert all(not binding.enabled and not binding.legacy for binding in target.values())
-        assert root.registries["tools"].bindings["schema_tool_gateway"].enabled is False
         with pytest.raises(DisabledBindingError, match="target_foundation.temporal"):
             await root.resolve("target_foundation", "temporal")
-        with pytest.raises(DisabledBindingError, match="tools.schema_tool_gateway"):
-            await root.resolve("tools", "schema_tool_gateway")
     finally:
         await root.close()
 
@@ -94,7 +91,7 @@ async def test_object_store_target_factory_passes_minio_settings_without_creatin
         classmethod(capture_minio_factory),
     )
 
-    root = build_legacy_composition_root()
+    root = build_composition_root()
     try:
         binding = root.registries["target_foundation"].bindings["object_store"]
         assert binding.enabled is False

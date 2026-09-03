@@ -31,7 +31,7 @@ class XHSFoodState:
         
         # 会话历史支持
         conversation_history: 会话历史
-        search_phase: 当前搜索阶段
+        research_stage: 当前研究阶段
         validated_shops: 已验证的店铺 (店名 -> 出现次数)
     """
     # 搜索阶段
@@ -56,7 +56,7 @@ class XHSFoodState:
     
     # 会话历史支持
     conversation_history: List[Dict[str, Any]] = field(default_factory=list)
-    search_phase: str = "phase1"  # phase1_broad, phase2_hidden, phase3_verify, phase4_category
+    research_stage: str = "comment_evidence"
     validated_shops: Dict[str, int] = field(default_factory=dict)  # 店名 -> 出现次数
     high_weight_comments: List[Dict[str, Any]] = field(default_factory=list)  # 高权重评论缓存
 

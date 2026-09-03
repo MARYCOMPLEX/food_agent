@@ -33,7 +33,7 @@
       "xhs_search": "evidence_collection",
       "comment_analysis": "evidence_analysis",
       "cross_validation": "evidence_validation",
-      "poi_enrichment": "entity_enrichment",
+      "shop_profile_enrichment": "entity_enrichment",
       "result_generation": "result_generation"
     }
   },

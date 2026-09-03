@@ -40,16 +40,16 @@ export const serviceCatalogApi = {
         updated_at: new Date().toISOString(),
       },
       {
-        service_id: 'svc_dianping_poi',
-        name: '大众点评 POI 交叉校验服务',
+        service_id: 'svc_dianping_profiles',
+        name: '大众点评店铺档案服务',
         base_url: 'http://localhost:8003',
         mcp_url: 'http://localhost:8003/mcp',
         protocol: 'mcp',
         channels: ['dianping'],
-        capabilities: ['poi_detail', 'dishes_rank', 'blacklist_crosscheck'],
+        capabilities: ['places.search', 'places.detail', 'reviews.search'],
         descriptor_version: '2.0.1',
         timeout_seconds: 25,
-        auth_ref: 'vault://dp/poi_key',
+        auth_ref: 'vault://dianping/profile_key',
         status: 'ready',
         updated_at: new Date().toISOString(),
       },
@@ -72,8 +72,8 @@ export const serviceCatalogApi = {
           version: '1.0',
         },
         {
-          name: `${platform}_fetch_poi_detail`,
-          description: `获取 ${platform} 对应店铺的精确地址、评分与避雷标签`,
+          name: `${platform}_fetch_shop_profile`,
+          description: `获取 ${platform} 对应店铺的结构化档案`,
           sideEffect: false,
           channel: platform as any,
           version: '1.0',
@@ -100,7 +100,7 @@ export const serviceCatalogApi = {
     return {
       success: true,
       latencyMs: Date.now() - start,
-      capabilities: ['search', 'evaluate', 'poi_enrich'],
+      capabilities: ['notes.search', 'comments.search', 'shop_profile_enrichment'],
     }
   },
 }

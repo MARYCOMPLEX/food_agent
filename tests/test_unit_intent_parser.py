@@ -5,7 +5,6 @@ from __future__ import annotations
 import pytest
 
 from xhs_food.agents.intent_parser import IntentParseResult, IntentParserAgent
-from xhs_food.schemas import FollowUpType
 
 
 # ---------------------------------------------------------------------------
@@ -31,7 +30,6 @@ async def test_parse_returns_success_when_location_present(mock_llm) -> None:
     assert result.intent.location == "成都"
     assert result.intent.food_type == "火锅"
     assert "本地老店" in result.intent.requirements
-    assert result.follow_up_type == FollowUpType.NEW_SEARCH
     # Ensure the LLM was invoked exactly once
     assert len(mock_llm.calls) == 1
 

@@ -1,106 +1,69 @@
-"""
-Basic import and functionality test for XHS Food Agent.
-"""
+"""Basic import and construction checks for the comment-first Agent."""
+
+from __future__ import annotations
 
 import sys
+
 sys.path.insert(0, "src")
 
 
-def test_imports():
-    """Test that all modules can be imported."""
-    print("Testing imports...")
-    
-    # Core module
-    from xhs_food import XHSFoodOrchestrator
-    from xhs_food import XHSFoodState
-    from xhs_food import FoodSearchIntent, XHSFoodResponse
-    print("  ✓ xhs_food module")
-    
-    # Schemas
-    from xhs_food.schemas import (
-        WanghongScore,
-        SearchPhase,
-        ConversationContext,
-        RestaurantRecommendation,
+def test_imports() -> None:
+    from xhs_food import XHSFoodOrchestrator, XHSFoodResponse, XHSFoodState
+    from xhs_food.agents import AnalyzerAgent, IntentParserAgent
+    from xhs_food.composition import build_composition_root
+    from xhs_food.research import (
+        CommentFirstResearchWorkflow,
+        DianpingShopEnricher,
+        XhsCommentLeadCollector,
     )
-    print("  ✓ schemas")
-    
-    # Managed MCP tool boundary
-    from xhs_food.composition import ManagedMcpSearchTool
-    print("  ✓ managed MCP tools")
-    
-    # Services
     from xhs_food.services import LLMService
-    print("  ✓ services")
-    
-    # Agents
-    from xhs_food.agents import IntentParserAgent, AnalyzerAgent
-    print("  ✓ agents")
-    
-    print("\n✅ All imports successful!")
 
-
-def test_schema_creation():
-    """Test that schemas can be instantiated."""
-    print("\nTesting schema creation...")
-    
-    from xhs_food.schemas import (
-        FoodSearchIntent,
-        ConversationContext,
-        RestaurantRecommendation,
-        WanghongAnalysis,
-        WanghongScore,
+    assert all(
+        item is not None
+        for item in (
+            XHSFoodOrchestrator,
+            XHSFoodState,
+            XHSFoodResponse,
+            AnalyzerAgent,
+            IntentParserAgent,
+            CommentFirstResearchWorkflow,
+            XhsCommentLeadCollector,
+            DianpingShopEnricher,
+            LLMService,
+            build_composition_root,
+        )
     )
-    
-    # Create intent
+
+
+def test_schema_creation() -> None:
+    from xhs_food.domain_packs.food.intent import FoodSearchIntent
+    from xhs_food.schemas import ConversationContext, RestaurantRecommendation
+
     intent = FoodSearchIntent(
         location="成都",
         food_type="火锅",
         requirements=["本地人常去", "老店"],
         exclude_keywords=["网红"],
     )
-    print(f"  ✓ FoodSearchIntent: {intent.location} {intent.food_type}")
-    
-    # Create context
-    ctx = ConversationContext()
-    ctx.turn_count = 1
-    print(f"  ✓ ConversationContext: turn={ctx.turn_count}")
-    
-    # Create recommendation
-    rec = RestaurantRecommendation(
+    context = ConversationContext()
+    context.add_user_message("成都火锅")
+    recommendation = RestaurantRecommendation(
         name="测试老店",
         location="XX路XX号",
         features=["本地人推荐"],
         confidence=0.85,
     )
-    print(f"  ✓ RestaurantRecommendation: {rec.name}")
-    
-    print("\n✅ All schemas created successfully!")
+
+    assert intent.location == "成都"
+    assert context.conversation_history[-1]["content"] == "成都火锅"
+    assert recommendation.name == "测试老店"
 
 
-def test_orchestrator_creation():
-    """Test that orchestrator can be created."""
-    print("\nTesting orchestrator creation...")
-    
+def test_orchestrator_creation() -> None:
     from xhs_food import XHSFoodOrchestrator
-    from xhs_food.composition import UnavailableManagedSearchTool
-    
-    search_tool = UnavailableManagedSearchTool()
-    orch = XHSFoodOrchestrator(search_tool=search_tool)
-    print("  ✓ XHSFoodOrchestrator created with fail-closed managed search")
-    
-    print("\n✅ Orchestrator creation successful!")
+    from xhs_food.research import CommentFirstResearchWorkflow
 
+    orchestrator = XHSFoodOrchestrator(workflow=CommentFirstResearchWorkflow())
 
-if __name__ == "__main__":
-    print("=" * 50)
-    print("XHS Food Agent - Basic Test")
-    print("=" * 50)
-    
-    test_imports()
-    test_schema_creation()
-    test_orchestrator_creation()
-    
-    print("\n" + "=" * 50)
-    print("All basic tests passed!")
-    print("=" * 50)
+    assert isinstance(orchestrator.workflow, CommentFirstResearchWorkflow)
+    assert orchestrator.context.turn_count == 0

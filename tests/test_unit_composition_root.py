@@ -13,7 +13,7 @@ from xhs_food.composition import (
     BindingRegistry,
     CompositionRoot,
     RegistryState,
-    build_legacy_composition_root,
+    build_composition_root,
     build_reliable_runtime_bindings,
 )
 from xhs_food.config import Settings
@@ -358,7 +358,7 @@ def test_reliable_root_requires_an_explicit_durable_task_store(
 ) -> None:
     monkeypatch.setenv("MODULAR_RELIABLE_TASK_LIFECYCLE", "true")
     with pytest.raises(RuntimeError, match="durable reliable task store"):
-        build_legacy_composition_root(reliable_policy=object())
+        build_composition_root(reliable_policy=object())
 
 
 def test_reliable_root_requires_an_explicit_postgres_projection_store(
@@ -366,7 +366,7 @@ def test_reliable_root_requires_an_explicit_postgres_projection_store(
 ) -> None:
     monkeypatch.setenv("MODULAR_RELIABLE_TASK_LIFECYCLE", "true")
     with pytest.raises(RuntimeError, match="PostgreSQL task projection store"):
-        build_legacy_composition_root(
+        build_composition_root(
             reliable_policy=object(),
             reliable_task_store=_ReliableTaskStoreFixture(),
         )
@@ -384,7 +384,7 @@ async def test_reliable_root_uses_the_explicit_projection_store(
         updated_at=datetime(2026, 8, 24, tzinfo=UTC),
     )
     await projection_store.put(projection)
-    root = build_legacy_composition_root(
+    root = build_composition_root(
         reliable_policy=object(),
         reliable_task_store=_ReliableTaskStoreFixture(),
         reliable_projection_store=projection_store,
@@ -403,7 +403,7 @@ async def test_reliable_root_exposes_explicit_projection_and_event_bus_bindings(
     task_store = _ReliableTaskStoreFixture()
     projection_store = _ProjectionStoreFixture()
     event_bus = _EventBusFixture()
-    root = build_legacy_composition_root(
+    root = build_composition_root(
         reliable_policy=object(),
         reliable_task_store=task_store,
         reliable_projection_store=projection_store,
@@ -417,23 +417,21 @@ async def test_reliable_root_exposes_explicit_projection_and_event_bus_bindings(
         await root.close()
 
 
-async def test_s4_composition_root_registers_validated_food_pack_and_managed_search() -> None:
-    from xhs_food.composition.managed_search import UnavailableManagedSearchTool
+async def test_composition_root_registers_comment_first_research_graph() -> None:
     from xhs_food.composition.domain_packs import RegisteredDomainPack
     from xhs_food.domain_packs.food import FoodPack
     from xhs_food.orchestrator.coordinator import ResearchCoordinator
+    from xhs_food.research import (
+        CommentFirstResearchWorkflow,
+        DianpingMcpSource,
+        XhsMcpSource,
+    )
 
-    root = build_legacy_composition_root()
+    root = build_composition_root()
     try:
         assert root.state is RegistryState.ACTIVE
         assert {name: list(registry.bindings) for name, registry in root.registries.items()} == {
-            "tools": ["managed_mcp_search", "food_tool_gateway", "schema_tool_gateway"],
-            "sources": [
-                "food_place_capability",
-                "food_reviews_capability",
-                "place_compat",
-                "place_tool_compat",
-            ],
+            "sources": ["xhs_comment_leads", "dianping_shop_profiles"],
             "models": ["legacy_llm_provider"],
             "repositories": [
                 "session_legacy",
@@ -441,7 +439,6 @@ async def test_s4_composition_root_registers_validated_food_pack_and_managed_sea
                 "history_legacy",
                 "favorites_legacy",
                 "search_result_legacy",
-                "place_cache_legacy",
                 "public_evidence_disabled",
             ],
             "state": [
@@ -458,7 +455,8 @@ async def test_s4_composition_root_registers_validated_food_pack_and_managed_sea
                 "observability",
             ],
             "orchestrators": ["xhs_food_orchestrator"],
-            "domain_packs": ["registry", "food_1_0_0", "food_legacy"],
+            "research": ["comment_first_workflow"],
+            "domain_packs": ["registry", "food_1_0_0"],
             "use_cases": ["research_task"],
         }
         assert {
@@ -469,19 +467,19 @@ async def test_s4_composition_root_registers_validated_food_pack_and_managed_sea
         } == {
             "domain_packs.food_1_0_0",
             "domain_packs.registry",
-            "sources.food_place_capability",
-            "sources.food_reviews_capability",
-            "tools.food_tool_gateway",
-            "tools.managed_mcp_search",
+            "sources.xhs_comment_leads",
+            "sources.dianping_shop_profiles",
             "orchestrators.xhs_food_orchestrator",
+            "research.comment_first_workflow",
+            "use_cases.research_task",
         }
-        logical = root.logical_bindings["modular_core"]
+        logical = root.logical_bindings["research_task"]
         assert (
             logical.registry_name,
             logical.binding_name,
         ) == ("use_cases", "research_task")
         assert isinstance(
-            await root.resolve_logical("modular_core"),
+            await root.resolve_logical("research_task"),
             ResearchCoordinator,
         )
         food_binding = root.logical_bindings["food_pack"]
@@ -492,56 +490,16 @@ async def test_s4_composition_root_registers_validated_food_pack_and_managed_sea
         registered_food = await root.resolve_logical("food_pack")
         assert isinstance(registered_food, RegisteredDomainPack)
         assert isinstance(registered_food.implementation, FoodPack)
-
-        search_tool = await root.resolve_logical("managed_search_tool")
-        assert isinstance(search_tool, UnavailableManagedSearchTool)
-        assert await search_tool.health() is False
-    finally:
-        await root.close()
-
-
-async def test_s5_modular_core_can_rebind_to_the_legacy_facade(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from xhs_food.composition.legacy_research_task import LegacyResearchTaskFacade
-
-    monkeypatch.setenv("MODULAR_RESEARCH_CORE_VERSION", "legacy/v1")
-    root = build_legacy_composition_root()
-    try:
-        binding = root.registries["use_cases"].bindings["research_task"]
-        assert binding.contract_version == "legacy/v1"
-        assert isinstance(await root.resolve_logical("modular_core"), LegacyResearchTaskFacade)
-    finally:
-        await root.close()
-
-
-async def test_food_pack_selection_is_isolated_between_coexisting_roots(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from xhs_food.composition.adapters.legacy_food import LegacyFoodPackAdapter
-    from xhs_food.composition.domain_packs import RegisteredDomainPack
-
-    monkeypatch.setenv("MODULAR_FOOD_PACK_VERSION", "1.0.0")
-    registered_root = build_legacy_composition_root()
-    monkeypatch.setenv("MODULAR_FOOD_PACK_VERSION", "legacy/v1")
-    legacy_root = build_legacy_composition_root()
-
-    try:
-        registered_pack = await registered_root.resolve_logical("food_pack")
-        legacy_pack = await legacy_root.resolve_logical("food_pack")
-        registered_orchestrator = await registered_root.resolve(
-            "orchestrators", "xhs_food_orchestrator"
+        research_agent = await root.resolve_logical("research_agent")
+        assert isinstance(research_agent, CommentFirstResearchWorkflow)
+        assert isinstance(await root.resolve("sources", "xhs_comment_leads"), XhsMcpSource)
+        assert isinstance(
+            await root.resolve("sources", "dianping_shop_profiles"), DianpingMcpSource
         )
-        legacy_orchestrator = await legacy_root.resolve("orchestrators", "xhs_food_orchestrator")
-
-        registered_executor = getattr(registered_orchestrator, "_search_executor")
-        legacy_executor = getattr(legacy_orchestrator, "_search_executor")
-        assert isinstance(registered_pack, RegisteredDomainPack)
-        assert isinstance(legacy_pack, LegacyFoodPackAdapter)
-        assert getattr(registered_executor, "_food_pack") is registered_pack
-        assert getattr(legacy_executor, "_food_pack") is legacy_pack
+        orchestrator = await root.resolve("orchestrators", "xhs_food_orchestrator")
+        assert orchestrator.workflow is research_agent
     finally:
-        await asyncio.gather(registered_root.close(), legacy_root.close())
+        await root.close()
 
 
 async def test_root_closes_registry_instances_in_reverse_registry_order() -> None:

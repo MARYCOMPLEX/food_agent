@@ -25,7 +25,7 @@ const initialSteps: LoadingStep[] = [
   { id: 'search', label: '🔍 笔记检索：抓取小红书与大众点评真实内容', status: 'pending' },
   { id: 'analyzer', label: '📊 口碑分析：识别网红套路与本地人真实好评', status: 'pending' },
   { id: 'verifier', label: '🛡️ 交叉核验：多源比对价格、营业状态与避雷项', status: 'pending' },
-  { id: 'poi_enricher', label: '📍 POI 补充：补齐地址、电话与经纬度坐标', status: 'pending' },
+  { id: 'shop_profile_enrichment', label: '📍 大众点评档案：补齐地址、菜品、图片与营业信息', status: 'pending' },
 ]
 
 const {

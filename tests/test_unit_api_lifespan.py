@@ -27,7 +27,7 @@ class _Root:
     def __init__(self, runtime: _Runtime) -> None:
         self.runtime = runtime
         self.logical_bindings = {
-            "modular_core": object(),
+            "research_task": object(),
             "reliable_task_lifecycle": object(),
             "reliable_projection_store": object(),
             "reliable_event_bus": object(),
@@ -35,8 +35,10 @@ class _Root:
         self.closed = False
 
     async def resolve_logical(self, name: str) -> object:
-        if name == "modular_core":
+        if name == "research_task":
             return "research-task-port"
+        if name == "research_agent":
+            return "comment-first-research-agent"
         if name == "reliable_projection_store":
             return self.runtime.projection_store
         if name == "reliable_event_bus":
@@ -99,7 +101,7 @@ async def test_reliable_lifespan_binds_target_runtime_without_legacy_event_bus(
     monkeypatch.setenv("MODULAR_TARGET_ADAPTERS_ENABLED", "true")
     monkeypatch.setenv("MODULAR_RELIABLE_TASK_LIFECYCLE", "true")
     monkeypatch.setattr(composition, "build_reliable_runtime_bindings", build_runtime)
-    monkeypatch.setattr(composition, "build_legacy_composition_root", build_root)
+    monkeypatch.setattr(composition, "build_composition_root", build_root)
     async def get_storage() -> _Dependency:
         return storage
 

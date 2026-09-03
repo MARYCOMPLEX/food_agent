@@ -1,8 +1,4 @@
-"""Central lifecycle for contract-to-adapter bindings.
-
-S1 creates the root without routing production callers through it. The explicit
-legacy builder is the only place in this package that imports concrete adapters.
-"""
+"""Composition root for the Food Research Agent and shared infrastructure."""
 
 from __future__ import annotations
 
@@ -10,6 +6,7 @@ import asyncio
 import inspect
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
+from datetime import timedelta
 from enum import StrEnum
 from types import MappingProxyType
 from typing import Any, cast
@@ -273,7 +270,7 @@ class ReliableRuntimeBindings:
             except BaseException as exc:  # pragma: no cover - exercised by lifecycle failure tests
                 errors.append(exc)
         if errors:
-            raise ExceptionGroup("failed to close reliable runtime bindings", errors)
+            raise BaseExceptionGroup("failed to close reliable runtime bindings", errors)
 
 
 async def build_reliable_runtime_bindings(
@@ -386,14 +383,14 @@ def build_reliable_research_worker(
     """Build the opt-in Research worker at the Composition Root boundary."""
 
     from xhs_food.foundation import TemporalTaskQueues, build_temporal_worker
-    from xhs_food.orchestrator import (
+    from xhs_food.orchestrator.reliable_task import (
         ReliableTaskConfig,
         TemporalResearchWorkflow,
         pydantic_ai_worker_plugin,
     )
 
     reliable_config = config if isinstance(config, ReliableTaskConfig) else ReliableTaskConfig()
-    queues = (
+    queues: TemporalTaskQueues = (
         task_queues
         if isinstance(task_queues, TemporalTaskQueues)
         else TemporalTaskQueues(
@@ -404,7 +401,7 @@ def build_reliable_research_worker(
     )
     if queues.research != reliable_config.task_queue:
         raise ValueError("Research worker queue must match ReliableTaskConfig.task_queue")
-    activity_list = getattr(activities, "activities", None)
+    activity_list = cast(Callable[[], Sequence[object]] | None, getattr(activities, "activities", None))
     if not callable(activity_list):
         raise TypeError("reliable Research activities must expose activities()")
     registered_plugins = tuple(plugins)
@@ -472,7 +469,7 @@ def build_media_worker(
     )
 
 
-def build_legacy_composition_root(
+def build_composition_root(
     *,
     reliable_policy: object | None = None,
     reliable_task_store: object | None = None,
@@ -482,7 +479,7 @@ def build_legacy_composition_root(
     target_settings: Any = None,
     account_service_registry: object | None = None,
 ) -> CompositionRoot:
-    """Create the compatibility root with an atomically validated Food Pack.
+    """Create the active composition root with an atomically validated Food Pack.
 
     ``reliable_task_lifecycle`` is deliberately explicit.  When enabled, a
     caller must provide a ``TemporalReliableResearchPolicy`` plus durable task
@@ -490,44 +487,32 @@ def build_legacy_composition_root(
     process-local task execution or projection state.
     """
 
-    from xhs_food.agents.poi_enricher import (
-        configure_poi_place_cache_factory,
-        configure_poi_place_lookup_factory,
-    )
+    from xhs_food.agents import AnalyzerAgent, IntentParserAgent
     from xhs_food.composition.adapters import (
         DisabledPublicEvidenceRepository,
         LegacyEventBusAdapter,
         LegacyFavoritesRepositoryAdapter,
         LegacyHistoryRepositoryAdapter,
         LegacyLLMProviderAdapter,
-        LegacyPlaceCacheRepositoryAdapter,
         LegacySearchResultRepositoryAdapter,
         LegacySessionRepositoryAdapter,
         LegacySessionWindowAdapter,
         LegacyStateStoreAdapter,
         LegacyUserRepositoryAdapter,
         build_owner_config,
-        build_place_source_connector,
-        build_place_tool,
     )
-    from xhs_food.composition.adapters.food_tools import build_food_tool_gateway
-    from xhs_food.composition.adapters.legacy_food import LegacyFoodPackAdapter
     from xhs_food.composition.domain_packs import (
         DomainPackRegistry,
-        capability_snapshots,
         discover_allowlisted_domain_packs,
     )
-    from xhs_food.composition.legacy_research_task import LegacyResearchTaskFacade
-    from xhs_food.composition.managed_search import (
-        ManagedMcpSearchTool,
-        UnavailableManagedSearchTool,
-    )
+    from xhs_food.composition.research_task import ResearchTaskFacade
     from xhs_food.config import get_settings
     from xhs_food.contracts import (
         DomainContract,
         EventBusPort,
         PersonalizationCanaryMode,
         PersonalizationCanarySettings,
+        PlatformChannel,
         ReliableTaskStorePort,
         TaskProgressProjectionPort,
     )
@@ -545,12 +530,16 @@ def build_legacy_composition_root(
         TemporalWorkerQuota,
         TemporalWorkflowAdapter,
     )
-    from xhs_food.gateways import SchemaToolGateway
-    from xhs_food.orchestrator.agent_runtime import PydanticAIAgentRuntime
     from xhs_food.orchestrator.coordinator import ResearchCoordinator
     from xhs_food.orchestrator.core import XHSFoodOrchestrator
-    from xhs_food.orchestrator.scheduler import StepScheduler
     from xhs_food.personalization import PersonalizationCanary, PersonalizedReranker
+    from xhs_food.research import (
+        CommentFirstResearchWorkflow,
+        DianpingSourceAdapterFactory,
+        ManagedMcpToolSession,
+        UserStorageShopProfileRepository,
+        XhsSourceAdapterFactory,
+    )
     from xhs_food.services import LLMService, get_session_manager, get_user_storage_service
 
     discovered_food_factories = discover_allowlisted_domain_packs(("food",))
@@ -564,11 +553,7 @@ def build_legacy_composition_root(
         raise RuntimeError("Food Domain Pack entry point must load a callable factory")
     food_pack_candidate = food_pack_factory()
 
-    place_cache_repository = LegacyPlaceCacheRepositoryAdapter(get_user_storage_service)
-    configure_poi_place_lookup_factory(build_place_tool)
-    configure_poi_place_cache_factory(lambda: place_cache_repository)
-    # ``target_settings`` is injectable for qualification and sidecar tests;
-    # the no-argument path remains byte-for-byte legacy compatible.
+    # ``target_settings`` is injectable for qualification and sidecar tests.
     target_settings = cast(
         Any,
         target_settings if target_settings is not None else TargetSettings(),
@@ -592,11 +577,6 @@ def build_legacy_composition_root(
             account_service_registry,
             agent_tool_policy,
         )
-    managed_search_tool = (
-        ManagedMcpSearchTool(managed_agent_tools, managed_agent_tools)
-        if managed_agent_tools is not None
-        else UnavailableManagedSearchTool()
-    )
     reliable_enabled = (
         target_settings.reliable_task_lifecycle
         if reliable_task_lifecycle is None
@@ -625,15 +605,10 @@ def build_legacy_composition_root(
         raise RuntimeError("reliable_event_bus must implement EventBusPort")
     owner_config = build_owner_config(get_settings(), cast(TargetSettings, target_settings))
 
-    food_gateway, food_providers = build_food_tool_gateway(
-        build_place_tool(),
-        managed_search_tool,
-    )
-    tool_capabilities, source_capabilities = capability_snapshots(food_providers)
     domain_pack_registry = DomainPackRegistry(
         core_version="1.0.0",
-        tool_capabilities=tool_capabilities,
-        source_capabilities=source_capabilities,
+        tool_capabilities={},
+        source_capabilities={},
     )
     food_manifest, food_schema_bundle = load_food_contract_resources()
     registered_food = domain_pack_registry.register_or_raise(
@@ -644,12 +619,42 @@ def build_legacy_composition_root(
     food_implementation = registered_food.implementation
     if not isinstance(food_implementation, FoodBehavior):
         raise RuntimeError("registered Food Pack does not expose Food behavior policies")
-    legacy_food_behavior = LegacyFoodPackAdapter()
-    selected_food_behavior: FoodBehavior = (
-        cast(FoodBehavior, registered_food)
-        if target_settings.food_pack_version == food_manifest.pack_version
-        else legacy_food_behavior
+    model_view = owner_config.model
+    configured_llm = LLMService(
+        model_name=model_view.model,
+        temperature=model_view.temperature,
+        max_tokens=model_view.max_tokens,
+        reasoning_effort=model_view.reasoning_effort,
     )
+
+    def research_session() -> ManagedMcpToolSession:
+        """Create one MCP session; a workflow closes it after each turn."""
+
+        return ManagedMcpToolSession(managed_agent_tools, managed_agent_tools)
+
+    def research_workflow() -> CommentFirstResearchWorkflow:
+        profile_repository = UserStorageShopProfileRepository(get_user_storage_service)
+
+        return CommentFirstResearchWorkflow(
+            session_factory=research_session,
+            intent_parser=IntentParserAgent(configured_llm),
+            analyzer=AnalyzerAgent(configured_llm),
+            profiles=profile_repository,
+            max_notes=getattr(get_settings(), "search_note_limit", 30),
+            max_restaurants=getattr(get_settings(), "search_max_restaurants", 10),
+            analysis_concurrency=getattr(get_settings(), "analyze_concurrency", 3),
+            profile_concurrency=getattr(get_settings(), "profile_concurrency", 3),
+            profile_refresh_after=timedelta(
+                hours=getattr(get_settings(), "shop_profile_refresh_hours", 168)
+            ),
+            partial_profile_retry_after=timedelta(
+                hours=getattr(get_settings(), "shop_profile_partial_retry_hours", 12)
+            ),
+        )
+
+    # One immutable dependency graph is shared by session-scoped orchestrator
+    # facades; conversation state itself remains on each orchestrator.
+    active_research_workflow = research_workflow()
 
     def legacy_llm_provider() -> LegacyLLMProviderAdapter:
         view = owner_config.model
@@ -657,6 +662,7 @@ def build_legacy_composition_root(
             model_name=view.model,
             temperature=view.temperature,
             max_tokens=view.max_tokens,
+            reasoning_effort=view.reasoning_effort,
         )
         return LegacyLLMProviderAdapter(service, view)
 
@@ -784,16 +790,11 @@ def build_legacy_composition_root(
         )
 
     def shared_research_coordinator() -> ResearchCoordinator:
-        runtime = PydanticAIAgentRuntime(
-            tool_gateway=food_gateway,
-            enabled=False,
-            managed_tool_catalog=managed_agent_tools,
-            managed_tool_executor=managed_agent_tools,
-        )
+        # The HTTP task lifecycle is a transport concern.  Its coordinator is
+        # deliberately not given a second tool gateway; the Agent workflow
+        # above is the sole owner of MCP source execution.
         coordinator = ResearchCoordinator(
-            LegacyResearchTaskFacade(),
-            agent_runtime=runtime,
-            scheduler=StepScheduler(food_gateway),
+            ResearchTaskFacade(),
             projection_store=reliable_projection_store,  # type: ignore[arg-type]
             reliable_task_store=reliable_task_store,  # type: ignore[arg-type]
             reliable_policy=reliable_policy,  # type: ignore[arg-type]
@@ -850,67 +851,24 @@ def build_legacy_composition_root(
             registry_name="agent_tools",
             binding_name="account_service_mcp",
         )
-    root.registry("tools").register(
-        AdapterBinding(
-            name="managed_mcp_search",
-            contract_version="managed-search/v1",
-            factory=lambda: managed_search_tool,
-            legacy=False,
-        )
-    )
-    root.bind_logical(
-        "managed_search_tool",
-        registry_name="tools",
-        binding_name="managed_mcp_search",
-    )
-    root.registry("tools").register(
-        AdapterBinding(
-            name="food_tool_gateway",
-            contract_version="food-tools/v1",
-            factory=lambda: food_gateway,
-            legacy=False,
-        )
-    )
-    root.registry("tools").register(
-        AdapterBinding(
-            name="schema_tool_gateway",
-            contract_version="tool-gateway/v1",
-            factory=lambda: SchemaToolGateway(()),
-            legacy=False,
-            enabled=False,
-        )
-    )
     sources = root.registry("sources")
     sources.register(
         AdapterBinding(
-            name="food_place_capability",
-            contract_version="1.0.0",
-            factory=lambda: food_providers[0],
+            name="xhs_comment_leads",
+            contract_version="xhs-comment-source/v1",
+            factory=XhsSourceAdapterFactory(
+                research_session,
+                platform=PlatformChannel.XHS_PC,
+            ),
             legacy=False,
         )
     )
     sources.register(
         AdapterBinding(
-            name="food_reviews_capability",
-            contract_version="1.0.0",
-            factory=lambda: food_providers[1],
+            name="dianping_shop_profiles",
+            contract_version="dianping-profile-source/v1",
+            factory=DianpingSourceAdapterFactory(research_session),
             legacy=False,
-        )
-    )
-    sources.register(
-        AdapterBinding(
-            name="place_compat",
-            contract_version="amap-connector/v1",
-            factory=build_place_source_connector,
-            legacy=True,
-        )
-    )
-    sources.register(
-        AdapterBinding(
-            name="place_tool_compat",
-            contract_version="place-tool/v1",
-            factory=build_place_tool,
-            legacy=True,
         )
     )
     root.registry("models").register(
@@ -928,7 +886,6 @@ def build_legacy_composition_root(
         ("history_legacy", history_repository),
         ("favorites_legacy", favorites_repository),
         ("search_result_legacy", search_result_repository),
-        ("place_cache_legacy", lambda: place_cache_repository),
         ("public_evidence_disabled", DisabledPublicEvidenceRepository),
     ):
         repositories.register(
@@ -1012,13 +969,25 @@ def build_legacy_composition_root(
     root.registry("orchestrators").register(
         AdapterBinding(
             name="xhs_food_orchestrator",
-            contract_version="managed-search/v1",
-            factory=lambda: XHSFoodOrchestrator.with_food_pack(
-                search_tool=managed_search_tool,
-                food_pack=selected_food_behavior,
+            contract_version="comment-first-agent/v1",
+            factory=lambda: XHSFoodOrchestrator(
+                workflow=active_research_workflow,
             ),
             legacy=False,
         )
+    )
+    root.registry("research").register(
+        AdapterBinding(
+            name="comment_first_workflow",
+            contract_version="comment-first-workflow/v1",
+            factory=lambda: active_research_workflow,
+            legacy=False,
+        )
+    )
+    root.bind_logical(
+        "research_agent",
+        registry_name="research",
+        binding_name="comment_first_workflow",
     )
     packs = root.registry("domain_packs")
     packs.register(
@@ -1037,28 +1006,12 @@ def build_legacy_composition_root(
             legacy=False,
         )
     )
-    packs.register(
-        AdapterBinding(
-            name="food_legacy",
-            contract_version="legacy/v1",
-            factory=lambda: legacy_food_behavior,
-            legacy=True,
-        )
-    )
     root.registry("use_cases").register(
         AdapterBinding(
             name="research_task",
-            contract_version=(
-                "research-coordinator/v1"
-                if target_settings.research_core_version == "shared/v1"
-                else "legacy/v1"
-            ),
-            factory=(
-                shared_research_coordinator
-                if target_settings.research_core_version == "shared/v1"
-                else LegacyResearchTaskFacade
-            ),
-            legacy=True,
+            contract_version="research-task/v2",
+            factory=shared_research_coordinator,
+            legacy=False,
         )
     )
     if canary_enabled:
@@ -1070,8 +1023,11 @@ def build_legacy_composition_root(
                 legacy=False,
             )
         )
+    # The task facade is a transport-facing entry point.  Keep its logical
+    # name explicit so callers do not depend on the retired modular-core
+    # compatibility alias.
     root.bind_logical(
-        "modular_core",
+        "research_task",
         registry_name="use_cases",
         binding_name="research_task",
     )
@@ -1106,20 +1062,16 @@ def build_legacy_composition_root(
     root.bind_logical(
         "food_pack",
         registry_name="domain_packs",
-        binding_name=(
-            "food_1_0_0"
-            if target_settings.food_pack_version == food_manifest.pack_version
-            else "food_legacy"
-        ),
+        binding_name="food_1_0_0",
     )
     allowed_non_legacy = {
         "domain_packs.food_1_0_0",
         "domain_packs.registry",
-        "sources.food_place_capability",
-        "sources.food_reviews_capability",
-        "tools.food_tool_gateway",
-        "tools.managed_mcp_search",
+        "sources.xhs_comment_leads",
+        "sources.dianping_shop_profiles",
         "orchestrators.xhs_food_orchestrator",
+        "research.comment_first_workflow",
+        "use_cases.research_task",
     }
     if reliable_enabled:
         allowed_non_legacy.update(
@@ -1149,7 +1101,7 @@ __all__ = [
     "LogicalBinding",
     "RegistryState",
     "build_media_worker",
-    "build_legacy_composition_root",
+    "build_composition_root",
     "build_refresh_worker",
     "build_reliable_research_worker",
 ]

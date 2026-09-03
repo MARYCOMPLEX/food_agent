@@ -464,6 +464,7 @@ def _remote_failure(call: ToolCall, exc: RemoteAccountServiceError) -> ToolResul
         call,
         f"MCP_{exc.category.value.replace('-', '_').upper()}",
         categories.get(exc.category, ErrorCategory.DEPENDENCY_UNAVAILABLE),
+        message=exc.envelope.message,
         retryable=exc.retryable,
     )
 

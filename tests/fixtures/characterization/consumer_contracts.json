@@ -23,7 +23,7 @@
     "favorites_items": "data.favorites",
     "faqs_items": "data.faqs",
     "sse_replay": "lastEventIndex",
-    "sse_steps": ["intent_parsing", "xhs_search", "comment_analysis", "cross_validation", "poi_enrichment", "result_generation"],
+    "sse_steps": ["intent_parsing", "xhs_search", "comment_analysis", "cross_validation", "shop_profile_enrichment", "result_generation"],
     "sse_detail_field": "detail",
     "dev_origin": "http://localhost:3000"
   },

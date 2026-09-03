@@ -6,7 +6,7 @@ import pytest
 from prometheus_client import generate_latest
 from pydantic import ValidationError
 
-from xhs_food.composition import build_legacy_composition_root
+from xhs_food.composition import build_composition_root
 from xhs_food.contracts import (
     PersonalizationCanaryMode,
     PersonalizationCanarySettings,
@@ -140,10 +140,10 @@ async def test_canary_binding_is_opt_in_and_separate_from_research_core(
     monkeypatch.setenv("MODULAR_TARGET_ADAPTERS_ENABLED", "true")
     monkeypatch.setenv("MODULAR_PERSONALIZATION_CANARY_MODE", "shadow")
     monkeypatch.setenv("MODULAR_PERSONALIZATION_CANARY_SAMPLE_RATE", "1")
-    root = build_legacy_composition_root()
+    root = build_composition_root()
     try:
         assert "personalization_canary" in root.logical_bindings
-        assert root.logical_bindings["modular_core"].binding_name == "research_task"
+        assert root.logical_bindings["research_task"].binding_name == "research_task"
         service = await root.resolve_logical("personalization_canary")
         assert isinstance(service, PersonalizationCanary)
         assert service.settings.mode is PersonalizationCanaryMode.SHADOW

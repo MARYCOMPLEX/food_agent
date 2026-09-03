@@ -1,13 +1,9 @@
-"""
-LLMService - 简化版LLM服务.
-
-使用 LangChain ChatOpenAI (OpenAI Compatible) 调用，默认配置为硅基流动 (SiliconFlow) API。
-"""
+"""OpenAI-compatible model adapter used by the Food Research Agent."""
 
 from __future__ import annotations
 
 import os
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from langchain_core.messages import BaseMessage, SystemMessage
 from langchain_openai import ChatOpenAI
@@ -23,24 +19,30 @@ from xhs_food.observability.metrics import (
 
 class LLMService:
     """简化版 LLM 服务.
-    
+
     使用 LangChain ChatOpenAI (OpenAI Compatible) 进行调用。
-    
+
     环境变量 / settings:
         OPENAI_API_KEY: API密钥
         OPENAI_API_BASE: API基地址
         DEFAULT_LLM_MODEL: 模型名称
     """
-    
+
     def __init__(
         self,
         model_name: Optional[str] = None,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        reasoning_effort: Optional[str] = None,
     ):
         self._model_name = model_name or settings.default_llm_model
         self._temperature = temperature if temperature is not None else settings.llm_temperature
         self._max_tokens = max_tokens if max_tokens is not None else settings.llm_max_tokens
+        self._reasoning_effort = (
+            reasoning_effort
+            if reasoning_effort is not None
+            else settings.llm_reasoning_effort
+        )
         self._llm: Optional[ChatOpenAI] = None
         
     def _get_llm(self) -> ChatOpenAI:
@@ -49,22 +51,46 @@ class LLMService:
             api_key = settings.openai_api_key or os.getenv("OPENAI_API_KEY")
             if not api_key:
                 raise ValueError("OPENAI_API_KEY environment variable is required")
-            
-            base_url = settings.openai_api_base or os.getenv("OPENAI_API_BASE", "https://api.siliconflow.cn/v1/")
-            
-            self._llm = ChatOpenAI(
-                model=self._model_name,
-                temperature=self._temperature,
-                max_tokens=self._max_tokens,
-                api_key=api_key,
-                base_url=base_url,
-                timeout=60.0,
-                default_headers={"User-Agent": "food-agent/1.0"},
+
+            base_url = settings.openai_api_base or os.getenv(
+                "OPENAI_API_BASE", "https://api.gojia.cloud/v1/"
             )
+
+            self._llm = ChatOpenAI(**self._client_kwargs(api_key=api_key, base_url=base_url))
             logger.info(f"LLM initialized: {self._model_name} @ {base_url}")
-        
+
         return self._llm
-    
+
+    def _client_kwargs(self, *, api_key: str, base_url: str) -> dict[str, Any]:
+        """Build provider kwargs without sending unsupported sampling options.
+
+        GPT-5/o-series endpoints reject ``temperature`` and use
+        ``max_completion_tokens``.  Older OpenAI-compatible providers still
+        expect the historical ``temperature``/``max_tokens`` pair, so retain
+        that exact wire shape for them.
+        """
+
+        common: dict[str, Any] = {
+            "model": self._model_name,
+            "api_key": api_key,
+            "base_url": base_url,
+            "timeout": 60.0,
+            "default_headers": {"User-Agent": "food-agent/1.0"},
+        }
+        model = self._model_name.casefold()
+        if model.startswith(("gpt-5", "o1", "o3", "o4")):
+            common["max_completion_tokens"] = self._max_tokens
+            if self._reasoning_effort:
+                common["reasoning_effort"] = self._reasoning_effort
+        else:
+            common.update(
+                {
+                    "temperature": self._temperature,
+                    "max_tokens": self._max_tokens,
+                }
+            )
+        return common
+
     @classmethod
     def _prepare_messages(cls, messages: List[BaseMessage]) -> List[BaseMessage]:
         """Prepend strong override directive to suppress any upstream injected coding/Codex instructions."""

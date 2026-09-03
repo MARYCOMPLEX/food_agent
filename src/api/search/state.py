@@ -19,7 +19,6 @@ from __future__ import annotations
 import json
 import time
 from collections.abc import Callable, Mapping
-from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -28,7 +27,6 @@ from loguru import logger
 
 from xhs_food import XHSFoodOrchestrator
 from xhs_food.config import settings
-from xhs_food.contracts import AgentToolExecutionContext, SearchToolPort
 
 # ---------------------------------------------------------------------------
 # Orchestrator LRU
@@ -43,60 +41,24 @@ _orchestrators: TTLCache[str, XHSFoodOrchestrator] = TTLCache(
 )
 
 
-@dataclass(frozen=True, slots=True)
-class _UnavailableSearchResult:
-    success: bool = False
-    data: Mapping[str, Any] | None = None
-    error_message: str | None = "MANAGED_SEARCH_NOT_CONFIGURED"
+OrchestratorFactory = Callable[[], XHSFoodOrchestrator]
+
+_orchestrator_factory: OrchestratorFactory = XHSFoodOrchestrator
 
 
-class _UnavailableSearchTool:
-    async def execute(self, **arguments: Any) -> _UnavailableSearchResult:
-        del arguments
-        return _UnavailableSearchResult()
+def configure_orchestrator_factory(factory: OrchestratorFactory) -> None:
+    """Install the Composition-Root-owned Agent graph and retire cached runs."""
 
-    async def health(self) -> bool:
-        return False
-
-
-ToolContextBinder = Callable[[AgentToolExecutionContext], AbstractContextManager[None]]
-
-_search_tool: SearchToolPort = _UnavailableSearchTool()
-
-
-def _default_tool_context_binder(
-    _context: AgentToolExecutionContext,
-) -> AbstractContextManager[None]:
-    return nullcontext()
-
-
-_tool_context_binder: ToolContextBinder = _default_tool_context_binder
-
-
-def configure_search_tool(
-    search_tool: SearchToolPort,
-    *,
-    context_binder: ToolContextBinder,
-) -> None:
-    """Install the sole managed search dependency and retire cached runs."""
-
-    global _search_tool, _tool_context_binder
-    _search_tool = search_tool
-    _tool_context_binder = context_binder
+    global _orchestrator_factory
+    _orchestrator_factory = factory
     _orchestrators.clear()
-
-
-def bind_search_tool_context(
-    context: AgentToolExecutionContext,
-) -> AbstractContextManager[None]:
-    return _tool_context_binder(context)
 
 
 def get_orchestrator(session_id: str) -> XHSFoodOrchestrator:
     cached = _orchestrators.get(session_id)
     if cached is not None:
         return cached
-    orch = XHSFoodOrchestrator(search_tool=_search_tool)
+    orch = _orchestrator_factory()
     _orchestrators[session_id] = orch
     return orch
 

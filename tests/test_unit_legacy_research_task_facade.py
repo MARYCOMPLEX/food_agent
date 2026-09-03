@@ -73,8 +73,8 @@ class _SpawnerCapture:
 async def test_start_new_spawns_the_legacy_runner_exactly_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from xhs_food.composition import legacy_research_task
-    from xhs_food.composition.legacy_research_task import LegacyResearchTaskFacade
+    from xhs_food.composition import research_task
+    from xhs_food.composition.research_task import ResearchTaskFacade
 
     state_updates: list[tuple[str, dict[str, Any]]] = []
     user_messages: list[tuple[str, str]] = []
@@ -103,12 +103,12 @@ async def test_start_new_spawns_the_legacy_runner_exactly_once(
     async def _get_storage() -> _StorageWithoutLegacyHistoryAlias:
         return _StorageWithoutLegacyHistoryAlias()
 
-    monkeypatch.setattr(legacy_research_task.legacy_state, "update_state", _update_state)
-    monkeypatch.setattr(legacy_research_task, "get_emitter", _get_emitter)
-    monkeypatch.setattr(legacy_research_task, "get_session_manager", _get_manager)
-    monkeypatch.setattr(legacy_research_task, "get_user_storage_service", _get_storage)
+    monkeypatch.setattr(research_task.search_state, "update_state", _update_state)
+    monkeypatch.setattr(research_task, "get_emitter", _get_emitter)
+    monkeypatch.setattr(research_task, "get_session_manager", _get_manager)
+    monkeypatch.setattr(research_task, "get_user_storage_service", _get_storage)
 
-    facade = LegacyResearchTaskFacade(
+    facade = ResearchTaskFacade(
         task_runner=runner,
         task_spawner=spawner,
         session_id_factory=lambda: "new-session",
@@ -141,8 +141,8 @@ async def test_start_new_spawns_the_legacy_runner_exactly_once(
 async def test_refine_spawns_the_legacy_runner_exactly_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from xhs_food.composition import legacy_research_task
-    from xhs_food.composition.legacy_research_task import LegacyResearchTaskFacade
+    from xhs_food.composition import research_task
+    from xhs_food.composition.research_task import ResearchTaskFacade
 
     state = {"status": "completed", "turn_id": 4}
     emitter = _AdmissionEmitter()
@@ -169,12 +169,12 @@ async def test_refine_spawns_the_legacy_runner_exactly_once(
         assert session_id == "refine-session"
         return emitter
 
-    monkeypatch.setattr(legacy_research_task.legacy_state, "load_state", _load_state)
-    monkeypatch.setattr(legacy_research_task.legacy_state, "update_state", _update_state)
-    monkeypatch.setattr(legacy_research_task, "get_session_manager", _get_manager)
-    monkeypatch.setattr(legacy_research_task, "get_emitter", _get_emitter)
+    monkeypatch.setattr(research_task.search_state, "load_state", _load_state)
+    monkeypatch.setattr(research_task.search_state, "update_state", _update_state)
+    monkeypatch.setattr(research_task, "get_session_manager", _get_manager)
+    monkeypatch.setattr(research_task, "get_emitter", _get_emitter)
 
-    facade = LegacyResearchTaskFacade(task_runner=runner, task_spawner=spawner)
+    facade = ResearchTaskFacade(task_runner=runner, task_spawner=spawner)
     try:
         admission = await facade.refine("refine-session", "不要辣")
     finally:
@@ -392,8 +392,8 @@ async def test_persistence_failure_is_swallowed_after_completed_state(
 async def test_recover_status_and_results_delegate_without_changing_payloads(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from xhs_food.composition import legacy_research_task
-    from xhs_food.composition.legacy_research_task import LegacyResearchTaskFacade
+    from xhs_food.composition import research_task
+    from xhs_food.composition.research_task import ResearchTaskFacade
 
     mapper_calls: list[tuple[str, dict[str, Any]]] = []
     recovery_calls: list[tuple[str, object]] = []
@@ -424,11 +424,11 @@ async def test_recover_status_and_results_delegate_without_changing_payloads(
         assert session_id == "status-session"
         return emitter
 
-    monkeypatch.setattr(legacy_research_task.legacy_tasks, "build_recovery_payload", _recover)
-    monkeypatch.setattr(legacy_research_task.legacy_state, "load_state", _load_state)
-    monkeypatch.setattr(legacy_research_task, "get_emitter", _get_emitter)
+    monkeypatch.setattr(research_task.search_tasks, "build_recovery_payload", _recover)
+    monkeypatch.setattr(research_task.search_state, "load_state", _load_state)
+    monkeypatch.setattr(research_task, "get_emitter", _get_emitter)
 
-    facade = LegacyResearchTaskFacade(result_mapper=mapper)  # type: ignore[arg-type]
+    facade = ResearchTaskFacade(result_mapper=mapper)  # type: ignore[arg-type]
 
     recovered = await facade.recover("recover-session")
     status = await facade.status("status-session")
@@ -640,8 +640,8 @@ async def test_persist_results_preserves_an_existing_falsey_legacy_id(
 def test_default_runner_receives_the_facade_result_mapper(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from xhs_food.composition import legacy_research_task
-    from xhs_food.composition.legacy_research_task import LegacyResearchTaskFacade
+    from xhs_food.composition import research_task
+    from xhs_food.composition.research_task import ResearchTaskFacade
     from xhs_food.experience import StableResultMapper
 
     mapper = StableResultMapper()
@@ -659,8 +659,8 @@ def test_default_runner_receives_the_facade_result_mapper(
         received.append(result_mapper)
         assert tool_context == _tool_context()
 
-    monkeypatch.setattr(legacy_research_task.legacy_tasks, "run_stream_search", _run)
-    facade = LegacyResearchTaskFacade(result_mapper=mapper, task_spawner=spawner)
+    monkeypatch.setattr(research_task.search_tasks, "run_stream_search", _run)
+    facade = ResearchTaskFacade(result_mapper=mapper, task_spawner=spawner)
     try:
         facade._spawn_run("session", "query", _tool_context())  # noqa: SLF001
         assert received == []

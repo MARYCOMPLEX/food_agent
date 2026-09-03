@@ -6,9 +6,7 @@ XHS Food Agent Schemas - 数据模型定义.
 
 from .enums_and_models import (
     WanghongScore,
-    SearchPhase,
     RecommendationLevel,
-    FollowUpType,
     CommentWeight,
     CrossValidationResult,
     ConversationContext,
@@ -27,9 +25,7 @@ from .restaurant import (
 
 __all__ = [
     "WanghongScore",
-    "SearchPhase",
     "RecommendationLevel",
-    "FollowUpType",
     "CommentWeight",
     "CrossValidationResult",
     "ConversationContext",

@@ -10,17 +10,14 @@ from typing import Any
 import pytest
 
 import xhs_food.composition.domain_packs as domain_pack_composition
-from xhs_food.composition import build_legacy_composition_root
+from xhs_food.composition import build_composition_root
 from xhs_food.composition.adapters.food_output import LegacyFoodOutputAdapter
 from xhs_food.composition.domain_packs import (
     DomainPackActivationError,
     DomainPackRegistry,
     discover_allowlisted_domain_packs,
 )
-from xhs_food.contracts import (
-    DomainRegistrationFailureCode,
-    ToolCall,
-)
+from xhs_food.contracts import DomainRegistrationFailureCode
 from xhs_food.domain_packs.food import (
     FoodPack,
     create_food_pack,
@@ -38,13 +35,14 @@ pytestmark = pytest.mark.unit
 def _registry() -> DomainPackRegistry:
     return DomainPackRegistry(
         core_version="1.0.0",
-        tool_capabilities={
-            "place.lookup": "1.0.0",
-            "evidence.search_reviews": "1.0.0",
-        },
+        tool_capabilities={},
         source_capabilities={
-            "place.lookup": "1.0.0",
-            "reviews.search": "1.0.0",
+            "xhs.notes.search": "1.0.0",
+            "xhs.notes.detail": "1.0.0",
+            "xhs.comments.search": "1.0.0",
+            "dianping.places.search": "1.0.0",
+            "dianping.places.detail": "1.0.0",
+            "dianping.reviews.search": "1.0.0",
         },
     )
 
@@ -214,115 +212,17 @@ def test_composition_root_rejects_missing_duplicate_or_non_callable_food_entry_p
     )
 
     with pytest.raises(RuntimeError, match=message):
-        build_legacy_composition_root()
+        build_composition_root()
 
 
-class _ToolProvider:
-    def __init__(self, name: str, result: ProviderResult) -> None:
-        self.name = name
-        self.result = result
-        self.calls: list[dict[str, Any]] = []
-
-    async def execute(self, **kwargs: Any) -> object:
-        self.calls.append(kwargs)
-        return self.result
-
-    async def health_check(self) -> bool:
-        return True
-
-
-def _food_gateway(
-    *, allowed: frozenset[str] | None = None, result: ProviderResult
-) -> tuple[SchemaToolGateway, _ToolProvider]:
+def test_food_pack_delegates_source_tools_to_the_managed_mcp_catalog() -> None:
     manifest, _ = load_food_contract_resources()
-    contract = next(item for item in manifest.allowed_tools if item.tool_id == "place.lookup")
-    provider = _ToolProvider(contract.tool_id, result)
-    return (
-        SchemaToolGateway(
-            (ToolRegistration(contract=contract, provider=provider),),
-            allowed_tools=allowed,
-        ),
-        provider,
-    )
-
-
-def _place_call(arguments: dict[str, Any], *, tool_name: str = "place.lookup") -> ToolCall:
-    return ToolCall(
-        call_id="s4-call",
-        task_id="s4-task",
-        tool_name=tool_name,
-        arguments=arguments,
-    )
-
-
-async def test_food_tool_gateway_rejects_malformed_input_before_provider_call() -> None:
-    gateway, provider = _food_gateway(
-        result=ProviderResult(
-            success=True,
-            data={"schemaVersion": "place.lookup/output/v1", "places": []},
-        )
-    )
-
-    result = await gateway.execute(
-        _place_call({"schemaVersion": "place.lookup/input/v1", "query": "火锅"})
-    )
-
-    assert result.success is False
-    assert result.error is not None
-    assert result.error.code == "TOOL_INPUT_INVALID"
-    assert provider.calls == []
-
-
-async def test_food_tool_gateway_rejects_undeclared_and_malformed_output() -> None:
-    valid_input = {
-        "schemaVersion": "place.lookup/input/v1",
-        "query": "火锅",
-        "geo": "CN-SC-Zigong",
+    assert manifest.allowed_tools == ()
+    assert {source.capability for source in manifest.domain_sources} == {
+        "notes.search",
+        "notes.detail",
+        "comments.search",
+        "places.search",
+        "places.detail",
+        "reviews.search",
     }
-    gateway, provider = _food_gateway(
-        allowed=frozenset(),
-        result=ProviderResult(
-            success=True,
-            data={"schemaVersion": "place.lookup/output/v1", "places": [{"sourceId": "p1"}]},
-        ),
-    )
-
-    denied = await gateway.execute(_place_call(valid_input))
-    assert denied.success is False
-    assert denied.error is not None
-    assert denied.error.code == "TOOL_POLICY_DENIED"
-    assert provider.calls == []
-
-    gateway, provider = _food_gateway(
-        result=ProviderResult(
-            success=True,
-            data={"schemaVersion": "place.lookup/output/v1", "places": [{"sourceId": "p1"}]},
-        )
-    )
-    malformed = await gateway.execute(_place_call(valid_input))
-    assert malformed.success is False
-    assert malformed.error is not None
-    assert malformed.error.code == "TOOL_OUTPUT_INVALID"
-    assert len(provider.calls) == 1
-
-
-def test_legacy_output_adapter_validates_domain_schema_before_dto_mapping() -> None:
-    manifest, _ = load_food_contract_resources()
-    adapter = LegacyFoodOutputAdapter()
-    valid = adapter.from_domain_output(manifest.final_output_example)
-    assert isinstance(manifest.final_output_example, Mapping)
-    assert valid.summary == manifest.final_output_example["summary"]
-
-    malformed = {
-        "schemaVersion": "food-agent-final-output/v1",
-        "summary": "bad",
-        "recommendations": [
-            {
-                "entityId": "restaurant-1",
-                "publicScore": 2,
-                "explanationRefs": [],
-            }
-        ],
-    }
-    with pytest.raises(ValueError):
-        adapter.from_domain_output(malformed)

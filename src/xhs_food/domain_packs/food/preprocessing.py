@@ -98,7 +98,7 @@ def calculate_interaction_score(likes: int, sub_comment_count: int = 0) -> float
 
 def preprocess_comments(
     comments: list[dict[str, Any]],
-    max_comments: int = 30,
+    max_comments: int | None = None,
 ) -> list[ProcessedComment]:
     """
     批量预处理评论.
@@ -116,7 +116,8 @@ def preprocess_comments(
     """
     processed = []
 
-    for idx, comment in enumerate(comments[:max_comments]):
+    selected = comments if max_comments is None else comments[:max_comments]
+    for idx, comment in enumerate(selected):
         # 获取评论文本
         text = comment.get("text") or comment.get("content") or ""
         if not text:
@@ -144,9 +145,10 @@ def preprocess_comments(
         # 计算互动分数
         interaction_score = calculate_interaction_score(likes, sub_count)
 
+        stable_id = comment.get("id") or comment.get("comment_id") or comment.get("commentId")
         processed.append(
             ProcessedComment(
-                id=f"c{idx}",
+                id=str(stable_id) if stable_id else f"c{idx}",
                 text=cleaned_text if cleaned_text else text,
                 likes=likes,
                 interaction_score=interaction_score,

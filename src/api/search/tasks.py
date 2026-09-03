@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import inspect
 from typing import Any
 
 from loguru import logger
@@ -17,7 +18,7 @@ from xhs_food.experience.results import StableResultMapper
 from xhs_food.services import get_session_manager, get_user_storage_service
 from xhs_food.services.user_storage import generate_restaurant_hash
 
-from .state import bind_search_tool_context, get_orchestrator, load_state, update_state
+from .state import get_orchestrator, load_state, update_state
 
 
 async def run_stream_search(
@@ -46,10 +47,11 @@ async def run_stream_search(
                 merge=True,
             )
 
-        if tool_context is None:
-            raise RuntimeError("managed MCP search context is required")
-        with bind_search_tool_context(tool_context):
-            await orchestrator.search_stream(query, emitter)
+        stream = orchestrator.search_stream
+        if "tool_context" in inspect.signature(stream).parameters:
+            await stream(query, emitter, tool_context=tool_context)
+        else:  # narrow adapter for injected test/worker facades
+            await stream(query, emitter)
 
         await update_state(session_id, status="completed")
         if result_mapper is None:

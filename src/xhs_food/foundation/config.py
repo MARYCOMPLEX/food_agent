@@ -162,6 +162,7 @@ class ModelConfigView(_OwnerView):
     model: str
     temperature: float
     max_tokens: int
+    reasoning_effort: str = "medium"
 
 
 class RepositoryConfigView(_OwnerView):

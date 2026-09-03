@@ -30,7 +30,7 @@ RESTAURANT = {
     "blackList": [],
     "stats": {"locality": 0.9, "authenticity": 0.88},
     "source_notes": ["note-1"],
-    "poi_details": {"address": "锦江区样例街 1 号"},
+    "shopProfile": {"address": "锦江区样例街 1 号", "phone": "028-00000000"},
 }
 
 

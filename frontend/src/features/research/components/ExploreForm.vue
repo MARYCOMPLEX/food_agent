@@ -39,12 +39,16 @@ function setQueryAndCity(q: string, c: string) {
 function handleSubmit() {
   if (!query.value.trim() || props.loading)
     return
+  const platforms: PlatformChannel[] = source.value === 'all'
+    ? ['xhs_pc', 'dianping']
+    : [source.value]
   emit('submit', {
     query: query.value.trim(),
     city: city.value,
     budget: budget.value,
     taste: taste.value,
     source: source.value,
+    platforms,
     mode: mode.value,
   })
 }

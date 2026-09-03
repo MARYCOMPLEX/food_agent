@@ -38,18 +38,28 @@ export interface Restaurant {
   is_recommended: boolean
   filter_reason: string | null
   wanghong_analysis: WanghongAnalysis | null
-  poi_details: {
-    address?: string
-    tel?: string
-    rating?: string
-    opentime?: string
-    location?: string
-    photos?: string[]
-  } | null
+  shopProfile: ShopProfile | null
   pros: string[]
   cons: string[]
   mustTry: MustTryItem[]
   blackList: BlackListItem[]
   stats: ShopStats
   tags: string[]
+}
+
+export interface ShopProfile {
+  address?: string | null
+  phone?: string | null
+  rating?: number | string | null
+  openingHours?: string | null
+  imageUrl?: string | null
+  images?: Array<string | { url?: string; image_url?: string; src?: string }>
+  recommendedDishes?: string[]
+  promotions?: unknown[]
+  city?: string | null
+  district?: string | null
+  region?: string | null
+  latitude?: number | null
+  longitude?: number | null
+  [key: string]: unknown
 }

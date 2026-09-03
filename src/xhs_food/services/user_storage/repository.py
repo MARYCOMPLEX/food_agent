@@ -11,6 +11,15 @@ from loguru import logger
 from .models import Favorite, Restaurant, SearchHistory, generate_restaurant_hash
 
 
+def _first_present(data: dict[str, Any], *keys: str) -> Any:
+    """Read the first non-None alias without treating numeric zero as absent."""
+
+    for key in keys:
+        if key in data and data[key] is not None:
+            return data[key]
+    return None
+
+
 class RepositoryMixin:
     """Mixin: restaurant CRUD, favorites CRUD, and search history operations.
 
@@ -38,12 +47,19 @@ class RepositoryMixin:
                 row = await conn.fetchrow(
                     """
                     INSERT INTO restaurants (
-                        id, name, alias, tel, address, city, district, business_area,
+                        id, name, alias, tel, address, city, district, region, business_area,
                         location, rating, cost, open_time, trust_score, one_liner,
-                        tags, pros, cons, warning, must_try, black_list, stats, photos, source_notes
+                        tags, pros, cons, warning, must_try, black_list, stats, photos, source_notes,
+                        provider_refs, profile_url, image_url, recommended_dishes, promotions,
+                        profile_metadata, profile_gaps, source_payload, source_updated_at,
+                        profile_fetched_at, profile_refresh_status, source_url, category,
+                        review_count, average_price, latitude, longitude, coordinate_system,
+                        geo, review_completeness
                     ) VALUES (
                         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
-                        $15, $16, $17, $18, $19, $20, $21, $22, $23
+                        $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26,
+                        $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38,
+                        $39, $40, $41, $42, $43, $44
                     )
                     ON CONFLICT (id) DO UPDATE SET
                         name = EXCLUDED.name, alias = EXCLUDED.alias,
@@ -51,6 +67,7 @@ class RepositoryMixin:
                         address = COALESCE(EXCLUDED.address, restaurants.address),
                         city = COALESCE(EXCLUDED.city, restaurants.city),
                         district = COALESCE(EXCLUDED.district, restaurants.district),
+                        region = COALESCE(EXCLUDED.region, restaurants.region),
                         business_area = COALESCE(EXCLUDED.business_area, restaurants.business_area),
                         location = COALESCE(EXCLUDED.location, restaurants.location),
                         rating = COALESCE(EXCLUDED.rating, restaurants.rating),
@@ -58,10 +75,35 @@ class RepositoryMixin:
                         open_time = COALESCE(EXCLUDED.open_time, restaurants.open_time),
                         trust_score = COALESCE(EXCLUDED.trust_score, restaurants.trust_score),
                         one_liner = COALESCE(EXCLUDED.one_liner, restaurants.one_liner),
-                        tags = EXCLUDED.tags, pros = EXCLUDED.pros, cons = EXCLUDED.cons,
-                        warning = EXCLUDED.warning, must_try = EXCLUDED.must_try,
-                        black_list = EXCLUDED.black_list, stats = EXCLUDED.stats,
-                        photos = EXCLUDED.photos, source_notes = EXCLUDED.source_notes,
+                        tags = COALESCE(NULLIF(EXCLUDED.tags, '[]'::jsonb), restaurants.tags),
+                        pros = COALESCE(NULLIF(EXCLUDED.pros, '[]'::jsonb), restaurants.pros),
+                        cons = COALESCE(NULLIF(EXCLUDED.cons, '[]'::jsonb), restaurants.cons),
+                        warning = COALESCE(EXCLUDED.warning, restaurants.warning),
+                        must_try = COALESCE(NULLIF(EXCLUDED.must_try, '[]'::jsonb), restaurants.must_try),
+                        black_list = COALESCE(NULLIF(EXCLUDED.black_list, '[]'::jsonb), restaurants.black_list),
+                        stats = COALESCE(NULLIF(EXCLUDED.stats, '{}'::jsonb), restaurants.stats),
+                        photos = COALESCE(NULLIF(EXCLUDED.photos, '[]'::jsonb), restaurants.photos),
+                        source_notes = COALESCE(NULLIF(EXCLUDED.source_notes, '[]'::jsonb), restaurants.source_notes),
+                        provider_refs = COALESCE(NULLIF(EXCLUDED.provider_refs, '{}'::jsonb), restaurants.provider_refs),
+                        profile_url = COALESCE(EXCLUDED.profile_url, restaurants.profile_url),
+                        image_url = COALESCE(EXCLUDED.image_url, restaurants.image_url),
+                        recommended_dishes = COALESCE(NULLIF(EXCLUDED.recommended_dishes, '[]'::jsonb), restaurants.recommended_dishes),
+                        promotions = COALESCE(NULLIF(EXCLUDED.promotions, '[]'::jsonb), restaurants.promotions),
+                        profile_metadata = COALESCE(NULLIF(EXCLUDED.profile_metadata, '{}'::jsonb), restaurants.profile_metadata),
+                        profile_gaps = COALESCE(NULLIF(EXCLUDED.profile_gaps, '[]'::jsonb), restaurants.profile_gaps),
+                        source_payload = COALESCE(EXCLUDED.source_payload, restaurants.source_payload),
+                        source_updated_at = COALESCE(EXCLUDED.source_updated_at, restaurants.source_updated_at),
+                        profile_fetched_at = COALESCE(EXCLUDED.profile_fetched_at, restaurants.profile_fetched_at),
+                        profile_refresh_status = COALESCE(EXCLUDED.profile_refresh_status, restaurants.profile_refresh_status),
+                        source_url = COALESCE(EXCLUDED.source_url, restaurants.source_url),
+                        category = COALESCE(EXCLUDED.category, restaurants.category),
+                        review_count = COALESCE(EXCLUDED.review_count, restaurants.review_count),
+                        average_price = COALESCE(EXCLUDED.average_price, restaurants.average_price),
+                        latitude = COALESCE(EXCLUDED.latitude, restaurants.latitude),
+                        longitude = COALESCE(EXCLUDED.longitude, restaurants.longitude),
+                        coordinate_system = COALESCE(EXCLUDED.coordinate_system, restaurants.coordinate_system),
+                        geo = COALESCE(NULLIF(EXCLUDED.geo, '{}'::jsonb), restaurants.geo),
+                        review_completeness = COALESCE(NULLIF(EXCLUDED.review_completeness, '{}'::jsonb), restaurants.review_completeness),
                         updated_at = NOW()
                     RETURNING *
                     """,
@@ -69,6 +111,7 @@ class RepositoryMixin:
                     restaurant_data.get("chnName") or restaurant_data.get("alias"),
                     tel, restaurant_data.get("address"), restaurant_data.get("city"),
                     restaurant_data.get("district"),
+                    restaurant_data.get("region"),
                     restaurant_data.get("businessArea") or restaurant_data.get("business_area"),
                     restaurant_data.get("location"), restaurant_data.get("rating"),
                     restaurant_data.get("cost"),
@@ -84,6 +127,26 @@ class RepositoryMixin:
                     json.dumps(restaurant_data.get("stats", {}), ensure_ascii=False),
                     json.dumps(restaurant_data.get("photos", []), ensure_ascii=False),
                     json.dumps(restaurant_data.get("sourceNotes") or restaurant_data.get("source_notes", []), ensure_ascii=False),
+                    json.dumps(restaurant_data.get("providerRefs") or restaurant_data.get("provider_refs", {}), ensure_ascii=False),
+                    restaurant_data.get("profileUrl") or restaurant_data.get("profile_url"),
+                    restaurant_data.get("imageUrl") or restaurant_data.get("image_url"),
+                    json.dumps(restaurant_data.get("recommendedDishes") or restaurant_data.get("recommended_dishes", []), ensure_ascii=False),
+                    json.dumps(restaurant_data.get("promotions", []), ensure_ascii=False),
+                    json.dumps(restaurant_data.get("profileMetadata") or restaurant_data.get("profile_metadata", {}), ensure_ascii=False),
+                    json.dumps(restaurant_data.get("profileGaps") or restaurant_data.get("profile_gaps", []), ensure_ascii=False),
+                    json.dumps(restaurant_data.get("sourcePayload") or restaurant_data.get("source_payload"), ensure_ascii=False, default=str) if restaurant_data.get("sourcePayload") is not None or restaurant_data.get("source_payload") is not None else None,
+                    restaurant_data.get("sourceUpdatedAt") or restaurant_data.get("source_updated_at"),
+                    restaurant_data.get("profileFetchedAt") or restaurant_data.get("profile_fetched_at"),
+                    restaurant_data.get("profileRefreshStatus") or restaurant_data.get("profile_refresh_status"),
+                    restaurant_data.get("sourceUrl") or restaurant_data.get("source_url"),
+                    restaurant_data.get("category"),
+                    _first_present(restaurant_data, "reviewCount", "review_count"),
+                    _first_present(restaurant_data, "averagePrice", "average_price"),
+                    restaurant_data.get("latitude"),
+                    restaurant_data.get("longitude"),
+                    restaurant_data.get("coordinateSystem") or restaurant_data.get("coordinate_system"),
+                    json.dumps(restaurant_data.get("geo", {}), ensure_ascii=False, default=str),
+                    json.dumps(restaurant_data.get("reviewCompleteness") or restaurant_data.get("review_completeness", {}), ensure_ascii=False, default=str),
                 )
                 return self._row_to_restaurant(row) if row else None
         except Exception as e:
@@ -103,7 +166,7 @@ class RepositoryMixin:
             return None
 
     async def get_cached_restaurant_by_name(self, name: str) -> dict[str, Any] | None:
-        """Return the legacy POI cache projection without exposing the pool."""
+        """Return the durable shop-profile projection without exposing the pool."""
 
         initialized = bool(getattr(self, "_initialized", False))
         pool = getattr(self, "_pool", None)
@@ -143,7 +206,13 @@ class RepositoryMixin:
                            r.name, r.alias, r.tel, r.address, r.city, r.district,
                            r.business_area, r.location, r.rating, r.cost, r.open_time,
                            r.trust_score, r.one_liner, r.tags, r.pros, r.cons,
-                           r.warning, r.must_try, r.black_list, r.stats, r.photos, r.source_notes
+                           r.warning, r.must_try, r.black_list, r.stats, r.photos, r.source_notes,
+                           r.region, r.provider_refs, r.profile_url, r.source_url, r.image_url,
+                           r.category, r.review_count, r.average_price, r.latitude, r.longitude,
+                           r.coordinate_system, r.geo, r.recommended_dishes, r.promotions,
+                           r.profile_metadata, r.review_completeness, r.profile_gaps,
+                           r.source_payload, r.source_updated_at, r.profile_fetched_at,
+                           r.profile_refresh_status
                     FROM favorites f LEFT JOIN restaurants r ON f.restaurant_id = r.id
                     WHERE f.user_id = $1 AND f.deleted_at IS NULL
                     ORDER BY f.created_at DESC

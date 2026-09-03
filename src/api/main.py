@@ -109,7 +109,7 @@ async def lifespan(application: FastAPI):
     if not settings.openai_api_key:
         logger.warning("OPENAI_API_KEY not set — LLM calls will fail")
     from xhs_food.composition import (
-        build_legacy_composition_root,
+        build_composition_root,
         build_reliable_runtime_bindings,
     )
     from xhs_food.events.bus import get_event_bus, shutdown_event_bus
@@ -124,7 +124,7 @@ async def lifespan(application: FastAPI):
             target_settings=target_settings,
         )
         try:
-            composition_root = build_legacy_composition_root(
+            composition_root = build_composition_root(
                 reliable_policy=reliable_runtime.policy,
                 reliable_task_store=reliable_runtime.task_store,
                 reliable_projection_store=reliable_runtime.projection_store,
@@ -136,7 +136,7 @@ async def lifespan(application: FastAPI):
             await reliable_runtime.aclose()
             raise
     else:
-        composition_root = build_legacy_composition_root(target_settings=target_settings)
+        composition_root = build_composition_root(target_settings=target_settings)
     application.state.composition_root = composition_root
     from xhs_food.composition.account_services import (
         AccountServiceRegistry,
@@ -145,7 +145,6 @@ async def lifespan(application: FastAPI):
 
     application.state.account_service_registry = None
     application.state.agent_tool_catalog = None
-    application.state.managed_search_tool = None
     if "account_services" in composition_root.logical_bindings:
         resolved_registry = await composition_root.resolve_logical("account_services")
         if not isinstance(resolved_registry, AccountServiceRegistry):
@@ -159,20 +158,14 @@ async def lifespan(application: FastAPI):
         application.state.agent_tool_catalog = await composition_root.resolve_logical(
             "agent_tool_catalog"
         )
-    if "managed_search_tool" in composition_root.logical_bindings:
-        from api.search.state import configure_search_tool
-        from xhs_food.composition.managed_search import bind_managed_search_context
-        from xhs_food.contracts import SearchToolPort
+    from api.search.state import configure_orchestrator_factory
+    from xhs_food.orchestrator import XHSFoodOrchestrator
 
-        managed_search_tool = await composition_root.resolve_logical("managed_search_tool")
-        if not isinstance(managed_search_tool, SearchToolPort):
-            raise RuntimeError("managed_search_tool binding must implement SearchToolPort")
-        application.state.managed_search_tool = managed_search_tool
-
-        configure_search_tool(
-            managed_search_tool,
-            context_binder=bind_managed_search_context,
-        )
+    research_workflow = await composition_root.resolve_logical("research_agent")
+    application.state.research_agent = research_workflow
+    configure_orchestrator_factory(
+        lambda: XHSFoodOrchestrator(workflow=research_workflow)
+    )
     application.state.account_service_control_plane = None
     if isinstance(application.state.account_service_registry, AccountServiceRegistry):
         application.state.account_service_control_plane = RemoteAccountServiceFacade(
@@ -182,7 +175,7 @@ async def lifespan(application: FastAPI):
     application.state.reliable_task_lifecycle = (
         "reliable_task_lifecycle" in composition_root.logical_bindings
     )
-    application.state.research_task = await composition_root.resolve_logical("modular_core")
+    application.state.research_task = await composition_root.resolve_logical("research_task")
     if application.state.reliable_task_lifecycle:
         application.state.reliable_projection_store = await composition_root.resolve_logical(
             "reliable_projection_store"

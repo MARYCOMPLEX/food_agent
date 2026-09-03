@@ -2,7 +2,7 @@
 XHS Food Agent Schemas - 枚举类型与核心数据模型.
 
 包含:
-- 枚举: WanghongScore, SearchPhase, RecommendationLevel, FollowUpType
+- 枚举: WanghongScore, RecommendationLevel
 - 模型: CommentWeight, CrossValidationResult, ConversationContext, FoodSearchIntent
 """
 
@@ -25,15 +25,6 @@ class WanghongScore(Enum):
     DEFINITELY_LOCAL = "definitely_local"  # 确定是本地老店
 
 
-class SearchPhase(Enum):
-    """4阶段搜索策略."""
-
-    PHASE_1_BROAD = "phase1_broad"  # 广撒网
-    PHASE_2_HIDDEN = "phase2_hidden"  # 挖隐藏
-    PHASE_3_VERIFY = "phase3_verify"  # 定向验证
-    PHASE_4_CATEGORY = "phase4_category"  # 细分搜索
-
-
 class RecommendationLevel(Enum):
     """推荐级别."""
 
@@ -41,19 +32,6 @@ class RecommendationLevel(Enum):
     RECOMMEND = "recommend"  # ⭐⭐ 推荐
     CAUTIOUS = "cautious"  # ⭐⭐⭐ 谨慎
     NOT_RECOMMEND = "not_recommend"  # ❌ 不推荐
-
-
-class FollowUpType(Enum):
-    """追问类型."""
-
-    NEW_SEARCH = "new_search"  # 新搜索（无上下文）
-    FILTER = "filter"  # 过滤类：排除某店
-    CATEGORY_FILTER = "category_filter"  # 品类过滤：在现有结果中筛选某类型
-    LOCATION_FILTER = "location_filter"  # 位置过滤：在现有结果中筛选某区域
-    REFINE = "refine"  # 细化类：多找几家火锅、换个区域
-    EXPAND = "expand"  # 扩展类：还有吗、多找几家
-    DETAIL = "detail"  # 详情类：XX店怎么样、具体位置
-    CONFIRM = "confirm"  # 确认类：就这个了、帮我选一家
 
 
 @dataclass
@@ -140,7 +118,7 @@ class CrossValidationResult:
 class ConversationContext:
     """多轮对话上下文.
 
-    用于缓存对话历史和搜索结果，支持追问处理。
+    用于缓存对话历史、评论证据和搜索结果；每一轮都由同一研究工作流处理。
     """
 
     conversation_history: list[dict[str, str]] = field(default_factory=list)
@@ -151,6 +129,7 @@ class ConversationContext:
     turn_count: int = 0
     last_notes: list[dict[str, Any]] = field(default_factory=list)
     target_city: str = ""
+    last_summary: str = ""
 
     def add_user_message(self, content: str) -> None:
         self.conversation_history.append({"role": "user", "content": content})
@@ -207,3 +186,4 @@ class ConversationContext:
         self.turn_count = 0
         self.last_notes = []
         self.target_city = ""
+        self.last_summary = ""

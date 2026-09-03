@@ -140,13 +140,18 @@ class RestaurantRecommendation:
     wanghong_analysis: Optional[WanghongAnalysis] = None
     is_recommended: bool = True
     filter_reason: Optional[str] = None
-    poi_details: Optional[Dict[str, Any]] = None
+    # Canonical structured profile projection produced by the Dianping
+    # enrichment boundary. Store/profile data has one explicit wire shape.
+    shop_profile: Optional[Dict[str, Any]] = None
     pros: List[str] = field(default_factory=list)
     cons: List[str] = field(default_factory=list)
     must_try: List[MustTryItem] = field(default_factory=list)
     black_list: List[BlackListItem] = field(default_factory=list)
     stats: Optional[ShopStats] = None
     tags: List[str] = field(default_factory=list)
+    evidence_refs: List[str] = field(default_factory=list)
+    evidence_summary: Dict[str, Any] = field(default_factory=dict)
+    source_gaps: List[Dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -158,13 +163,16 @@ class RestaurantRecommendation:
             "is_recommended": self.is_recommended,
             "filter_reason": self.filter_reason,
             "wanghong_analysis": self.wanghong_analysis.to_dict() if self.wanghong_analysis else None,
-            "poi_details": self.poi_details,
+            "shopProfile": self.shop_profile,
             "pros": self.pros,
             "cons": self.cons,
             "mustTry": [item.to_dict() for item in self.must_try] if self.must_try else [],
             "blackList": [item.to_dict() for item in self.black_list] if self.black_list else [],
             "stats": self.stats.to_dict() if self.stats else {"flavor": "", "cost": "", "wait": "", "env": ""},
             "tags": self.tags,
+            "evidenceRefs": self.evidence_refs,
+            "evidenceSummary": self.evidence_summary,
+            "sourceGaps": self.source_gaps,
         }
 
     def to_table_row(self) -> Dict[str, str]:
@@ -195,6 +203,8 @@ class XHSFoodResponse:
     clarify_questions: List[str] = field(default_factory=list)
     error_message: Optional[str] = None
     summary: str = ""
+    research_metadata: Dict[str, Any] = field(default_factory=dict)
+    gaps: List[Dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -204,6 +214,8 @@ class XHSFoodResponse:
             "clarify_questions": self.clarify_questions,
             "error_message": self.error_message,
             "summary": self.summary,
+            "researchMetadata": self.research_metadata,
+            "gaps": self.gaps,
         }
 
     def to_markdown_table(self) -> str:

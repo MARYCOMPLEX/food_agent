@@ -4,7 +4,7 @@
   "packVersion": "1.0.0",
   "contractApi": "domain-contract/v1",
   "coreVersionRange": ">=1.0.0,<2.0.0",
-  "manifestDigest": "9d46b1d28b4093854faf7a0d4d912cfa54438ce938de9239f803f6d786de17d3",
+  "manifestDigest": "b0787e4c23f92d9d64564dd480a0f17a59713a740e6fe14ed200264c5a8679de",
   "methods": [
     "describe",
     "classify_constraints",
@@ -72,179 +72,7 @@
       "outputSchemaDigest": "d5f01b2f63a02aba36561c5a9248ca65f60c6cb73fcbc7deff6acb8c4fad6e51"
     }
   ],
-  "allowedTools": [
-    {
-      "toolId": "place.lookup",
-      "toolVersion": "1.0.0",
-      "permission": "source.place.read",
-      "timeoutMs": 3000,
-      "errorCodes": [
-        "dependency_unavailable",
-        "rate_limited",
-        "invalid_tool_result"
-      ],
-      "inputSchemaDigest": "51c1c7fc88f092f5db4f63d5a067ab41abdf38749ad612e5c5f2733508b14054",
-      "outputSchemaDigest": "96d0b288e655c18e18fe8717e3908f66105deedeea11aa9755de253c12568395",
-      "inputSchema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$id": "urn:food-agent:tool:place.lookup:input:v1",
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "schemaVersion",
-          "query",
-          "geo"
-        ],
-        "properties": {
-          "schemaVersion": {
-            "const": "place.lookup/input/v1"
-          },
-          "query": {
-            "type": "string",
-            "minLength": 1
-          },
-          "geo": {
-            "type": "string",
-            "minLength": 1
-          }
-        }
-      },
-      "inputExample": {
-        "schemaVersion": "place.lookup/input/v1",
-        "query": "老灶火锅",
-        "geo": "CN-SC-Zigong"
-      },
-      "outputSchema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$id": "urn:food-agent:tool:place.lookup:output:v1",
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "schemaVersion",
-          "places"
-        ],
-        "properties": {
-          "schemaVersion": {
-            "const": "place.lookup/output/v1"
-          },
-          "places": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "sourceId",
-                "name",
-                "address"
-              ],
-              "properties": {
-                "sourceId": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "name": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "address": {
-                  "type": "string"
-                }
-              }
-            }
-          }
-        }
-      },
-      "outputExample": {
-        "schemaVersion": "place.lookup/output/v1",
-        "places": [
-          {
-            "sourceId": "poi-001",
-            "name": "老灶火锅",
-            "address": "自流井区"
-          }
-        ]
-      }
-    },
-    {
-      "toolId": "evidence.search_reviews",
-      "toolVersion": "1.0.0",
-      "permission": "source.reviews.read",
-      "timeoutMs": 5000,
-      "errorCodes": [
-        "dependency_unavailable",
-        "rate_limited",
-        "invalid_tool_result"
-      ],
-      "inputSchemaDigest": "a9caa8c7df484c1785e2784b2d4f55d658e4052ea080aaae6f6a586ff18545c1",
-      "outputSchemaDigest": "0729adab6def2d9e72d7e8456d279664c2edbffd4d433679b51f80acc2c16546",
-      "inputSchema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$id": "urn:food-agent:tool:evidence.search-reviews:input:v1",
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "schemaVersion",
-          "keywords",
-          "limit"
-        ],
-        "properties": {
-          "schemaVersion": {
-            "const": "evidence.search-reviews/input/v1"
-          },
-          "keywords": {
-            "type": "array",
-            "minItems": 1,
-            "items": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "limit": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 100
-          }
-        }
-      },
-      "inputExample": {
-        "schemaVersion": "evidence.search-reviews/input/v1",
-        "keywords": [
-          "自贡",
-          "本地火锅"
-        ],
-        "limit": 20
-      },
-      "outputSchema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$id": "urn:food-agent:tool:evidence.search-reviews:output:v1",
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "schemaVersion",
-          "batchRef",
-          "itemCount"
-        ],
-        "properties": {
-          "schemaVersion": {
-            "const": "evidence.search-reviews/output/v1"
-          },
-          "batchRef": {
-            "type": "string",
-            "minLength": 1
-          },
-          "itemCount": {
-            "type": "integer",
-            "minimum": 0
-          }
-        }
-      },
-      "outputExample": {
-        "schemaVersion": "evidence.search-reviews/output/v1",
-        "batchRef": "canonical-source-batch/01J0FOOD",
-        "itemCount": 12
-      }
-    }
-  ],
+  "allowedTools": [],
   "finalOutputSchemaDigest": "2b5334db461f1c7b6dc831f94a4fc85bb228c471a14f83f3038d4fd2de1fb2c7",
   "finalOutputSchema": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -334,14 +162,34 @@
   },
   "domainSources": [
     {
-      "capability": "place.lookup",
+      "capability": "notes.search",
       "versionRange": ">=1.0.0,<2.0.0",
-      "required": true
+      "required": false
+    },
+    {
+      "capability": "notes.detail",
+      "versionRange": ">=1.0.0,<2.0.0",
+      "required": false
+    },
+    {
+      "capability": "comments.search",
+      "versionRange": ">=1.0.0,<2.0.0",
+      "required": false
+    },
+    {
+      "capability": "places.search",
+      "versionRange": ">=1.0.0,<2.0.0",
+      "required": false
+    },
+    {
+      "capability": "places.detail",
+      "versionRange": ">=1.0.0,<2.0.0",
+      "required": false
     },
     {
       "capability": "reviews.search",
       "versionRange": ">=1.0.0,<2.0.0",
-      "required": true
+      "required": false
     }
   ],
   "policyProfiles": {
@@ -352,4 +200,3 @@
     "refreshJob": "food-refresh-declaration/v1"
   }
 }
-

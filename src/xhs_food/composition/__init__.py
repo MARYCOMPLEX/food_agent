@@ -8,11 +8,6 @@ from .account_services import (
     build_account_service_registry,
 )
 from .agent_tools import AccountServiceAgentToolCatalog, build_agent_tool_policy
-from .managed_search import (
-    ManagedMcpSearchTool,
-    UnavailableManagedSearchTool,
-    bind_managed_search_context,
-)
 from .root import (
     AdapterBinding,
     BindingRegistry,
@@ -21,7 +16,7 @@ from .root import (
     LogicalBinding,
     RegistryState,
     ReliableRuntimeBindings,
-    build_legacy_composition_root,
+    build_composition_root,
     build_media_worker,
     build_refresh_worker,
     build_reliable_research_worker,
@@ -43,11 +38,8 @@ __all__ = [
     "ReliableRuntimeBindings",
     "build_account_service_registry",
     "build_agent_tool_policy",
-    "ManagedMcpSearchTool",
-    "UnavailableManagedSearchTool",
-    "bind_managed_search_context",
     "build_media_worker",
-    "build_legacy_composition_root",
+    "build_composition_root",
     "build_refresh_worker",
     "build_reliable_runtime_bindings",
     "build_reliable_research_worker",

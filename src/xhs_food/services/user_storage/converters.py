@@ -89,6 +89,12 @@ class ConverterMixin:
             stats = _parse_jsonb(row.get("stats", {}), {})
             photos = _parse_jsonb(row.get("photos", []))
             source_notes = _parse_jsonb(row.get("source_notes", []))
+            provider_refs = _parse_jsonb(row.get("provider_refs", {}), {})
+            recommended_dishes = _parse_jsonb(row.get("recommended_dishes", []))
+            promotions = _parse_jsonb(row.get("promotions", []))
+            profile_metadata = _parse_jsonb(row.get("profile_metadata", {}), {})
+            review_completeness = _parse_jsonb(row.get("review_completeness", {}), {})
+            profile_gaps = _parse_jsonb(row.get("profile_gaps", []))
 
             trust_score = row.get("trust_score")
             restaurant_data = {
@@ -99,6 +105,7 @@ class ConverterMixin:
                 "location": row.get("location"),
                 "city": row.get("city"),
                 "district": row.get("district"),
+                "region": row.get("region"),
                 "businessArea": row.get("business_area"),
                 "tel": row.get("tel"),
                 "rating": row.get("rating"),
@@ -115,6 +122,26 @@ class ConverterMixin:
                 "mustTry": must_try,
                 "blackList": black_list,
                 "stats": stats,
+                "providerRefs": provider_refs,
+                "profileUrl": row.get("profile_url"),
+                "sourceUrl": row.get("source_url"),
+                "imageUrl": row.get("image_url"),
+                "category": row.get("category"),
+                "reviewCount": row.get("review_count"),
+                "averagePrice": row.get("average_price"),
+                "latitude": row.get("latitude"),
+                "longitude": row.get("longitude"),
+                "coordinateSystem": row.get("coordinate_system"),
+                "geo": _parse_jsonb(row.get("geo", {}), {}),
+                "recommendedDishes": recommended_dishes,
+                "promotions": promotions,
+                "profileMetadata": profile_metadata,
+                "reviewCompleteness": review_completeness,
+                "profileGaps": profile_gaps,
+                "sourcePayload": _parse_jsonb(row.get("source_payload"), None),
+                "sourceUpdatedAt": row.get("source_updated_at"),
+                "profileFetchedAt": row.get("profile_fetched_at"),
+                "profileRefreshStatus": row.get("profile_refresh_status"),
             }
 
         return Favorite(
@@ -135,6 +162,12 @@ class ConverterMixin:
         stats = _parse_jsonb(row.get("stats", {}), {})
         photos = _parse_jsonb(row.get("photos", []))
         source_notes = _parse_jsonb(row.get("source_notes", []))
+        provider_refs = _parse_jsonb(row.get("provider_refs", {}), {})
+        recommended_dishes = _parse_jsonb(row.get("recommended_dishes", []))
+        promotions = _parse_jsonb(row.get("promotions", []))
+        profile_metadata = _parse_jsonb(row.get("profile_metadata", {}), {})
+        review_completeness = _parse_jsonb(row.get("review_completeness", {}), {})
+        profile_gaps = _parse_jsonb(row.get("profile_gaps", []))
 
         return Restaurant(
             id=row["id"],
@@ -144,6 +177,7 @@ class ConverterMixin:
             address=row.get("address"),
             city=row.get("city"),
             district=row.get("district"),
+            region=row.get("region"),
             business_area=row.get("business_area"),
             location=row.get("location"),
             rating=row.get("rating"),
@@ -160,6 +194,26 @@ class ConverterMixin:
             stats=stats,
             photos=photos,
             source_notes=source_notes,
+            provider_refs=provider_refs,
+            profile_url=row.get("profile_url"),
+            source_url=row.get("source_url"),
+            image_url=row.get("image_url"),
+            category=row.get("category"),
+            review_count=row.get("review_count"),
+            average_price=row.get("average_price"),
+            latitude=row.get("latitude"),
+            longitude=row.get("longitude"),
+            coordinate_system=row.get("coordinate_system"),
+            geo=_parse_jsonb(row.get("geo", {}), {}),
+            recommended_dishes=recommended_dishes,
+            promotions=promotions,
+            profile_metadata=profile_metadata,
+            review_completeness=review_completeness,
+            profile_gaps=profile_gaps,
+            source_payload=_parse_jsonb(row.get("source_payload"), None),
+            source_updated_at=row.get("source_updated_at"),
+            profile_fetched_at=row.get("profile_fetched_at"),
+            profile_refresh_status=row.get("profile_refresh_status"),
             created_at=row.get("created_at"),
             updated_at=row.get("updated_at"),
         )

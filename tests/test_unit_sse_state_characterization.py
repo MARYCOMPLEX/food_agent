@@ -153,8 +153,8 @@ async def test_same_session_refine_keeps_old_done_in_event_log(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Freeze stale-DONE replay: refine resets the emitter, not its bus stream."""
-    from xhs_food.composition import legacy_research_task
-    from xhs_food.composition.legacy_research_task import LegacyResearchTaskFacade
+    from xhs_food.composition import research_task
+    from xhs_food.composition.research_task import ResearchTaskFacade
 
     bus = InMemoryEventBus()
     emitter = SearchEventEmitter("refine-session", bus)
@@ -195,12 +195,12 @@ async def test_same_session_refine_keeps_old_done_in_event_log(
         coro.close()
         return object()
 
-    monkeypatch.setattr(legacy_research_task.legacy_state, "load_state", _load_state)
-    monkeypatch.setattr(legacy_research_task.legacy_state, "update_state", _update_state)
-    monkeypatch.setattr(legacy_research_task, "get_session_manager", _get_session_manager)
-    monkeypatch.setattr(legacy_research_task, "get_emitter", _get_emitter)
+    monkeypatch.setattr(research_task.search_state, "load_state", _load_state)
+    monkeypatch.setattr(research_task.search_state, "update_state", _update_state)
+    monkeypatch.setattr(research_task, "get_session_manager", _get_session_manager)
+    monkeypatch.setattr(research_task, "get_emitter", _get_emitter)
 
-    facade = LegacyResearchTaskFacade(
+    facade = ResearchTaskFacade(
         task_runner=_noop_search,
         task_spawner=_discard_task,
     )

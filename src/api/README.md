@@ -46,11 +46,10 @@ uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --workers 4
 
 | 方法 | 端点 | 说明 |
 |------|------|------|
-| `POST` | `/v1/search/start` | 启动新搜索 |
+| `POST` | `/v1/search/` | 新建或继续一轮研究 |
 | `GET` | `/v1/search/stream/{sessionId}` | SSE 流式接收结果 |
-| `GET` | `/v1/search/recover/{sessionId}` | 断线恢复 |
 | `GET` | `/v1/search/status/{sessionId}` | 查询状态 |
-| `POST` | `/v1/search/refine` | 多轮对话追问 |
+| `GET` | `/v1/search/results/{sessionId}` | 查询结果 |
 
 ### 收藏
 
@@ -121,7 +120,7 @@ async def get_profile(user: User = Depends(get_current_user)):
 ```
 Client                          Server
   |                               |
-  |-- POST /search/start -------->|
+  |-- POST /search/ -------------->|
   |<---- { sessionId } -----------|
   |                               |
   |-- GET /search/stream/{id} --->|
@@ -135,13 +134,15 @@ Client                          Server
   |                               |
 ```
 
-### 断线恢复接口 `/v1/search/recover/{sessionId}`
+### 继续研究与恢复
 
 用于从历史记录恢复完整的多轮对话，返回所有轮次的搜索结果。
 
 **请求示例**:
 ```bash
-curl http://localhost:8000/v1/search/recover/{sessionId}
+curl -X POST http://localhost:8000/v1/search/ \
+  -H "Content-Type: application/json" \
+  -d '{"sessionId":"<sessionId>","query":"继续分析评论争议"}'
 ```
 
 **响应示例** (status: completed):
@@ -257,8 +258,8 @@ curl http://localhost:8000/v1/search/recover/{sessionId}
 # 健康检查
 curl http://localhost:8000/health
 
-# 启动搜索
-curl -X POST http://localhost:8000/v1/search/start \
+# 新建搜索
+curl -X POST http://localhost:8000/v1/search/ \
   -H "Content-Type: application/json" \
   -d '{"query": "成都火锅推荐"}'
 

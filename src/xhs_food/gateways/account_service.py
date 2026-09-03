@@ -549,9 +549,10 @@ class McpAccountServiceClient:
                 retryable=True,
             ) from exc
         if response.status_code >= 400:
+            detail = _response_error_message(response)
             raise RemoteAccountServiceError(
                 _category_for_status(response.status_code),
-                "MCP service request failed",
+                detail or f"MCP service request failed (HTTP {response.status_code})",
                 service_id=self.config.service_id,
                 status_code=response.status_code,
             )
@@ -574,9 +575,11 @@ class McpAccountServiceClient:
         if session_id:
             self._session_id = session_id
         if "error" in value:
+            protocol_error = value.get("error")
+            detail = _safe_error_text(protocol_error)
             raise RemoteAccountServiceError(
                 RemoteErrorCategory.INVALID,
-                "MCP service returned a protocol error",
+                detail or "MCP service returned a protocol error",
                 service_id=self.config.service_id,
             )
         return _ensure_mapping(value.get("result", value), service_id=self.config.service_id)
@@ -710,6 +713,39 @@ class McpAccountServiceClient:
         self._closed = True
         if self._owns_client:
             await self._client.aclose()
+
+
+def _response_error_message(response: httpx.Response) -> str | None:
+    """Extract a bounded provider diagnostic without leaking the full body."""
+
+    try:
+        body = response.json()
+    except ValueError:
+        body = response.text
+    if isinstance(body, Mapping):
+        for key in ("error_message", "error", "message", "detail", "msg"):
+            value = body.get(key)
+            text = _safe_error_text(value)
+            if text:
+                return f"HTTP {response.status_code}: {text}"
+    text = _safe_error_text(body)
+    return f"HTTP {response.status_code}: {text}" if text else None
+
+
+def _safe_error_text(value: object) -> str:
+    if isinstance(value, Mapping):
+        for key in ("message", "detail", "msg", "code", "error"):
+            if key in value:
+                nested = _safe_error_text(value[key])
+                if nested:
+                    return nested
+        return ""
+    if isinstance(value, (list, tuple)):
+        return ""
+    if value is None:
+        return ""
+    text = str(value).replace("\x00", " ").strip()
+    return text[:240]
 
 
 __all__ = [

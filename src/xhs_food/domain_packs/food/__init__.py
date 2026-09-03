@@ -7,7 +7,6 @@ Root owns registration and activation after validating all required capabilities
 from .decision import FoodDecisionPolicy, WanghongDecision
 from .intent import FoodSearchIntent
 from .pack import FoodBehavior, FoodPack, create_food_pack
-from .place import FoodPlacePolicy
 from .resources import (
     FOOD_DOMAIN_ID,
     FOOD_PACK_VERSION,
@@ -23,7 +22,6 @@ __all__ = [
     "FoodBehavior",
     "FoodDecisionPolicy",
     "FoodPack",
-    "FoodPlacePolicy",
     "FoodSearchIntent",
     "FoodWorkflowPolicy",
     "WanghongDecision",

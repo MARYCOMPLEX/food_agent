@@ -32,10 +32,13 @@ class Settings(BaseSettings):
 
     # ---------- LLM ----------
     openai_api_key: Optional[str] = None
-    openai_api_base: str = "https://api.siliconflow.cn/v1/"
-    default_llm_model: str = "Qwen/Qwen3-8B"
+    openai_api_base: str = "https://api.gojia.cloud/v1/"
+    default_llm_model: str = "gpt-5.6-sol"
     llm_temperature: float = 0.2
     llm_max_tokens: int = 1024
+    # Reasoning-capable models (for example GPT-5.x) use this provider option
+    # instead of temperature.  It remains a harmless default for other models.
+    llm_reasoning_effort: str = "medium"
 
     # ---------- Embedding (optional, falls back to LLM creds) ----------
     embedding_api_key: Optional[str] = None
@@ -43,14 +46,14 @@ class Settings(BaseSettings):
     embedding_model: str = "text-embedding-3-small"
 
     # ---------- Search behavior ----------
-    search_deep_mode: bool = False
     search_note_limit: int = 15
-    search_notes_per_keyword: int = 4
     search_max_restaurants: int = 10
+    shop_profile_refresh_hours: int = 168
+    shop_profile_partial_retry_hours: int = 12
 
     # ---------- Concurrency ----------
     analyze_concurrency: int = 5
-    poi_concurrency: int = 5
+    profile_concurrency: int = 3
 
     # ---------- HTTP / SSE ----------
     api_host: str = "0.0.0.0"

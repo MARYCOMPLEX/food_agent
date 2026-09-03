@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 from api.schemas import UnifiedSearchRequest
 from api.search import routes
 from api.search.dependencies import get_research_task
-from xhs_food.composition import build_legacy_composition_root
+from xhs_food.composition import build_composition_root
 from xhs_food.contracts import (
     ContextMessage,
     ExplicitRefreshUseCase,
@@ -320,7 +320,7 @@ async def test_refine_maps_only_the_contract_not_found_error_to_404() -> None:
 
 
 async def test_explicit_refresh_is_a_public_but_unbound_s2_port() -> None:
-    root = build_legacy_composition_root()
+    root = build_composition_root()
     try:
         use_cases = root.registries["use_cases"]
         assert "research_task" in use_cases.bindings

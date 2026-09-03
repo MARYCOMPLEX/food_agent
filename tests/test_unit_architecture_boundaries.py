@@ -738,7 +738,7 @@ def test_owner_port_and_foundation_food_boundaries_are_absolute(
         "xhs_food.services.redis_memory",
         "xhs_food.services.user_storage",
     } <= set(policy["owner_port_forbidden_import_prefixes"])
-    assert {"AmapAPI", "get_amap_api", "get_user_storage_service"} <= set(
+    assert {"get_user_storage_service"} <= set(
         policy["owner_port_forbidden_import_symbols"]
     )
     assert not _scan_owner_port_boundary_violations(SRC, policy)
@@ -749,7 +749,7 @@ def test_owner_port_and_foundation_food_boundaries_are_absolute(
         "import redis\n"
         "from xhs_food.gateways.place import PlaceLookupToolAdapter\n"
         "from xhs_food.services import get_user_storage_service\n"
-        "from xhs_food.services.amap_api import AmapAPI\n",
+        "from xhs_food.services.user_storage import UserStorageService\n",
         encoding="utf-8",
     )
     domain_pack = tmp_path / "xhs_food/domain_packs/bad_food.py"
@@ -770,7 +770,8 @@ def test_owner_port_and_foundation_food_boundaries_are_absolute(
         "xhs_food.agents.bad_place|owner-port-bypass|"
         "xhs_food.gateways.place.PlaceLookupToolAdapter",
         "xhs_food.agents.bad_place|owner-port-bypass|xhs_food.services.get_user_storage_service",
-        "xhs_food.agents.bad_place|owner-port-bypass|xhs_food.services.amap_api.AmapAPI",
+        "xhs_food.agents.bad_place|owner-port-bypass|"
+        "xhs_food.services.user_storage.UserStorageService",
         "xhs_food.domain_packs.bad_food|owner-port-bypass|boto3",
         "xhs_food.repositories.bad_cache|owner-port-bypass|temporalio",
         "xhs_food.foundation.bad_food|foundation-food-dependency|"
@@ -889,43 +890,19 @@ def test_redis_target_surface_is_hot_state_only() -> None:
     assert not redis_bound_durable_surfaces
 
 
-def test_resolved_poi_boundary_violations_are_not_baselined() -> None:
+def test_research_boundary_is_explicit_and_removed_routes_stay_absent() -> None:
     policy = _load_policy()
-    resolved = {
-        "xhs_food.agents.poi_enricher|POIEnricherAgent._get_cached_poi|storage._initialized",
-        "xhs_food.agents.poi_enricher|POIEnricherAgent._get_cached_poi|storage._pool",
-    }
-    assert resolved.isdisjoint(policy["legacy_private_access_violations"])
-    assert resolved.isdisjoint(_scan_private_access_violations(SRC))
-    resolved_import = (
-        "xhs_food.agents.poi_enricher|orchestrator->foundation|"
-        "xhs_food.services.user_storage.generate_restaurant_hash"
+    assert _layer_for("xhs_food.research.sources", _rules(policy)) is not None
+    assert _layer_for("xhs_food.research.sources", _rules(policy)).layer == "research"
+    assert _scan_private_access_violations(SRC) <= set(policy["legacy_private_access_violations"])
+    assert not (SRC / "xhs_food" / "services" / "amap_api.py").exists()
+    assert not (SRC / "xhs_food" / "agents" / "poi_enricher.py").exists()
+    assert not (SRC / "xhs_food" / "orchestrator" / "search_executor.py").exists()
+    assert not (SRC / "xhs_food" / "orchestrator" / "follow_up.py").exists()
+    assert all(
+        "amap" not in value.casefold()
+        and "poi_enricher" not in value.casefold()
+        and "search_executor" not in value.casefold()
+        and "follow_up" not in value.casefold()
+        for value in policy["allowed_compatibility_imports"]
     )
-    assert resolved_import not in policy["legacy_import_violations"]
-    assert resolved_import not in _scan_import_violations(SRC, policy)
-    resolved_amap_imports = {
-        "xhs_food.agents.poi_enricher|orchestrator->connector|"
-        "xhs_food.services.amap_api.AmapAPI",
-        "xhs_food.agents.poi_enricher|orchestrator->connector|"
-        "xhs_food.services.amap_api.get_amap_api",
-    }
-    assert resolved_amap_imports.isdisjoint(policy["legacy_import_violations"])
-    assert resolved_amap_imports.isdisjoint(_scan_import_violations(SRC, policy))
-    resolved_storage_import = (
-        "xhs_food.agents.poi_enricher|orchestrator->foundation|"
-        "xhs_food.services.get_user_storage_service"
-    )
-    assert resolved_storage_import not in policy["legacy_import_violations"]
-    assert resolved_storage_import not in _scan_import_violations(SRC, policy)
-
-    poi_search = _parse_module(SRC / "xhs_food" / "agents" / "poi_search.py")
-    calls = {ast.unparse(node.func) for node in ast.walk(poi_search) if isinstance(node, ast.Call)}
-    assert "self._place_lookup.lookup" in calls
-    assert not {call for call in calls if call.endswith(".search_poi")}
-
-    assert policy["allowed_compatibility_imports"] == [
-        "xhs_food.agents.poi_enricher|xhs_food.composition.legacy_poi.build_legacy_poi_ports",
-        "xhs_food.services.postgres_storage|xhs_food.foundation.schema_authority.SchemaNotReadyError",
-        "xhs_food.services.postgres_storage|xhs_food.foundation.schema_authority.assert_postgres_schema_ready",
-        "xhs_food.services.user_storage.service|xhs_food.foundation.schema_authority.assert_postgres_schema_ready",
-    ]

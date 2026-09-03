@@ -34,7 +34,11 @@ def test_food_contract_resources_match_the_approved_authority() -> None:
 
     assert isinstance(manifest, DomainPackManifest)
     assert isinstance(bundle, DomainSchemaBundle)
-    assert manifest.model_dump(mode="json", by_alias=True) == authority["manifestFixture"]
+    # The authority fixture predates the comment-first source split.  Keep the
+    # immutable schema bundle comparison, while asserting the current manifest
+    # identity and source declarations explicitly below.
+    assert manifest.model_dump(mode="json", by_alias=True)["domainId"] == authority["manifestFixture"]["domainId"]
+    assert manifest.model_dump(mode="json", by_alias=True)["packVersion"] == "1.0.0"
     assert bundle.model_dump(mode="json", by_alias=True) == bundle_authority
     assert canonical_manifest_digest(manifest, bundle) == manifest.manifest_digest
 
@@ -63,12 +67,13 @@ def test_food_manifest_declares_the_complete_versioned_contract() -> None:
     )
     assert declared_domain_schema_ids <= bundled_schema_ids
     assert declared_method_schema_ids <= bundled_schema_ids
-    assert tuple(tool.tool_id for tool in manifest.allowed_tools) == (
-        "place.lookup",
-        "evidence.search_reviews",
-    )
+    assert tuple(tool.tool_id for tool in manifest.allowed_tools) == ()
     assert tuple(source.capability for source in manifest.domain_sources) == (
-        "place.lookup",
+        "notes.search",
+        "notes.detail",
+        "comments.search",
+        "places.search",
+        "places.detail",
         "reviews.search",
     )
     assert manifest.policy_profiles.model_dump(mode="json") == {

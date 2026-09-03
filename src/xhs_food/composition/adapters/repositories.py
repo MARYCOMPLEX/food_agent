@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Mapping
 from typing import Any
 
 from xhs_food.contracts import ContractPayload, EvidenceBundle, EvidenceItem
@@ -145,17 +145,6 @@ class LegacySearchResultRepositoryAdapter:
         )
 
 
-class LegacyPlaceCacheRepositoryAdapter:
-    """Resolve legacy storage lazily and expose only the place-cache read port."""
-
-    def __init__(self, storage_factory: Callable[[], Awaitable[Any]]) -> None:
-        self._storage_factory = storage_factory
-
-    async def get_cached_place_by_name(self, name: str) -> ContractPayload | None:
-        storage = await self._storage_factory()
-        return _payload_or_none(await storage.get_cached_restaurant_by_name(name))
-
-
 class DisabledPublicEvidenceRepository:
     async def get_bundle(self, bundle_id: str) -> EvidenceBundle | None:
         del bundle_id
@@ -188,7 +177,6 @@ __all__ = [
     "DisabledPublicEvidenceRepository",
     "LegacyFavoritesRepositoryAdapter",
     "LegacyHistoryRepositoryAdapter",
-    "LegacyPlaceCacheRepositoryAdapter",
     "LegacySearchResultRepositoryAdapter",
     "LegacySessionRepositoryAdapter",
     "LegacyUserRepositoryAdapter",

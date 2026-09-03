@@ -75,8 +75,8 @@ _METRIC_LABEL_VALUES = {
         }
     ),
     "provider": frozenset({"deepseek", "openai", "siliconflow"}),
-    "model_role": frozenset({"analysis", "follow_up", "intent", "orchestration"}),
-    "connector": frozenset({"amap", "place", "xhs"}),
+    "model_role": frozenset({"analysis", "conversation", "intent", "orchestration"}),
+    "connector": frozenset({"dianping", "place", "xhs"}),
     "task_queue": frozenset({"media", "refresh", "research"}),
     "status": frozenset(
         {"completed", "disabled", "failed", "healthy", "ready", "running", "unhealthy"}

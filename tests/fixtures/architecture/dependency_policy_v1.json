@@ -12,6 +12,7 @@
     {"prefix": "xhs_food.foundation", "layer": "target_foundation", "mode": "target"},
     {"prefix": "xhs_food.domain_packs", "layer": "domain_pack", "mode": "target"},
     {"prefix": "xhs_food.contracts", "layer": "contracts", "mode": "target"},
+    {"prefix": "xhs_food.research", "layer": "research", "mode": "target"},
     {"prefix": "xhs_food.orchestrator.agent_runtime", "layer": "orchestrator", "mode": "target", "match": "exact"},
     {"prefix": "xhs_food.orchestrator.coordinator", "layer": "orchestrator", "mode": "target", "match": "exact"},
     {"prefix": "xhs_food.orchestrator.projections", "layer": "orchestrator", "mode": "target", "match": "exact"},
@@ -34,7 +35,7 @@
     {"prefix": "api", "layer": "experience", "mode": "legacy"}
   ],
   "allowed_internal_edges": {
-    "composition": ["composition", "compatibility_adapter", "contracts", "domain_pack", "experience", "gateway", "target_foundation", "orchestrator", "personalization", "connector", "domain", "foundation", "legacy_composition", "legacy_shell"],
+    "composition": ["composition", "compatibility_adapter", "contracts", "domain_pack", "experience", "gateway", "target_foundation", "orchestrator", "research", "personalization", "connector", "domain", "foundation", "legacy_composition", "legacy_shell"],
     "compatibility_adapter": ["compatibility_adapter", "contracts", "domain_pack", "gateway", "target_foundation", "connector", "domain", "foundation", "legacy_composition", "legacy_shell"],
     "contracts": ["contracts"],
     "domain_pack": ["contracts", "domain_pack"],
@@ -44,7 +45,8 @@
     "evidence": ["contracts", "domain_pack", "evidence"],
     "personalization": ["contracts", "personalization"],
     "target_foundation": ["contracts", "target_foundation"],
-    "orchestrator": ["compatibility_adapter", "contracts", "domain_pack", "orchestrator"],
+    "research": ["contracts", "domain_pack", "orchestrator", "domain", "foundation", "evidence", "legacy_shell", "research"],
+    "orchestrator": ["compatibility_adapter", "contracts", "domain_pack", "orchestrator", "research"],
     "connector": ["connector", "contracts"],
     "domain": ["contracts", "domain", "domain_pack"],
     "foundation": ["contracts", "domain_pack", "foundation"],
@@ -53,7 +55,6 @@
     "legacy_script": ["contracts", "legacy_script"]
   },
   "allowed_compatibility_imports": [
-    "xhs_food.agents.poi_enricher|xhs_food.composition.legacy_poi.build_legacy_poi_ports",
     "xhs_food.services.postgres_storage|xhs_food.foundation.schema_authority.SchemaNotReadyError",
     "xhs_food.services.postgres_storage|xhs_food.foundation.schema_authority.assert_postgres_schema_ready",
     "xhs_food.services.user_storage.service|xhs_food.foundation.schema_authority.assert_postgres_schema_ready"
@@ -67,6 +68,7 @@
     "account_service_fixture": ["fastapi", "pydantic"],
     "evidence": ["pydantic"],
     "orchestrator": ["jsonschema", "pydantic", "pydantic_ai", "temporalio"],
+    "research": ["pydantic"],
     "target_foundation": ["boto3", "botocore", "opentelemetry", "pgvector", "prometheus_client", "pydantic", "pydantic_settings", "redis", "sqlalchemy", "temporalio"]
   },
   "owner_port_consumer_module_prefixes": [
@@ -92,8 +94,6 @@
     "xhs_food.services.user_storage"
   ],
   "owner_port_forbidden_import_symbols": [
-    "AmapAPI",
-    "get_amap_api",
     "get_user_storage_service"
   ],
   "owner_port_boundary_exceptions": {
@@ -214,9 +214,7 @@
     "xhs_food.agents.intent_parser|orchestrator->domain|xhs_food.schemas.FollowUpType",
     "xhs_food.agents.intent_parser|orchestrator->domain|xhs_food.schemas.FoodSearchIntent",
     "xhs_food.agents.intent_parser|orchestrator->foundation|xhs_food.services.llm_service.LLMService",
-    "xhs_food.agents.poi_enricher|orchestrator->domain|xhs_food.schemas.RestaurantRecommendation",
-    "xhs_food.agents.poi_enricher|orchestrator->legacy_shell|xhs_food.config.settings",
-    "xhs_food.agents.poi_search|orchestrator->domain|xhs_food.schemas.RestaurantRecommendation",
+    "xhs_food.services.llm_service|foundation->legacy_shell|xhs_food.config.settings",
     "xhs_food.events.bus|foundation->legacy_shell|xhs_food.config.settings",
     "xhs_food.orchestrator.converters|orchestrator->domain|xhs_food.schemas.BlackListItem",
     "xhs_food.orchestrator.converters|orchestrator->domain|xhs_food.schemas.MustTryItem",
@@ -235,20 +233,6 @@
     "xhs_food.orchestrator.core|orchestrator->legacy_shell|xhs_food.config.settings",
     "xhs_food.orchestrator.core|orchestrator->legacy_shell|xhs_food.exceptions.IntentError",
     "xhs_food.orchestrator.core|orchestrator->legacy_shell|xhs_food.exceptions.LLMError",
-    "xhs_food.orchestrator.follow_up|orchestrator->domain|xhs_food.common.expand_category_keywords",
-    "xhs_food.orchestrator.follow_up|orchestrator->domain|xhs_food.common.extract_json",
-    "xhs_food.orchestrator.follow_up|orchestrator->domain|xhs_food.prompts.FOLLOW_UP_PROCESSING_PROMPT",
-    "xhs_food.orchestrator.follow_up|orchestrator->domain|xhs_food.schemas.ConversationContext",
-    "xhs_food.orchestrator.follow_up|orchestrator->domain|xhs_food.schemas.XHSFoodResponse",
-    "xhs_food.orchestrator.follow_up|orchestrator->foundation|xhs_food.services.llm_service.LLMService",
-    "xhs_food.orchestrator.follow_up|orchestrator->legacy_shell|xhs_food.exceptions.LLMError",
-    "xhs_food.orchestrator.follow_up|orchestrator->legacy_shell|xhs_food.exceptions.LLMResponseParseError",
-    "xhs_food.orchestrator.search_executor|orchestrator->domain|xhs_food.schemas.ConversationContext",
-    "xhs_food.orchestrator.search_executor|orchestrator->domain|xhs_food.schemas.FoodSearchIntent",
-    "xhs_food.orchestrator.search_executor|orchestrator->domain|xhs_food.schemas.RestaurantRecommendation",
-    "xhs_food.orchestrator.search_executor|orchestrator->domain|xhs_food.schemas.WanghongScore",
-    "xhs_food.orchestrator.search_executor|orchestrator->domain|xhs_food.schemas.XHSFoodResponse",
-    "xhs_food.orchestrator.search_executor|orchestrator->foundation|xhs_food.observability.metrics.xhs_notes_fetched_total",
     "xhs_food.state|legacy_shell->domain|xhs_food.schemas.FoodSearchIntent",
     "xhs_food.state|legacy_shell->domain|xhs_food.schemas.RestaurantRecommendation",
     "xhs_food.state|legacy_shell->domain|xhs_food.schemas.XHSNote"

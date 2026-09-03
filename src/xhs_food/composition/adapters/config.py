@@ -44,6 +44,7 @@ def build_owner_config(
             model=legacy.default_llm_model,
             temperature=legacy.llm_temperature,
             max_tokens=legacy.llm_max_tokens,
+            reasoning_effort=legacy.llm_reasoning_effort,
         ),
         repositories=RepositoryConfigView(
             legacy_database_url=legacy.resolved_database_url(),

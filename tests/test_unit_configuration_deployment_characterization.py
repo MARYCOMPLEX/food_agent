@@ -134,6 +134,7 @@ def test_documented_llm_providers_use_the_same_openai_compatible_adapter(
     provider_index: int,
 ) -> None:
     from xhs_food.services import llm_service
+    from xhs_food.config import Settings
 
     expected = _contract()["llm"]
     provider = expected["providers"][provider_index]
@@ -146,28 +147,32 @@ def test_documented_llm_providers_use_the_same_openai_compatible_adapter(
     monkeypatch.setenv(expected["credential_env"], "fixture-key")
     monkeypatch.setenv(expected["base_url_env"], provider["base_url"])
     monkeypatch.setenv(expected["model_env"], provider["model"])
+    monkeypatch.setattr(llm_service, "settings", Settings(_env_file=None))
     monkeypatch.setattr(llm_service, "ChatOpenAI", fake_chat_openai)
 
     service = llm_service.LLMService()
     service.get_llm()
 
-    assert captured == {
-        "model": provider["model"],
-        "temperature": 0.2,
-        "max_tokens": 1024,
-        "api_key": "fixture-key",
-        "base_url": provider["base_url"],
-    }
+    expected_kwargs = service._client_kwargs(
+        api_key="fixture-key",
+        base_url=provider["base_url"],
+    )
+    assert captured == expected_kwargs
 
 
 def test_llm_model_constructor_argument_has_priority(monkeypatch: pytest.MonkeyPatch) -> None:
-    from xhs_food.services.llm_service import LLMService
+    from xhs_food.config import Settings
+    from xhs_food.services import llm_service
+
+    LLMService = llm_service.LLMService
 
     monkeypatch.setenv("DEFAULT_LLM_MODEL", "environment-model")
+    monkeypatch.setattr(llm_service, "settings", Settings(_env_file=None))
     assert LLMService(model_name="constructor-model")._model_name == "constructor-model"
     assert LLMService()._model_name == "environment-model"
     monkeypatch.delenv("DEFAULT_LLM_MODEL")
-    assert LLMService()._model_name == "Qwen/Qwen3-8B"
+    monkeypatch.setattr(llm_service, "settings", Settings(_env_file=None))
+    assert LLMService()._model_name == "gpt-5.6-sol"
 
 
 def test_dockerfile_entry_port_uid_writable_dirs_and_healthcheck_snapshot() -> None:

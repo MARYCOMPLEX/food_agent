@@ -67,8 +67,16 @@ class AnalyzerAgent:
     3. calculate_scores()   -> ShopScore[] (精确计算)
     """
 
-    def __init__(self, llm_service: Any | None = None) -> None:
+    def __init__(
+        self,
+        llm_service: Any | None = None,
+        *,
+        analysis_batch_size: int = 30,
+        max_comments: int | None = None,
+    ) -> None:
         self._llm_service = llm_service
+        self._analysis_batch_size = max(1, analysis_batch_size)
+        self._max_comments = max_comments
 
     async def _get_llm_service(self) -> Any:
         """懒加载 LLM 服务."""
@@ -109,7 +117,7 @@ class AnalyzerAgent:
             # Stage 1: 预处理 - Python 端计算 interaction_score
             # ============================================================
             normalized_comments = self._normalize_comments(comments)
-            processed = preprocess_comments(normalized_comments, max_comments=30)
+            processed = preprocess_comments(normalized_comments, max_comments=self._max_comments)
 
             if not processed:
                 return AnalyzeResult(
@@ -125,29 +133,40 @@ class AnalyzerAgent:
             # ============================================================
             llm = await self._get_llm_service()
 
-            # 格式化评论供 LLM 分析
-            comments_text = format_comments_for_llm(processed)
-
+            # Analyze every comment exactly once, in bounded batches.  The
+            # source payload remains untouched; batching only controls prompt
+            # size and latency.
+            llm_results: list[dict[str, Any]] = []
+            raw_outputs: list[str] = []
             from langchain_core.messages import HumanMessage, SystemMessage
 
-            messages = [
-                SystemMessage(content=COMMENT_ANALYSIS_SYSTEM_PROMPT),
-                HumanMessage(content=COMMENT_ANALYSIS_USER_PROMPT.format(comments=comments_text)),
-            ]
+            for start in range(0, len(processed), self._analysis_batch_size):
+                batch = processed[start : start + self._analysis_batch_size]
+                comments_text = format_comments_for_llm(batch)
+                messages = [
+                    SystemMessage(content=COMMENT_ANALYSIS_SYSTEM_PROMPT),
+                    HumanMessage(
+                        content=COMMENT_ANALYSIS_USER_PROMPT.format(comments=comments_text)
+                    ),
+                ]
+                response = await llm.call(messages)
+                raw_output = response.content if hasattr(response, "content") else str(response)
+                raw_outputs.append(raw_output)
+                parsed = extract_json(raw_output)
+                if parsed is None:
+                    logger.warning("LLM 输出 JSON 解析失败 for batch starting at %s", start)
+                    continue
+                batch_results = parsed.get("results", [])
+                if isinstance(batch_results, list):
+                    llm_results.extend(item for item in batch_results if isinstance(item, dict))
 
-            response = await llm.call(messages)
-            raw_output = response.content if hasattr(response, "content") else str(response)
-
-            parsed = extract_json(raw_output)
-            if parsed is None:
-                logger.warning("LLM 输出 JSON 解析失败")
+            if not llm_results and raw_outputs:
                 return AnalyzeResult(
                     success=False,
-                    raw_output=raw_output,
+                    raw_output="\n".join(raw_outputs),
                     error="Failed to parse JSON from LLM output",
                 )
-
-            llm_results = parsed.get("results", [])
+            raw_output = "\n".join(raw_outputs)
             logger.debug(f"Stage 2: LLM 分析完成, {len(llm_results)} 条结果")
 
             # ============================================================
