@@ -1,22 +1,6 @@
 # syntax=docker/dockerfile:1.7
-# Multi-stage build for xhs-food-agent (FastAPI + Node signer)
-
 # ---------------------------------------------------------------------------
-# Stage 1: node-deps — install JS dependencies for the auth signer module
-# ---------------------------------------------------------------------------
-FROM node:20-slim AS node-deps
-
-WORKDIR /node-build
-
-# Only copy the manifests so this layer is cached unless deps change
-COPY src/xhs_food/auth/_node/package.json src/xhs_food/auth/_node/package-lock.json* ./
-
-# Prefer ci when lockfile is present, otherwise fall back to install
-RUN if [ -f package-lock.json ]; then npm ci --omit=dev; else npm install --omit=dev; fi
-
-
-# ---------------------------------------------------------------------------
-# Stage 2: builder — install Python deps into a venv using uv
+# Stage 1: builder — install Python deps into a venv using uv
 # ---------------------------------------------------------------------------
 FROM python:3.11-slim AS builder
 
@@ -44,7 +28,7 @@ RUN uv sync --no-dev --frozen --no-install-project
 
 
 # ---------------------------------------------------------------------------
-# Stage 3: runtime — minimal image with python venv + node + source
+# Stage 2: runtime — minimal image with the Python venv and source
 # ---------------------------------------------------------------------------
 FROM python:3.11-slim AS runtime
 
@@ -52,13 +36,6 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PATH="/app/.venv/bin:$PATH" \
     PYTHONPATH="/app/src"
-
-# Node is required at runtime by xhs_food.auth (signer.js subprocess).
-# We copy the static Node binaries from the official node:20-slim image
-# instead of apt-installing nodejs/npm — keeps the image small and avoids
-# dragging in the full npm toolchain we only needed at build time.
-COPY --from=node:20-slim /usr/local/bin/node /usr/local/bin/node
-COPY --from=node:20-slim /usr/local/lib/node_modules /usr/local/lib/node_modules
 
 # Runtime libs only (libpq for psycopg2, ca-certs for outbound TLS)
 RUN apt-get update \
@@ -76,12 +53,8 @@ COPY --from=builder --chown=app:app /app/.venv /app/.venv
 COPY --chown=app:app src/ /app/src/
 COPY --chown=app:app pyproject.toml /app/pyproject.toml
 
-# Node modules for the signer (built in stage 1) — must live next to signer.js
-COPY --from=node-deps --chown=app:app /node-build/node_modules \
-     /app/src/xhs_food/auth/_node/node_modules
-
 # Writable working dirs the app expects to create at runtime
-RUN mkdir -p /app/logs /app/.xhs_profiles && chown -R app:app /app/logs /app/.xhs_profiles
+RUN mkdir -p /app/logs && chown -R app:app /app/logs
 
 USER app
 

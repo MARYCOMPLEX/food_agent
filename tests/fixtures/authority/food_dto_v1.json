@@ -122,8 +122,6 @@
     "xhs_food.schemas": ["WanghongScore", "SearchPhase", "RecommendationLevel", "FollowUpType", "CommentWeight", "CrossValidationResult", "ConversationContext", "FoodSearchIntent", "XHSNote", "RestaurantInfo", "WanghongAnalysis", "MustTryItem", "BlackListItem", "ShopStats", "RestaurantRecommendation", "XHSFoodResponse"],
     "xhs_food.agents": ["IntentParserAgent", "IntentParseResult", "AnalyzerAgent", "AnalyzeResult", "POIEnricherAgent", "EnrichedRestaurant", "get_poi_enricher"],
     "xhs_food.services": ["LLMService", "RedisMemory", "ChatMessage", "PostgresStorage", "ChatHistoryRecord", "SessionManager", "get_session_manager", "UserStorageService", "get_user_storage_service", "ProcessedComment", "preprocess_comments", "extract_likes_from_text", "calculate_interaction_score", "format_comments_for_llm", "CommentAnalysis", "CommentScore", "ShopScore", "calculate_scores", "calculate_comment_score", "get_top_shops"],
-    "xhs_food.events": ["SearchEvent", "SearchEventType", "EventBus", "InMemoryEventBus", "RedisStreamEventBus", "get_event_bus", "SearchEventEmitter", "get_emitter", "remove_emitter"],
-    "xhs_food.protocols": ["ToolResult", "MCPToolProvider", "MCPToolRegistry"],
-    "xhs_food.di": ["get_xhs_service", "get_xhs_tool_registry", "get_xhs_food_orchestrator"]
+    "xhs_food.events": ["SearchEvent", "SearchEventType", "EventBus", "InMemoryEventBus", "RedisStreamEventBus", "get_event_bus", "SearchEventEmitter", "get_emitter", "remove_emitter"]
   }
 }

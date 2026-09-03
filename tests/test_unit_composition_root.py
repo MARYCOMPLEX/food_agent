@@ -19,7 +19,6 @@ from xhs_food.composition import (
 from xhs_food.config import Settings
 from xhs_food.contracts import TaskProgressProjection, TaskStatus
 from xhs_food.foundation import TargetSettings
-from xhs_food.protocols.mcp import MCPToolRegistry
 
 
 class _Closable:
@@ -418,7 +417,8 @@ async def test_reliable_root_exposes_explicit_projection_and_event_bus_bindings(
         await root.close()
 
 
-async def test_s4_composition_root_registers_validated_food_pack_and_legacy_fallback() -> None:
+async def test_s4_composition_root_registers_validated_food_pack_and_managed_search() -> None:
+    from xhs_food.composition.managed_search import UnavailableManagedSearchTool
     from xhs_food.composition.domain_packs import RegisteredDomainPack
     from xhs_food.domain_packs.food import FoodPack
     from xhs_food.orchestrator.coordinator import ResearchCoordinator
@@ -427,10 +427,8 @@ async def test_s4_composition_root_registers_validated_food_pack_and_legacy_fall
     try:
         assert root.state is RegistryState.ACTIVE
         assert {name: list(registry.bindings) for name, registry in root.registries.items()} == {
-            "foundation": ["xhs_service"],
-            "tools": ["xhs_tool_registry", "food_tool_gateway", "schema_tool_gateway"],
+            "tools": ["managed_mcp_search", "food_tool_gateway", "schema_tool_gateway"],
             "sources": [
-                "xhs_compat",
                 "food_place_capability",
                 "food_reviews_capability",
                 "place_compat",
@@ -474,6 +472,8 @@ async def test_s4_composition_root_registers_validated_food_pack_and_legacy_fall
             "sources.food_place_capability",
             "sources.food_reviews_capability",
             "tools.food_tool_gateway",
+            "tools.managed_mcp_search",
+            "orchestrators.xhs_food_orchestrator",
         }
         logical = root.logical_bindings["modular_core"]
         assert (
@@ -493,9 +493,9 @@ async def test_s4_composition_root_registers_validated_food_pack_and_legacy_fall
         assert isinstance(registered_food, RegisteredDomainPack)
         assert isinstance(registered_food.implementation, FoodPack)
 
-        tool_registry = await root.resolve("tools", "xhs_tool_registry")
-        assert isinstance(tool_registry, MCPToolRegistry)
-        assert tool_registry.list_tools() == ["xhs_search", "xhs_note", "xhs_batch"]
+        search_tool = await root.resolve_logical("managed_search_tool")
+        assert isinstance(search_tool, UnavailableManagedSearchTool)
+        assert await search_tool.health() is False
     finally:
         await root.close()
 

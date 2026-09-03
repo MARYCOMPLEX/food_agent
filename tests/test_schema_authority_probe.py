@@ -28,13 +28,7 @@ def test_current_tree_has_no_postgres_runtime_ddl_and_classifies_local_telemetry
     assert report["schemaVersion"] == "schema-authority-probe/v1"
     assert report["status"] == "pass"
     assert report["legacyFindings"] == []
-    assert report["telemetryFindings"] == [
-        {
-            "path": "src/xhs_food/spider/core/logger.py",
-            "line": 19,
-            "statement": "CREATE TABLE",
-        }
-    ]
+    assert report["telemetryFindings"] == []
     assert report["unexpectedFindings"] == []
 
 

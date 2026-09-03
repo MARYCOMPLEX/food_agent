@@ -13,6 +13,7 @@ from loguru import logger
 from api.search import state as legacy_state
 from api.search import tasks as legacy_tasks
 from xhs_food.contracts import (
+    AgentToolExecutionContext,
     ContextMessage,
     ContractPayload,
     RecommendationSnapshot,
@@ -26,7 +27,10 @@ from xhs_food.events import get_emitter
 from xhs_food.experience.results import StableResultMapper
 from xhs_food.services import get_session_manager, get_user_storage_service
 
-TaskRunner = Callable[[str, str], Coroutine[Any, Any, None]]
+TaskRunner = Callable[
+    [str, str, AgentToolExecutionContext | None],
+    Coroutine[Any, Any, None],
+]
 TaskSpawner = Callable[[Coroutine[Any, Any, None]], object]
 
 
@@ -46,7 +50,12 @@ class LegacyResearchTaskFacade:
         self._task_spawner = task_spawner
         self._session_id_factory = session_id_factory or (lambda: str(uuid.uuid4()))
 
-    async def start_new(self, query: str) -> ResearchTaskAdmission:
+    async def start_new(
+        self,
+        query: str,
+        *,
+        tool_context: AgentToolExecutionContext | None = None,
+    ) -> ResearchTaskAdmission:
         session_id = self._session_id_factory()
         await legacy_state.update_state(
             session_id,
@@ -78,10 +87,16 @@ class LegacyResearchTaskFacade:
         except Exception as exc:  # noqa: BLE001 - known legacy API mismatch
             logger.warning(f"create_search_history failed: {exc}")
 
-        self._spawn_run(session_id, query)
+        self._spawn_run(session_id, query, tool_context)
         return self._admission(session_id, ResearchOperation.QUERY, turn_id=1)
 
-    async def refine(self, session_id: str, query: str) -> ResearchTaskAdmission:
+    async def refine(
+        self,
+        session_id: str,
+        query: str,
+        *,
+        tool_context: AgentToolExecutionContext | None = None,
+    ) -> ResearchTaskAdmission:
         state = await legacy_state.load_state(session_id)
         if state is None:
             state = await self._restore_state_from_storage(session_id)
@@ -104,7 +119,7 @@ class LegacyResearchTaskFacade:
         emitter.reset()
         emitter.init_steps(query)
 
-        self._spawn_run(session_id, query)
+        self._spawn_run(session_id, query, tool_context)
         return self._admission(session_id, ResearchOperation.REFINE, turn_id=turn_id)
 
     async def recover(self, session_id: str) -> ContractPayload:
@@ -132,14 +147,20 @@ class LegacyResearchTaskFacade:
             return None
         return self._result_mapper.to_http_results(session_id, state)
 
-    def _spawn_run(self, session_id: str, query: str) -> None:
+    def _spawn_run(
+        self,
+        session_id: str,
+        query: str,
+        tool_context: AgentToolExecutionContext | None,
+    ) -> None:
         if self._task_runner is not None:
-            run = self._task_runner(session_id, query)
+            run = self._task_runner(session_id, query, tool_context)
         else:
             run = legacy_tasks.run_stream_search(
                 session_id,
                 query,
                 result_mapper=self._result_mapper,
+                tool_context=tool_context,
             )
         self._task_spawner(run)
 

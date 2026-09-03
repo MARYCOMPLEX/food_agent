@@ -56,7 +56,9 @@ class InMemorySourceControl:
                 )
             self._opened_until.pop(source_id, None)
             self._failures[source_id] = 0
-        calls = [value for value in self._calls.setdefault(source_id, []) if value > now - self._window]
+        calls = [
+            value for value in self._calls.setdefault(source_id, []) if value > now - self._window
+        ]
         self._calls[source_id] = calls
         if len(calls) >= self._max_calls:
             retry_after = max(1, ceil((calls[0] + self._window - now).total_seconds()))
@@ -99,9 +101,7 @@ class SourceGateway:
             [await self.collect_one(request, source_id) for source_id in request.source_scope]
         )
 
-    async def collect_one(
-        self, request: CollectRequest, source_id: str
-    ) -> SourceCollectionOutcome:
+    async def collect_one(self, request: CollectRequest, source_id: str) -> SourceCollectionOutcome:
         if source_id not in request.source_scope:
             raise ValueError("source_id is outside the CollectRequest source_scope")
         try:

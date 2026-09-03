@@ -3,7 +3,6 @@
 This conftest provides:
 - Auto-marking based on filename prefix (test_unit_, test_integration_, test_e2e_)
 - ``mock_llm`` async fixture for a configurable LLMService stub
-- ``mock_xhs_search`` fixture for a stubbed XHS search tool
 - ``event_bus`` fixture returning a fresh :class:`InMemoryEventBus`
 - ``frozen_time`` fixture patching ``time.time``
 - ``settings_override`` fixture yielding a mutable settings object
@@ -17,7 +16,7 @@ import socket
 import sys
 from ipaddress import ip_address
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import pytest
 
@@ -48,9 +47,9 @@ _LEGACY_FILE_MARKERS = {
 _CATEGORY_MARKERS = ("unit", "integration", "e2e", "live")
 
 
-def pytest_collection_modifyitems(config: pytest.Config, items: List[pytest.Item]) -> None:
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
     """Assign every test exactly one execution category."""
-    uncategorized: List[str] = []
+    uncategorized: list[str] = []
     for item in items:
         filename = Path(item.fspath).name
         marker = next(
@@ -166,13 +165,13 @@ class FakeLLMService:
 
     def __init__(self, response_content: str = "{}") -> None:
         self._response_content = response_content
-        self.calls: List[List[Any]] = []
+        self.calls: list[list[Any]] = []
 
     def set_response(self, content: str) -> None:
         """Override the canned response content."""
         self._response_content = content
 
-    async def call(self, messages: List[Any], **kwargs: Any) -> _FakeMessage:
+    async def call(self, messages: list[Any], **kwargs: Any) -> _FakeMessage:
         _ = kwargs
         self.calls.append(list(messages))
         return _FakeMessage(self._response_content)
@@ -182,32 +181,6 @@ class FakeLLMService:
 async def mock_llm() -> FakeLLMService:
     """Return a fresh :class:`FakeLLMService` for the current test."""
     return FakeLLMService()
-
-
-# ---------------------------------------------------------------------------
-# XHS search fixture
-# ---------------------------------------------------------------------------
-
-
-class FakeXHSSearch:
-    """Stub for the XHS search tool. ``execute`` returns ``notes``."""
-
-    def __init__(self, notes: Optional[List[Dict[str, Any]]] = None) -> None:
-        self.notes: List[Dict[str, Any]] = notes or []
-        self.calls: List[Dict[str, Any]] = []
-
-    def set_notes(self, notes: List[Dict[str, Any]]) -> None:
-        self.notes = notes
-
-    async def execute(self, **kwargs: Any) -> Dict[str, Any]:
-        self.calls.append(kwargs)
-        return {"notes": list(self.notes)}
-
-
-@pytest.fixture
-def mock_xhs_search() -> FakeXHSSearch:
-    """Return a stub XHS search tool, pre-loaded with no notes."""
-    return FakeXHSSearch()
 
 
 # ---------------------------------------------------------------------------

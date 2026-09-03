@@ -64,7 +64,6 @@ def test_legacy_non_step_events_preserve_name_and_payload(event_type: str) -> No
         ("intent_parsing", "step1"),
         ("step2", "step2"),
         ("evidence_collection", "step2"),
-        ("xhs_search", "step2"),
         ("step3", "step3"),
         ("evidence_analysis", "step3"),
         ("comment_analysis", "step3"),
@@ -96,7 +95,7 @@ def test_step_snapshot_aliases_are_normalised_without_changing_other_fields() ->
         "message": "交叉验证完成",
         "steps": [
             {"id": "intent_parsing", "label": "解析用户意图", "status": "done"},
-            {"id": "xhs_search", "label": "搜索小红书笔记", "status": "done"},
+            {"id": "evidence_collection", "label": "搜索小红书笔记", "status": "done"},
             {"id": "comment_analysis", "label": "分析评论内容", "status": "done"},
             {"id": "cross_validation", "label": "交叉验证完成", "status": "done"},
             {"id": "poi_enrichment", "label": "补充 POI 信息", "status": "pending"},

@@ -7,11 +7,11 @@ We use FastAPI's :class:`~fastapi.testclient.TestClient` against the real
 
 from __future__ import annotations
 
-from typing import Any, Dict, Iterator
+from collections.abc import Iterator
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-
 
 # ---------------------------------------------------------------------------
 # App fixture — patches orchestrator and state store before the app loads
@@ -35,6 +35,7 @@ def client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
         query: str,
         *,
         result_mapper: object | None = None,
+        tool_context: object | None = None,
     ) -> None:
         return None
 
@@ -54,7 +55,7 @@ def client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
 
 def test_new_search_returns_session_id_and_stream_url(client: TestClient) -> None:
     # Arrange
-    payload: Dict[str, Any] = {"query": "成都本地老火锅"}
+    payload: dict[str, Any] = {"query": "成都本地老火锅"}
 
     # Act
     response = client.post("/v1/search/", json=payload)
@@ -71,7 +72,7 @@ def test_new_search_returns_session_id_and_stream_url(client: TestClient) -> Non
 
 def test_new_search_rejects_missing_query(client: TestClient) -> None:
     # Arrange — neither sessionId nor query
-    payload: Dict[str, Any] = {}
+    payload: dict[str, Any] = {}
 
     # Act
     response = client.post("/v1/search/", json=payload)

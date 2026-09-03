@@ -25,9 +25,9 @@ def test_imports():
     )
     print("  ✓ schemas")
     
-    # Protocols
-    from xhs_food.protocols import ToolResult, MCPToolRegistry
-    print("  ✓ protocols")
+    # Managed MCP tool boundary
+    from xhs_food.composition import ManagedMcpSearchTool
+    print("  ✓ managed MCP tools")
     
     # Services
     from xhs_food.services import LLMService
@@ -36,14 +36,6 @@ def test_imports():
     # Agents
     from xhs_food.agents import IntentParserAgent, AnalyzerAgent
     print("  ✓ agents")
-    
-    # Providers
-    from xhs_food.providers import XHSSearchProvider, XHSNoteProvider
-    print("  ✓ providers")
-    
-    # DI
-    from xhs_food.di import get_xhs_tool_registry
-    print("  ✓ di")
     
     print("\n✅ All imports successful!")
 
@@ -91,19 +83,11 @@ def test_orchestrator_creation():
     print("\nTesting orchestrator creation...")
     
     from xhs_food import XHSFoodOrchestrator
-    from xhs_food.di import get_xhs_tool_registry
+    from xhs_food.composition import UnavailableManagedSearchTool
     
-    # Create without registry (will lazy-load)
-    orch = XHSFoodOrchestrator()
-    print(f"  ✓ XHSFoodOrchestrator created (lazy init)")
-    
-    # Create with registry
-    registry = get_xhs_tool_registry()
-    tools = registry.list_tools()
-    print(f"  ✓ Registry tools: {tools}")
-    
-    orch2 = XHSFoodOrchestrator(xhs_registry=registry)
-    print(f"  ✓ XHSFoodOrchestrator with registry")
+    search_tool = UnavailableManagedSearchTool()
+    orch = XHSFoodOrchestrator(search_tool=search_tool)
+    print("  ✓ XHSFoodOrchestrator created with fail-closed managed search")
     
     print("\n✅ Orchestrator creation successful!")
 

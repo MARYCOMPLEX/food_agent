@@ -1,9 +1,17 @@
 """Composition Root and adapter registry lifecycle."""
 
 from .account_services import (
+    AccountServiceControlPlaneError,
     AccountServiceRegistry,
     AccountServiceRegistryError,
+    RemoteAccountServiceFacade,
     build_account_service_registry,
+)
+from .agent_tools import AccountServiceAgentToolCatalog, build_agent_tool_policy
+from .managed_search import (
+    ManagedMcpSearchTool,
+    UnavailableManagedSearchTool,
+    bind_managed_search_context,
 )
 from .root import (
     AdapterBinding,
@@ -11,37 +19,34 @@ from .root import (
     CompositionRoot,
     DisabledBindingError,
     LogicalBinding,
-    PlatformBindingAssembly,
-    PlatformBindingStatus,
-    PlatformReadiness,
     RegistryState,
     ReliableRuntimeBindings,
-    build_account_auth_worker,
     build_legacy_composition_root,
     build_media_worker,
-    build_platform_bindings,
     build_refresh_worker,
     build_reliable_research_worker,
     build_reliable_runtime_bindings,
 )
 
 __all__ = [
+    "AccountServiceControlPlaneError",
     "AccountServiceRegistry",
     "AccountServiceRegistryError",
+    "RemoteAccountServiceFacade",
+    "AccountServiceAgentToolCatalog",
     "AdapterBinding",
     "BindingRegistry",
     "CompositionRoot",
     "DisabledBindingError",
     "LogicalBinding",
-    "PlatformBindingAssembly",
-    "PlatformBindingStatus",
-    "PlatformReadiness",
     "RegistryState",
     "ReliableRuntimeBindings",
-    "build_account_auth_worker",
     "build_account_service_registry",
+    "build_agent_tool_policy",
+    "ManagedMcpSearchTool",
+    "UnavailableManagedSearchTool",
+    "bind_managed_search_context",
     "build_media_worker",
-    "build_platform_bindings",
     "build_legacy_composition_root",
     "build_refresh_worker",
     "build_reliable_runtime_bindings",

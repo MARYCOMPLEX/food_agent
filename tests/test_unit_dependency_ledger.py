@@ -50,7 +50,7 @@ def test_dependency_ledger_has_current_sources_versions_and_spikes() -> None:
 
 def test_lockfile_hash_and_runtime_versions_match_ledger() -> None:
     digest = hashlib.sha256(LOCK.read_bytes()).hexdigest()
-    assert digest == "8301f2b046290c4e65a8ffdacafce7844d1f8da6e414df003809e161931cccff"
+    assert digest == "98e8c2b67e4d2d07a9d797cbc356b79686094fee238526b7745f049da1079e45"
     lock_text = LOCK.read_text(encoding="utf-8")
     assert "requires-python = \"==3.12.*\"" in lock_text
 

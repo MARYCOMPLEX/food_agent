@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import re
-from collections.abc import AsyncIterable, AsyncIterator
+from collections.abc import AsyncIterable, AsyncIterator, Mapping
 from enum import StrEnum
-from typing import Literal, Protocol, Self, TypeVar, runtime_checkable
+from typing import Any, Literal, Protocol, Self, TypeVar, runtime_checkable
 from urllib.parse import unquote, urlsplit
 
 from pydantic import ConfigDict, Field, model_validator
@@ -345,7 +345,10 @@ class SourceCollectionOutcome(_PortVersionedContract):
     @model_validator(mode="after")
     def validate_outcome(self) -> Self:
         has_items = self.batch is not None and bool(
-            self.batch.documents or self.batch.comments or self.batch.authors or self.batch.media_refs
+            self.batch.documents
+            or self.batch.comments
+            or self.batch.authors
+            or self.batch.media_refs
         )
         if self.outcome == "failure":
             if self.error is None or self.batch is not None:
@@ -387,6 +390,33 @@ class ToolGateway(Protocol):
     async def execute(self, call: ToolCall) -> ToolResult: ...
 
     async def health(self, tool_name: str) -> bool: ...
+
+
+@runtime_checkable
+class SearchToolResultPort(Protocol):
+    @property
+    def success(self) -> bool: ...
+
+    @property
+    def data(self) -> Mapping[str, Any] | None: ...
+
+    @property
+    def error_message(self) -> str | None: ...
+
+
+@runtime_checkable
+class SearchToolPort(Protocol):
+    async def execute(
+        self,
+        *,
+        keyword: str,
+        count: int,
+        sort_type: str,
+        include_details: bool,
+        include_comments: bool,
+    ) -> SearchToolResultPort: ...
+
+    async def health(self) -> bool: ...
 
 
 @runtime_checkable
@@ -537,9 +567,7 @@ class ReliableTaskStorePort(Protocol):
     the sole component that computes semantic task transitions.
     """
 
-    async def get(
-        self, task_id: str
-    ) -> tuple[ResearchTask, ResearchRequest] | None: ...
+    async def get(self, task_id: str) -> tuple[ResearchTask, ResearchRequest] | None: ...
 
     async def admit(
         self, task: ResearchTask, request: ResearchRequest
@@ -581,6 +609,8 @@ __all__ = [
     "TaskProgressProjectionStore",
     "TemporalExecutionPolicy",
     "ReliableTaskStorePort",
+    "SearchToolPort",
+    "SearchToolResultPort",
     "ToolCall",
     "ToolGateway",
     "ToolResult",

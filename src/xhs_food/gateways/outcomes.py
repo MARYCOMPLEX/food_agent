@@ -168,12 +168,6 @@ def single_attempt_coverage(
     )
 
 
-def project_legacy_xhs(outcome: SourceOutcome) -> LegacySourceProjection:
-    if outcome.item_count:
-        return LegacySourceProjection.CONTINUE
-    return LegacySourceProjection.TERMINAL_ERROR
-
-
 def project_legacy_place(outcome: SourceOutcome) -> LegacySourceProjection:
     if outcome.kind in {SourceOutcomeKind.EMPTY, SourceOutcomeKind.FAILURE}:
         return LegacySourceProjection.SUCCESS_WITH_BASIC_RESULT
@@ -188,7 +182,6 @@ __all__ = [
     "error_from_exception",
     "error_from_provider_code",
     "project_legacy_place",
-    "project_legacy_xhs",
     "single_attempt_coverage",
     "source_error",
 ]

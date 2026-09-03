@@ -39,24 +39,24 @@ llm_tokens_total: Counter = Counter(
 # ---------------------------------------------------------------------------
 
 search_started_total: Counter = Counter(
-    "xhs_search_started_total",
+    "food_agent_search_started_total",
     "Search sessions started",
 )
 
 search_finished_total: Counter = Counter(
-    "xhs_search_finished_total",
+    "food_agent_search_finished_total",
     "Search sessions finished",
     ["status"],  # ok / error
 )
 
 search_duration_seconds: Histogram = Histogram(
-    "xhs_search_duration_seconds",
+    "food_agent_search_duration_seconds",
     "End-to-end search duration",
 )
 
 xhs_notes_fetched_total: Counter = Counter(
     "xhs_notes_fetched_total",
-    "Notes returned by spider",
+    "Notes returned by the managed XHS MCP source",
     ["keyword_phase"],  # search / analyzed
 )
 

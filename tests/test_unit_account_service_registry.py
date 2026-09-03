@@ -8,7 +8,7 @@ import pytest
 from xhs_food.composition.account_services import (
     AccountServiceRegistry,
     AccountServiceRegistryError,
-    RemotePlatformLoginServiceAdapter,
+    RemoteAccountServiceFacade,
     build_account_service_registry,
 )
 from xhs_food.contracts import PlatformChannel
@@ -107,9 +107,7 @@ class _FakeMcp:
         self.closed = 0
 
     async def list_tools(self) -> tuple[McpToolDescriptor, ...]:
-        return (
-            McpToolDescriptor(name="notes.search", capability="notes.search"),
-        )
+        return (McpToolDescriptor(name="notes.search", capability="notes.search"),)
 
     async def call_tool(self, name: str, arguments: object = None) -> object:
         del arguments
@@ -135,7 +133,10 @@ async def test_registry_isolates_channels_refreshes_tools_and_closes_clients() -
         return client
 
     registry = AccountServiceRegistry(
-        (_config("xhs-account", PlatformChannel.XHS_PC), _config("dianping-account", PlatformChannel.DIANPING)),
+        (
+            _config("xhs-account", PlatformChannel.XHS_PC),
+            _config("dianping-account", PlatformChannel.DIANPING),
+        ),
         http_client_factory=http_factory,
         mcp_client_factory=mcp_factory,
     )
@@ -229,7 +230,7 @@ async def test_remote_platform_adapter_translates_existing_login_shape() -> None
         mcp_client_factory=_FakeMcp,
     )
     await registry.refresh()
-    adapter = RemotePlatformLoginServiceAdapter(registry)
+    adapter = RemoteAccountServiceFacade(registry)
     account = await adapter.register_account(
         tenant_id="tenant-a",
         principal_id="principal-a",

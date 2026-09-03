@@ -4,13 +4,10 @@ from __future__ import annotations
 
 import inspect
 import json
-from dataclasses import asdict
-from importlib import import_module
+from importlib import import_module, util
 from pathlib import Path
 
-from xhs_food.di import get_xhs_tool_registry
 from xhs_food.orchestrator import XHSFoodOrchestrator
-from xhs_food.protocols import MCPToolRegistry, ToolResult
 
 
 _FIXTURE = json.loads(
@@ -39,7 +36,7 @@ def test_orchestrator_public_signatures_match_snapshot() -> None:
 def test_orchestrator_constructor_preserves_caller_injection_points() -> None:
     dependencies = {name: object() for name in _FIXTURE["orchestrator_constructor"][:6]}
     orchestrator = XHSFoodOrchestrator(
-        xhs_registry=dependencies["xhs_registry"],
+        search_tool=dependencies["search_tool"],
         llm_service=dependencies["llm_service"],
         intent_parser=dependencies["intent_parser"],
         analyzer=dependencies["analyzer"],
@@ -48,7 +45,6 @@ def test_orchestrator_constructor_preserves_caller_injection_points() -> None:
         deep_search=False,
         fast_mode_limit=7,
     )
-    assert orchestrator._xhs_registry is dependencies["xhs_registry"]
     assert orchestrator._llm_service is dependencies["llm_service"]
     assert orchestrator._intent_parser is dependencies["intent_parser"]
     assert orchestrator._analyzer is dependencies["analyzer"]
@@ -58,11 +54,7 @@ def test_orchestrator_constructor_preserves_caller_injection_points() -> None:
     assert orchestrator._fast_mode_limit == 7
 
 
-def test_default_mcp_registration_names_and_tool_result_envelopes() -> None:
-    assert get_xhs_tool_registry().list_tools() == _FIXTURE["tools"]
-    assert MCPToolRegistry().list_tools() == []
-
-    ok = ToolResult.ok({"notes": [{"id": "n1"}]}, source="fixture")
-    failed = ToolResult.fail("SOURCE_TIMEOUT", "source timed out", retryable=True)
-    assert asdict(ok) == _FIXTURE["tool_result_ok"]
-    assert asdict(failed) == _FIXTURE["tool_result_fail"]
+def test_removed_legacy_mcp_modules_are_not_importable() -> None:
+    assert util.find_spec("xhs_food.protocols.mcp") is None
+    assert util.find_spec("xhs_food.providers.xhs_providers") is None
+    assert util.find_spec("xhs_food.di.factories") is None

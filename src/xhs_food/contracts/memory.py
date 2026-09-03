@@ -356,7 +356,9 @@ class MemoryAuthorityWrite(_AuthorityModel):
     @model_validator(mode="after")
     def require_authority_fact(self) -> MemoryAuthorityWrite:
         if self.conversation_turn is None and self.record is None and self.source_event is None:
-            raise ValueError("an authority write must include a conversation, record, or source event")
+            raise ValueError(
+                "an authority write must include a conversation, record, or source event"
+            )
         scopes = {
             _scope_identity(
                 self.outbox.scope.tenant_id,
@@ -475,9 +477,7 @@ class FeedbackIngestionRequest(_AuthorityModel):
 class FeedbackIngestionReceipt(_AuthorityModel):
     """Stable IDs returned after the authority event/outbox write."""
 
-    schema_version: Literal["feedback-ingestion-receipt/v1"] = (
-        "feedback-ingestion-receipt/v1"
-    )
+    schema_version: Literal["feedback-ingestion-receipt/v1"] = "feedback-ingestion-receipt/v1"
     feedback_id: NonEmptyStr
     event_id: NonEmptyStr
     outbox_id: NonEmptyStr

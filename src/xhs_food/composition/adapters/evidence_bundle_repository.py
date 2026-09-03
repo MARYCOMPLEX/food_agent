@@ -38,7 +38,9 @@ class SQLAlchemyCandidateBundleRepository:
         )
         async with self._unit_of_work_factory() as unit:
             rows = (await unit.session_for_adapter().execute(statement)).mappings().all()
-        by_id = {str(row["evidence_id"]): EvidenceItem.model_validate(row["payload"]) for row in rows}
+        by_id = {
+            str(row["evidence_id"]): EvidenceItem.model_validate(row["payload"]) for row in rows
+        }
         return tuple(by_id[item_id] for item_id in evidence_ids if item_id in by_id)
 
     async def save_candidate(

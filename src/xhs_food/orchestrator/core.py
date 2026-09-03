@@ -20,6 +20,7 @@ from xhs_food.contracts.experience import (
     RecommendationSnapshot,
     ResearchContextSnapshot,
 )
+from xhs_food.contracts.ports import SearchToolPort
 from xhs_food.exceptions import IntentError, LLMError
 from xhs_food.observability.metrics import (
     search_duration_seconds,
@@ -28,7 +29,6 @@ from xhs_food.observability.metrics import (
 )
 from xhs_food.orchestrator.follow_up import FollowUpHandler
 from xhs_food.orchestrator.search_executor import SearchExecutor
-from xhs_food.protocols.mcp import MCPToolRegistry
 from xhs_food.schemas import (
     ConversationContext,
     RestaurantRecommendation,
@@ -42,20 +42,13 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _build_default_xhs_registry() -> MCPToolRegistry:
-    """Lazy import to avoid pulling the di package into module-load order."""
-    from xhs_food.di.factories import get_xhs_tool_registry
-
-    return get_xhs_tool_registry()
-
-
 class XHSFoodOrchestrator:
     """XHS 美食智能搜索主编排器 (支持多轮对话)."""
 
     def __init__(
         self,
         *,
-        xhs_registry: MCPToolRegistry | None = None,
+        search_tool: SearchToolPort,
         llm_service: Any = None,
         intent_parser: IntentParserAgent | None = None,
         analyzer: AnalyzerAgent | None = None,
@@ -80,9 +73,6 @@ class XHSFoodOrchestrator:
         )
 
         # Eager dependency wiring with caller overrides.
-        self._xhs_registry: MCPToolRegistry = (
-            xhs_registry if xhs_registry is not None else _build_default_xhs_registry()
-        )
         self._intent_parser: IntentParserAgent = (
             intent_parser
             if intent_parser is not None
@@ -100,7 +90,7 @@ class XHSFoodOrchestrator:
             search_executor
             if search_executor is not None
             else SearchExecutor(
-                xhs_registry=self._xhs_registry,
+                search_tool=search_tool,
                 analyzer=self._analyzer,
                 context=self._context,
                 deep_search=self._deep_search,
@@ -115,7 +105,7 @@ class XHSFoodOrchestrator:
     def with_food_pack(
         cls,
         *,
-        xhs_registry: MCPToolRegistry,
+        search_tool: SearchToolPort,
         food_pack: FoodBehavior,
     ) -> XHSFoodOrchestrator:
         """Construct an orchestrator whose executor is pinned to one Food Pack."""
@@ -123,7 +113,7 @@ class XHSFoodOrchestrator:
         context = ConversationContext()
         analyzer = AnalyzerAgent()
         executor = SearchExecutor(
-            xhs_registry=xhs_registry,
+            search_tool=search_tool,
             analyzer=analyzer,
             context=context,
             deep_search=settings.search_deep_mode,
@@ -134,7 +124,7 @@ class XHSFoodOrchestrator:
             food_pack=food_pack,
         )
         return cls(
-            xhs_registry=xhs_registry,
+            search_tool=search_tool,
             analyzer=analyzer,
             search_executor=executor,
         )

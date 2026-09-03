@@ -229,10 +229,7 @@ class PostgresTaskProgressProjectionStore:
     async def get(self, task_id: str) -> TaskProgressProjection | None:
         async with self._unit_of_work_factory() as unit:
             result = await unit.session_for_adapter().execute(
-                text(
-                    f"SELECT payload FROM {self._projection_table} "
-                    "WHERE task_id = :task_id"
-                ),
+                text(f"SELECT payload FROM {self._projection_table} WHERE task_id = :task_id"),
                 {"task_id": task_id},
             )
             row = result.mappings().first()
@@ -438,22 +435,22 @@ async def _select_task_row(
 ) -> Mapping[str, Any] | None:
     suffix = " FOR UPDATE" if lock else ""
     result = await session.execute(
-        text(
-            f"SELECT task_payload, request_payload FROM {table} "
-            f"WHERE task_id = :task_id{suffix}"
-        ),
+        text(f"SELECT task_payload, request_payload FROM {table} WHERE task_id = :task_id{suffix}"),
         {"task_id": task_id},
     )
     return result.mappings().first()
 
 
-def _serialized_task_record(
-    task: ResearchTask, request: ResearchRequest
-) -> tuple[str, str]:
+def _serialized_task_record(task: ResearchTask, request: ResearchRequest) -> tuple[str, str]:
     return (
-        json.dumps(task.model_dump(mode="json"), ensure_ascii=False, sort_keys=True, separators=(",", ":")),
         json.dumps(
-            request.model_dump(mode="json"), ensure_ascii=False, sort_keys=True, separators=(",", ":")
+            task.model_dump(mode="json"), ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ),
+        json.dumps(
+            request.model_dump(mode="json"),
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
         ),
     )
 
@@ -467,7 +464,9 @@ def _task_record(row: Mapping[str, Any]) -> tuple[ResearchTask, ResearchRequest]
         request_payload = json.loads(request_payload)
     if not isinstance(task_payload, Mapping) or not isinstance(request_payload, Mapping):
         raise TypeError("reliable task row payloads must be JSON objects")
-    return ResearchTask.model_validate(task_payload), ResearchRequest.model_validate(request_payload)
+    return ResearchTask.model_validate(task_payload), ResearchRequest.model_validate(
+        request_payload
+    )
 
 
 def _task_is_older(current: ResearchTask, candidate: ResearchTask) -> bool:

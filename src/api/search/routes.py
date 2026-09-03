@@ -25,9 +25,11 @@ from api.schemas import (
     UnifiedSearchRequest,
 )
 from xhs_food.contracts import (
+    AgentToolExecutionContext,
     ContractError,
     ErrorCategory,
     EventBusPort,
+    PlatformChannel,
     ReliableResearchTaskPort,
     RequestIdentity,
     RequestPolicy,
@@ -53,6 +55,23 @@ def _stream_url(session_id: str) -> str:
     return f"/v1/search/stream/{session_id}"
 
 
+def _subject_ref(http_request: Request) -> str:
+    headers = getattr(http_request, "headers", {})
+    return headers.get("X-User-Id") or headers.get("X-Device-Id") or "anonymous"
+
+
+def _tool_context(
+    request: UnifiedSearchRequest,
+    http_request: Request,
+) -> AgentToolExecutionContext:
+    return AgentToolExecutionContext(
+        tenant_ref=_subject_ref(http_request),
+        platforms=tuple(PlatformChannel(item) for item in request.platforms),
+        account_refs=request.accountRefs,
+        expected_session_versions=request.expectedSessionVersions,
+    )
+
+
 # ---------------------------------------------------------------------------
 # POST /v1/search (unified)
 # ---------------------------------------------------------------------------
@@ -76,12 +95,7 @@ async def unified_search(
             if not callable(getattr(reliable_port, "submit", None)):
                 raise HTTPException(status_code=503, detail=_reliable_dependency_detail())
             session_id = f"session-{uuid4().hex}"
-            headers = getattr(http_request, "headers", {})
-            subject_ref = (
-                headers.get("X-User-Id")
-                or headers.get("X-Device-Id")
-                or "anonymous"
-            )
+            subject_ref = _subject_ref(http_request)
             public_inputs: dict[str, Any] = {}
             if request.location is not None:
                 public_inputs["location"] = dict(request.location)
@@ -91,7 +105,15 @@ async def unified_search(
                 domain="food",
                 query=request.query,
                 public_inputs=public_inputs,
-                identity=RequestIdentity(subject_ref=subject_ref, session_ref=session_id),
+                identity=RequestIdentity(
+                    subject_ref=subject_ref,
+                    tenant_ref=subject_ref,
+                    session_ref=session_id,
+                    authorization_refs=tuple(
+                        f"{platform}:{account_ref}"
+                        for platform, account_ref in sorted(request.accountRefs.items())
+                    ),
+                ),
                 policy=RequestPolicy(
                     policy_version="research/v1",
                     compatibility_version="http/v1",
@@ -125,7 +147,10 @@ async def unified_search(
                     "action": "new_search",
                 },
             }
-        admission = await tasks.start_new(request.query)
+        admission = await tasks.start_new(
+            request.query,
+            tool_context=_tool_context(request, http_request),
+        )
         return {
             "success": True,
             "data": {
@@ -140,7 +165,11 @@ async def unified_search(
     # Case 2: refine (sessionId + query)
     if request.query:
         try:
-            admission = await tasks.refine(session_id, request.query)
+            admission = await tasks.refine(
+                session_id,
+                request.query,
+                tool_context=_tool_context(request, http_request),
+            )
         except ResearchTaskNotFoundError as exc:
             raise HTTPException(404, "Session not found") from exc
         return {

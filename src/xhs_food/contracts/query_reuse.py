@@ -261,7 +261,11 @@ def decide_freshness(
     else:
         reason = FreshnessReason.WITHIN_WINDOW
 
-    state = FreshnessState.FRESH if reason is FreshnessReason.WITHIN_WINDOW else FreshnessState.INCREMENTAL
+    state = (
+        FreshnessState.FRESH
+        if reason is FreshnessReason.WITHIN_WINDOW
+        else FreshnessState.INCREMENTAL
+    )
     return FreshnessDecision(
         family_id=current.family_id,
         state=state,

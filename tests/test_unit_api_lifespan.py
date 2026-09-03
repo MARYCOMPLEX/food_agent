@@ -78,6 +78,8 @@ async def test_reliable_lifespan_binds_target_runtime_without_legacy_event_bus(
         return runtime
 
     def build_root(**kwargs: Any) -> _Root:
+        target_settings = kwargs.pop("target_settings")
+        assert target_settings.reliable_task_lifecycle is True
         assert kwargs == {
             "reliable_policy": runtime.policy,
             "reliable_task_store": runtime.task_store,

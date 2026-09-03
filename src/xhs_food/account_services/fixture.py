@@ -14,10 +14,10 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException, Response
 
-from xhs_food.contracts.account import PlatformChannel
 from xhs_food.contracts.account_service import (
     ACCOUNT_SERVICE_CONTRACT_VERSION,
     MCP_PROTOCOL_VERSION,
+    PlatformChannel,
     RemotePayloadRejected,
     validate_remote_payload,
 )

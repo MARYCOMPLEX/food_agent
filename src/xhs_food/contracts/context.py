@@ -144,7 +144,8 @@ class ContextAssembly(ContractModel):
         """Render a deterministic plain-text view for a temporary adapter."""
 
         return "\n\n".join(
-            f"[{section.section.value}]\n" + "\n".join(fragment.text for fragment in section.fragments)
+            f"[{section.section.value}]\n"
+            + "\n".join(fragment.text for fragment in section.fragments)
             for section in self.sections
             if section.fragments
         )

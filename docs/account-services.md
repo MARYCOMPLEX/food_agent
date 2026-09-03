@@ -88,18 +88,37 @@ service. MCP discovery may be degraded while healthy HTTP operations continue.
 
 ## Agent/MCP use
 
-Agents can inspect the refreshed catalog through:
+The raw account-service discovery and diagnostic boundary remains available at:
 
 ```text
 GET  /v1/platform/account-services/{platform}/tools
 POST /v1/platform/account-services/{platform}/tools/{tool_name}
 ```
 
-Only tools declared by the accepted descriptor and configured capability
-allow-list are visible. `read_only` and `account_login` are accepted; publish,
-upload, shell, and credential-export tools are filtered before transport. MCP
-is capability discovery and an additive tool adapter. HTTP account/login/source
-resources remain the operational and durable authority.
+This is not the model-visible catalog. Configure a second, application-owned
+policy before any discovered tool can be exposed natively to the Agent:
+
+```bash
+MODULAR_AGENT_MCP_TOOL_POLICY_JSON='{"enabled":true,"allowed_platforms":["xhs_pc","dianping"],"allowed_capabilities":["notes.search","place.lookup","reviews.search"]}'
+```
+
+The final policy-filtered projection is available at:
+
+```text
+GET /v1/platform/agent-tools/catalog
+```
+
+The Agent catalog uses names such as `xhs_pc__notes_search`, publishes each
+tool's own input schema to the model, and accepts only `read_only` tools. Login,
+publish, upload, mutation, shell, and credential-export tools are never exposed
+for automatic selection. Declared tenant/account/session fields are removed
+from the model schema and injected from the owning request at execution time.
+An empty or absent policy exposes no remote tools.
+
+For Agent search, MCP is the sole execution route: discovery uses `tools/list`
+and each selected read-only capability executes through `tools/call`. There is
+no local XHS provider, registry, connector, or Spider fallback. HTTP account and
+login resources remain the operational and durable authority.
 
 ## Local fixture
 

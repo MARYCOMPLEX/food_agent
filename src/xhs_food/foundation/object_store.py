@@ -130,7 +130,8 @@ class Boto3ObjectStore:
         if max_object_bytes is not None and multipart_chunksize > max_object_bytes:
             raise ValueError("multipart_chunksize cannot exceed max_object_bytes")
         if allowed_content_types is not None and (
-            not allowed_content_types or len(allowed_content_types) != len(set(allowed_content_types))
+            not allowed_content_types
+            or len(allowed_content_types) != len(set(allowed_content_types))
         ):
             raise ValueError("allowed_content_types must be non-empty and unique")
         if environment not in {"production", "local", "test"}:

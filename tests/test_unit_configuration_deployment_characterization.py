@@ -13,11 +13,7 @@ from pydantic_settings import SettingsError
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_PATH = (
-    ROOT
-    / "tests"
-    / "fixtures"
-    / "characterization"
-    / "configuration_deployment_contract.json"
+    ROOT / "tests" / "fixtures" / "characterization" / "configuration_deployment_contract.json"
 )
 
 
@@ -174,111 +170,6 @@ def test_llm_model_constructor_argument_has_priority(monkeypatch: pytest.MonkeyP
     assert LLMService()._model_name == "Qwen/Qwen3-8B"
 
 
-def test_stdio_node_signer_command_and_environment_without_starting_node(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from xhs_food.auth import signer
-
-    expected = _contract()["node_signer"]
-    captured: dict = {}
-
-    class FakeReadable:
-        def readline(self):
-            return "[signer] ready\n"
-
-        def read(self):
-            return ""
-
-        def close(self):
-            return None
-
-    class FakeWritable(FakeReadable):
-        def write(self, value):
-            return len(value)
-
-        def flush(self):
-            return None
-
-    class FakeProcess:
-        def __init__(self):
-            self.stderr = FakeReadable()
-            self.stdout = FakeReadable()
-            self.stdin = FakeWritable()
-
-        def terminate(self):
-            return None
-
-        def wait(self, timeout):
-            assert timeout == 3
-            return 0
-
-        def kill(self):
-            return None
-
-    def fake_popen(args, **kwargs):
-        captured["args"] = args
-        captured["kwargs"] = kwargs
-        return FakeProcess()
-
-    monkeypatch.setattr(signer, "ensure_node_modules", lambda: None)
-    monkeypatch.setattr(signer.subprocess, "Popen", fake_popen)
-    profile = SimpleNamespace(cookie_str="fixture-cookie", user_agent="fixture-agent")
-
-    client = signer.StdioSignerClient(profile)
-    try:
-        assert captured["args"] == ["node", str(signer.SIGNER_JS)]
-        assert captured["kwargs"]["env"][expected["environment"]["required"]] == "fixture-cookie"
-        assert captured["kwargs"]["env"][expected["environment"]["optional"]] == "fixture-agent"
-        assert captured["kwargs"]["text"] is True
-        assert captured["kwargs"]["bufsize"] == 1
-    finally:
-        client.close()
-
-
-def test_missing_node_dependency_runs_npm_install_and_exits_on_failure(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    from xhs_food.auth import node_runtime
-
-    expected = _contract()["node_signer"]
-    captured: dict = {}
-
-    def fake_run(args, **kwargs):
-        captured["args"] = args
-        captured["kwargs"] = kwargs
-        return SimpleNamespace(returncode=1, stderr="fixture npm failure")
-
-    monkeypatch.setattr(node_runtime, "NODE_DIR", tmp_path)
-    monkeypatch.setattr(node_runtime, "NODE_MODULES", tmp_path / "node_modules")
-    monkeypatch.setattr(node_runtime.subprocess, "run", fake_run)
-
-    with pytest.raises(SystemExit, match="fixture npm failure"):
-        node_runtime.ensure_node_modules()
-
-    assert captured["args"] == expected["dependency_behavior"]["missing_action"]
-    assert captured["kwargs"]["cwd"] == str(tmp_path)
-    assert captured["kwargs"]["capture_output"] is True
-    assert captured["kwargs"]["text"] is True
-
-
-def test_node_signer_manifest_protocol_and_missing_lock_snapshot() -> None:
-    expected = _contract()["node_signer"]
-    package_path = ROOT / expected["package_manifest"]
-    package = json.loads(package_path.read_text(encoding="utf-8"))
-    javascript = (ROOT / expected["javascript_source"]).read_text(encoding="utf-8")
-
-    assert package["dependencies"] == {
-        expected["dependency_behavior"]["dependency"]: expected["dependency_behavior"]["version"]
-    }
-    assert (package_path.parent / "package-lock.json").exists() is expected["package_lock_present"]
-    assert "process.env.XHS_COOKIE" in javascript
-    assert "process.env.XHS_UA" in javascript
-    assert 'a.startsWith("--socket=")' in javascript
-    assert "fs.chmodSync(socketPath, 0o600)" in javascript
-    assert 'buf.indexOf("\\n")' in javascript
-
-
 def test_dockerfile_entry_port_uid_writable_dirs_and_healthcheck_snapshot() -> None:
     expected = _contract()["deployment"]["dockerfile"]
     text = (ROOT / expected["source"]).read_text(encoding="utf-8")
@@ -290,7 +181,6 @@ def test_dockerfile_entry_port_uid_writable_dirs_and_healthcheck_snapshot() -> N
     health_line = next(line for line in instructions if line.startswith("HEALTHCHECK "))
 
     assert from_lines == [
-        f"FROM {expected['node_image']} AS node-deps",
         f"FROM {expected['builder_image']} AS builder",
         f"FROM {expected['runtime_image']} AS runtime",
     ]
@@ -345,5 +235,6 @@ def test_documented_deployment_conflicts_are_frozen_as_current_facts() -> None:
     assert 'requires-python = ">=3.12,<3.13"' in (ROOT / "pyproject.toml").read_text(
         encoding="utf-8"
     )
-    assert "npm ci --omit=dev; else npm install --omit=dev" in dockerfile
-    assert len(expected["known_conflicts"]) == 5
+    assert "node-deps" not in dockerfile
+    assert "/app/.xhs_profiles" not in dockerfile
+    assert len(expected["known_conflicts"]) == 4

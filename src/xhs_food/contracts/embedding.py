@@ -135,9 +135,7 @@ def advance_backfill_cursor(
         return cursor
     if cursor.last_source_key is not None and keys[0] <= cursor.last_source_key:
         raise ValueError("backfill page overlaps the committed cursor")
-    chained_hash = hashlib.sha256(
-        f"{cursor.content_hash}:{page_hash}".encode("ascii")
-    ).hexdigest()
+    chained_hash = hashlib.sha256(f"{cursor.content_hash}:{page_hash}".encode("ascii")).hexdigest()
     return cursor.model_copy(
         update={
             "last_source_key": keys[-1],

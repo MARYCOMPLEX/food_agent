@@ -29,7 +29,6 @@ _STEP_ALIASES: Final[Mapping[str, str]] = MappingProxyType(
         "intent_parsing": "step1",
         "step2": "step2",
         "evidence_collection": "step2",
-        "xhs_search": "step2",
         "step3": "step3",
         "evidence_analysis": "step3",
         "comment_analysis": "step3",

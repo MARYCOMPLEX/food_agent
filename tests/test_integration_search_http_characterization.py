@@ -85,7 +85,13 @@ def search_http(
     monkeypatch.setattr(tasks_mod, "get_user_storage_service", fake_get_storage)
 
     class _ResearchTaskFixture:
-        async def start_new(self, query: str) -> ResearchTaskAdmission:
+        async def start_new(
+            self,
+            query: str,
+            *,
+            tool_context: object | None = None,
+        ) -> ResearchTaskAdmission:
+            assert tool_context is not None
             session_id = "fixed-session-id"
             calls.new.append((session_id, query))
             return ResearchTaskAdmission(
@@ -96,7 +102,14 @@ def search_http(
                 turn_id=1,
             )
 
-        async def refine(self, session_id: str, query: str) -> ResearchTaskAdmission:
+        async def refine(
+            self,
+            session_id: str,
+            query: str,
+            *,
+            tool_context: object | None = None,
+        ) -> ResearchTaskAdmission:
+            assert tool_context is not None
             calls.refine.append((session_id, query))
             return ResearchTaskAdmission(
                 task_id=session_id,

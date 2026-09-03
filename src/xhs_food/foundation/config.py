@@ -34,40 +34,21 @@ class TargetSettings(BaseSettings):
     food_pack_version: Literal["1.0.0", "legacy/v1"] = "1.0.0"
     research_core_version: Literal["shared/v1", "legacy/v1"] = "shared/v1"
 
-    # Platform source bindings are additive and disabled by default.  The
-    # checkout paths are configuration references only; Composition Root
-    # validates their existence before constructing a provider client.
-    platform_connectors_enabled: bool = False
-    platform_dianping_enabled: bool = False
-    platform_xhs_enabled: bool = False
-    platform_login_enabled: bool = False
-    platform_dianping_checkout: str | None = None
-    platform_xhs_checkout: str | None = None
-    platform_provenance_ref: str | None = None
-    platform_license_approval_ref: str | None = None
-    platform_provider_mode: Literal["in_process", "sidecar"] = "in_process"
-    platform_lease_ttl_seconds: int = Field(default=180, ge=1, le=86_400)
-
     # Provider account services are external, independently deployable HTTP
     # and/or MCP services.  The JSON value contains only service metadata and
     # opaque auth references; it never contains a token or cookie.
     account_services_json: str | None = None
     account_services_file: str | None = None
     account_service_refresh_seconds: int = Field(default=60, ge=5, le=86_400)
+    # Managed MCP tools are fail-closed. The JSON document is validated into
+    # AgentToolPolicy by the Composition Root and contains no credentials.
+    agent_mcp_tool_policy_json: str | None = None
 
     temporal_address: str = "localhost:7233"
     temporal_namespace: str = "default"
     temporal_research_queue: str = "research"
     temporal_refresh_queue: str = "refresh"
     temporal_media_queue: str = "media"
-    # Account authentication is an optional, separately qualified Temporal
-    # workload.  ``None`` keeps the baseline login path manual-import-only;
-    # setting a queue name does not enable it until the explicit flag is true.
-    temporal_account_auth_queue: str | None = None
-    temporal_account_auth_enabled: bool = False
-    temporal_account_auth_max_concurrent_activities: int = Field(default=2, ge=1, le=64)
-    temporal_account_auth_max_concurrent_workflows: int = Field(default=2, ge=1, le=64)
-    temporal_account_auth_priority: int = Field(default=75, ge=0, le=1000)
     # Background workloads are opt-in.  A queue may be registered only after
     # the corresponding operational qualification gate has passed.
     refresh_enabled: bool = False
@@ -113,49 +94,33 @@ class TargetSettings(BaseSettings):
         if len(queues) != 3:
             raise ValueError("Temporal Research, Refresh, and Media queues must be distinct")
         for name in queues:
-            if not isinstance(name, str) or not name or name != name.strip() or any(
-                character.isspace() or ord(character) < 32 for character in name
+            if (
+                not isinstance(name, str)
+                or not name
+                or name != name.strip()
+                or any(character.isspace() or ord(character) < 32 for character in name)
             ):
-                raise ValueError("Temporal Research, Refresh, and Media queue names must be whitespace-free")
-        auth_queue = self.temporal_account_auth_queue
-        if auth_queue is None:
-            if self.temporal_account_auth_enabled:
                 raise ValueError(
-                    "temporal_account_auth_enabled requires a temporal_account_auth_queue"
+                    "Temporal Research, Refresh, and Media queue names must be whitespace-free"
                 )
-        else:
-            if not isinstance(auth_queue, str) or not auth_queue or auth_queue != auth_queue.strip() or any(
-                character.isspace() or ord(character) < 32 for character in auth_queue
-            ):
-                raise ValueError("Temporal account-auth queue name must be whitespace-free")
-            if auth_queue in queues:
-                raise ValueError("Temporal account-auth queue must be distinct from collection queues")
-        if self.personalization_canary_mode == "off" and self.personalization_canary_sample_rate != 0:
-            raise ValueError("off personalization canary cannot carry a sample rate")
-        if self.personalization_canary_mode != "off" and self.personalization_canary_sample_rate <= 0:
-            raise ValueError("active personalization canary requires a positive sample rate")
-        if self.platform_dianping_enabled and not self.platform_connectors_enabled:
-            raise ValueError("platform_dianping_enabled requires platform_connectors_enabled")
-        if self.platform_xhs_enabled and not self.platform_connectors_enabled:
-            raise ValueError("platform_xhs_enabled requires platform_connectors_enabled")
-        if self.platform_login_enabled and not self.platform_connectors_enabled:
-            raise ValueError("platform_login_enabled requires platform_connectors_enabled")
-        for name, value in (
-            ("platform_dianping_checkout", self.platform_dianping_checkout),
-            ("platform_xhs_checkout", self.platform_xhs_checkout),
-            ("platform_provenance_ref", self.platform_provenance_ref),
-            ("platform_license_approval_ref", self.platform_license_approval_ref),
+        if (
+            self.personalization_canary_mode == "off"
+            and self.personalization_canary_sample_rate != 0
         ):
-            if value is not None and (
-                not value.strip()
-                or any(character.isspace() or ord(character) < 32 for character in value)
-            ):
-                raise ValueError(f"{name} must be non-empty and whitespace-free when supplied")
+            raise ValueError("off personalization canary cannot carry a sample rate")
+        if (
+            self.personalization_canary_mode != "off"
+            and self.personalization_canary_sample_rate <= 0
+        ):
+            raise ValueError("active personalization canary requires a positive sample rate")
         if self.account_services_json and self.account_services_file:
-            raise ValueError("account_services_json and account_services_file are mutually exclusive")
+            raise ValueError(
+                "account_services_json and account_services_file are mutually exclusive"
+            )
         for name, value in (
             ("account_services_json", self.account_services_json),
             ("account_services_file", self.account_services_file),
+            ("agent_mcp_tool_policy_json", self.agent_mcp_tool_policy_json),
         ):
             if value is not None and any(ord(character) < 32 for character in value):
                 raise ValueError(f"{name} must not contain control characters")
@@ -165,11 +130,24 @@ class TargetSettings(BaseSettings):
             raise ValueError("object store content-type allow-list must be unique")
         if self.object_store_multipart_chunk_size > self.object_store_max_bytes:
             raise ValueError("object store multipart chunk size cannot exceed max bytes")
-        if self.object_store_environment == "production" and self.object_store_server_side_encryption is None:
-            raise ValueError("production ObjectStore requires MODULAR_OBJECT_STORE_SERVER_SIDE_ENCRYPTION")
-        if self.object_store_server_side_encryption == "aws:kms" and not self.object_store_encryption_key_ref:
-            raise ValueError("aws:kms ObjectStore encryption requires MODULAR_OBJECT_STORE_ENCRYPTION_KEY_REF")
-        if self.object_store_server_side_encryption != "aws:kms" and self.object_store_encryption_key_ref is not None:
+        if (
+            self.object_store_environment == "production"
+            and self.object_store_server_side_encryption is None
+        ):
+            raise ValueError(
+                "production ObjectStore requires MODULAR_OBJECT_STORE_SERVER_SIDE_ENCRYPTION"
+            )
+        if (
+            self.object_store_server_side_encryption == "aws:kms"
+            and not self.object_store_encryption_key_ref
+        ):
+            raise ValueError(
+                "aws:kms ObjectStore encryption requires MODULAR_OBJECT_STORE_ENCRYPTION_KEY_REF"
+            )
+        if (
+            self.object_store_server_side_encryption != "aws:kms"
+            and self.object_store_encryption_key_ref is not None
+        ):
             raise ValueError("encryption key ref is only valid with aws:kms")
         return self
 
@@ -208,11 +186,6 @@ class TemporalConfigView(_OwnerView):
     research_queue: str
     refresh_queue: str
     media_queue: str
-    account_auth_queue: str | None = None
-    account_auth_enabled: bool = False
-    account_auth_max_concurrent_activities: int = Field(default=2, ge=1, le=64)
-    account_auth_max_concurrent_workflows: int = Field(default=2, ge=1, le=64)
-    account_auth_priority: int = Field(default=75, ge=0, le=1000)
     refresh_enabled: bool = False
     media_enabled: bool = False
 

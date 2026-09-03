@@ -639,14 +639,14 @@ def test_s4_domain_pack_layer_and_boundaries_are_explicit(tmp_path: Path) -> Non
     forbidden.write_text(
         "import pydantic\n"
         "from xhs_food.foundation import RedisStateStore\n"
-        "from xhs_food.gateways import XHSSourceConnector\n"
+        "from xhs_food.gateways import XhsPcSourceConnector\n"
         "from xhs_food.orchestrator import XHSFoodOrchestrator\n"
         "from xhs_food.services import LLMService\n",
         encoding="utf-8",
     )
     assert _scan_import_violations(tmp_path, policy) == {
         "xhs_food.domain_packs.food.bad|domain_pack->foundation|xhs_food.services.LLMService",
-        "xhs_food.domain_packs.food.bad|domain_pack->gateway|xhs_food.gateways.XHSSourceConnector",
+        "xhs_food.domain_packs.food.bad|domain_pack->gateway|xhs_food.gateways.XhsPcSourceConnector",
         "xhs_food.domain_packs.food.bad|domain_pack->orchestrator|"
         "xhs_food.orchestrator.XHSFoodOrchestrator",
         "xhs_food.domain_packs.food.bad|domain_pack->target_foundation|"
@@ -737,7 +737,6 @@ def test_owner_port_and_foundation_food_boundaries_are_absolute(
         "xhs_food.services.postgres_storage",
         "xhs_food.services.redis_memory",
         "xhs_food.services.user_storage",
-        "xhs_food.spider",
     } <= set(policy["owner_port_forbidden_import_prefixes"])
     assert {"AmapAPI", "get_amap_api", "get_user_storage_service"} <= set(
         policy["owner_port_forbidden_import_symbols"]
@@ -750,7 +749,7 @@ def test_owner_port_and_foundation_food_boundaries_are_absolute(
         "import redis\n"
         "from xhs_food.gateways.place import PlaceLookupToolAdapter\n"
         "from xhs_food.services import get_user_storage_service\n"
-        "from xhs_food.spider.apis.amap_api import AmapAPI\n",
+        "from xhs_food.services.amap_api import AmapAPI\n",
         encoding="utf-8",
     )
     domain_pack = tmp_path / "xhs_food/domain_packs/bad_food.py"
@@ -771,7 +770,7 @@ def test_owner_port_and_foundation_food_boundaries_are_absolute(
         "xhs_food.agents.bad_place|owner-port-bypass|"
         "xhs_food.gateways.place.PlaceLookupToolAdapter",
         "xhs_food.agents.bad_place|owner-port-bypass|xhs_food.services.get_user_storage_service",
-        "xhs_food.agents.bad_place|owner-port-bypass|xhs_food.spider.apis.amap_api.AmapAPI",
+        "xhs_food.agents.bad_place|owner-port-bypass|xhs_food.services.amap_api.AmapAPI",
         "xhs_food.domain_packs.bad_food|owner-port-bypass|boto3",
         "xhs_food.repositories.bad_cache|owner-port-bypass|temporalio",
         "xhs_food.foundation.bad_food|foundation-food-dependency|"
@@ -906,9 +905,9 @@ def test_resolved_poi_boundary_violations_are_not_baselined() -> None:
     assert resolved_import not in _scan_import_violations(SRC, policy)
     resolved_amap_imports = {
         "xhs_food.agents.poi_enricher|orchestrator->connector|"
-        "xhs_food.spider.apis.amap_api.AmapAPI",
+        "xhs_food.services.amap_api.AmapAPI",
         "xhs_food.agents.poi_enricher|orchestrator->connector|"
-        "xhs_food.spider.apis.amap_api.get_amap_api",
+        "xhs_food.services.amap_api.get_amap_api",
     }
     assert resolved_amap_imports.isdisjoint(policy["legacy_import_violations"])
     assert resolved_amap_imports.isdisjoint(_scan_import_violations(SRC, policy))

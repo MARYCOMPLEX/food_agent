@@ -127,7 +127,10 @@ def qualify_b2_observations(
         recall_by_layer[layer] = recall
         if layer in thresholds.minimum_recall_by_layer and not expected:
             failures.append(f"{layer.value}_recall_has_no_eligible_cases")
-        if layer in thresholds.minimum_recall_by_layer and recall < thresholds.minimum_recall_by_layer[layer]:
+        if (
+            layer in thresholds.minimum_recall_by_layer
+            and recall < thresholds.minimum_recall_by_layer[layer]
+        ):
             failures.append(f"{layer.value}_recall_below_threshold")
         p95 = _percentile95(tuple(item.latency_ms for item in layer_items)) if layer_items else 0.0
         p95_by_layer[layer] = p95

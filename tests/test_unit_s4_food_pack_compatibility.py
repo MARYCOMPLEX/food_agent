@@ -6,7 +6,7 @@ import json
 from copy import deepcopy
 from pathlib import Path
 from types import SimpleNamespace
-from typing import cast
+from typing import Any, cast
 
 import pytest
 from jsonschema import Draft202012Validator
@@ -34,7 +34,6 @@ from xhs_food.domain_packs.food import (
 from xhs_food.domain_packs.food.prompts import COMMENT_ANALYSIS_SYSTEM_PROMPT
 from xhs_food.orchestrator.search_executor import SearchExecutor
 from xhs_food.prompts import COMMENT_ANALYSIS_SYSTEM_PROMPT as LEGACY_COMMENT_PROMPT
-from xhs_food.protocols.mcp import MCPToolRegistry
 from xhs_food.schemas import (
     ConversationContext,
     RestaurantRecommendation,
@@ -249,7 +248,7 @@ async def test_search_executor_uses_active_validator_before_legacy_dto_construct
     monkeypatch.setattr(pack, "validate_final_output", reject_output)
     monkeypatch.setattr(LegacyFoodOutputAdapter, "_response", staticmethod(record_construction))
     executor = SearchExecutor(
-        xhs_registry=MCPToolRegistry(),
+        search_tool=cast(Any, object()),
         analyzer=cast(AnalyzerAgent, object()),
         context=ConversationContext(),
         food_pack=pack,

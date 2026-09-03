@@ -7,7 +7,9 @@ from xhs_food.contracts import PlatformChannel
 from xhs_food.contracts.account_service import (
     MCP_PROTOCOL_VERSION,
     AccountServiceConfig,
+    McpToolDescriptor,
     RemoteErrorCategory,
+    RemoteSideEffect,
 )
 from xhs_food.gateways.account_service import McpAccountServiceClient, RemoteAccountServiceError
 
@@ -59,7 +61,8 @@ async def test_mcp_negotiates_session_filters_tools_and_sanitizes_results() -> N
                 "jsonrpc": "2.0",
                 "id": payload["id"],
                 "result": {
-                    "content": [{"type": "json", "json": {"ok": True, "cookie": "sid=secret"}}],
+                    "content": [{"type": "text", "text": "fallback"}],
+                    "structuredContent": {"ok": True, "cookie": "sid=secret"},
                     "isError": False,
                 },
             },
@@ -71,15 +74,18 @@ async def test_mcp_negotiates_session_filters_tools_and_sanitizes_results() -> N
         tools = await client.list_tools()
         result = await client.call_tool("notes.search", {"query": "z贡"})
         assert [tool.name for tool in tools] == ["notes.search", "account.login"]
-        assert result.content == [{"type": "json", "json": {"ok": True}}]
+        assert result.content == {"ok": True}
 
     assert calls[1]["method"] == "tools/list"
 
 
 @pytest.mark.asyncio
 async def test_mcp_rejects_unknown_tools_and_secret_arguments_before_transport() -> None:
+    calls: list[str] = []
+
     def handler(request: httpx.Request) -> httpx.Response:
         payload = httpx._models.jsonlib.loads(request.read())
+        calls.append(payload["method"])
         if payload["method"] == "initialize":
             return httpx.Response(
                 200,
@@ -104,3 +110,13 @@ async def test_mcp_rejects_unknown_tools_and_secret_arguments_before_transport()
         with pytest.raises(RemoteAccountServiceError) as secret:
             await client.call_tool("notes.search", {"cookie": "secret"})
         assert secret.value.category is RemoteErrorCategory.INVALID
+
+        approved = McpToolDescriptor(
+            name="notes.search",
+            capability="notes.search",
+            side_effect=RemoteSideEffect.PUBLISH,
+        )
+        with pytest.raises(RemoteAccountServiceError) as pinned:
+            await client.call_tool("notes.search", approved_descriptor=approved)
+        assert pinned.value.category is RemoteErrorCategory.AUTHORIZATION
+        assert calls == ["initialize", "tools/list"]

@@ -25,12 +25,11 @@ _LEGACY_PATHS = frozenset(
         "src/scripts/migrate_favorites.py",
         "src/xhs_food/services/postgres_storage.py",
         "src/xhs_food/services/postgres_vector.py",
-        "src/xhs_food/spider/core/logger.py",
         "src/xhs_food/services/user_storage/schema.py",
         "src/xhs_food/services/user_storage/service.py",
     }
 )
-_TELEMETRY_PATHS = frozenset({"src/xhs_food/spider/core/logger.py"})
+_TELEMETRY_PATHS: frozenset[str] = frozenset()
 # Ignore local virtual-environment/build trees.  Qualification scans source
 # files only; third-party packages may contain illustrative SQL strings that
 # are not runtime schema authority and would otherwise create false findings.

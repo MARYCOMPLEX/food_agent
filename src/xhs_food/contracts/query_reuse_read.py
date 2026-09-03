@@ -87,7 +87,9 @@ def digest_public_result(value: object) -> str:
 
     if hasattr(value, "model_dump"):
         value = value.model_dump(mode="json")  # type: ignore[union-attr]
-    encoded = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
+    encoded = json.dumps(
+        value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str
+    )
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 

@@ -13,19 +13,22 @@ Two layers:
 Long-term, completed-search data still lives in PostgreSQL
 (:mod:`xhs_food.services.user_storage`).
 """
+
 from __future__ import annotations
 
 import json
 import time
-from typing import Any, Dict, Optional, Protocol
+from collections.abc import Callable, Mapping
+from contextlib import AbstractContextManager, nullcontext
+from dataclasses import dataclass
+from typing import Any, Protocol
 
 from cachetools import TTLCache
 from loguru import logger
 
 from xhs_food import XHSFoodOrchestrator
 from xhs_food.config import settings
-from xhs_food.di import get_xhs_tool_registry
-
+from xhs_food.contracts import AgentToolExecutionContext, SearchToolPort
 
 # ---------------------------------------------------------------------------
 # Orchestrator LRU
@@ -40,11 +43,60 @@ _orchestrators: TTLCache[str, XHSFoodOrchestrator] = TTLCache(
 )
 
 
+@dataclass(frozen=True, slots=True)
+class _UnavailableSearchResult:
+    success: bool = False
+    data: Mapping[str, Any] | None = None
+    error_message: str | None = "MANAGED_SEARCH_NOT_CONFIGURED"
+
+
+class _UnavailableSearchTool:
+    async def execute(self, **arguments: Any) -> _UnavailableSearchResult:
+        del arguments
+        return _UnavailableSearchResult()
+
+    async def health(self) -> bool:
+        return False
+
+
+ToolContextBinder = Callable[[AgentToolExecutionContext], AbstractContextManager[None]]
+
+_search_tool: SearchToolPort = _UnavailableSearchTool()
+
+
+def _default_tool_context_binder(
+    _context: AgentToolExecutionContext,
+) -> AbstractContextManager[None]:
+    return nullcontext()
+
+
+_tool_context_binder: ToolContextBinder = _default_tool_context_binder
+
+
+def configure_search_tool(
+    search_tool: SearchToolPort,
+    *,
+    context_binder: ToolContextBinder,
+) -> None:
+    """Install the sole managed search dependency and retire cached runs."""
+
+    global _search_tool, _tool_context_binder
+    _search_tool = search_tool
+    _tool_context_binder = context_binder
+    _orchestrators.clear()
+
+
+def bind_search_tool_context(
+    context: AgentToolExecutionContext,
+) -> AbstractContextManager[None]:
+    return _tool_context_binder(context)
+
+
 def get_orchestrator(session_id: str) -> XHSFoodOrchestrator:
     cached = _orchestrators.get(session_id)
     if cached is not None:
         return cached
-    orch = XHSFoodOrchestrator(xhs_registry=get_xhs_tool_registry())
+    orch = XHSFoodOrchestrator(search_tool=_search_tool)
     _orchestrators[session_id] = orch
     return orch
 
@@ -62,19 +114,19 @@ _STATE_TTL_SECONDS = 3600
 
 
 class _StateStore(Protocol):
-    async def get(self, sid: str) -> Optional[Dict[str, Any]]: ...
-    async def set(self, sid: str, value: Dict[str, Any]) -> None: ...
+    async def get(self, sid: str) -> dict[str, Any] | None: ...
+    async def set(self, sid: str, value: dict[str, Any]) -> None: ...
     async def delete(self, sid: str) -> None: ...
 
 
 class _MemoryStateStore:
     def __init__(self) -> None:
-        self._store: Dict[str, Dict[str, Any]] = {}
+        self._store: dict[str, dict[str, Any]] = {}
 
-    async def get(self, sid: str) -> Optional[Dict[str, Any]]:
+    async def get(self, sid: str) -> dict[str, Any] | None:
         return self._store.get(sid)
 
-    async def set(self, sid: str, value: Dict[str, Any]) -> None:
+    async def set(self, sid: str, value: dict[str, Any]) -> None:
         self._store[sid] = value
 
     async def delete(self, sid: str) -> None:
@@ -90,7 +142,7 @@ class _RedisStateStore:
     def _key(self, sid: str) -> str:
         return f"{self.KEY_PREFIX}:{sid}:state"
 
-    async def get(self, sid: str) -> Optional[Dict[str, Any]]:
+    async def get(self, sid: str) -> dict[str, Any] | None:
         raw = await self._r.get(self._key(sid))
         if not raw:
             return None
@@ -100,7 +152,7 @@ class _RedisStateStore:
             logger.warning(f"corrupt state json for {sid}")
             return None
 
-    async def set(self, sid: str, value: Dict[str, Any]) -> None:
+    async def set(self, sid: str, value: dict[str, Any]) -> None:
         await self._r.set(
             self._key(sid),
             json.dumps(value, ensure_ascii=False),
@@ -111,7 +163,7 @@ class _RedisStateStore:
         await self._r.delete(self._key(sid))
 
 
-_state_store: Optional[_StateStore] = None
+_state_store: _StateStore | None = None
 
 
 async def _build_store() -> _StateStore:
@@ -136,7 +188,7 @@ async def get_state_store() -> _StateStore:
     return _state_store
 
 
-def _default_state(session_id: str, status: str = "idle") -> Dict[str, Any]:
+def _default_state(session_id: str, status: str = "idle") -> dict[str, Any]:
     now = time.time()
     return {
         "id": session_id,
@@ -152,12 +204,12 @@ def _default_state(session_id: str, status: str = "idle") -> Dict[str, Any]:
     }
 
 
-async def load_state(session_id: str) -> Optional[Dict[str, Any]]:
+async def load_state(session_id: str) -> dict[str, Any] | None:
     store = await get_state_store()
     return await store.get(session_id)
 
 
-async def get_or_init_state(session_id: str, status: str = "idle") -> Dict[str, Any]:
+async def get_or_init_state(session_id: str, status: str = "idle") -> dict[str, Any]:
     store = await get_state_store()
     state = await store.get(session_id)
     if state is None:
@@ -166,13 +218,13 @@ async def get_or_init_state(session_id: str, status: str = "idle") -> Dict[str, 
     return state
 
 
-async def save_state(state: Dict[str, Any]) -> None:
+async def save_state(state: dict[str, Any]) -> None:
     state["updated_at"] = time.time()
     store = await get_state_store()
     await store.set(state["id"], state)
 
 
-async def update_state(session_id: str, **changes: Any) -> Dict[str, Any]:
+async def update_state(session_id: str, **changes: Any) -> dict[str, Any]:
     state = await get_or_init_state(session_id)
     state.update(changes)
     await save_state(state)

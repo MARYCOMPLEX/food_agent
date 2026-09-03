@@ -14,13 +14,6 @@ from enum import StrEnum
 from types import MappingProxyType
 from typing import Any, cast
 
-from .platform_bindings import (
-    PlatformBindingAssembly,
-    PlatformBindingStatus,
-    PlatformReadiness,
-    build_platform_bindings,
-)
-
 AdapterFactory = Callable[[], object | Awaitable[object]]
 
 
@@ -145,10 +138,6 @@ class CompositionRoot:
         self._state = RegistryState.CONFIGURING
         self._registries: dict[str, BindingRegistry] = {}
         self._logical_bindings: dict[str, LogicalBinding] = {}
-        # Populated only when the opt-in platform connector registry is
-        # configured.  Keeping this projection on the root makes readiness
-        # observable without resolving provider clients or account secrets.
-        self._platform_readiness: Any | None = None
         self._lifecycle_lock = asyncio.Lock()
         self._close_complete = False
 
@@ -163,25 +152,6 @@ class CompositionRoot:
     @property
     def logical_bindings(self) -> Mapping[str, LogicalBinding]:
         return MappingProxyType(self._logical_bindings)
-
-    @property
-    def platform_readiness(self) -> Any | None:
-        """Redacted platform feature/readiness projection, if configured."""
-
-        return self._platform_readiness
-
-    def set_platform_readiness(self, readiness: Any | None) -> None:
-        """Install the immutable platform readiness projection during wiring.
-
-        The Composition Root is the owner of cross-registry wiring.  Keeping
-        this mutation behind a public method avoids reaching through a private
-        attribute from the builder while still preventing changes once the root
-        has been activated.
-        """
-
-        if self._state is not RegistryState.CONFIGURING:
-            raise RuntimeError("platform readiness can only be configured before activation")
-        self._platform_readiness = readiness
 
     def registry(self, name: str) -> BindingRegistry:
         if self._state is not RegistryState.CONFIGURING:
@@ -332,7 +302,6 @@ async def build_reliable_runtime_bindings(
         SQLAlchemyDatabase,
         TargetSettings,
         TemporalTaskQueues,
-        TemporalWorkerQuota,
         TemporalWorkflowAdapter,
         create_redis_client,
     )
@@ -360,26 +329,10 @@ async def build_reliable_runtime_bindings(
     workflow: Any | None = None
     try:
         await redis_client.ping()
-        account_auth_queue = getattr(target, "temporal_account_auth_queue", None)
-        account_auth_quota = None
-        if account_auth_queue is not None:
-            account_auth_quota = TemporalWorkerQuota(
-                queue=account_auth_queue,
-                max_concurrent_activities=int(
-                    getattr(target, "temporal_account_auth_max_concurrent_activities", 2)
-                ),
-                max_concurrent_workflows=int(
-                    getattr(target, "temporal_account_auth_max_concurrent_workflows", 2)
-                ),
-                priority=int(getattr(target, "temporal_account_auth_priority", 75)),
-                enabled=bool(getattr(target, "temporal_account_auth_enabled", False)),
-            )
         queues = TemporalTaskQueues(
             research=target.temporal_research_queue,
             refresh=target.temporal_refresh_queue,
             media=target.temporal_media_queue,
-            account_auth=account_auth_queue,
-            account_auth_quota=account_auth_quota,
         )
         connect = temporal_connect or TemporalWorkflowAdapter.connect
         workflow = await connect(
@@ -440,10 +393,14 @@ def build_reliable_research_worker(
     )
 
     reliable_config = config if isinstance(config, ReliableTaskConfig) else ReliableTaskConfig()
-    queues = task_queues if isinstance(task_queues, TemporalTaskQueues) else TemporalTaskQueues(
-        research=reliable_config.task_queue,
-        refresh="refresh",
-        media="media",
+    queues = (
+        task_queues
+        if isinstance(task_queues, TemporalTaskQueues)
+        else TemporalTaskQueues(
+            research=reliable_config.task_queue,
+            refresh="refresh",
+            media="media",
+        )
     )
     if queues.research != reliable_config.task_queue:
         raise ValueError("Research worker queue must match ReliableTaskConfig.task_queue")
@@ -515,37 +472,6 @@ def build_media_worker(
     )
 
 
-def build_account_auth_worker(
-    client: object,
-    activities: object,
-    *,
-    task_queues: object | None = None,
-    workflows: Sequence[type[object]] = (),
-    plugins: Sequence[object] = (),
-) -> object:
-    """Build the optional account-auth worker after its queue is qualified.
-
-    The default ``TemporalTaskQueues`` intentionally has no account-auth queue,
-    so this composition helper fails closed until an operator supplies an
-    explicit queue and enabled quota.
-    """
-
-    from xhs_food.foundation import TemporalTaskQueues, build_temporal_auth_worker
-
-    queues = task_queues if isinstance(task_queues, TemporalTaskQueues) else TemporalTaskQueues()
-    if not workflows:
-        from xhs_food.orchestrator import TemporalAccountAuthWorkflow
-
-        workflows = (TemporalAccountAuthWorkflow,)
-    return build_temporal_auth_worker(
-        client,
-        activities,
-        task_queues=queues,
-        workflows=workflows,
-        plugins=plugins,
-    )
-
-
 def build_legacy_composition_root(
     *,
     reliable_policy: object | None = None,
@@ -554,22 +480,6 @@ def build_legacy_composition_root(
     reliable_event_bus: object | None = None,
     reliable_task_lifecycle: bool | None = None,
     target_settings: Any = None,
-    platform_account_authority: object | None = None,
-    platform_account_repository: object | None = None,
-    platform_authority: object | None = None,
-    platform_session_codec: object | None = None,
-    platform_session_envelope_codec: object | None = None,
-    platform_connector_factories: Mapping[str, Callable[..., object]] | None = None,
-    platform_provider_factories: Mapping[str, Callable[..., object]] | None = None,
-    platform_factories: Mapping[str, Callable[..., object]] | None = None,
-    platform_source_control: object | None = None,
-    platform_health: object | None = None,
-    platform_capability_registry: object | None = None,
-    platform_login_service: object | None = None,
-    platform_object_store: object | None = None,
-    platform_provenance_ref: str | None = None,
-    platform_license_approval_ref: str | None = None,
-    platform_dependency_digests: Mapping[str, str] | None = None,
     account_service_registry: object | None = None,
 ) -> CompositionRoot:
     """Create the compatibility root with an atomically validated Food Pack.
@@ -599,7 +509,6 @@ def build_legacy_composition_root(
         build_owner_config,
         build_place_source_connector,
         build_place_tool,
-        build_xhs_source_connector,
     )
     from xhs_food.composition.adapters.food_tools import build_food_tool_gateway
     from xhs_food.composition.adapters.legacy_food import LegacyFoodPackAdapter
@@ -609,6 +518,10 @@ def build_legacy_composition_root(
         discover_allowlisted_domain_packs,
     )
     from xhs_food.composition.legacy_research_task import LegacyResearchTaskFacade
+    from xhs_food.composition.managed_search import (
+        ManagedMcpSearchTool,
+        UnavailableManagedSearchTool,
+    )
     from xhs_food.config import get_settings
     from xhs_food.contracts import (
         DomainContract,
@@ -618,7 +531,6 @@ def build_legacy_composition_root(
         ReliableTaskStorePort,
         TaskProgressProjectionPort,
     )
-    from xhs_food.di import factories as legacy
     from xhs_food.domain_packs.food import load_food_contract_resources
     from xhs_food.domain_packs.food.pack import FoodBehavior
     from xhs_food.foundation import (
@@ -636,6 +548,7 @@ def build_legacy_composition_root(
     from xhs_food.gateways import SchemaToolGateway
     from xhs_food.orchestrator.agent_runtime import PydanticAIAgentRuntime
     from xhs_food.orchestrator.coordinator import ResearchCoordinator
+    from xhs_food.orchestrator.core import XHSFoodOrchestrator
     from xhs_food.orchestrator.scheduler import StepScheduler
     from xhs_food.personalization import PersonalizationCanary, PersonalizedReranker
     from xhs_food.services import LLMService, get_session_manager, get_user_storage_service
@@ -664,6 +577,26 @@ def build_legacy_composition_root(
         from xhs_food.composition.account_services import build_account_service_registry
 
         account_service_registry = build_account_service_registry(target_settings)
+    from xhs_food.composition.account_services import AccountServiceRegistry
+    from xhs_food.composition.agent_tools import (
+        AccountServiceAgentToolCatalog,
+        build_agent_tool_policy,
+    )
+
+    agent_tool_policy = build_agent_tool_policy(target_settings)
+    managed_agent_tools: AccountServiceAgentToolCatalog | None = None
+    if agent_tool_policy.enabled:
+        if not isinstance(account_service_registry, AccountServiceRegistry):
+            raise RuntimeError("enabled Agent MCP tool policy requires an account-service registry")
+        managed_agent_tools = AccountServiceAgentToolCatalog(
+            account_service_registry,
+            agent_tool_policy,
+        )
+    managed_search_tool = (
+        ManagedMcpSearchTool(managed_agent_tools, managed_agent_tools)
+        if managed_agent_tools is not None
+        else UnavailableManagedSearchTool()
+    )
     reliable_enabled = (
         target_settings.reliable_task_lifecycle
         if reliable_task_lifecycle is None
@@ -671,9 +604,7 @@ def build_legacy_composition_root(
     )
     canary_enabled = target_settings.personalization_canary_mode != "off"
     if canary_enabled and not target_settings.target_adapters_enabled:
-        raise RuntimeError(
-            "personalization canary requires target_adapters_enabled"
-        )
+        raise RuntimeError("personalization canary requires target_adapters_enabled")
     if reliable_enabled and reliable_policy is None:
         raise RuntimeError(
             "reliable_task_lifecycle requires an explicit Temporal/PostgreSQL policy adapter"
@@ -682,79 +613,21 @@ def build_legacy_composition_root(
         raise RuntimeError(
             "reliable_task_lifecycle requires an explicit durable reliable task store"
         )
-    if reliable_enabled and not isinstance(
-        reliable_projection_store, TaskProgressProjectionPort
-    ):
+    if reliable_enabled and not isinstance(reliable_projection_store, TaskProgressProjectionPort):
         raise RuntimeError(
             "reliable_task_lifecycle requires an explicit PostgreSQL task projection store"
         )
-    if reliable_enabled and reliable_event_bus is not None and not isinstance(
-        reliable_event_bus, EventBusPort
+    if (
+        reliable_enabled
+        and reliable_event_bus is not None
+        and not isinstance(reliable_event_bus, EventBusPort)
     ):
         raise RuntimeError("reliable_event_bus must implement EventBusPort")
     owner_config = build_owner_config(get_settings(), cast(TargetSettings, target_settings))
 
-    # Platform connectors are a separate, opt-in registry.  Nothing below is
-    # imported or instantiated for the default legacy configuration.  Passing
-    # an injected factory/authority is useful for synthetic qualification and
-    # for the future sidecar transport, while the feature flag still controls
-    # whether a binding can become active.
-    platform_requested = bool(
-        getattr(target_settings, "platform_connectors_enabled", False)
-        or getattr(target_settings, "platform_login_enabled", False)
-        or platform_account_authority is not None
-        or platform_account_repository is not None
-        or platform_authority is not None
-        or platform_session_codec is not None
-        or platform_session_envelope_codec is not None
-        or platform_connector_factories
-        or platform_provider_factories
-        or platform_factories
-        or platform_object_store is not None
-    )
-    platform_assembly: Any | None = None
-    if platform_requested:
-        authority = (
-            platform_account_authority
-            if platform_account_authority is not None
-            else (
-                platform_account_repository
-                if platform_account_repository is not None
-                else platform_authority
-            )
-        )
-        direct_factories = (
-            platform_connector_factories
-            if platform_connector_factories is not None
-            else platform_factories
-        )
-        platform_assembly = build_platform_bindings(
-            target_settings,
-            account_authority=authority,
-            session_codec=(
-                platform_session_codec
-                if platform_session_codec is not None
-                else platform_session_envelope_codec
-            ),
-            connector_factories=direct_factories,
-            provider_factories=platform_provider_factories,
-            source_control=platform_source_control,
-            health=platform_health,
-            capability_registry=platform_capability_registry,
-            login_service=platform_login_service,
-            object_store=platform_object_store,
-            provenance_ref=platform_provenance_ref,
-            license_approval_ref=platform_license_approval_ref,
-            dependency_digests=platform_dependency_digests,
-            legacy_capabilities={
-                "place.lookup": ("place_compat", "1.0.0"),
-                "reviews.search": ("xhs_compat", "1.0.0"),
-            },
-        )
-
     food_gateway, food_providers = build_food_tool_gateway(
         build_place_tool(),
-        legacy.get_xhs_tool_registry().get_required("xhs_search"),
+        managed_search_tool,
     )
     tool_capabilities, source_capabilities = capability_snapshots(food_providers)
     domain_pack_registry = DomainPackRegistry(
@@ -914,6 +787,8 @@ def build_legacy_composition_root(
         runtime = PydanticAIAgentRuntime(
             tool_gateway=food_gateway,
             enabled=False,
+            managed_tool_catalog=managed_agent_tools,
+            managed_tool_executor=managed_agent_tools,
         )
         coordinator = ResearchCoordinator(
             LegacyResearchTaskFacade(),
@@ -960,117 +835,33 @@ def build_legacy_composition_root(
             registry_name="account_services",
             binding_name="remote",
         )
-    if platform_assembly is not None:
-        # Keep provider factories and the account-bound gateway in their own
-        # registry.  The existing ``sources.xhs_compat`` binding is untouched
-        # and remains the default whenever the platform flag is off.
-        platform_registry = root.registry("platform")
-        platform_statuses = tuple(platform_assembly.readiness.statuses)
-        for status in platform_statuses:
-            factory = platform_assembly.connector_factories.get(status.platform)
-            platform_registry.register(
-                AdapterBinding(
-                    name=status.platform,
-                    contract_version=status.connector_version,
-                    factory=(lambda value=factory: value),
-                    legacy=False,
-                    enabled=bool(status.enabled and factory is not None),
-                )
-            )
-        xhs_enabled = any(
-            item.enabled for item in platform_statuses if item.source_id == "xhs"
-        )
-        platform_registry.register(
+    if managed_agent_tools is not None:
+        agent_tools_registry = root.registry("agent_tools")
+        agent_tools_registry.register(
             AdapterBinding(
-                name="xhs",
-                contract_version="xhs-platform/v1",
-                factory=lambda: {
-                    channel: platform_assembly.connector_factories[channel]
-                    for channel in ("xhs_pc", "xhs_creator")
-                    if channel in platform_assembly.connector_factories
-                },
-                legacy=False,
-                enabled=xhs_enabled,
-            )
-        )
-        platform_registry.register(
-            AdapterBinding(
-                name="capabilities",
-                contract_version="platform-capabilities/v1",
-                factory=lambda: platform_assembly.capabilities,
+                name="account_service_mcp",
+                contract_version="agent-tool-catalog/v1",
+                factory=lambda: managed_agent_tools,
                 legacy=False,
             )
         )
-        platform_registry.register(
-            AdapterBinding(
-                name="readiness",
-                contract_version="platform-readiness/v1",
-                factory=lambda: platform_assembly.readiness,
-                legacy=False,
-            )
+        root.bind_logical(
+            "agent_tool_catalog",
+            registry_name="agent_tools",
+            binding_name="account_service_mcp",
         )
-        platform_registry.register(
-            AdapterBinding(
-                name="gateway",
-                contract_version="platform-source-gateway/v1",
-                factory=lambda: platform_assembly.gateway,
-                legacy=False,
-                enabled=platform_assembly.gateway is not None,
-            )
-        )
-        if platform_assembly.account_authority is not None:
-            platform_registry.register(
-                AdapterBinding(
-                    name="account_authority",
-                    contract_version="platform-account-authority/v1",
-                    factory=lambda: platform_assembly.account_authority,
-                    legacy=False,
-                )
-            )
-        if platform_assembly.session_codec is not None:
-            platform_registry.register(
-                AdapterBinding(
-                    name="session_codec",
-                    contract_version="platform-session-codec/v1",
-                    factory=lambda: platform_assembly.session_codec,
-                    legacy=False,
-                )
-            )
-        if platform_assembly.object_store is not None:
-            platform_registry.register(
-                AdapterBinding(
-                    name="object_store",
-                    contract_version="platform-object-store/v1",
-                    factory=lambda: platform_assembly.object_store,
-                    legacy=False,
-                )
-            )
-        platform_registry.register(
-            AdapterBinding(
-                name="login",
-                contract_version="platform-login/v1",
-                factory=lambda: platform_assembly.login_service,
-                legacy=False,
-                enabled=platform_assembly.readiness.login_enabled,
-            )
-        )
-        root.set_platform_readiness(platform_assembly.readiness)
-
-    root.registry("foundation").register(
-        AdapterBinding(
-            name="xhs_service",
-            contract_version="legacy/v1",
-            factory=legacy.get_xhs_service,
-            legacy=True,
-        )
-    )
     root.registry("tools").register(
         AdapterBinding(
-            name="xhs_tool_registry",
-            contract_version="legacy/v1",
-            factory=legacy.get_xhs_tool_registry,
-            legacy=True,
+            name="managed_mcp_search",
+            contract_version="managed-search/v1",
+            factory=lambda: managed_search_tool,
+            legacy=False,
         )
+    )
+    root.bind_logical(
+        "managed_search_tool",
+        registry_name="tools",
+        binding_name="managed_mcp_search",
     )
     root.registry("tools").register(
         AdapterBinding(
@@ -1090,14 +881,6 @@ def build_legacy_composition_root(
         )
     )
     sources = root.registry("sources")
-    sources.register(
-        AdapterBinding(
-            name="xhs_compat",
-            contract_version="xhs-connector/v1",
-            factory=build_xhs_source_connector,
-            legacy=True,
-        )
-    )
     sources.register(
         AdapterBinding(
             name="food_place_capability",
@@ -1229,9 +1012,12 @@ def build_legacy_composition_root(
     root.registry("orchestrators").register(
         AdapterBinding(
             name="xhs_food_orchestrator",
-            contract_version="legacy/v1",
-            factory=lambda: legacy.get_xhs_food_orchestrator(food_pack=selected_food_behavior),
-            legacy=True,
+            contract_version="managed-search/v1",
+            factory=lambda: XHSFoodOrchestrator.with_food_pack(
+                search_tool=managed_search_tool,
+                food_pack=selected_food_behavior,
+            ),
+            legacy=False,
         )
     )
     packs = root.registry("domain_packs")
@@ -1317,41 +1103,6 @@ def build_legacy_composition_root(
             registry_name="personalization",
             binding_name="canary",
         )
-    if platform_assembly is not None:
-        # Logical names are stable across provider revisions and make a
-        # rollback a configuration change rather than a public-pointer edit.
-        root.bind_logical(
-            "platform_readiness",
-            registry_name="platform",
-            binding_name="readiness",
-        )
-        root.bind_logical(
-            "platform_capabilities",
-            registry_name="platform",
-            binding_name="capabilities",
-        )
-        root.bind_logical(
-            "platform_gateway",
-            registry_name="platform",
-            binding_name="gateway",
-        )
-        for status in platform_assembly.readiness.statuses:
-            root.bind_logical(
-                f"platform_{status.platform}",
-                registry_name="platform",
-                binding_name=status.platform,
-            )
-        root.bind_logical(
-            "platform_xhs",
-            registry_name="platform",
-            binding_name="xhs",
-        )
-        if platform_assembly.readiness.login_requested:
-            root.bind_logical(
-                "platform_login",
-                registry_name="platform",
-                binding_name="login",
-            )
     root.bind_logical(
         "food_pack",
         registry_name="domain_packs",
@@ -1367,6 +1118,8 @@ def build_legacy_composition_root(
         "sources.food_place_capability",
         "sources.food_reviews_capability",
         "tools.food_tool_gateway",
+        "tools.managed_mcp_search",
+        "orchestrators.xhs_food_orchestrator",
     }
     if reliable_enabled:
         allowed_non_legacy.update(
@@ -1379,14 +1132,10 @@ def build_legacy_composition_root(
             allowed_non_legacy.add("state.reliable_event_bus")
     if canary_enabled:
         allowed_non_legacy.add("personalization.canary")
-    if platform_assembly is not None:
-        allowed_non_legacy.update(
-            f"platform.{binding.name}"
-            for binding in root.registry("platform").bindings.values()
-            if binding.enabled
-        )
     if account_service_registry is not None:
         allowed_non_legacy.add("account_services.remote")
+    if managed_agent_tools is not None:
+        allowed_non_legacy.add("agent_tools.account_service_mcp")
     root.assert_legacy_only(frozenset(allowed_non_legacy))
     root.activate()
     return root
@@ -1398,14 +1147,9 @@ __all__ = [
     "CompositionRoot",
     "DisabledBindingError",
     "LogicalBinding",
-    "PlatformBindingAssembly",
-    "PlatformBindingStatus",
-    "PlatformReadiness",
     "RegistryState",
-    "build_account_auth_worker",
     "build_media_worker",
     "build_legacy_composition_root",
-    "build_platform_bindings",
     "build_refresh_worker",
     "build_reliable_research_worker",
 ]

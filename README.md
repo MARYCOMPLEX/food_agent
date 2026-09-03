@@ -93,7 +93,7 @@
 ### 🔧 灵活配置
 - **多 LLM 支持** — SiliconFlow / OpenAI / DeepSeek
 - **独立 Embedding** — 可配置专用向量模型
-- **优雅降级** — 组件缺失时自动 fallback
+- **明确失败语义** — MCP、策略或账号上下文缺失时 fail-closed
 
 </td>
 </tr>
@@ -143,8 +143,8 @@
 
 ## 🛠️ 技术架构
 
-下方先展示兼容模式的总体链路；平台账号、Temporal、ObjectStore 与 provider
-边界以本页“平台连接器集成”和 SVG/HTML 图为准。
+Agent 的外部数据能力只来自托管 Account Service MCP。主应用不包含平台
+Spider、签名器、浏览器登录、Cookie 或本地 provider。
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
@@ -160,12 +160,12 @@
 │  │   Redis     │   │      PostgreSQL           │  │  LLM Service  │ │
 │  │ (L1 Cache)  │   │  + pgvector (L2 Storage)  │  │ (SiliconFlow) │ │
 │  └─────────────┘   └───────────────────────────┘  └───────────────┘ │
-│                              │                            │          │
-│                              ▼                            ▼          │
-│  ┌───────────────────────────────────────────────────────────────┐  │
-│  │                      XHS Spider                                │  │
-│  │          (Search · Note Content · Comments Scraping)           │  │
-│  └───────────────────────────────────────────────────────────────┘  │
+│         ┌────────────────────────────┴───────────────────────┐    │
+│         ▼                                                    ▼    │
+│  ┌────────────────────┐                         ┌────────────────┐ │
+│  │ Agent Tool Catalog │── tools/list + policy ──│ Account Service│ │
+│  │ + Pinned Executor  │── tools/call + context ─│ MCP            │ │
+│  └────────────────────┘                         └────────────────┘ │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -174,7 +174,7 @@
 ```mermaid
 flowchart LR
     A[用户查询] --> B[IntentParser<br/>意图解析]
-    B --> C[XHS Spider<br/>数据采集]
+    B --> C[Managed MCP Tool<br/>账号绑定采集]
     C --> D[Analyzer<br/>评论分析]
     D --> E[POIEnricher<br/>信息补充]
     E --> F[推荐结果]
@@ -182,116 +182,45 @@ flowchart LR
 
 ---
 
-## 🔌 平台连接器集成（当前开发线）
+## 🔌 托管 Account Service 与 MCP
 
-本次平台接入位于 **`codex/integrate-platform-source-connectors`**，基于已确定的
-模块化基线实现；`master` 仍是稳定基线，`codex/define-modular-architecture-s0`
-保存架构基线，`codex/agentic-runtime-v2` 是独立的历史 Agent Runtime 实验线，
-不是本次平台接入分支。
-
-### 外部项目与边界
-
-| 平台 | 外部项目 | 固定快照（示例） | 接入范围 |
-|------|----------|------------------|----------|
-| 大众点评 | [`dazhongdianping`](https://github.com/MARYCOMPLEX/dazhongdianping) | `ffbc1d413ed1c83602212bc1fec12b57cd2b423d` | 搜索、店铺详情、评价、媒体引用；复用其 Playwright 协议模块，不启动其 FastAPI/SQLite/worker |
-| 小红书 PC | [`Spider_XHS`](https://github.com/cv-cat/Spider_XHS) | `e1888d712519040f5fcc294baeac4b9505b25c98` | 笔记搜索、详情、评论、媒体引用；每个账号独立客户端和 signer |
-| 小红书 Creator | [`Spider_XHS`](https://github.com/cv-cat/Spider_XHS) | 同上 | 仅本人笔记读取与健康检查；发布、上传、排程保持未注册 |
-
-外部 checkout 只作为依赖输入，放在仓库之外，并由 Composition Root 注入。不要
-把上游仓库根目录加入主应用包路径，也不要提交上游 `.env`、Cookie、SQLite 文件、
-浏览器 profile、二维码或 signer 状态。需要同时运行多个不同版本时使用已审批的
-sidecar；同一进程内的 in-process importer 会按顶层包（`apis`、`xhs_utils`、
-`dz_engine`）锁定首个 checkout，发现串包会 fail-closed。
-
-### 模块、技术栈与交互
-
-| 项目模块 | 技术栈 | 运行/交互职责 |
-|----------|--------|---------------|
-| `src/api` | FastAPI + SSE | REST、账号登录控制面、状态/QR 展示；不接触明文凭据 |
-| `src/xhs_food/contracts` | Pydantic V2 | `PlatformAccount`、`SourceInvocation`、Canonical 文档/评论/媒体及稳定错误合同 |
-| `src/xhs_food/experience/platform_login.py` | Pydantic 用例服务 | 账号注册、授权、QR/手机/Cookie 流程；只接收不透明 `CREDENTIAL_REF` |
-| `src/xhs_food/foundation/platform_accounts.py` | AES-GCM（Crypto）+ 本地 qualification authority | 本地测试账号/session/grant/lease/health 实现；生产替换为注入的 vault/key provider |
-| `src/xhs_food/foundation/platform_account_repository.py` / `platform_account_schema.py` | SQLAlchemy 2 Async + asyncpg；Alembic | PostgreSQL 账号、加密 session 版本、grant、lease、health、login flow 权威 |
-| `src/xhs_food/foundation/platform_login_temporal.py` | Temporal Python SDK | 可选 `account-auth` 队列；QR 创建/轮询/取消具备心跳、超时和重启恢复 |
-| `src/xhs_food/composition/adapters/platforms.py` | Playwright（大众点评）+ Spider_XHS Python/Node 协议桥 | 每次 Activity 创建一个账号本地 provider；只导出 allow-list 协议方法 |
-| `src/xhs_food/gateways/platform_sources.py` | 异步端口 + `asyncio.to_thread` | 将 tuple/envelope 转为 CanonicalSourceBatch，去除签名 URL 参数并分类错误 |
-| `src/xhs_food/gateways/platform_gateway.py` | 账号绑定 SourceGateway | 先校验 tenant/platform/grant/health/session/lease，再调用 provider，最后释放并清理明文 |
-| Redis | Redis 热状态 | 可重建 SSE/status、短期幂等、限流；不保存业务事实、锁、lease 或 durable task state |
-| ObjectStore | S3-compatible（生产 boto3，开发 MinIO） | QR/媒体二进制及短期引用；PostgreSQL 保存元数据和权限 |
-
-运行链路为：`FastAPI → Experience/Temporal → AccountGateway → Provider Adapter →
-Canonical contracts → PostgreSQL/Evidence`；QR/媒体字节走 `ObjectStore`，Redis
-只做可重建投影。大众点评与小红书的账号标识分别按
-`(tenant_id, platform_channel, account_ref)` 隔离，`dianping`、`xhs_pc`、
-`xhs_creator` 永不共享 Cookie、设备/signer、session version、lease 或 health。
-
-完整 SVG/HTML 图（含模块技术栈、进程边界、队列及交互）见：
-[`platform-integration-architecture.svg`](openspec/changes/integrate-platform-source-connectors/references/platform-integration-architecture.svg) ·
-[`platform-integration-architecture.html`](openspec/changes/integrate-platform-source-connectors/references/platform-integration-architecture.html)。
-
-### 独立账号微服务与 MCP（新适配层）
-
-账号状态可以从主应用拆到两个独立上游：`xhs-account-service` 负责
+账号状态和平台 SDK 由独立上游服务拥有：`xhs-account-service` 负责
 `xhs_pc`/`xhs_creator`，`dianping-account-service` 负责 `dianping`。主应用通过
 `src/xhs_food/contracts/account_service.py` 和
 `src/xhs_food/gateways/account_service.py` 的 HTTP/MCP 适配层调用它们，不导入
 上游 Python 包，也不保存 Cookie、浏览器 profile、二维码字节或 signer 状态。
 只需在 `MODULAR_ACCOUNT_SERVICES_FILE` 或 `MODULAR_ACCOUNT_SERVICES_JSON` 中写入
 两个服务的 URL、频道、能力白名单和 `auth_ref`，Composition Root 会在启动时刷新
-能力并按频道路由。HTTP 是账号/登录/数据调用的权威边界，MCP 只做动态能力发现和
-allow-list 工具调用。部署示例与完整 endpoint 清单见
+能力并按频道路由。HTTP 是账号/登录资源的权威边界；Agent 搜索只通过 MCP 的
+`tools/list` 与 `tools/call` 发现和执行经过双重 allow-list 的只读工具。部署示例与完整 endpoint 清单见
 [`docs/account-services.md`](docs/account-services.md) 和
 [`docker-compose.account-services.yml`](docker-compose.account-services.yml)。
+Agent 原生工具另有一层默认拒绝的应用策略
+`MODULAR_AGENT_MCP_TOOL_POLICY_JSON`；只有策略允许的只读能力会以
+`xhs_pc__notes_search` 这类稳定名称暴露给模型，登录和写操作不会自动暴露。
 
-### 启用步骤（默认保持关闭）
+### 启用步骤
 
-```powershell
-git switch codex/integrate-platform-source-connectors
-git clone https://github.com/MARYCOMPLEX/dazhongdianping.git CHECKOUT_PATH_DIANPING
-git -C CHECKOUT_PATH_DIANPING checkout ffbc1d413ed1c83602212bc1fec12b57cd2b423d
-git clone https://github.com/cv-cat/Spider_XHS.git CHECKOUT_PATH_XHS
-git -C CHECKOUT_PATH_XHS checkout e1888d712519040f5fcc294baeac4b9505b25c98
-```
-
-将 `.env.example` 复制为 `.env`，只填写本地路径、基础设施地址和由部署系统
-注入的密钥引用：
+在 `.env` 中配置两个服务的地址、MCP endpoint 与明确的工具放行策略：
 
 ```dotenv
-MODULAR_PLATFORM_CONNECTORS_ENABLED=true
-MODULAR_PLATFORM_DIANPING_ENABLED=true
-MODULAR_PLATFORM_XHS_ENABLED=true
-MODULAR_PLATFORM_PROVIDER_MODE=sidecar
-MODULAR_PLATFORM_DIANPING_CHECKOUT=CHECKOUT_PATH_DIANPING
-MODULAR_PLATFORM_XHS_CHECKOUT=CHECKOUT_PATH_XHS
-MODULAR_PLATFORM_PROVENANCE_REF=PROVENANCE_REF
-MODULAR_PLATFORM_LICENSE_APPROVAL_REF=OWNER_LEGAL_REF
-MODULAR_OBJECT_STORE_ENVIRONMENT=local
-MODULAR_OBJECT_STORE_ENDPOINT_URL=http://HOST:PORT
-MODULAR_OBJECT_STORE_BUCKET=food-agent
-MODULAR_TEMPORAL_ACCOUNT_AUTH_QUEUE=account-auth
-MODULAR_TEMPORAL_ACCOUNT_AUTH_ENABLED=true
+MODULAR_ACCOUNT_SERVICES_JSON='[{"service_id":"xhs-account","base_url":"http://XHS_HOST","mcp_url":"http://XHS_HOST/mcp","protocol":"http+mcp","channels":["xhs_pc","xhs_creator"]},{"service_id":"dianping-account","base_url":"http://DP_HOST","mcp_url":"http://DP_HOST/mcp","protocol":"http+mcp","channels":["dianping"]}]'
+MODULAR_AGENT_MCP_TOOL_POLICY_JSON='{"enabled":true,"allowed_platforms":["xhs_pc","dianping"],"allowed_capabilities":["notes.search","place.lookup","reviews.search"]}'
 ```
 
-应用启动时必须通过 `app.state.platform_runtime_factory` 注入 PostgreSQL
-authority、AES-GCM session codec、provider factory、Temporal workflow 和
-ObjectStore；仅设置环境变量不会自动构造 provider。先执行 `alembic upgrade head`，
-再启动 API 与单独的 Temporal `account-auth` worker。`GET /v1/platform/readiness`
-应显示每个平台和登录队列的脱敏状态。
+应用启动时刷新远端 descriptor 和 `tools/list`。`GET /v1/platform/readiness`
+显示远端服务的脱敏状态；策略、服务或请求账号上下文缺失时搜索直接失败。
 
 ### 账号登录与 re-auth
 
 1. `POST /v1/platform/accounts` 注册一个 `(tenant_id, platform, account_ref)`，
    账号初始为 `pending_login`。
-2. `xhs_pc`/`xhs_creator` 使用仓库内置的 Spider_XHS split-phase bridge：
+2. `xhs_pc`/`xhs_creator` 登录命令由对应 Account Service 执行：
    `POST /v1/platform/accounts/{platform}/{account_ref}/login/qr` 创建短期 QR 流程，
    `GET /v1/platform/login/{flow_id}/qr` 只返回限时展示引用，`POST .../poll` 推进状态。
-3. 也可通过 `/login` 使用 `CREDENTIAL_REF` 做手机/Cookie 导入；API 和 Temporal
-   历史中只出现不透明引用，不出现 Cookie、二维码内容、storage-state 或 signer 输入。
-4. `dianping` 首版通过 vault handle 导入其 QR 登录生成的 Playwright storage state，
-   或由部署侧注入实现同一 `PlatformLoginProvider` 端口的 account-auth sidecar；应用
-   不启动上游 FastAPI、SQLite worker 或长驻 CLI。
-5. 成功后由 PostgreSQL CAS 写入一个新的加密 session version；过期、取消、风控、
-   worker 重启和重复完成都不会激活错误账号。Creator 发布接口保持 `CAPABILITY_UNREGISTERED`。
+3. 也可通过 `/login` 使用 `CREDENTIAL_REF`；主应用只转发不透明引用，不接收
+   Cookie、二维码内容、storage-state 或 signer 输入。
+4. 账号隔离、session 版本与风控状态由远端服务负责；主应用只持有账号引用。
 
 生产/商业启用还需要 owner/legal/security 的审批、真实 disposable-account canary
 和 aggregate evidence；本地 fixture/合约测试不等同于生产批准。
@@ -313,15 +242,15 @@ cp .env.example .env
 
 编辑 `.env` 文件，配置以下项目：
 
-默认启动的是兼容模式（平台连接器开关为 `false`）。兼容模式仍可读取
-`XHS_COOKIES`；启用新的账号绑定平台连接器后，不再读取进程级 Cookie，而是通过
-账号控制面和 `CREDENTIAL_REF` 完成登录。
+平台搜索没有本地兼容模式。必须配置远端 Account Service、MCP endpoint、工具策略，
+并在请求中提供对应 `accountRefs`。
 
 | 变量 | 必需 | 说明 |
 |------|:----:|------|
-| `XHS_COOKIES` | 兼容模式 | 旧版 `xhs.compat` 的 Cookie（平台连接器启用后不用此变量） |
 | `OPENAI_API_KEY` | ✅ | LLM API 密钥 |
 | `OPENAI_API_BASE` | ✅ | API 基础地址 |
+| `MODULAR_ACCOUNT_SERVICES_JSON` | 搜索必需 | 远端账号服务与 MCP 地址 |
+| `MODULAR_AGENT_MCP_TOOL_POLICY_JSON` | 搜索必需 | Agent 工具平台/能力放行策略 |
 | `REDIS_HOST` | ❌ | Redis 地址（可选，fallback 到内存） |
 | `POSTGRES_HOST` | ❌ | PostgreSQL 地址（可选，长期存储） |
 | `EMBEDDING_API_KEY` | ❌ | Embedding API 密钥（可选，向量搜索） |
@@ -329,8 +258,7 @@ cp .env.example .env
 ### 3️⃣ 安装依赖
 
 **前置要求：**
-- **Python 3.10+**
-- **Node.js** (用于 XHS 签名加密，请确保 `node` 在 PATH 中)
+- **Python 3.12**
 
 ```bash
 # 安装 uv (如果尚未安装)
@@ -355,47 +283,11 @@ uvicorn src.api.main:app --reload --port 8000
 
 ## 🧪 本地测试（无需前端）
 
-如果你只想快速体验核心功能，**无需启动服务器**，可以直接使用测试脚本：
-
-### 交互式对话（推荐）
+无需真实平台账号即可运行非 live 合约与单元测试：
 
 ```bash
-# 深度搜索模式（默认，更全面）
-uv run python tests/test_dialogue.py
-
-# 快速模式（搜索更快，笔记数量较少）
-uv run python tests/test_dialogue.py --fast
+uv run pytest -q -m "not live"
 ```
-
-启动后进入交互式对话，支持多轮追问：
-```
-你: 成都本地人常去的老火锅
-[状态: success]
-推荐店铺 (5 家):
-  1. 蜀大侠火锅
-     判定: authentic (置信度: 85%)
-     特点: 锅底正宗, 服务热情, 性价比高
-     ...
-
-你: 排除蜀大侠，还有其他推荐吗？
-你: 有没有不用排队的？
-你: reset   # 重置对话
-你: quit    # 退出
-```
-
-### 单次查询
-
-```bash
-uv run python tests/test_dialogue.py --mode single --query "上海浦东机场附近的川菜"
-```
-
-### 预设对话流程
-
-```bash
-uv run python tests/test_dialogue.py --mode preset
-```
-
-> 💡 **提示**: 本地测试脚本直接调用 `XHSFoodOrchestrator` 核心模块，非常适合开发调试和快速验证功能。
 
 ---
 
@@ -470,8 +362,7 @@ xhs_food_agent/
 │       │   ├── session_manager.py  # 会话管理
 │       │   └── README.md         # 📖 模块文档
 │       │
-│       └── 📁 spider/            # XHS 爬虫
-│           └── README.md         # 📖 模块文档
+│       └── 📁 gateways/          # MCP / 账号服务网关
 │
 ├── 📁 tests/                     # 测试用例
 ├── .env.example                  # 环境变量模板
@@ -479,24 +370,18 @@ xhs_food_agent/
 └── README.md                     # 项目说明
 ```
 
-平台接入新增的目标模块（与旧版目录并行，默认开关关闭）如下：
+Agent 平台工具的唯一实现路径如下：
 
 ```
 src/
-├── api/platform.py                         # 账号/登录/readiness REST
+├── api/platform.py                         # 远端账号/登录/readiness REST
 └── xhs_food/
-    ├── contracts/account.py                # 账号、session、grant、lease 合同
-    ├── experience/platform_login.py        # 登录用例与脱敏投影
-    ├── foundation/platform_accounts.py     # 本地 authority/codec
-    ├── foundation/platform_account_repository.py  # PostgreSQL adapter
-    ├── foundation/platform_account_schema.py      # Alembic metadata
-    ├── foundation/platform_login.py        # 登录端口与结果
-    ├── foundation/platform_login_temporal.py # account-auth Temporal workflow
-    ├── composition/platform_bindings.py   # feature/readiness/capability binding
-    ├── composition/adapters/platforms.py   # DP/Spider_XHS provider bridge
-    └── gateways/
-        ├── platform_sources.py             # canonical source normalizers
-        └── platform_gateway.py              # account-bound SourceGateway
+    ├── contracts/account_service.py        # 远端 HTTP/MCP 合同
+    ├── contracts/tool_catalog.py           # Agent 工具 catalog/executor 端口
+    ├── composition/account_services.py     # 服务注册与频道路由
+    ├── composition/agent_tools.py          # 策略过滤、快照和固定路由执行
+    ├── composition/managed_search.py       # SearchToolPort 的 MCP 实现
+    └── gateways/account_service.py         # HTTP/MCP transport
 ```
 
 ---
@@ -507,11 +392,9 @@ src/
 |------|------|
 | [agents/README.md](src/xhs_food/agents/README.md) | Agent 模块架构与扩展 |
 | [services/README.md](src/xhs_food/services/README.md) | 服务层配置与使用 |
-| [spider/README.md](src/xhs_food/spider/README.md) | 爬虫模块与注意事项 |
 | [api/README.md](src/api/README.md) | API 端点与 SSE 规范 |
-| [平台连接器架构图](openspec/changes/integrate-platform-source-connectors/references/platform-integration-architecture.html) | 模块技术栈、进程边界、队列与交互 |
-| [平台接入运行手册](openspec/changes/integrate-platform-source-connectors/verification/platform-rollout-runbook.md) | checkout、账号登录、ObjectStore、灰度与回滚 |
-| [上游 provenance/兼容性记录](openspec/changes/integrate-platform-source-connectors/verification/upstream-provenance.md) | 固定 commit、依赖和 license gate |
+| [Account Service 接入](docs/account-services.md) | HTTP/MCP 配置、工具策略和错误边界 |
+| [Agent MCP OpenSpec](openspec/changes/refactor-agent-mcp-tool-orchestration/design.md) | catalog、快照、上下文注入和搜索链路 |
 
 ---
 
@@ -544,12 +427,8 @@ EMBEDDING_API_BASE="https://api.openai.com/v1/"
 EMBEDDING_MODEL="text-embedding-3-small"
 ```
 
-平台连接器和 ObjectStore 的完整变量模板以仓库根目录
-`.env.example` 为准，尤其是 `MODULAR_PLATFORM_*`、
-`MODULAR_TEMPORAL_ACCOUNT_AUTH_*` 与 `MODULAR_OBJECT_STORE_*`。其中
-`MODULAR_PLATFORM_PROVENANCE_REF`、`MODULAR_PLATFORM_LICENSE_APPROVAL_REF`、
-`MODULAR_OBJECT_STORE_ENCRYPTION_KEY_REF` 只填写审批单/密钥系统引用，不填写
-Cookie、访问令牌或明文密钥。
+Account Service、Agent MCP 策略和 ObjectStore 的完整变量模板以仓库根目录
+`.env.example` 为准。服务认证只填写密钥系统引用，不填写 Cookie、访问令牌或明文密钥。
 
 ### 支持的 LLM 提供商
 
@@ -580,16 +459,13 @@ Cookie、访问令牌或明文密钥。
 ## ❓ 常见问题
 
 <details>
-<summary><strong>Q: Cookie 过期了怎么办？</strong></summary>
+<summary><strong>Q: 平台账号过期了怎么办？</strong></summary>
 
-兼容模式下小红书 Cookie 有效期约 7-30 天，需要定期更新。平台连接器模式使用
-账号隔离的 QR/手机/Cookie 导入流程，不把 Cookie 写入 `.env`：
+账号凭据由远端 Account Service 管理，主应用不保存 Cookie：
 
 1. 调用 `POST /v1/platform/accounts` 注册 `xhs_pc` 或 `xhs_creator` 账号
 2. 使用 `.../login/qr` 扫码，或提交由 vault 解析的 `CREDENTIAL_REF`
-3. 过期后对同一账号调用 `.../login/re-auth`；系统以 CAS 写入新的加密 session version
-
-若仍使用旧版兼容模式，再打开浏览器登录小红书并更新 `.env` 中的 `XHS_COOKIES`。
+3. 过期后对同一账号调用 `.../login/re-auth`
 
 </details>
 
@@ -607,10 +483,9 @@ Cookie、访问令牌或明文密钥。
 <summary><strong>Q: Redis/PostgreSQL 必须配置吗？</strong></summary>
 
 不是必须的：
-- **兼容模式 Redis**: 不配置会降级为内存存储（重启丢失）
-- **平台连接器 Redis**: 只承载可重建的 SSE/status、短期幂等和限流，不是业务事实或锁的权威
-- **PostgreSQL**: 平台账号、加密 session、grant、lease、health 和业务历史的权威；启用平台连接器时需先执行 Alembic migration
-- **ObjectStore**: 平台 QR/媒体字节的存储（本地 MinIO，生产 S3-compatible）
+- **Redis**: 不配置时会使用进程内会话状态（重启丢失）
+- **PostgreSQL**: 主应用业务历史的长期存储
+- **平台账号状态**: 由远端 Account Service 持久化，主应用不建账号/session 表
 
 推荐生产环境完整配置。
 
@@ -639,27 +514,6 @@ Cookie、访问令牌或明文密钥。
 - 合理的请求频率限制
 
 **请勿将本项目用于商业用途或任何可能损害小红书平台利益的行为。**
-
----
-
-## 🙏 致谢
-
-本项目的小红书数据采集能力基于以下优秀开源项目：
-
-<table>
-<tr>
-<td align="center">
-<a href="https://github.com/cv-cat/Spider_XHS">
-<img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" width="60" alt="Spider_XHS"/><br/>
-<strong>Spider_XHS</strong>
-</a>
-<br/>
-<sub>小红书逆向爬虫 · 为本项目提供核心数据采集能力</sub>
-<br/>
-<sub>感谢 <a href="https://github.com/cv-cat">@cv-cat</a> 的辛勤付出 ❤️</sub>
-</td>
-</tr>
-</table>
 
 ---
 

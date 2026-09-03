@@ -10,14 +10,15 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
 
-from xhs_food.contracts.account import PlatformChannel
 from xhs_food.contracts.account_service import (
     AccountServiceConfig,
+    AccountServiceControlPlaneError,
     AccountServiceDescriptor,
     AccountServiceHealth,
     AccountServiceProtocol,
     McpToolCallResult,
     McpToolDescriptor,
+    PlatformChannel,
     RemoteAccountProjection,
     RemoteErrorCategory,
     RemoteLoginFlowProjection,
@@ -35,7 +36,7 @@ from xhs_food.gateways.account_service import (
 
 @dataclass(frozen=True, slots=True)
 class RemoteLoginSubmission:
-    """Compatibility envelope matching the local login service projection."""
+    """Public login submission returned by a remote account service."""
 
     flow: RemoteLoginFlowProjection
 
@@ -70,12 +71,15 @@ class AccountServiceRegistry:
         self,
         configs: Sequence[AccountServiceConfig],
         *,
-        http_client_factory: Callable[[AccountServiceConfig], AccountServiceClientPort] | None = None,
+        http_client_factory: Callable[[AccountServiceConfig], AccountServiceClientPort]
+        | None = None,
         mcp_client_factory: Callable[[AccountServiceConfig], McpAccountServiceClient] | None = None,
     ) -> None:
         self.configs = tuple(configs)
         self._validate_configs(self.configs)
-        self._http_factory = http_client_factory or (lambda config: HttpAccountServiceClient(config))
+        self._http_factory = http_client_factory or (
+            lambda config: HttpAccountServiceClient(config)
+        )
         self._mcp_factory = mcp_client_factory or (lambda config: McpAccountServiceClient(config))
         self._http: dict[str, AccountServiceClientPort] = {}
         self._mcp: dict[str, McpAccountServiceClient] = {}
@@ -120,18 +124,23 @@ class AccountServiceRegistry:
         value: str | None,
         *,
         file_path: str | None = None,
-        http_client_factory: Callable[[AccountServiceConfig], AccountServiceClientPort] | None = None,
+        http_client_factory: Callable[[AccountServiceConfig], AccountServiceClientPort]
+        | None = None,
         mcp_client_factory: Callable[[AccountServiceConfig], McpAccountServiceClient] | None = None,
     ) -> AccountServiceRegistry:
         source = value
         if source is None and file_path:
             source = Path(file_path).read_text(encoding="utf-8")
         if not source:
-            return cls((), http_client_factory=http_client_factory, mcp_client_factory=mcp_client_factory)
+            return cls(
+                (), http_client_factory=http_client_factory, mcp_client_factory=mcp_client_factory
+            )
         try:
             raw = json.loads(source)
         except json.JSONDecodeError as exc:
-            raise AccountServiceRegistryError("MODULAR_ACCOUNT_SERVICES_JSON is invalid JSON") from exc
+            raise AccountServiceRegistryError(
+                "MODULAR_ACCOUNT_SERVICES_JSON is invalid JSON"
+            ) from exc
         if not isinstance(raw, list):
             raise AccountServiceRegistryError("account service configuration must be a JSON list")
         validate_remote_payload(raw, "account_services")
@@ -139,7 +148,9 @@ class AccountServiceRegistry:
             configs = tuple(AccountServiceConfig.model_validate(item) for item in raw)
         except Exception as exc:
             raise AccountServiceRegistryError("account service configuration is invalid") from exc
-        return cls(configs, http_client_factory=http_client_factory, mcp_client_factory=mcp_client_factory)
+        return cls(
+            configs, http_client_factory=http_client_factory, mcp_client_factory=mcp_client_factory
+        )
 
     @property
     def enabled(self) -> bool:
@@ -252,7 +263,9 @@ class AccountServiceRegistry:
                 self._mcp_health[config.service_id] = ("ready", None)
         return descriptor
 
-    def _service_for(self, platform: PlatformChannel, capability: str | None = None) -> tuple[AccountServiceConfig, AccountServiceClientPort]:
+    def _service_for(
+        self, platform: PlatformChannel, capability: str | None = None
+    ) -> tuple[AccountServiceConfig, AccountServiceClientPort]:
         matches = [config for config in self.configs if platform in config.channels]
         if len(matches) != 1:
             raise RemoteAccountServiceError(
@@ -278,8 +291,13 @@ class AccountServiceRegistry:
                 service_id=config.service_id,
                 capability=capability,
             )
-        if capability and config.capabilities and not any(
-            capability == item or capability.startswith(item + ".") for item in config.capabilities
+        if (
+            capability
+            and config.capabilities
+            and not any(
+                capability == item or capability.startswith(item + ".")
+                for item in config.capabilities
+            )
         ):
             raise RemoteAccountServiceError(
                 RemoteErrorCategory.AUTHORIZATION,
@@ -339,29 +357,48 @@ class AccountServiceRegistry:
             )
         return configs[0].service_id
 
-    async def flow_status(self, *, platform: PlatformChannel, flow_id: str, tenant_ref: str) -> RemoteLoginFlowProjection:
+    async def flow_status(
+        self, *, platform: PlatformChannel, flow_id: str, tenant_ref: str
+    ) -> RemoteLoginFlowProjection:
         _, client = self._service_for(platform, "account.login")
         flow = await client.flow_status(flow_id=flow_id, tenant_ref=tenant_ref)
         self._flow_platform[flow.flow_id] = flow.platform
         return flow
 
-    async def status(self, *, platform: PlatformChannel, flow_id: str, tenant_ref: str) -> RemoteLoginFlowProjection:
+    async def status(
+        self, *, platform: PlatformChannel, flow_id: str, tenant_ref: str
+    ) -> RemoteLoginFlowProjection:
         return await self.flow_status(platform=platform, flow_id=flow_id, tenant_ref=tenant_ref)
 
-    async def qr_presentation(self, *, platform: PlatformChannel, flow_id: str, tenant_ref: str) -> RemoteQrPresentation:
+    async def qr_presentation(
+        self, *, platform: PlatformChannel, flow_id: str, tenant_ref: str
+    ) -> RemoteQrPresentation:
         _, client = self._service_for(platform, "account.login")
         return await client.qr_presentation(flow_id=flow_id, tenant_ref=tenant_ref)
 
-    async def get_qr(self, *, platform: PlatformChannel, flow_id: str, tenant_ref: str) -> RemoteQrPresentation:
+    async def get_qr(
+        self, *, platform: PlatformChannel, flow_id: str, tenant_ref: str
+    ) -> RemoteQrPresentation:
         return await self.qr_presentation(platform=platform, flow_id=flow_id, tenant_ref=tenant_ref)
 
-    async def poll_login(self, *, platform: PlatformChannel, flow_id: str, tenant_ref: str, idempotency_key: str | None = None) -> RemoteLoginFlowProjection:
+    async def poll_login(
+        self,
+        *,
+        platform: PlatformChannel,
+        flow_id: str,
+        tenant_ref: str,
+        idempotency_key: str | None = None,
+    ) -> RemoteLoginFlowProjection:
         _, client = self._service_for(platform, "account.login")
-        flow = await client.poll_login(flow_id=flow_id, tenant_ref=tenant_ref, idempotency_key=idempotency_key)
+        flow = await client.poll_login(
+            flow_id=flow_id, tenant_ref=tenant_ref, idempotency_key=idempotency_key
+        )
         self._flow_platform[flow.flow_id] = flow.platform
         return flow
 
-    async def cancel_login(self, *, platform: PlatformChannel, flow_id: str, tenant_ref: str, reason: str | None = None) -> RemoteLoginFlowProjection:
+    async def cancel_login(
+        self, *, platform: PlatformChannel, flow_id: str, tenant_ref: str, reason: str | None = None
+    ) -> RemoteLoginFlowProjection:
         _, client = self._service_for(platform, "account.login")
         flow = await client.cancel_login(flow_id=flow_id, tenant_ref=tenant_ref, reason=reason)
         self._flow_platform[flow.flow_id] = flow.platform
@@ -398,7 +435,13 @@ class AccountServiceRegistry:
         )
         return await self.invoke(request)
 
-    async def call_tool(self, *, platform: PlatformChannel, tool_name: str, arguments: Mapping[str, Any] | None = None) -> McpToolCallResult:
+    async def call_tool(
+        self,
+        *,
+        platform: PlatformChannel,
+        tool_name: str,
+        arguments: Mapping[str, Any] | None = None,
+    ) -> McpToolCallResult:
         configs = [config for config in self.configs if platform in config.channels]
         if len(configs) != 1:
             raise RemoteAccountServiceError(
@@ -424,6 +467,55 @@ class AccountServiceRegistry:
             )
         return await mcp.call_tool(tool_name, arguments)
 
+    async def call_pinned_tool(
+        self,
+        *,
+        platform: PlatformChannel,
+        descriptor: McpToolDescriptor,
+        arguments: Mapping[str, Any] | None = None,
+    ) -> McpToolCallResult:
+        """Execute a descriptor already approved in an immutable Agent snapshot."""
+
+        configs = [config for config in self.configs if platform in config.channels]
+        if len(configs) != 1:
+            raise RemoteAccountServiceError(
+                RemoteErrorCategory.DEPENDENCY_UNAVAILABLE,
+                "no unique account service is configured for this platform",
+                service_id="registry",
+                capability=descriptor.capability,
+            )
+        config = configs[0]
+        if descriptor.side_effect.value != "read_only":
+            raise RemoteAccountServiceError(
+                RemoteErrorCategory.AUTHORIZATION,
+                "pinned Agent tools must be read-only",
+                service_id=config.service_id,
+                capability=descriptor.capability,
+            )
+        if config.capabilities and not any(
+            descriptor.capability == item or descriptor.capability.startswith(item + ".")
+            for item in config.capabilities
+        ):
+            raise RemoteAccountServiceError(
+                RemoteErrorCategory.AUTHORIZATION,
+                "MCP capability is not configured for this service",
+                service_id=config.service_id,
+                capability=descriptor.capability,
+            )
+        mcp = self._mcp.get(config.service_id)
+        if mcp is None:
+            raise RemoteAccountServiceError(
+                RemoteErrorCategory.DEPENDENCY_UNAVAILABLE,
+                "MCP client is not configured for this service",
+                service_id=config.service_id,
+                capability=descriptor.capability,
+            )
+        return await mcp.call_tool(
+            descriptor.name,
+            arguments,
+            approved_descriptor=descriptor,
+        )
+
     def readiness(self) -> dict[str, object]:
         services: list[dict[str, object]] = []
         for config in self.configs:
@@ -435,8 +527,12 @@ class AccountServiceRegistry:
                     "protocol": config.protocol.value,
                     "channels": [channel.value for channel in config.channels],
                     "state": health.state,
-                    "descriptor_version": descriptor.contract_version if descriptor else config.descriptor_version,
-                    "capabilities": sorted(descriptor.capabilities if descriptor else config.capabilities),
+                    "descriptor_version": descriptor.contract_version
+                    if descriptor
+                    else config.descriptor_version,
+                    "capabilities": sorted(
+                        descriptor.capabilities if descriptor else config.capabilities
+                    ),
                     "mcp_tools": sorted(self._tools.get(config.service_id, {})),
                     "mcp_state": self._mcp_health.get(config.service_id, ("disabled", None))[0],
                     "mcp_detail": self._mcp_health.get(config.service_id, ("disabled", None))[1],
@@ -473,8 +569,8 @@ def build_account_service_registry(target_settings: Any) -> AccountServiceRegist
     return AccountServiceRegistry.from_json(value, file_path=file_path)
 
 
-class RemotePlatformLoginServiceAdapter:
-    """Expose the existing `/v1/platform` login shape over remote services."""
+class RemoteAccountServiceFacade:
+    """Expose account and login commands through remote services only."""
 
     def __init__(self, registry: AccountServiceRegistry) -> None:
         self.registry = registry
@@ -484,15 +580,13 @@ class RemotePlatformLoginServiceAdapter:
         try:
             return value if isinstance(value, PlatformChannel) else PlatformChannel(value)
         except ValueError as exc:
-            from xhs_food.experience.platform_login import PlatformLoginServiceError
-
-            raise PlatformLoginServiceError("PLATFORM_INVALID", "unsupported platform channel", status_code=422) from exc
+            raise AccountServiceControlPlaneError(
+                "PLATFORM_INVALID", "unsupported platform channel", status_code=422
+            ) from exc
 
     @staticmethod
     def _translate(call: Any) -> Any:
         async def run() -> Any:
-            from xhs_food.experience.platform_login import PlatformLoginServiceError
-
             try:
                 result = call() if callable(call) else call
                 return await cast(Awaitable[Any], result)
@@ -504,69 +598,143 @@ class RemotePlatformLoginServiceAdapter:
                     RemoteErrorCategory.TIMEOUT: "LOGIN_TIMEOUT",
                     RemoteErrorCategory.CONFLICT: "LOGIN_FLOW_CONFLICT",
                 }.get(exc.category, "PLATFORM_SERVICE_UNAVAILABLE")
-                status = 404 if code == "PLATFORM_ACCOUNT_NOT_FOUND" else (429 if code == "LOGIN_RATE_LIMITED" else 503)
-                raise PlatformLoginServiceError(code, "remote account service operation failed", status_code=status) from None
+                status = (
+                    404
+                    if code == "PLATFORM_ACCOUNT_NOT_FOUND"
+                    else (429 if code == "LOGIN_RATE_LIMITED" else 503)
+                )
+                raise AccountServiceControlPlaneError(
+                    code,
+                    "remote account service operation failed",
+                    status_code=status,
+                ) from None
 
         return run()
 
-    async def register_account(self, *, tenant_id: str, principal_id: str, platform: str, account_ref: str, alias: str, permissions: Sequence[str] | None = None) -> RemoteAccountProjection:
+    async def register_account(
+        self,
+        *,
+        tenant_id: str,
+        principal_id: str,
+        platform: str,
+        account_ref: str,
+        alias: str,
+        permissions: Sequence[str] | None = None,
+    ) -> RemoteAccountProjection:
         channel = self._platform(platform)
-        return await self._translate(self.registry.register_account(platform=channel, account_ref=account_ref, alias=alias, tenant_ref=tenant_id))
+        return await self._translate(
+            self.registry.register_account(
+                platform=channel, account_ref=account_ref, alias=alias, tenant_ref=tenant_id
+            )
+        )
 
-    async def get_account(self, *, tenant_id: str, principal_id: str, platform: str, account_ref: str) -> RemoteAccountProjection:
+    async def get_account(
+        self, *, tenant_id: str, principal_id: str, platform: str, account_ref: str
+    ) -> RemoteAccountProjection:
         channel = self._platform(platform)
-        return await self._translate(self.registry.account(platform=channel, account_ref=account_ref, tenant_ref=tenant_id))
+        return await self._translate(
+            self.registry.account(platform=channel, account_ref=account_ref, tenant_ref=tenant_id)
+        )
 
-    async def start_login(self, *, tenant_id: str, principal_id: str, platform: str, account_ref: str, mode: Any, idempotency_key: str | None = None, credential_ref: str | None = None) -> RemoteLoginSubmission:
+    async def start_login(
+        self,
+        *,
+        tenant_id: str,
+        principal_id: str,
+        platform: str,
+        account_ref: str,
+        mode: Any,
+        idempotency_key: str | None = None,
+        credential_ref: str | None = None,
+    ) -> RemoteLoginSubmission:
         channel = self._platform(platform)
         mode_value = getattr(mode, "value", mode)
-        flow = await self._translate(self.registry.start_login(platform=channel, account_ref=account_ref, tenant_ref=tenant_id, mode=str(mode_value), credential_ref=credential_ref, idempotency_key=idempotency_key))
+        flow = await self._translate(
+            self.registry.start_login(
+                platform=channel,
+                account_ref=account_ref,
+                tenant_ref=tenant_id,
+                mode=str(mode_value),
+                credential_ref=credential_ref,
+                idempotency_key=idempotency_key,
+            )
+        )
         return RemoteLoginSubmission(flow=flow)
 
-    async def poll(self, *, tenant_id: str, principal_id: str, flow_id: str, idempotency_key: str | None = None) -> RemoteLoginSubmission:
+    async def poll(
+        self, *, tenant_id: str, principal_id: str, flow_id: str, idempotency_key: str | None = None
+    ) -> RemoteLoginSubmission:
         channel = self.registry.flow_platform(flow_id)
         if channel is None:
-            from xhs_food.experience.platform_login import PlatformLoginServiceError
-
-            raise PlatformLoginServiceError("LOGIN_FLOW_NOT_FOUND", "login flow not found", status_code=404)
-        flow = await self._translate(self.registry.poll_login(platform=channel, flow_id=flow_id, tenant_ref=tenant_id, idempotency_key=idempotency_key))
+            raise AccountServiceControlPlaneError(
+                "LOGIN_FLOW_NOT_FOUND", "login flow not found", status_code=404
+            )
+        flow = await self._translate(
+            self.registry.poll_login(
+                platform=channel,
+                flow_id=flow_id,
+                tenant_ref=tenant_id,
+                idempotency_key=idempotency_key,
+            )
+        )
         return RemoteLoginSubmission(flow=flow)
 
-    async def status(self, *, tenant_id: str, principal_id: str, flow_id: str) -> RemoteLoginFlowProjection:
+    async def status(
+        self, *, tenant_id: str, principal_id: str, flow_id: str
+    ) -> RemoteLoginFlowProjection:
         channel = self.registry.flow_platform(flow_id)
         if channel is None:
-            from xhs_food.experience.platform_login import PlatformLoginServiceError
+            raise AccountServiceControlPlaneError(
+                "LOGIN_FLOW_NOT_FOUND", "login flow not found", status_code=404
+            )
+        return await self._translate(
+            self.registry.status(platform=channel, flow_id=flow_id, tenant_ref=tenant_id)
+        )
 
-            raise PlatformLoginServiceError("LOGIN_FLOW_NOT_FOUND", "login flow not found", status_code=404)
-        return await self._translate(self.registry.status(platform=channel, flow_id=flow_id, tenant_ref=tenant_id))
-
-    async def cancel(self, *, tenant_id: str, principal_id: str, flow_id: str, reason: str | None = None) -> RemoteLoginSubmission:
+    async def cancel(
+        self, *, tenant_id: str, principal_id: str, flow_id: str, reason: str | None = None
+    ) -> RemoteLoginSubmission:
         channel = self.registry.flow_platform(flow_id)
         if channel is None:
-            from xhs_food.experience.platform_login import PlatformLoginServiceError
-
-            raise PlatformLoginServiceError("LOGIN_FLOW_NOT_FOUND", "login flow not found", status_code=404)
-        flow = await self._translate(self.registry.cancel_login(platform=channel, flow_id=flow_id, tenant_ref=tenant_id, reason=reason))
+            raise AccountServiceControlPlaneError(
+                "LOGIN_FLOW_NOT_FOUND", "login flow not found", status_code=404
+            )
+        flow = await self._translate(
+            self.registry.cancel_login(
+                platform=channel, flow_id=flow_id, tenant_ref=tenant_id, reason=reason
+            )
+        )
         return RemoteLoginSubmission(flow=flow)
 
     async def get_qr(self, *, tenant_id: str, principal_id: str, flow_id: str) -> RemoteQrResult:
         channel = self.registry.flow_platform(flow_id)
         if channel is None:
-            from xhs_food.experience.platform_login import PlatformLoginServiceError
-
-            raise PlatformLoginServiceError("LOGIN_FLOW_NOT_FOUND", "login flow not found", status_code=404)
-        qr = await self._translate(self.registry.get_qr(platform=channel, flow_id=flow_id, tenant_ref=tenant_id))
-        return RemoteQrResult(flow_id=qr.flow_id, presentation_ref=qr.object_ref, expires_at=qr.expires_at, content_type=qr.content_type)
+            raise AccountServiceControlPlaneError(
+                "LOGIN_FLOW_NOT_FOUND", "login flow not found", status_code=404
+            )
+        qr = await self._translate(
+            self.registry.get_qr(platform=channel, flow_id=flow_id, tenant_ref=tenant_id)
+        )
+        return RemoteQrResult(
+            flow_id=qr.flow_id,
+            presentation_ref=qr.object_ref,
+            expires_at=qr.expires_at,
+            content_type=qr.content_type,
+        )
 
     async def readiness(self) -> dict[str, object]:
-        return {"enabled": self.registry.enabled, "execution": "remote", "services": self.registry.readiness().get("services", [])}
+        return {
+            "enabled": self.registry.enabled,
+            "execution": "remote",
+            "services": self.registry.readiness().get("services", []),
+        }
 
 
 __all__ = [
     "AccountServiceRegistry",
     "AccountServiceRegistryError",
     "RemoteLoginSubmission",
-    "RemotePlatformLoginServiceAdapter",
+    "RemoteAccountServiceFacade",
     "RemoteQrResult",
     "build_account_service_registry",
 ]

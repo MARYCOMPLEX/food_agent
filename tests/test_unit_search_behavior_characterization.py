@@ -7,9 +7,9 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+from xhs_food.composition.managed_search import ManagedSearchResult
 from xhs_food.orchestrator.follow_up import FollowUpHandler
 from xhs_food.orchestrator.search_executor import SearchExecutor
-from xhs_food.protocols import MCPToolRegistry, ToolResult
 from xhs_food.schemas import (
     ConversationContext,
     FoodSearchIntent,
@@ -17,7 +17,6 @@ from xhs_food.schemas import (
     WanghongAnalysis,
     WanghongScore,
 )
-
 
 _FIXTURE = json.loads(
     (
@@ -28,13 +27,11 @@ _FIXTURE = json.loads(
 
 
 class _SearchTool:
-    name = "xhs_search"
-
     def __init__(self, responses: list[list[dict[str, Any]]] | None = None) -> None:
         self.responses = responses or []
         self.calls: list[dict[str, Any]] = []
 
-    async def execute(self, **kwargs: Any) -> ToolResult:
+    async def execute(self, **kwargs: Any) -> ManagedSearchResult:
         self.calls.append(kwargs)
         index = len(self.calls) - 1
         if index < len(self.responses):
@@ -42,9 +39,9 @@ class _SearchTool:
         else:
             number = index + 1
             notes = [{"id": f"note-{number}", "title": f"第{number}店 探店"}]
-        return ToolResult.ok({"notes": notes})
+        return ManagedSearchResult(success=True, data={"notes": notes})
 
-    async def health_check(self) -> bool:
+    async def health(self) -> bool:
         return True
 
 
@@ -59,10 +56,8 @@ def _executor(
     deep_search: bool = False,
     fast_mode_limit: int = 15,
 ) -> SearchExecutor:
-    registry = MCPToolRegistry()
-    registry.register(tool)
     return SearchExecutor(
-        xhs_registry=registry,
+        search_tool=tool,
         analyzer=_Analyzer(),
         context=context or ConversationContext(),
         deep_search=deep_search,

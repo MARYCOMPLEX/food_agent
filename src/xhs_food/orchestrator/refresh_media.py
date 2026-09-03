@@ -133,7 +133,9 @@ class RefreshActivities:
         except ValueError as exc:
             raise ApplicationError(str(exc), type="ValidationError") from exc
         if not isinstance(result, BundleRefreshResult):
-            raise ApplicationError("refresh executor returned an invalid result", type="ValidationError")
+            raise ApplicationError(
+                "refresh executor returned an invalid result", type="ValidationError"
+            )
         return {
             "status": "completed",
             "activated": result.activated,

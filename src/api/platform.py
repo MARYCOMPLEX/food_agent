@@ -1,14 +1,7 @@
-"""Platform account and login control-plane HTTP adapters.
-
-The router is intentionally thin: all authorization, idempotency, and durable
-state transitions belong to :class:`PlatformLoginService`.  Missing platform
-wiring is reported as a stable dependency-unavailable response; no legacy XHS
-cookie or process-local fallback is created here.
-"""
+"""Remote account-service HTTP and MCP control-plane endpoints."""
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, Request
@@ -18,12 +11,10 @@ from fastapi.routing import APIRoute
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 from api.deps import get_current_user_id
-from xhs_food.contracts.account import PlatformChannel
-from xhs_food.contracts.account_service import validate_remote_payload
-from xhs_food.experience.platform_login import (
-    LoginMode,
-    PlatformLoginService,
-    PlatformLoginServiceError,
+from xhs_food.contracts.account_service import (
+    AccountServiceControlPlaneError,
+    PlatformChannel,
+    validate_remote_payload,
 )
 
 
@@ -79,7 +70,9 @@ class AccountServiceToolCallRequest(_StrictModel):
 
 
 class AccountServiceInvokeRequest(_StrictModel):
-    account_ref: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
+    account_ref: str = Field(
+        min_length=1, max_length=128, pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+    )
     capability: str = Field(min_length=1, max_length=128)
     correlation_id: str = Field(min_length=1, max_length=128)
     query: dict[str, Any] = Field(default_factory=dict)
@@ -125,72 +118,26 @@ router = APIRouter(
 )
 
 
-def install_platform_runtime(application: Any, bundle: Any | None) -> None:
-    """Install an explicitly composed platform bundle on ``app.state``.
-
-    The helper is intentionally a plain setter so the application lifespan can
-    supply either a production bundle (PostgreSQL/Alembic + Temporal) or a
-    synthetic qualification fixture.  Passing ``None`` clears all bindings;
-    the router then reports a stable disabled response rather than constructing
-    an in-memory authority behind the operator's back.
-    """
-
-    if bundle is None:
-        application.state.platform_login_service = None
-        application.state.platform_account_authority = None
-        application.state.platform_session_codec = None
-        application.state.platform_source_gateway = None
-        application.state.platform_readiness = None
-        return
-    assembly = getattr(bundle, "assembly", bundle)
-    application.state.platform_login_service = getattr(assembly, "login_service", None)
-    application.state.platform_account_authority = getattr(assembly, "account_authority", None)
-    application.state.platform_session_codec = getattr(assembly, "session_codec", None)
-    application.state.platform_source_gateway = getattr(assembly, "gateway", None)
-    application.state.platform_readiness = getattr(assembly, "readiness", None)
-
-
-def _service(request: Request) -> PlatformLoginService:
-    service = getattr(request.app.state, "platform_login_service", None)
+def _service(request: Request) -> Any:
+    service = getattr(request.app.state, "account_service_control_plane", None)
     if service is None:
-        raise PlatformLoginServiceError(
+        raise AccountServiceControlPlaneError(
             "PLATFORM_DISABLED",
-            "platform account control plane is disabled",
+            "remote account-service control plane is disabled",
             status_code=503,
         )
-    if not isinstance(service, PlatformLoginService) and not all(
-        callable(getattr(service, name, None))
-        for name in ("start_login", "status", "cancel")
+    if not all(
+        callable(getattr(service, name, None)) for name in ("start_login", "status", "cancel")
     ):
-        raise PlatformLoginServiceError(
+        raise AccountServiceControlPlaneError(
             "PLATFORM_UNAVAILABLE",
-            "platform account control plane is unavailable",
+            "remote account-service control plane is unavailable",
             status_code=503,
         )
-    readiness = getattr(request.app.state, "platform_readiness", None)
-    if readiness is None:
-        root = getattr(request.app.state, "composition_root", None)
-        readiness = getattr(root, "platform_readiness", None)
-    if readiness is not None:
-        login_requested = bool(getattr(readiness, "login_requested", False))
-        source_requested = any(
-            bool(getattr(item, "requested", False))
-            for item in getattr(readiness, "statuses", ())
-        )
-        disabled = not login_requested and not source_requested
-        disabled = disabled or (login_requested and not bool(getattr(readiness, "login_enabled", False)))
-    else:
-        disabled = False
-    if disabled:
-        raise PlatformLoginServiceError(
-            "PLATFORM_DISABLED",
-            "platform account control plane is disabled",
-            status_code=503,
-        )
-    return service  # type: ignore[return-value]
+    return service
 
 
-def _failure(error: PlatformLoginServiceError) -> JSONResponse:
+def _failure(error: AccountServiceControlPlaneError) -> JSONResponse:
     return JSONResponse(
         status_code=error.status_code,
         content={
@@ -214,7 +161,11 @@ def _unexpected() -> JSONResponse:
 
 
 def _remote_failure(error: Any) -> JSONResponse:
-    category = getattr(getattr(error, "category", None), "value", getattr(error, "category", "dependency-unavailable"))
+    category = getattr(
+        getattr(error, "category", None),
+        "value",
+        getattr(error, "category", "dependency-unavailable"),
+    )
     service_id = getattr(error, "service_id", "registry")
     capability = getattr(error, "capability", None)
     status = {
@@ -253,10 +204,15 @@ def _account_projection(account: Any) -> dict[str, Any]:
         "platform": platform_value,
         "account_ref": account.account_ref,
         "alias": account.alias,
-        "status": getattr(getattr(account, "status", None), "value", getattr(account, "status", None)),
-        "health": getattr(getattr(account, "health", None), "value", getattr(account, "health", None)),
+        "status": getattr(
+            getattr(account, "status", None), "value", getattr(account, "status", None)
+        ),
+        "health": getattr(
+            getattr(account, "health", None), "value", getattr(account, "health", None)
+        ),
         "session_version": getattr(account, "session_version", None),
-        "provider_subject_id": getattr(account, "provider_subject_id", None) or getattr(account, "provider_subject_ref", None),
+        "provider_subject_id": getattr(account, "provider_subject_id", None)
+        or getattr(account, "provider_subject_ref", None),
         "created_at": getattr(account, "created_at", None),
         "updated_at": getattr(account, "updated_at", None),
     }
@@ -278,8 +234,11 @@ def _flow_projection(flow: Any) -> dict[str, Any]:
         "expires_at": flow.expires_at,
         "updated_at": flow.updated_at,
         "qr_expires_at": getattr(flow, "qr_expires_at", None),
-        "provider_subject_id": getattr(flow, "provider_subject_id", None) or getattr(flow, "provider_subject_ref", None),
-        "error_code": getattr(getattr(flow, "error_code", None), "value", getattr(flow, "error_code", None)),
+        "provider_subject_id": getattr(flow, "provider_subject_id", None)
+        or getattr(flow, "provider_subject_ref", None),
+        "error_code": getattr(
+            getattr(flow, "error_code", None), "value", getattr(flow, "error_code", None)
+        ),
         "error_message": getattr(flow, "error_message", None),
     }
 
@@ -287,7 +246,7 @@ def _flow_projection(flow: Any) -> dict[str, Any]:
 async def _run(call: Any) -> Any:
     try:
         return await call()
-    except PlatformLoginServiceError as exc:
+    except AccountServiceControlPlaneError as exc:
         return _failure(exc)
     except Exception:
         return _unexpected()
@@ -295,29 +254,20 @@ async def _run(call: Any) -> Any:
 
 @router.get("/readiness")
 async def platform_readiness(request: Request) -> Any:
-    service = getattr(request.app.state, "platform_login_service", None)
-    root = getattr(request.app.state, "composition_root", None)
-    readiness = getattr(root, "platform_readiness", None)
-    if readiness is None:
-        readiness = getattr(request.app.state, "platform_readiness", None)
-    if readiness is not None and hasattr(readiness, "as_dict"):
-        value = readiness.as_dict()
-    elif isinstance(readiness, Mapping):
-        value = dict(readiness)
-    else:
-        value = {"state": "disabled", "ready": False, "login": {"enabled": False}}
-    if service is not None and callable(getattr(service, "readiness", None)):
-        try:
-            value["login_runtime"] = await service.readiness()
-        except Exception:
-            value["login_runtime"] = {"enabled": False, "execution": "unavailable"}
     registry = getattr(request.app.state, "account_service_registry", None)
-    if registry is not None and callable(getattr(registry, "readiness", None)):
-        try:
-            value["account_services"] = registry.readiness()
-        except Exception:
-            value["account_services"] = {"enabled": False, "ready": False, "state": "dependency-unavailable"}
-    return _success(value)
+    if registry is None or not callable(getattr(registry, "readiness", None)):
+        return _success({"enabled": False, "ready": False, "services": []})
+    try:
+        return _success(registry.readiness())
+    except Exception:
+        return _success(
+            {
+                "enabled": True,
+                "ready": False,
+                "state": "dependency-unavailable",
+                "services": [],
+            }
+        )
 
 
 @router.get("/account-services/{platform}/tools")
@@ -356,6 +306,47 @@ async def list_account_service_tools(
             return _remote_failure(exc)
         return _unexpected()
     return _success([tool.model_dump(mode="json") for tool in tools])
+
+
+@router.get("/agent-tools/catalog")
+async def agent_tool_catalog(
+    request: Request,
+    principal_id: str = Depends(get_current_user_id),
+) -> Any:
+    """Return the policy-filtered, account-free Agent tool projection."""
+
+    del principal_id
+    catalog = getattr(request.app.state, "agent_tool_catalog", None)
+    if catalog is None:
+        return _success(
+            {
+                "enabled": False,
+                "snapshot_ref": None,
+                "generation": 0,
+                "tools": [],
+                "rejections": [],
+            }
+        )
+    try:
+        snapshot = await catalog.current_projection()
+    except Exception:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "success": False,
+                "error": "dependency-unavailable",
+                "message": "Agent tool catalog is unavailable",
+            },
+        )
+    return _success(
+        {
+            "enabled": True,
+            "snapshot_ref": snapshot.snapshot_ref,
+            "generation": snapshot.generation,
+            "tools": [item.model_dump(mode="json") for item in snapshot.projection],
+            "rejections": [item.model_dump(mode="json") for item in snapshot.rejections],
+        }
+    )
 
 
 @router.post("/account-services/{platform}/tools/{tool_name}")
@@ -523,9 +514,11 @@ async def start_qr_login(
     principal_id: str = Depends(get_current_user_id),
     idempotency_header: str | None = Header(default=None, alias="Idempotency-Key"),
 ) -> Any:
-    payload = body or PlatformLoginStartRequest(mode=LoginMode.QR.value)
-    payload = payload.model_copy(update={"mode": LoginMode.QR.value})
-    return await _start_login(request, platform, account_ref, payload, principal_id, idempotency_header)
+    payload = body or PlatformLoginStartRequest(mode="qr")
+    payload = payload.model_copy(update={"mode": "qr"})
+    return await _start_login(
+        request, platform, account_ref, payload, principal_id, idempotency_header
+    )
 
 
 @router.post("/accounts/{platform}/{account_ref}/login")
@@ -537,7 +530,9 @@ async def start_platform_login(
     principal_id: str = Depends(get_current_user_id),
     idempotency_header: str | None = Header(default=None, alias="Idempotency-Key"),
 ) -> Any:
-    return await _start_login(request, platform, account_ref, body, principal_id, idempotency_header)
+    return await _start_login(
+        request, platform, account_ref, body, principal_id, idempotency_header
+    )
 
 
 @router.post("/accounts/{platform}/{account_ref}/login/re-auth")
@@ -549,7 +544,9 @@ async def reauthenticate_platform_account(
     principal_id: str = Depends(get_current_user_id),
     idempotency_header: str | None = Header(default=None, alias="Idempotency-Key"),
 ) -> Any:
-    return await _start_login(request, platform, account_ref, body, principal_id, idempotency_header)
+    return await _start_login(
+        request, platform, account_ref, body, principal_id, idempotency_header
+    )
 
 
 @router.post("/login/{flow_id}/poll")
@@ -613,7 +610,9 @@ async def cancel_platform_login(
 async def _login_status(request: Request, flow_id: str, principal_id: str) -> Any:
     async def operation() -> Any:
         service = _service(request)
-        flow = await service.status(tenant_id=principal_id, principal_id=principal_id, flow_id=flow_id)
+        flow = await service.status(
+            tenant_id=principal_id, principal_id=principal_id, flow_id=flow_id
+        )
         return _success(_flow_projection(flow))
 
     return await _run(operation)
@@ -642,6 +641,5 @@ __all__ = [
     "PlatformCancelRequest",
     "PlatformLoginStartRequest",
     "PlatformReauthRequest",
-    "install_platform_runtime",
     "router",
 ]

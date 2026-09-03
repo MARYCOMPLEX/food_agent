@@ -112,7 +112,12 @@ class _LegacyPort:
         self.calls: list[tuple[str, ...]] = []
         self.status_value = "loading"
 
-    async def start_new(self, query: str) -> ResearchTaskAdmission:
+    async def start_new(
+        self,
+        query: str,
+        *,
+        tool_context: object | None = None,
+    ) -> ResearchTaskAdmission:
         self.calls.append(("start_new", query))
         return ResearchTaskAdmission(
             task_id="session-1",
@@ -122,7 +127,13 @@ class _LegacyPort:
             turn_id=1,
         )
 
-    async def refine(self, session_id: str, query: str) -> ResearchTaskAdmission:
+    async def refine(
+        self,
+        session_id: str,
+        query: str,
+        *,
+        tool_context: object | None = None,
+    ) -> ResearchTaskAdmission:
         self.calls.append(("refine", session_id, query))
         return ResearchTaskAdmission(
             task_id=session_id,
@@ -150,7 +161,12 @@ class _UniqueLegacyPort(_LegacyPort):
         super().__init__()
         self.next_id = 0
 
-    async def start_new(self, query: str) -> ResearchTaskAdmission:
+    async def start_new(
+        self,
+        query: str,
+        *,
+        tool_context: object | None = None,
+    ) -> ResearchTaskAdmission:
         self.next_id += 1
         session_id = f"session-{self.next_id}"
         self.calls.append(("start_new", query))
@@ -741,7 +757,7 @@ async def test_pydantic_ai_tool_calls_are_routed_through_gateway() -> None:
     runtime = PydanticAIAgentRuntime(
         tool_gateway=gateway,
         model=TestModel(
-            call_tools=["gateway_execute"],
+            call_tools=["a"],
             custom_output_args={"summary": "ok", "final_output": {"ok": True}},
         ),
         enabled=True,
@@ -875,7 +891,7 @@ async def test_agent_rejects_malformed_tool_input_before_gateway() -> None:
     runtime = PydanticAIAgentRuntime(
         tool_gateway=gateway,
         model=TestModel(
-            call_tools=["gateway_execute"],
+            call_tools=["a"],
             custom_output_args={"summary": "ok", "final_output": {"ok": True}},
         ),
         enabled=True,
@@ -905,7 +921,7 @@ async def test_agent_rejects_malformed_tool_output_after_gateway() -> None:
     runtime = PydanticAIAgentRuntime(
         tool_gateway=gateway,
         model=TestModel(
-            call_tools=["gateway_execute"],
+            call_tools=["a"],
             custom_output_args={"summary": "ok", "final_output": {"ok": True}},
         ),
         enabled=True,

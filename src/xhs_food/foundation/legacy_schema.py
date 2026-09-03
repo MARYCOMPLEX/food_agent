@@ -131,13 +131,23 @@ Index("idx_restaurants_name", restaurants.c.name)
 Index("idx_restaurants_city", restaurants.c.city)
 Index("idx_favorites_user", favorites.c.user_id)
 Index("idx_favorites_restaurant", favorites.c.restaurant_id)
-Index("idx_favorites_deleted", favorites.c.deleted_at, postgresql_where=favorites.c.deleted_at.is_(None))
+Index(
+    "idx_favorites_deleted",
+    favorites.c.deleted_at,
+    postgresql_where=favorites.c.deleted_at.is_(None),
+)
 Index("idx_history_user", search_history.c.user_id)
 Index("idx_history_created", search_history.c.created_at.desc())
 Index("idx_history_session", search_history.c.session_id)
-Index("idx_history_deleted", search_history.c.deleted_at, postgresql_where=search_history.c.deleted_at.is_(None))
+Index(
+    "idx_history_deleted",
+    search_history.c.deleted_at,
+    postgresql_where=search_history.c.deleted_at.is_(None),
+)
 Index("idx_results_session", search_results.c.session_id)
-Index("idx_results_session_turn", search_results.c.session_id, search_results.c.turn_id, unique=True)
+Index(
+    "idx_results_session_turn", search_results.c.session_id, search_results.c.turn_id, unique=True
+)
 Index("idx_results_turn", search_results.c.session_id, search_results.c.turn_id.desc())
 Index("idx_chat_session_id", chat_history.c.session_id)
 Index("idx_chat_user_id", chat_history.c.user_id)
@@ -145,4 +155,13 @@ Index("idx_chat_created_at", chat_history.c.created_at.desc())
 
 LEGACY_TABLES = (users, restaurants, favorites, search_history, search_results, chat_history)
 
-__all__ = ["LEGACY_METADATA", "LEGACY_TABLES", "chat_history", "favorites", "restaurants", "search_history", "search_results", "users"]
+__all__ = [
+    "LEGACY_METADATA",
+    "LEGACY_TABLES",
+    "chat_history",
+    "favorites",
+    "restaurants",
+    "search_history",
+    "search_results",
+    "users",
+]

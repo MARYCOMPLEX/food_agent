@@ -18,6 +18,9 @@ def test_release_dockerfile_is_python312_and_non_root() -> None:
     assert "USER app" in text
     assert "uv sync --no-dev --frozen" in text
     assert "COPY src/ /app/src/" in text
+    assert "node-deps" not in text
+    assert "xhs_food/auth" not in text
+    assert ".xhs_profiles" not in text
     assert "CREATE TABLE" not in text
     assert "CMD [\"uvicorn\", \"api.main:app\"" in text
 
@@ -41,6 +44,8 @@ def test_release_compose_declares_all_authority_services_and_healthchecks() -> N
     assert services["app"]["environment"]["EVENT_BUS_BACKEND"] == "redis"
     assert services["app"]["environment"]["MODULAR_TEMPORAL_ADDRESS"] == "temporal:7233"
     assert services["app"]["environment"]["MODULAR_OBJECT_STORE_ENDPOINT_URL"] == "http://minio:9000"
+    assert "release_profiles:/app/.xhs_profiles" not in services["app"].get("volumes", [])
+    assert "release_profiles" not in compose["volumes"]
     assert services["migrate"]["command"] == ["alembic", "upgrade", "head"]
     assert services["app"]["depends_on"]["migrate"]["condition"] == "service_completed_successfully"
     assert {

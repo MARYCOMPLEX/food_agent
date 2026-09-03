@@ -184,7 +184,11 @@ async def test_same_session_refine_keeps_old_done_in_event_log(
         assert session_id == "refine-session"
         return emitter
 
-    async def _noop_search(session_id: str, query: str) -> None:
+    async def _noop_search(
+        session_id: str,
+        query: str,
+        tool_context: object | None,
+    ) -> None:
         return None
 
     def _discard_task(coro: Any) -> object:

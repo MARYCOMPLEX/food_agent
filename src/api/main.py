@@ -1,14 +1,12 @@
 """XHS Food Agent — FastAPI application entry point."""
+
 from __future__ import annotations
 
-import inspect
 import logging
 import sys
 import time
-from collections.abc import Mapping
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
@@ -49,8 +47,7 @@ def _configure_logging() -> None:
         str(_LOGS_DIR / "xhs_food_{time:YYYY-MM-DD}.log"),
         level="DEBUG",
         format=(
-            "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | "
-            "{name}:{function}:{line} - {message}"
+            "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} - {message}"
         ),
         rotation="00:00",
         retention="7 days",
@@ -105,218 +102,12 @@ from xhs_food.observability import (  # noqa: E402
 # ---------------------------------------------------------------------------
 
 
-async def _load_platform_runtime(
-    application: FastAPI,
-    target_settings: Any,
-) -> tuple[Any | None, Any | None, dict[str, Any]]:
-    """Resolve an explicitly injected platform bundle for the lifespan.
-
-    The default path returns an empty kwargs mapping, preserving the legacy
-    composition-root call exactly.  A deployment may set
-    ``app.state.platform_runtime_factory`` before entering lifespan; the
-    factory may be synchronous or asynchronous and may return a mapping or an
-    object with equivalent attributes.  No provider, key, cookie, or in-memory
-    authority is constructed here.
-    """
-
-    factory = getattr(application.state, "platform_runtime_factory", None)
-    if not callable(factory):
-        return None, None, {}
-
-    runtime = await _invoke_platform_factory(factory, target_settings)
-    cleanup = _bundle_get(runtime, "cleanup", "close_runtime", "aclose")
-    if cleanup is None:
-        # A returned runtime object may own its resources.  Keep the cleanup
-        # callable separate so the bundle itself can remain in app.state for
-        # diagnostics without being closed twice.
-        candidate = getattr(runtime, "aclose", None) or getattr(runtime, "close", None)
-        cleanup = candidate if callable(candidate) else None
-
-    bundle = _bundle_get(runtime, "assembly", "platform_assembly") or runtime
-    authority = _bundle_get(
-        bundle,
-        "platform_account_authority",
-        "account_authority",
-        "platform_account_repository",
-        "account_repository",
-        "platform_authority",
-        "authority",
-    )
-    session_codec = _bundle_get(
-        bundle,
-        "platform_session_codec",
-        "session_codec",
-        "platform_session_envelope_codec",
-        "session_envelope_codec",
-    )
-    connector_factories = _bundle_get(
-        bundle,
-        "platform_connector_factories",
-        "connector_factories",
-        "platform_factories",
-        "factories",
-    )
-    provider_factories = _bundle_get(
-        bundle,
-        "platform_provider_factories",
-        "provider_factories",
-    )
-    source_control = _bundle_get(bundle, "platform_source_control", "source_control")
-    health = _bundle_get(bundle, "platform_health", "health")
-    capability_registry = _bundle_get(
-        bundle,
-        "platform_capability_registry",
-        "capability_registry",
-    )
-    login_service = _bundle_get(bundle, "platform_login_service", "login_service")
-    workflow = _bundle_get(bundle, "platform_workflow", "workflow", "workflow_port")
-    coordinator = _bundle_get(
-        bundle,
-        "platform_login_coordinator",
-        "login_coordinator",
-        "coordinator",
-    )
-    workflow_builder = _bundle_get(
-        bundle,
-        "platform_workflow_start_builder",
-        "workflow_start_builder",
-        "builder",
-    )
-    object_store = _bundle_get(bundle, "platform_object_store", "object_store")
-    flow_store = _bundle_get(bundle, "platform_login_flows", "flows", "flow_store")
-    execution_policy = _bundle_get(bundle, "platform_execution_policy", "execution_policy")
-    queue = _bundle_get(bundle, "platform_login_queue", "login_queue", "queue")
-    if queue is None:
-        queue = getattr(target_settings, "temporal_account_auth_queue", None) or "account-auth"
-    flow_ttl = _bundle_get(bundle, "platform_flow_ttl_seconds", "flow_ttl_seconds")
-
-    # Build the project-owned use case only when an explicitly injected
-    # authority and execution boundary are available.  Missing pieces remain
-    # disabled and are surfaced by the control-plane readiness route.
-    if login_service is None and authority is not None and (workflow is not None or coordinator is not None):
-        from xhs_food.experience import PlatformLoginService
-
-        if workflow is not None and workflow_builder is None:
-            # The Temporal command builder is imported lazily only for an
-            # explicitly enabled platform runtime; the default API import path
-            # remains free of Temporal/provider SDK side effects.
-            from xhs_food.foundation import build_account_auth_workflow_start
-
-            workflow_builder = build_account_auth_workflow_start
-        login_service = PlatformLoginService(
-            accounts=authority,
-            flows=flow_store,
-            workflow=workflow,
-            coordinator=coordinator,
-            workflow_start_builder=workflow_builder,
-            object_store=object_store,
-            queue=str(queue),
-            flow_ttl_seconds=int(flow_ttl or 300),
-            execution_policy=execution_policy,
-        )
-
-    platform_requested = bool(
-        getattr(target_settings, "platform_connectors_enabled", False)
-        or getattr(target_settings, "platform_login_enabled", False)
-        or authority is not None
-        or session_codec is not None
-        or connector_factories
-        or provider_factories
-        or login_service is not None
-        or object_store is not None
-    )
-    kwargs: dict[str, Any] = {}
-    if platform_requested:
-        kwargs["target_settings"] = target_settings
-        values = {
-            "platform_account_authority": authority,
-            "platform_session_codec": session_codec,
-            "platform_connector_factories": connector_factories,
-            "platform_provider_factories": provider_factories,
-            "platform_source_control": source_control,
-            "platform_health": health,
-            "platform_capability_registry": capability_registry,
-            "platform_login_service": login_service,
-            "platform_object_store": object_store,
-            "platform_provenance_ref": _bundle_get(bundle, "platform_provenance_ref", "provenance_ref"),
-            "platform_license_approval_ref": _bundle_get(bundle, "platform_license_approval_ref", "license_approval_ref"),
-            "platform_dependency_digests": _bundle_get(bundle, "platform_dependency_digests", "dependency_digests"),
-        }
-        kwargs.update({name: value for name, value in values.items() if value is not None})
-
-    return runtime, cleanup, kwargs
-
-
-async def _invoke_platform_factory(factory: Any, target_settings: Any) -> Any:
-    """Call a sync/async factory without masking errors raised by its body."""
-
-    keyword_target: str | None = None
-    try:
-        signature = inspect.signature(factory)
-        positional = [
-            parameter
-            for parameter in signature.parameters.values()
-            if parameter.kind
-            in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
-        ]
-        keyword_target = next(
-            (
-                parameter.name
-                for parameter in signature.parameters.values()
-                if parameter.kind is inspect.Parameter.KEYWORD_ONLY
-                and parameter.name in {"target_settings", "settings", "config"}
-            ),
-            None,
-        )
-        accepts_target = bool(positional) or any(
-            parameter.kind is inspect.Parameter.VAR_POSITIONAL
-            for parameter in signature.parameters.values()
-        )
-    except (TypeError, ValueError):
-        accepts_target = True
-    if accepts_target:
-        value = factory(target_settings)
-    elif keyword_target is not None:
-        value = factory(**{keyword_target: target_settings})
-    else:
-        value = factory()
-    if inspect.isawaitable(value):
-        return await value
-    return value
-
-
-def _bundle_get(bundle: Any, *names: str) -> Any:
-    if bundle is None:
-        return None
-    if isinstance(bundle, Mapping):
-        for name in names:
-            if name in bundle:
-                return bundle[name]
-        return None
-    for name in names:
-        value = getattr(bundle, name, None)
-        if value is not None:
-            return value
-    return None
-
-
-async def _close_platform_runtime(cleanup: Any) -> None:
-    """Close a factory-owned runtime/cleanup hook once, swallowing no errors."""
-
-    value = cleanup() if callable(cleanup) else cleanup
-    if inspect.isawaitable(value):
-        await value
-
-
 @asynccontextmanager
 async def lifespan(application: FastAPI):
     logger.info("XHS Food Agent API starting…")
 
     if not settings.openai_api_key:
         logger.warning("OPENAI_API_KEY not set — LLM calls will fail")
-    if not settings.xhs_cookies and not settings.xhs_profile_dir:
-        logger.warning("XHS auth not configured — spider requests will fail")
-
     from xhs_food.composition import (
         build_legacy_composition_root,
         build_reliable_runtime_bindings,
@@ -327,20 +118,11 @@ async def lifespan(application: FastAPI):
     from xhs_food.services.user_storage import get_user_storage_service
 
     target_settings = TargetSettings()
-    platform_runtime, platform_cleanup, platform_kwargs = await _load_platform_runtime(
-        application,
-        target_settings,
-    )
     reliable_runtime = None
     if target_settings.reliable_task_lifecycle:
-        try:
-            reliable_runtime = await build_reliable_runtime_bindings(
-                target_settings=target_settings,
-            )
-        except BaseException:
-            if platform_cleanup is not None:
-                await _close_platform_runtime(platform_cleanup)
-            raise
+        reliable_runtime = await build_reliable_runtime_bindings(
+            target_settings=target_settings,
+        )
         try:
             composition_root = build_legacy_composition_root(
                 reliable_policy=reliable_runtime.policy,
@@ -348,27 +130,22 @@ async def lifespan(application: FastAPI):
                 reliable_projection_store=reliable_runtime.projection_store,
                 reliable_event_bus=reliable_runtime.event_bus,
                 reliable_task_lifecycle=True,
-                **platform_kwargs,
+                target_settings=target_settings,
             )
         except BaseException:
             await reliable_runtime.aclose()
-            if platform_cleanup is not None:
-                await _close_platform_runtime(platform_cleanup)
             raise
     else:
-        try:
-            composition_root = build_legacy_composition_root(**platform_kwargs)
-        except BaseException:
-            if platform_cleanup is not None:
-                await _close_platform_runtime(platform_cleanup)
-            raise
+        composition_root = build_legacy_composition_root(target_settings=target_settings)
     application.state.composition_root = composition_root
     from xhs_food.composition.account_services import (
         AccountServiceRegistry,
-        RemotePlatformLoginServiceAdapter,
+        RemoteAccountServiceFacade,
     )
 
     application.state.account_service_registry = None
+    application.state.agent_tool_catalog = None
+    application.state.managed_search_tool = None
     if "account_services" in composition_root.logical_bindings:
         resolved_registry = await composition_root.resolve_logical("account_services")
         if not isinstance(resolved_registry, AccountServiceRegistry):
@@ -378,15 +155,29 @@ async def lifespan(application: FastAPI):
             await resolved_registry.refresh()
         except Exception:
             logger.warning("Remote account-service capability refresh failed")
-    application.state.platform_runtime = platform_runtime
-    application.state.platform_login_service = platform_kwargs.get("platform_login_service")
-    if application.state.platform_login_service is None and isinstance(
-        application.state.account_service_registry, AccountServiceRegistry
-    ):
-        application.state.platform_login_service = RemotePlatformLoginServiceAdapter(
+    if "agent_tool_catalog" in composition_root.logical_bindings:
+        application.state.agent_tool_catalog = await composition_root.resolve_logical(
+            "agent_tool_catalog"
+        )
+    if "managed_search_tool" in composition_root.logical_bindings:
+        from api.search.state import configure_search_tool
+        from xhs_food.composition.managed_search import bind_managed_search_context
+        from xhs_food.contracts import SearchToolPort
+
+        managed_search_tool = await composition_root.resolve_logical("managed_search_tool")
+        if not isinstance(managed_search_tool, SearchToolPort):
+            raise RuntimeError("managed_search_tool binding must implement SearchToolPort")
+        application.state.managed_search_tool = managed_search_tool
+
+        configure_search_tool(
+            managed_search_tool,
+            context_binder=bind_managed_search_context,
+        )
+    application.state.account_service_control_plane = None
+    if isinstance(application.state.account_service_registry, AccountServiceRegistry):
+        application.state.account_service_control_plane = RemoteAccountServiceFacade(
             application.state.account_service_registry
         )
-    application.state.platform_readiness = getattr(composition_root, "platform_readiness", None)
     application.state.reliable_runtime = reliable_runtime
     application.state.reliable_task_lifecycle = (
         "reliable_task_lifecycle" in composition_root.logical_bindings
@@ -431,8 +222,6 @@ async def lifespan(application: FastAPI):
         await composition_root.close()
         if reliable_runtime is not None:
             await reliable_runtime.aclose()
-        if platform_cleanup is not None:
-            await _close_platform_runtime(platform_cleanup)
 
 
 # ---------------------------------------------------------------------------
@@ -507,12 +296,10 @@ async def _prometheus_http_metrics(request: Request, call_next) -> Response:
         elapsed = time.perf_counter() - start
         template = _route_template(request) or "__unmatched__"
         if template != "/metrics":
-            http_requests_total.labels(
-                method=request.method, path=template, status="500"
-            ).inc()
-            http_request_duration_seconds.labels(
-                method=request.method, path=template
-            ).observe(elapsed)
+            http_requests_total.labels(method=request.method, path=template, status="500").inc()
+            http_request_duration_seconds.labels(method=request.method, path=template).observe(
+                elapsed
+            )
         raise
 
     elapsed = time.perf_counter() - start
@@ -521,9 +308,7 @@ async def _prometheus_http_metrics(request: Request, call_next) -> Response:
         http_requests_total.labels(
             method=request.method, path=template, status=str(status_code)
         ).inc()
-        http_request_duration_seconds.labels(
-            method=request.method, path=template
-        ).observe(elapsed)
+        http_request_duration_seconds.labels(method=request.method, path=template).observe(elapsed)
     return response
 
 

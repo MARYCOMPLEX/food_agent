@@ -8,7 +8,12 @@ from typing import Any
 
 import pytest
 
-from xhs_food.contracts import RecommendationSnapshot, ResearchContextSnapshot
+from xhs_food.contracts import (
+    AgentToolExecutionContext,
+    PlatformChannel,
+    RecommendationSnapshot,
+    ResearchContextSnapshot,
+)
 from xhs_food.schemas import MustTryItem, RestaurantRecommendation, ShopStats
 from xhs_food.services.user_storage import generate_restaurant_hash
 
@@ -28,15 +33,28 @@ class _AdmissionEmitter:
 
 class _RunnerCapture:
     def __init__(self) -> None:
-        self.calls: list[tuple[str, str]] = []
+        self.calls: list[tuple[str, str, AgentToolExecutionContext | None]] = []
 
-    def __call__(self, session_id: str, query: str) -> Coroutine[Any, Any, None]:
-        self.calls.append((session_id, query))
+    def __call__(
+        self,
+        session_id: str,
+        query: str,
+        tool_context: AgentToolExecutionContext | None,
+    ) -> Coroutine[Any, Any, None]:
+        self.calls.append((session_id, query, tool_context))
 
         async def _run() -> None:
             return None
 
         return _run()
+
+
+def _tool_context() -> AgentToolExecutionContext:
+    return AgentToolExecutionContext(
+        tenant_ref="tenant-test",
+        platforms=(PlatformChannel.XHS_PC,),
+        account_refs={PlatformChannel.XHS_PC.value: "xhs-test"},
+    )
 
 
 class _SpawnerCapture:
@@ -100,7 +118,7 @@ async def test_start_new_spawns_the_legacy_runner_exactly_once(
     finally:
         spawner.close()
 
-    assert runner.calls == [("new-session", "自贡冷吃兔")]
+    assert runner.calls == [("new-session", "自贡冷吃兔", None)]
     assert len(spawner.coroutines) == 1
     assert state_updates == [
         (
@@ -162,7 +180,7 @@ async def test_refine_spawns_the_legacy_runner_exactly_once(
     finally:
         spawner.close()
 
-    assert runner.calls == [("refine-session", "不要辣")]
+    assert runner.calls == [("refine-session", "不要辣", None)]
     assert len(spawner.coroutines) == 1
     assert state == {"status": "loading", "turn_id": 5, "query": "不要辣"}
     assert emitter.reset_count == 1
@@ -220,7 +238,11 @@ async def test_terminal_error_return_is_still_marked_completed_then_persisted(
     monkeypatch.setattr(tasks, "update_state", _update_state)
     monkeypatch.setattr(tasks, "_persist_results", _persist)
 
-    await tasks.run_stream_search("error-return-session", "会触发领域错误")
+    await tasks.run_stream_search(
+        "error-return-session",
+        "会触发领域错误",
+        tool_context=_tool_context(),
+    )
 
     assert calls == [
         "manager:context",
@@ -281,7 +303,11 @@ async def test_uncaught_runner_error_sets_error_then_emits_and_updates_history(
     monkeypatch.setattr(tasks, "update_state", _update_state)
     monkeypatch.setattr(tasks, "_persist_results", _unexpected_persist)
 
-    await tasks.run_stream_search("raised-session", "查询")
+    await tasks.run_stream_search(
+        "raised-session",
+        "查询",
+        tool_context=_tool_context(),
+    )
 
     assert calls == [
         "manager:context",
@@ -349,7 +375,11 @@ async def test_persistence_failure_is_swallowed_after_completed_state(
     monkeypatch.setattr(tasks, "load_state", _load_state)
     monkeypatch.setattr(tasks, "update_state", _update_state)
 
-    await tasks.run_stream_search("persistence-failure-session", "查询")
+    await tasks.run_stream_search(
+        "persistence-failure-session",
+        "查询",
+        tool_context=_tool_context(),
+    )
 
     assert state_updates == [
         {"status": "completed"},
@@ -623,14 +653,16 @@ def test_default_runner_receives_the_facade_result_mapper(
         query: str,
         *,
         result_mapper: object | None = None,
+        tool_context: AgentToolExecutionContext | None = None,
     ) -> None:
         assert (session_id, query) == ("session", "query")
         received.append(result_mapper)
+        assert tool_context == _tool_context()
 
     monkeypatch.setattr(legacy_research_task.legacy_tasks, "run_stream_search", _run)
     facade = LegacyResearchTaskFacade(result_mapper=mapper, task_spawner=spawner)
     try:
-        facade._spawn_run("session", "query")  # noqa: SLF001
+        facade._spawn_run("session", "query", _tool_context())  # noqa: SLF001
         assert received == []
         assert len(spawner.coroutines) == 1
         assert spawner.coroutines[0].cr_frame is not None

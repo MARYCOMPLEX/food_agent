@@ -50,10 +50,7 @@
       "SEARCH_NOTES_PER_KEYWORD",
       "SEARCH_NOTE_LIMIT",
       "SSE_HEARTBEAT_SECONDS",
-      "SSE_TIMEOUT_SECONDS",
-      "XHS_COOKIES",
-      "XHS_LOG_DB_PATH",
-      "XHS_PROFILE_DIR"
+      "SSE_TIMEOUT_SECONDS"
     ],
     "defaults": {
       "openai_api_key": null,
@@ -93,9 +90,6 @@
       "postgres_db": "xhs_food_agent",
       "postgres_user": "postgres",
       "postgres_password": null,
-      "xhs_cookies": null,
-      "xhs_profile_dir": null,
-      "xhs_log_db_path": null,
       "log_level": "INFO"
     }
   },
@@ -112,6 +106,7 @@
       "MODULAR_ACCOUNT_SERVICES_FILE",
       "MODULAR_ACCOUNT_SERVICES_JSON",
       "MODULAR_ACCOUNT_SERVICE_REFRESH_SECONDS",
+      "MODULAR_AGENT_MCP_TOOL_POLICY_JSON",
       "MODULAR_DATABASE_URL",
       "MODULAR_OBJECT_STORE_ACCESS_KEY",
       "MODULAR_OBJECT_STORE_BUCKET",
@@ -125,21 +120,6 @@
       "MODULAR_OBJECT_STORE_SECRET_KEY",
       "MODULAR_OBJECT_STORE_SERVER_SIDE_ENCRYPTION",
       "MODULAR_OBJECT_STORE_SIGNED_URL_TTL_SECONDS",
-      "MODULAR_PLATFORM_CONNECTORS_ENABLED",
-      "MODULAR_PLATFORM_DIANPING_CHECKOUT",
-      "MODULAR_PLATFORM_DIANPING_ENABLED",
-      "MODULAR_PLATFORM_LEASE_TTL_SECONDS",
-      "MODULAR_PLATFORM_LICENSE_APPROVAL_REF",
-      "MODULAR_PLATFORM_LOGIN_ENABLED",
-      "MODULAR_PLATFORM_PROVENANCE_REF",
-      "MODULAR_PLATFORM_PROVIDER_MODE",
-      "MODULAR_PLATFORM_XHS_CHECKOUT",
-      "MODULAR_PLATFORM_XHS_ENABLED",
-      "MODULAR_TEMPORAL_ACCOUNT_AUTH_ENABLED",
-      "MODULAR_TEMPORAL_ACCOUNT_AUTH_MAX_CONCURRENT_ACTIVITIES",
-      "MODULAR_TEMPORAL_ACCOUNT_AUTH_MAX_CONCURRENT_WORKFLOWS",
-      "MODULAR_TEMPORAL_ACCOUNT_AUTH_PRIORITY",
-      "MODULAR_TEMPORAL_ACCOUNT_AUTH_QUEUE",
       "MODULAR_TEMPORAL_ADDRESS",
       "MODULAR_TEMPORAL_MEDIA_QUEUE",
       "MODULAR_TEMPORAL_NAMESPACE",
@@ -160,8 +140,7 @@
       "SEARCH_MAX_RESTAURANTS",
       "SEARCH_NOTES_PER_KEYWORD",
       "SEARCH_NOTE_LIMIT",
-      "SSE_TIMEOUT",
-      "XHS_COOKIES"
+      "SSE_TIMEOUT"
     ],
     "active_names": [
       "DEFAULT_LLM_MODEL",
@@ -187,14 +166,13 @@
       "REDIS_URL",
       "REDIS_USERNAME",
       "SSE_HEARTBEAT_SECONDS",
-      "SSE_TIMEOUT_SECONDS",
-      "XHS_LOG_DB_PATH",
-      "XHS_PROFILE_DIR"
+      "SSE_TIMEOUT_SECONDS"
     ],
     "env_example_only_names": [
       "MODULAR_ACCOUNT_SERVICES_FILE",
       "MODULAR_ACCOUNT_SERVICES_JSON",
       "MODULAR_ACCOUNT_SERVICE_REFRESH_SECONDS",
+      "MODULAR_AGENT_MCP_TOOL_POLICY_JSON",
       "MODULAR_DATABASE_URL",
       "MODULAR_OBJECT_STORE_ACCESS_KEY",
       "MODULAR_OBJECT_STORE_BUCKET",
@@ -208,21 +186,6 @@
       "MODULAR_OBJECT_STORE_SECRET_KEY",
       "MODULAR_OBJECT_STORE_SERVER_SIDE_ENCRYPTION",
       "MODULAR_OBJECT_STORE_SIGNED_URL_TTL_SECONDS",
-      "MODULAR_PLATFORM_CONNECTORS_ENABLED",
-      "MODULAR_PLATFORM_DIANPING_CHECKOUT",
-      "MODULAR_PLATFORM_DIANPING_ENABLED",
-      "MODULAR_PLATFORM_LEASE_TTL_SECONDS",
-      "MODULAR_PLATFORM_LICENSE_APPROVAL_REF",
-      "MODULAR_PLATFORM_LOGIN_ENABLED",
-      "MODULAR_PLATFORM_PROVENANCE_REF",
-      "MODULAR_PLATFORM_PROVIDER_MODE",
-      "MODULAR_PLATFORM_XHS_CHECKOUT",
-      "MODULAR_PLATFORM_XHS_ENABLED",
-      "MODULAR_TEMPORAL_ACCOUNT_AUTH_ENABLED",
-      "MODULAR_TEMPORAL_ACCOUNT_AUTH_MAX_CONCURRENT_ACTIVITIES",
-      "MODULAR_TEMPORAL_ACCOUNT_AUTH_MAX_CONCURRENT_WORKFLOWS",
-      "MODULAR_TEMPORAL_ACCOUNT_AUTH_PRIORITY",
-      "MODULAR_TEMPORAL_ACCOUNT_AUTH_QUEUE",
       "MODULAR_TEMPORAL_ADDRESS",
       "MODULAR_TEMPORAL_MEDIA_QUEUE",
       "MODULAR_TEMPORAL_NAMESPACE",
@@ -263,40 +226,9 @@
       }
     ]
   },
-  "node_signer": {
-    "python_source": "src/xhs_food/auth/signer.py",
-    "javascript_source": "src/xhs_food/auth/_node/signer.js",
-    "package_manifest": "src/xhs_food/auth/_node/package.json",
-    "package_lock_present": false,
-    "runtime_command": [
-      "node",
-      "SIGNER_JS"
-    ],
-    "environment": {
-      "required": "XHS_COOKIE",
-      "optional": "XHS_UA"
-    },
-    "modes": {
-      "default": "stdio newline-delimited JSON",
-      "preferred": "UNIX socket daemon",
-      "socket_argument": "--socket=PATH",
-      "socket_mode": "0600",
-      "stdio_fallback": true
-    },
-    "dependency_behavior": {
-      "dependency": "jsdom",
-      "version": "^29.1.1",
-      "missing_action": [
-        "npm",
-        "install"
-      ],
-      "failure": "SystemExit"
-    }
-  },
   "deployment": {
     "dockerfile": {
       "source": "Dockerfile",
-      "node_image": "node:20-slim",
       "builder_image": "python:3.11-slim",
       "runtime_image": "python:3.11-slim",
       "entrypoint": null,
@@ -313,7 +245,6 @@
       "uid": 1001,
       "gid": 1001,
       "writable_directories": [
-        "/app/.xhs_profiles",
         "/app/logs"
       ],
       "healthcheck": {
@@ -345,14 +276,12 @@
       },
       "app_port_mapping": "8000:8000",
       "app_volumes": [
-        "xhs_profiles:/app/.xhs_profiles",
         "app_logs:/app/logs"
       ],
       "named_volumes": [
         "app_logs",
         "postgres_data",
-        "redis_data",
-        "xhs_profiles"
+        "redis_data"
       ],
       "redis_image": "redis:7-alpine",
       "postgres_image": "pgvector/pgvector:pg16",
@@ -367,7 +296,6 @@
     "known_conflicts": [
       "Docker builder/runtime use Python 3.11 while pyproject.toml requires Python >=3.12,<3.13.",
       "Compose configures Redis connectivity but does not set EVENT_BUS_BACKEND=redis, so the Settings default remains memory.",
-      "The Node signer package has no package-lock.json and Docker falls back from npm ci to npm install.",
       "README claims Python 3.10+ and marks Docker support incomplete despite the Python 3.12 project constraint and committed container manifests.",
       "README starts src.api.main:app while the container starts api.main:app."
     ]

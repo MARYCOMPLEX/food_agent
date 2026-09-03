@@ -71,9 +71,7 @@ class BundleActivationRepository(Protocol):
     async def get_current_bundle(self, family_id: str) -> CurrentBundleRef | None: ...
 
 
-def validate_candidate_bundle(
-    bundle: EvidenceBundle, items: tuple[EvidenceItem, ...]
-) -> None:
+def validate_candidate_bundle(bundle: EvidenceBundle, items: tuple[EvidenceItem, ...]) -> None:
     """Validate candidate identity before any pointer can be changed."""
 
     from .evidence import BundleState

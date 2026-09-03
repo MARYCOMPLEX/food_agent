@@ -177,7 +177,13 @@ class _ResearchTaskSpy:
     def __init__(self) -> None:
         self.calls: list[tuple[str, ...]] = []
 
-    async def start_new(self, query: str) -> ResearchTaskAdmission:
+    async def start_new(
+        self,
+        query: str,
+        *,
+        tool_context: object | None = None,
+    ) -> ResearchTaskAdmission:
+        assert tool_context is not None
         self.calls.append(("start_new", query))
         return ResearchTaskAdmission(
             task_id="new-session",
@@ -187,7 +193,14 @@ class _ResearchTaskSpy:
             turn_id=1,
         )
 
-    async def refine(self, session_id: str, query: str) -> ResearchTaskAdmission:
+    async def refine(
+        self,
+        session_id: str,
+        query: str,
+        *,
+        tool_context: object | None = None,
+    ) -> ResearchTaskAdmission:
+        assert tool_context is not None
         self.calls.append(("refine", session_id, query))
         return ResearchTaskAdmission(
             task_id=session_id,
@@ -277,11 +290,23 @@ def test_search_routes_do_not_import_legacy_task_state_or_orchestrator_implement
 
 async def test_refine_maps_only_the_contract_not_found_error_to_404() -> None:
     class _NotFound(_ResearchTaskSpy):
-        async def refine(self, session_id: str, query: str) -> ResearchTaskAdmission:
+        async def refine(
+            self,
+            session_id: str,
+            query: str,
+            *,
+            tool_context: object | None = None,
+        ) -> ResearchTaskAdmission:
             raise ResearchTaskNotFoundError(session_id)
 
     class _Broken(_ResearchTaskSpy):
-        async def refine(self, session_id: str, query: str) -> ResearchTaskAdmission:
+        async def refine(
+            self,
+            session_id: str,
+            query: str,
+            *,
+            tool_context: object | None = None,
+        ) -> ResearchTaskAdmission:
             raise KeyError("adapter invariant")
 
     request = UnifiedSearchRequest(sessionId="missing", query="refine")

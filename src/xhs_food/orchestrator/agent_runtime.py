@@ -10,9 +10,10 @@ from datetime import UTC, datetime
 from typing import Any
 
 from jsonschema import Draft202012Validator
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from pydantic_ai import Agent, RunContext, Tool
 from pydantic_ai.exceptions import UnexpectedModelBehavior, UsageLimitExceeded
+from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai.usage import UsageLimits
 
 from xhs_food.contracts import (
@@ -21,7 +22,9 @@ from xhs_food.contracts import (
     AgentRunRequest,
     AgentRunResult,
     AgentRuntime,
+    AgentToolCatalogPort,
     AgentToolDefinition,
+    ContextualToolExecutorPort,
     ContractError,
     ContractPayload,
     ErrorCategory,
@@ -32,11 +35,6 @@ from xhs_food.contracts import (
     ToolGateway,
     ToolResult,
 )
-
-
-class GatewayToolRequest(BaseModel):
-    tool_name: str = Field(min_length=1)
-    arguments: ContractPayload = Field(default_factory=dict)
 
 
 class GatewayToolResponse(BaseModel):
@@ -52,6 +50,8 @@ class _RunState:
     calls: list[ToolCall] = field(default_factory=list)
     results: list[ToolResult] = field(default_factory=list)
     cost_units: int = 0
+    managed_tool_names: frozenset[str] = frozenset()
+    managed_snapshot_ref: str | None = None
 
 
 _ACTIVE_RUN: ContextVar[_RunState | None] = ContextVar("research_agent_run", default=None)
@@ -88,7 +88,7 @@ class AgentProviderError(AgentRuntimeFailure):
 
 
 class PydanticAIAgentRuntime:
-    """One typed Agent whose only tool crosses the project Tool Gateway.
+    """One typed Agent whose per-run native tools cross project-owned gateways.
 
     The adapter is registered in S5 but disabled by default. Temporal metadata
     is descriptive only; B0 enables the official durable execution binding.
@@ -102,8 +102,16 @@ class PydanticAIAgentRuntime:
         agent: Any = None,
         enabled: bool = False,
         temporal_binding: TemporalAgentBinding | None = None,
+        managed_tool_catalog: AgentToolCatalogPort | None = None,
+        managed_tool_executor: ContextualToolExecutorPort | None = None,
     ) -> None:
+        if (managed_tool_catalog is None) != (managed_tool_executor is None):
+            raise ValueError(
+                "managed tool catalog and contextual executor must be configured together"
+            )
         self._tool_gateway = tool_gateway
+        self._managed_tool_catalog = managed_tool_catalog
+        self._managed_tool_executor = managed_tool_executor
         self._enabled = enabled
         self._temporal_binding = temporal_binding or TemporalAgentBinding()
         self._agent = agent or Agent(
@@ -111,14 +119,6 @@ class PydanticAIAgentRuntime:
             output_type=AgentOutput,
             deps_type=AgentDependencies,
             name="shared-research-agent",
-            tools=(
-                Tool(
-                    self._execute_gateway_tool,
-                    takes_ctx=True,
-                    name="gateway_execute",
-                    description="Execute one declared capability through the typed Tool Gateway.",
-                ),
-            ),
             defer_model_check=model is None,
         )
 
@@ -148,12 +148,24 @@ class PydanticAIAgentRuntime:
         if request.budget.max_steps == 0:
             raise _budget_failure("agent request budget permits no model steps")
 
+        managed_snapshot_ref: str | None = None
+        managed_tool_names: frozenset[str] = frozenset()
+        effective_tools = request.tools
+        if self._managed_tool_catalog is not None and request.tool_context is not None:
+            snapshot = await self._managed_tool_catalog.snapshot(request.tool_context)
+            managed_snapshot_ref = snapshot.snapshot_ref
+            managed_tool_names = frozenset(item.name for item in snapshot.tools)
+            effective_tools = (*effective_tools, *snapshot.tools)
         try:
-            tools = _index_tools(request.tools)
+            tools = _index_tools(effective_tools)
             _validate_request_schemas(request, tools)
         except AgentRuntimeFailure:
+            if managed_snapshot_ref is not None and self._managed_tool_catalog is not None:
+                await self._managed_tool_catalog.release(managed_snapshot_ref)
             raise
         except ValueError as exc:
+            if managed_snapshot_ref is not None and self._managed_tool_catalog is not None:
+                await self._managed_tool_catalog.release(managed_snapshot_ref)
             raise AgentToolValidationError(
                 _error(
                     code="TOOL_SCHEMA_INVALID",
@@ -162,10 +174,16 @@ class PydanticAIAgentRuntime:
                     message=str(exc),
                 )
             ) from exc
-        state = _RunState(request=request, tools=tools)
+        state = _RunState(
+            request=request,
+            tools=tools,
+            managed_tool_names=managed_tool_names,
+            managed_snapshot_ref=managed_snapshot_ref,
+        )
         token = _ACTIVE_RUN.set(state)
         try:
             timeout = _deadline_seconds(request.budget.deadline_at)
+            toolset = self._native_toolset(tools)
             run = self._agent.run(
                 request.prompt,
                 deps=request.dependencies,
@@ -173,6 +191,7 @@ class PydanticAIAgentRuntime:
                     request_limit=request.budget.max_steps,
                     tool_calls_limit=request.budget.max_tool_calls,
                 ),
+                toolsets=(toolset,) if toolset is not None else None,
             )
             try:
                 result = await asyncio.wait_for(run, timeout=timeout)
@@ -246,24 +265,51 @@ class PydanticAIAgentRuntime:
             ) from exc
         finally:
             _ACTIVE_RUN.reset(token)
+            if managed_snapshot_ref is not None and self._managed_tool_catalog is not None:
+                await self._managed_tool_catalog.release(managed_snapshot_ref)
 
-    async def _execute_gateway_tool(
+    def _native_toolset(
+        self, tools: dict[str, AgentToolDefinition]
+    ) -> FunctionToolset[AgentDependencies] | None:
+        if not tools:
+            return None
+        return FunctionToolset(
+            tuple(self._native_tool(definition) for definition in tools.values()),
+            id="agent-run-tools",
+        )
+
+    def _native_tool(self, definition: AgentToolDefinition) -> Tool[AgentDependencies]:
+        async def execute(
+            ctx: RunContext[AgentDependencies], **arguments: Any
+        ) -> GatewayToolResponse:
+            return await self._execute_declared_tool(ctx, definition.name, arguments)
+
+        return Tool.from_schema(
+            execute,
+            name=definition.name,
+            description=definition.description or None,
+            json_schema=definition.input_schema,
+            takes_ctx=True,
+        )
+
+    async def _execute_declared_tool(
         self,
         ctx: RunContext[AgentDependencies],
-        request: GatewayToolRequest,
+        tool_name: str,
+        arguments: ContractPayload,
     ) -> GatewayToolResponse:
         state = _ACTIVE_RUN.get()
         if state is None or ctx.deps.task_id != state.request.dependencies.task_id:
             raise RuntimeError("gateway tool called outside its owning Agent run")
         try:
-            definition = state.tools[request.tool_name]
+            definition = state.tools[tool_name]
         except KeyError as exc:
             raise AgentToolPolicyError(
                 _error(
                     code="TOOL_POLICY_DENIED",
                     category=ErrorCategory.POLICY_DENIED,
                     scope=ErrorScope.TOOL,
-                    message=f"undeclared Agent tool: {request.tool_name}",
+                    message=f"undeclared Agent tool: {tool_name}",
                 )
             ) from exc
 
@@ -281,7 +327,7 @@ class PydanticAIAgentRuntime:
             raise _budget_failure("Agent cost-unit budget exhausted")
 
         try:
-            _validate_value(definition.input_schema, request.arguments, "Agent tool input")
+            _validate_value(definition.input_schema, arguments, "Agent tool input")
         except ValueError as exc:
             raise AgentToolValidationError(
                 _error(
@@ -294,13 +340,26 @@ class PydanticAIAgentRuntime:
         call = ToolCall(
             call_id=f"{state.request.request_id}:tool:{next_count}",
             tool_name=definition.name,
-            arguments=request.arguments,
+            arguments=arguments,
             task_id=state.request.dependencies.task_id,
             timeout_ms=definition.timeout_ms,
         )
         state.calls.append(call)
         state.cost_units = next_cost
-        result = await self._tool_gateway.execute(call)
+        if definition.name in state.managed_tool_names:
+            if (
+                self._managed_tool_executor is None
+                or state.managed_snapshot_ref is None
+                or state.request.tool_context is None
+            ):
+                raise RuntimeError("managed tool called without its pinned execution context")
+            result = await self._managed_tool_executor.execute(
+                snapshot_ref=state.managed_snapshot_ref,
+                call=call,
+                context=state.request.tool_context,
+            )
+        else:
+            result = await self._tool_gateway.execute(call)
         state.results.append(result)
         if not result.success:
             return GatewayToolResponse(
@@ -471,7 +530,6 @@ __all__ = [
     "AgentToolValidationError",
     "AgentRuntimeDisabledError",
     "AgentRuntimeFailure",
-    "GatewayToolRequest",
     "GatewayToolResponse",
     "PydanticAIAgentRuntime",
     "ScriptedAgentRuntime",

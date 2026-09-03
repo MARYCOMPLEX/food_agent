@@ -65,17 +65,21 @@ class SQLAlchemyMemoryRepository(MemoryRepositoryPort):
         if not content:
             raise ValueError("conversation content must be non-empty")
         values = _scope_values(scope)
-        statement = insert(conversation_turns).values(
-            turn_id=turn_id,
-            **values,
-            role=role,
-            content=content,
-            metadata=metadata or {},
-            source_event_id=source_event_id,
-            occurred_at=occurred_at,
-            idempotency_key=idempotency_key,
-            created_at=occurred_at,
-        ).on_conflict_do_nothing(index_elements=[conversation_turns.c.idempotency_key])
+        statement = (
+            insert(conversation_turns)
+            .values(
+                turn_id=turn_id,
+                **values,
+                role=role,
+                content=content,
+                metadata=metadata or {},
+                source_event_id=source_event_id,
+                occurred_at=occurred_at,
+                idempotency_key=idempotency_key,
+                created_at=occurred_at,
+            )
+            .on_conflict_do_nothing(index_elements=[conversation_turns.c.idempotency_key])
+        )
         async with self._unit_of_work_factory() as unit:
             await unit.session_for_adapter().execute(statement)
             await unit.commit()
@@ -84,24 +88,28 @@ class SQLAlchemyMemoryRepository(MemoryRepositoryPort):
     async def save_record(self, record: MemoryRecord) -> str:
         scope = isolation_key_for(record)
         payload = record.model_dump(mode="json", by_alias=True)
-        statement = insert(memory_records).values(
-            record_id=record.record_id,
-            **_scope_values(scope),
-            layer=record.layer.value,
-            memory_key=record.key,
-            value=record.value,
-            confidence=record.confidence,
-            source_event_ids=list(record.source_event_ids),
-            consent=record.consent.model_dump(mode="json", by_alias=True),
-            valid_from=record.valid_from,
-            expires_at=record.expires_at,
-            status=record.status.value,
-            supersedes_record_id=record.supersedes_record_id,
-            policy_version=record.policy_version,
-            payload=payload,
-            created_at=record.created_at,
-            updated_at=record.updated_at,
-        ).on_conflict_do_nothing(index_elements=[memory_records.c.record_id])
+        statement = (
+            insert(memory_records)
+            .values(
+                record_id=record.record_id,
+                **_scope_values(scope),
+                layer=record.layer.value,
+                memory_key=record.key,
+                value=record.value,
+                confidence=record.confidence,
+                source_event_ids=list(record.source_event_ids),
+                consent=record.consent.model_dump(mode="json", by_alias=True),
+                valid_from=record.valid_from,
+                expires_at=record.expires_at,
+                status=record.status.value,
+                supersedes_record_id=record.supersedes_record_id,
+                policy_version=record.policy_version,
+                payload=payload,
+                created_at=record.created_at,
+                updated_at=record.updated_at,
+            )
+            .on_conflict_do_nothing(index_elements=[memory_records.c.record_id])
+        )
         async with self._unit_of_work_factory() as unit:
             await unit.session_for_adapter().execute(statement)
             await unit.commit()
@@ -116,7 +124,9 @@ class SQLAlchemyMemoryRepository(MemoryRepositoryPort):
                     _conversation_statement(write.conversation_turn)
                 )
             if write.source_event is not None:
-                await unit.session_for_adapter().execute(_memory_event_statement(write.source_event))
+                await unit.session_for_adapter().execute(
+                    _memory_event_statement(write.source_event)
+                )
             if write.record is not None:
                 await unit.session_for_adapter().execute(_record_statement(write.record))
             await unit.session_for_adapter().execute(_outbox_statement(write.outbox))
@@ -124,20 +134,24 @@ class SQLAlchemyMemoryRepository(MemoryRepositoryPort):
         return write.outbox.outbox_id
 
     async def append_memory_event(self, event: MemoryEvent) -> str:
-        statement = insert(memory_events).values(
-            event_id=event.event_id,
-            **_subject_scope_values(
-                tenant_id=event.tenant_id,
-                subject_id=event.subject.id,
-                subject_kind=event.subject.kind.value,
-                session_id=event.session_id,
-            ),
-            event_type=event.event_type,
-            payload=event.model_dump(mode="json", by_alias=True),
-            idempotency_key=event.idempotency_key,
-            occurred_at=event.occurred_at,
-            created_at=event.created_at,
-        ).on_conflict_do_nothing(index_elements=[memory_events.c.idempotency_key])
+        statement = (
+            insert(memory_events)
+            .values(
+                event_id=event.event_id,
+                **_subject_scope_values(
+                    tenant_id=event.tenant_id,
+                    subject_id=event.subject.id,
+                    subject_kind=event.subject.kind.value,
+                    session_id=event.session_id,
+                ),
+                event_type=event.event_type,
+                payload=event.model_dump(mode="json", by_alias=True),
+                idempotency_key=event.idempotency_key,
+                occurred_at=event.occurred_at,
+                created_at=event.created_at,
+            )
+            .on_conflict_do_nothing(index_elements=[memory_events.c.idempotency_key])
+        )
         async with self._unit_of_work_factory() as unit:
             await unit.session_for_adapter().execute(statement)
             await unit.commit()
@@ -289,7 +303,8 @@ class SQLAlchemyMemoryRepository(MemoryRepositoryPort):
                 "receipt": receipt.model_dump(mode="json", by_alias=True),
             }
             await session.execute(
-                insert(claim_events).values(
+                insert(claim_events)
+                .values(
                     claim_id=request.claim_id,
                     tenant_id=source.tenant_id,
                     anonymous_subject_id=source.anonymous_subject_id,
@@ -299,7 +314,8 @@ class SQLAlchemyMemoryRepository(MemoryRepositoryPort):
                     payload=claim_payload,
                     idempotency_key=request.idempotency_key,
                     created_at=request.requested_at,
-                ).on_conflict_do_nothing(index_elements=[claim_events.c.idempotency_key])
+                )
+                .on_conflict_do_nothing(index_elements=[claim_events.c.idempotency_key])
             )
             await session.commit()
             return receipt
@@ -307,15 +323,19 @@ class SQLAlchemyMemoryRepository(MemoryRepositoryPort):
     async def save_preference_snapshot(self, snapshot: PreferenceSnapshot) -> str:
         scope = snapshot.isolation_key
         payload = snapshot.model_dump(mode="json", by_alias=True)
-        statement = insert(preference_snapshots).values(
-            snapshot_id=snapshot.snapshot_id,
-            **_scope_values(scope),
-            snapshot_version=snapshot.snapshot_version,
-            policy_version=snapshot.policy_version,
-            source_record_versions=snapshot.source_record_versions,
-            payload=payload,
-            generated_at=snapshot.generated_at,
-        ).on_conflict_do_nothing(index_elements=[preference_snapshots.c.snapshot_id])
+        statement = (
+            insert(preference_snapshots)
+            .values(
+                snapshot_id=snapshot.snapshot_id,
+                **_scope_values(scope),
+                snapshot_version=snapshot.snapshot_version,
+                policy_version=snapshot.policy_version,
+                source_record_versions=snapshot.source_record_versions,
+                payload=payload,
+                generated_at=snapshot.generated_at,
+            )
+            .on_conflict_do_nothing(index_elements=[preference_snapshots.c.snapshot_id])
+        )
         async with self._unit_of_work_factory() as unit:
             await unit.session_for_adapter().execute(statement)
             await unit.commit()
@@ -334,17 +354,21 @@ class SQLAlchemyMemoryRepository(MemoryRepositoryPort):
     ) -> str:
         if not event_type or not aggregate_id or not idempotency_key:
             raise ValueError("outbox identities must be non-empty")
-        statement = insert(outbox).values(
-            outbox_id=outbox_id,
-            **_scope_values(scope),
-            event_type=event_type,
-            aggregate_id=aggregate_id,
-            payload=payload,
-            idempotency_key=idempotency_key,
-            available_at=available_at,
-            attempts=0,
-            created_at=available_at,
-        ).on_conflict_do_nothing(index_elements=[outbox.c.idempotency_key])
+        statement = (
+            insert(outbox)
+            .values(
+                outbox_id=outbox_id,
+                **_scope_values(scope),
+                event_type=event_type,
+                aggregate_id=aggregate_id,
+                payload=payload,
+                idempotency_key=idempotency_key,
+                available_at=available_at,
+                attempts=0,
+                created_at=available_at,
+            )
+            .on_conflict_do_nothing(index_elements=[outbox.c.idempotency_key])
+        )
         async with self._unit_of_work_factory() as unit:
             await unit.session_for_adapter().execute(statement)
             await unit.commit()
@@ -352,7 +376,9 @@ class SQLAlchemyMemoryRepository(MemoryRepositoryPort):
 
 
 def _scope_values(scope: MemoryIsolationKey) -> dict[str, str | None]:
-    subject_id = scope.user_id if isinstance(scope, UserIsolationKey) else scope.anonymous_subject_id
+    subject_id = (
+        scope.user_id if isinstance(scope, UserIsolationKey) else scope.anonymous_subject_id
+    )
     return _subject_scope_values(
         tenant_id=scope.tenant_id,
         subject_id=subject_id,
@@ -362,70 +388,86 @@ def _scope_values(scope: MemoryIsolationKey) -> dict[str, str | None]:
 
 
 def _conversation_statement(turn: MemoryConversationTurn) -> object:
-    return insert(conversation_turns).values(
-        turn_id=turn.turn_id,
-        **_scope_values(turn.scope),
-        role=turn.role,
-        content=turn.content,
-        metadata=turn.metadata,
-        source_event_id=turn.source_event_id,
-        occurred_at=turn.occurred_at,
-        idempotency_key=turn.idempotency_key,
-        created_at=turn.occurred_at,
-    ).on_conflict_do_nothing(index_elements=[conversation_turns.c.idempotency_key])
+    return (
+        insert(conversation_turns)
+        .values(
+            turn_id=turn.turn_id,
+            **_scope_values(turn.scope),
+            role=turn.role,
+            content=turn.content,
+            metadata=turn.metadata,
+            source_event_id=turn.source_event_id,
+            occurred_at=turn.occurred_at,
+            idempotency_key=turn.idempotency_key,
+            created_at=turn.occurred_at,
+        )
+        .on_conflict_do_nothing(index_elements=[conversation_turns.c.idempotency_key])
+    )
 
 
 def _record_statement(record: MemoryRecord) -> object:
     scope = isolation_key_for(record)
-    return insert(memory_records).values(
-        record_id=record.record_id,
-        **_scope_values(scope),
-        layer=record.layer.value,
-        memory_key=record.key,
-        value=record.value,
-        confidence=record.confidence,
-        source_event_ids=list(record.source_event_ids),
-        consent=record.consent.model_dump(mode="json", by_alias=True),
-        valid_from=record.valid_from,
-        expires_at=record.expires_at,
-        status=record.status.value,
-        supersedes_record_id=record.supersedes_record_id,
-        policy_version=record.policy_version,
-        payload=record.model_dump(mode="json", by_alias=True),
-        created_at=record.created_at,
-        updated_at=record.updated_at,
-    ).on_conflict_do_nothing(index_elements=[memory_records.c.record_id])
+    return (
+        insert(memory_records)
+        .values(
+            record_id=record.record_id,
+            **_scope_values(scope),
+            layer=record.layer.value,
+            memory_key=record.key,
+            value=record.value,
+            confidence=record.confidence,
+            source_event_ids=list(record.source_event_ids),
+            consent=record.consent.model_dump(mode="json", by_alias=True),
+            valid_from=record.valid_from,
+            expires_at=record.expires_at,
+            status=record.status.value,
+            supersedes_record_id=record.supersedes_record_id,
+            policy_version=record.policy_version,
+            payload=record.model_dump(mode="json", by_alias=True),
+            created_at=record.created_at,
+            updated_at=record.updated_at,
+        )
+        .on_conflict_do_nothing(index_elements=[memory_records.c.record_id])
+    )
 
 
 def _memory_event_statement(event: MemoryEvent) -> object:
-    return insert(memory_events).values(
-        event_id=event.event_id,
-        **_subject_scope_values(
-            tenant_id=event.tenant_id,
-            subject_id=event.subject.id,
-            subject_kind=str(event.subject.kind),
-            session_id=event.session_id,
-        ),
-        event_type=event.event_type,
-        payload=event.model_dump(mode="json", by_alias=True),
-        idempotency_key=event.idempotency_key,
-        occurred_at=event.occurred_at,
-        created_at=event.created_at,
-    ).on_conflict_do_nothing(index_elements=[memory_events.c.idempotency_key])
+    return (
+        insert(memory_events)
+        .values(
+            event_id=event.event_id,
+            **_subject_scope_values(
+                tenant_id=event.tenant_id,
+                subject_id=event.subject.id,
+                subject_kind=str(event.subject.kind),
+                session_id=event.session_id,
+            ),
+            event_type=event.event_type,
+            payload=event.model_dump(mode="json", by_alias=True),
+            idempotency_key=event.idempotency_key,
+            occurred_at=event.occurred_at,
+            created_at=event.created_at,
+        )
+        .on_conflict_do_nothing(index_elements=[memory_events.c.idempotency_key])
+    )
 
 
 def _outbox_statement(event: MemoryOutboxEvent) -> object:
-    return insert(outbox).values(
-        outbox_id=event.outbox_id,
-        **_scope_values(event.scope),
-        event_type=event.event_type,
-        aggregate_id=event.aggregate_id,
-        payload=event.payload,
-        idempotency_key=event.idempotency_key,
-        available_at=event.available_at,
-        attempts=0,
-        created_at=event.available_at,
-    ).on_conflict_do_nothing(index_elements=[outbox.c.idempotency_key])
+    return (
+        insert(outbox)
+        .values(
+            outbox_id=event.outbox_id,
+            **_scope_values(event.scope),
+            event_type=event.event_type,
+            aggregate_id=event.aggregate_id,
+            payload=event.payload,
+            idempotency_key=event.idempotency_key,
+            available_at=event.available_at,
+            attempts=0,
+            created_at=event.available_at,
+        )
+        .on_conflict_do_nothing(index_elements=[outbox.c.idempotency_key])
+    )
 
 
 def _claimed_record(
@@ -490,18 +532,12 @@ def _subject_scope_values(
 
 def _scope_clause(scope: MemoryIsolationKey) -> tuple[object, ...]:
     values = _scope_values(scope)
-    return tuple(
-        memory_records.c[column] == value
-        for column, value in values.items()
-    )
+    return tuple(memory_records.c[column] == value for column, value in values.items())
 
 
 def _conversation_scope_clause(scope: MemoryIsolationKey) -> tuple[object, ...]:
     values = _scope_values(scope)
-    return tuple(
-        conversation_turns.c[column] == value
-        for column, value in values.items()
-    )
+    return tuple(conversation_turns.c[column] == value for column, value in values.items())
 
 
 __all__ = ["SQLAlchemyMemoryRepository"]

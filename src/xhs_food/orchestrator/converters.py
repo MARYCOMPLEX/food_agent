@@ -34,20 +34,24 @@ def dict_to_recommendation(d: Dict[str, Any]) -> RestaurantRecommendation:
     must_try_list = []
     for item in d.get("mustTry", []) or d.get("must_try", []) or []:
         if isinstance(item, dict):
-            must_try_list.append(MustTryItem(
-                name=item.get("name", ""),
-                reason=item.get("reason", ""),
-                img=item.get("img", ""),
-            ))
+            must_try_list.append(
+                MustTryItem(
+                    name=item.get("name", ""),
+                    reason=item.get("reason", ""),
+                    img=item.get("img", ""),
+                )
+            )
 
     # 转换 black_list 列表
     black_list = []
     for item in d.get("blackList", []) or d.get("black_list", []) or []:
         if isinstance(item, dict):
-            black_list.append(BlackListItem(
-                name=item.get("name", ""),
-                reason=item.get("reason", ""),
-            ))
+            black_list.append(
+                BlackListItem(
+                    name=item.get("name", ""),
+                    reason=item.get("reason", ""),
+                )
+            )
 
     # 转换 stats
     stats_dict = d.get("stats") or {}

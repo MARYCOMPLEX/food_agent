@@ -32,6 +32,7 @@ class FollowUpHandler:
         try:
             from xhs_food.prompts import FOLLOW_UP_PROCESSING_PROMPT
             from langchain_core.messages import HumanMessage
+
             conversation_history = self._context.get_history_for_llm(max_turns=5)
             if not conversation_history:
                 conversation_history = "(无历史对话)"
@@ -52,9 +53,10 @@ class FollowUpHandler:
             llm = self._llm_service
             if llm is None:
                 from xhs_food.services.llm_service import LLMService
+
                 llm = LLMService()
             response = await llm.call([HumanMessage(content=prompt)])
-            raw_output = response.content if hasattr(response, 'content') else str(response)
+            raw_output = response.content if hasattr(response, "content") else str(response)
             parsed = extract_json(raw_output)
             if not isinstance(parsed, dict):
                 logger.warning(f"LLM 输出无法解析为 JSON: {raw_output[:200]}")
@@ -77,10 +79,12 @@ class FollowUpHandler:
             self._context.turn_count += 1
             return XHSFoodResponse(
                 status="ok",
-                recommendations=[
-                    dict_to_recommendation(r) for r in matched_recommendations
-                ] if matched_recommendations else [],
-                filtered_count=original_count - len(matched_recommendations) if matched_recommendations else 0,
+                recommendations=[dict_to_recommendation(r) for r in matched_recommendations]
+                if matched_recommendations
+                else [],
+                filtered_count=original_count - len(matched_recommendations)
+                if matched_recommendations
+                else 0,
                 summary=response_text,
             )
 
@@ -96,8 +100,7 @@ class FollowUpHandler:
         return XHSFoodResponse(
             status="ok",
             recommendations=[
-                dict_to_recommendation(rec)
-                for rec in self._context.last_recommendations.values()
+                dict_to_recommendation(rec) for rec in self._context.last_recommendations.values()
             ],
             summary=summary,
         )
@@ -113,10 +116,7 @@ class FollowUpHandler:
         # 过滤上一轮结果
         filtered_recommendations = []
         for name, rec_dict in self._context.last_recommendations.items():
-            is_excluded = any(
-                ex in name or name in ex
-                for ex in self._context.excluded_shops
-            )
+            is_excluded = any(ex in name or name in ex for ex in self._context.excluded_shops)
             if not is_excluded:
                 filtered_recommendations.append(rec_dict)
 
@@ -124,9 +124,7 @@ class FollowUpHandler:
 
         return XHSFoodResponse(
             status="ok",
-            recommendations=[
-                dict_to_recommendation(r) for r in filtered_recommendations
-            ],
+            recommendations=[dict_to_recommendation(r) for r in filtered_recommendations],
             filtered_count=len(self._context.last_recommendations) - len(filtered_recommendations),
             summary=f"已排除 {target}，剩余 {len(filtered_recommendations)} 家推荐",
         )
@@ -196,7 +194,8 @@ class FollowUpHandler:
         self._context.turn_count += 1
         if not matched_recommendations:
             return XHSFoodResponse(
-                status="ok", recommendations=[],
+                status="ok",
+                recommendations=[],
                 summary=f"在现有 {len(self._context.last_recommendations)} 家店铺中未找到{target_location}区域的店铺，可以尝试重新搜索",
             )
         original_count = len(self._context.last_recommendations)

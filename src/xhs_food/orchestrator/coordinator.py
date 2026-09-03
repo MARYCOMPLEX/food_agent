@@ -13,6 +13,7 @@ from xhs_food.contracts import (
     AgentRunRequest,
     AgentRunResult,
     AgentRuntime,
+    AgentToolExecutionContext,
     ContractError,
     ContractPayload,
     PlanBudget,
@@ -159,13 +160,31 @@ class ResearchCoordinator:
             raise RuntimeError("a ResearchCoordinator may own only one Agent runtime")
         self._agent_runtime = runtime
 
-    async def start_new(self, query: str) -> ResearchTaskAdmission:
-        admission = await self._legacy_policy.start_new(query)
+    async def start_new(
+        self,
+        query: str,
+        *,
+        tool_context: AgentToolExecutionContext | None = None,
+    ) -> ResearchTaskAdmission:
+        admission = await self._legacy_policy.start_new(
+            query,
+            tool_context=tool_context,
+        )
         await self._record_admission_safely(admission, query=query)
         return admission
 
-    async def refine(self, session_id: str, query: str) -> ResearchTaskAdmission:
-        admission = await self._legacy_policy.refine(session_id, query)
+    async def refine(
+        self,
+        session_id: str,
+        query: str,
+        *,
+        tool_context: AgentToolExecutionContext | None = None,
+    ) -> ResearchTaskAdmission:
+        admission = await self._legacy_policy.refine(
+            session_id,
+            query,
+            tool_context=tool_context,
+        )
         await self._record_admission_safely(admission, query=query)
         return admission
 
@@ -324,9 +343,7 @@ class ResearchCoordinator:
         await self._projection_store.put(projection)
         return task
 
-    def _remember_reliable_plan(
-        self, task: ResearchTask, request: ResearchRequest
-    ) -> None:
+    def _remember_reliable_plan(self, task: ResearchTask, request: ResearchRequest) -> None:
         from xhs_food.orchestrator.reliable_task import reliable_plan
 
         try:
@@ -509,7 +526,11 @@ class ResearchCoordinator:
                 )
                 self._tasks[task_id] = persisted_task
                 request = self._reliable_requests.get(task_id)
-        if self._reliable_task_store is not None and persisted_task is not None and request is not None:
+        if (
+            self._reliable_task_store is not None
+            and persisted_task is not None
+            and request is not None
+        ):
             await self._reliable_task_store.save(persisted_task, request)
         return effective
 

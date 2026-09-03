@@ -4,30 +4,13 @@
     "xhs_food.schemas": ["WanghongScore", "SearchPhase", "RecommendationLevel", "FollowUpType", "CommentWeight", "CrossValidationResult", "ConversationContext", "FoodSearchIntent", "XHSNote", "RestaurantInfo", "WanghongAnalysis", "MustTryItem", "BlackListItem", "ShopStats", "RestaurantRecommendation", "XHSFoodResponse"],
     "xhs_food.agents": ["IntentParserAgent", "IntentParseResult", "AnalyzerAgent", "AnalyzeResult", "POIEnricherAgent", "EnrichedRestaurant", "get_poi_enricher"],
     "xhs_food.services": ["LLMService", "RedisMemory", "ChatMessage", "PostgresStorage", "ChatHistoryRecord", "SessionManager", "get_session_manager", "UserStorageService", "get_user_storage_service", "ProcessedComment", "preprocess_comments", "extract_likes_from_text", "calculate_interaction_score", "format_comments_for_llm", "CommentAnalysis", "CommentScore", "ShopScore", "calculate_scores", "calculate_comment_score", "get_top_shops"],
-    "xhs_food.events": ["SearchEvent", "SearchEventType", "EventBus", "InMemoryEventBus", "RedisStreamEventBus", "get_event_bus", "SearchEventEmitter", "get_emitter", "remove_emitter"],
-    "xhs_food.protocols": ["ToolResult", "MCPToolProvider", "MCPToolRegistry"],
-    "xhs_food.di": ["get_xhs_service", "get_xhs_tool_registry", "get_xhs_food_orchestrator"]
+    "xhs_food.events": ["SearchEvent", "SearchEventType", "EventBus", "InMemoryEventBus", "RedisStreamEventBus", "get_event_bus", "SearchEventEmitter", "get_emitter", "remove_emitter"]
   },
-  "orchestrator_constructor": ["xhs_registry", "llm_service", "intent_parser", "analyzer", "follow_up_handler", "search_executor", "deep_search", "fast_mode_limit"],
+  "orchestrator_constructor": ["search_tool", "llm_service", "intent_parser", "analyzer", "follow_up_handler", "search_executor", "deep_search", "fast_mode_limit"],
   "orchestrator_methods": {
     "search": ["self", "user_input"],
     "process": ["self", "user_input", "conversation_history"],
     "search_stream": ["self", "user_input", "emitter"],
     "reset_context": ["self"]
-  },
-  "tools": ["xhs_search", "xhs_note", "xhs_batch"],
-  "tool_result_ok": {
-    "success": true,
-    "data": {"notes": [{"id": "n1"}]},
-    "error_code": null,
-    "error_message": null,
-    "metadata": {"source": "fixture"}
-  },
-  "tool_result_fail": {
-    "success": false,
-    "data": null,
-    "error_code": "SOURCE_TIMEOUT",
-    "error_message": "source timed out",
-    "metadata": {"retryable": true}
   }
 }

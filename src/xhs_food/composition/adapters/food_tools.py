@@ -1,4 +1,4 @@
-"""Compatibility providers for the Food Pack's approved typed tools."""
+"""Providers for the Food Pack's approved typed tools."""
 
 from __future__ import annotations
 
@@ -6,20 +6,11 @@ import hashlib
 import json
 from collections import OrderedDict
 from collections.abc import Mapping, Sequence
-from typing import Any, Protocol, cast
+from typing import Any, cast
 
-from xhs_food.contracts import AllowedToolContract, PlaceLookupPort
+from xhs_food.contracts import AllowedToolContract, PlaceLookupPort, SearchToolPort
 from xhs_food.domain_packs.food.resources import load_food_manifest
 from xhs_food.gateways import ProviderResult, SchemaToolGateway, ToolRegistration
-
-
-class LegacyReviewSearchTool(Protocol):
-    @property
-    def name(self) -> str: ...
-
-    async def execute(self, **kwargs: Any) -> object: ...
-
-    async def health_check(self) -> bool: ...
 
 
 class FoodPlaceLookupProvider:
@@ -73,14 +64,14 @@ class FoodPlaceLookupProvider:
 
 
 class FoodReviewSearchProvider:
-    """Create a real, process-local batch snapshot from the legacy XHS search provider."""
+    """Create a process-local batch reference from managed MCP search output."""
 
     name = "evidence.search_reviews"
     tool_version = "1.0.0"
     source_capability = "reviews.search"
     source_version = "1.0.0"
 
-    def __init__(self, search: LegacyReviewSearchTool, *, retained_batches: int = 128) -> None:
+    def __init__(self, search: SearchToolPort, *, retained_batches: int = 128) -> None:
         if retained_batches < 1:
             raise ValueError("retained_batches must be positive")
         self._search = search
@@ -146,12 +137,12 @@ class FoodReviewSearchProvider:
         return self._batches.get(batch_ref)
 
     async def health_check(self) -> bool:
-        return bool(await self._search.health_check())
+        return bool(await self._search.health())
 
 
 def build_food_tool_gateway(
     place_lookup: PlaceLookupPort,
-    review_search: LegacyReviewSearchTool,
+    review_search: SearchToolPort,
 ) -> tuple[
     SchemaToolGateway,
     tuple[FoodPlaceLookupProvider | FoodReviewSearchProvider, ...],
@@ -177,6 +168,5 @@ def build_food_tool_gateway(
 __all__ = [
     "FoodPlaceLookupProvider",
     "FoodReviewSearchProvider",
-    "LegacyReviewSearchTool",
     "build_food_tool_gateway",
 ]

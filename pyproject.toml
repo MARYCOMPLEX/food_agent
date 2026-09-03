@@ -28,9 +28,6 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "loguru>=0.7.0",
 
-    # Crypto for XHS API
-    "pycryptodome>=3.19.0",
-
     # Session Management - Redis + PostgreSQL
     "redis>=5.0.0",
     "asyncpg>=0.29.0",
@@ -45,12 +42,6 @@ dependencies = [
 
     # Observability — Prometheus metrics
     "prometheus-client>=0.20.0",
-
-    # XHS auth — terminal QR rendering
-    "qrcode[pil]>=7.4.2",
-
-    # XHS auth — browser-driven login (bypasses CLI 风控)
-    "playwright>=1.40.0",
 
     # Target modular runtime (disabled until its behavior milestone)
     "pydantic-ai-slim[openai,temporal]>=2.5,<2.6",
@@ -74,6 +65,8 @@ dev = [
     "pytest-mock>=3.12.0",
     "ruff>=0.5.0",
     "pyright>=1.1.350",
+    # Frontend release qualification only; never installed in runtime images.
+    "playwright>=1.40.0",
 ]
 
 [project.entry-points."food_agent.domain_packs"]

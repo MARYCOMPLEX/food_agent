@@ -33,17 +33,29 @@ class TravelPlaceLookupProvider:
             name = place.get("name")
             if not isinstance(source_id, (str, int)) or not isinstance(name, str) or not name:
                 return ProviderResult(False, error_code="MALFORMED_RESPONSE")
-            places.append({"sourceId": str(source_id), "name": name, "address": str(place.get("address") or "")})
-        return ProviderResult(True, data={"schemaVersion": "travel.poi.lookup/output/v1", "places": places})
+            places.append(
+                {
+                    "sourceId": str(source_id),
+                    "name": name,
+                    "address": str(place.get("address") or ""),
+                }
+            )
+        return ProviderResult(
+            True, data={"schemaVersion": "travel.poi.lookup/output/v1", "places": places}
+        )
 
     async def health_check(self) -> bool:
         check = getattr(self._lookup, "health_check", None)
         return bool(await check()) if callable(check) else True
 
 
-def build_travel_tool_gateway(lookup: PlaceLookupPort) -> tuple[SchemaToolGateway, TravelPlaceLookupProvider]:
+def build_travel_tool_gateway(
+    lookup: PlaceLookupPort,
+) -> tuple[SchemaToolGateway, TravelPlaceLookupProvider]:
     manifest = load_travel_manifest()
-    contract = next(tool for tool in manifest.allowed_tools if tool.tool_id == TravelPlaceLookupProvider.name)
+    contract = next(
+        tool for tool in manifest.allowed_tools if tool.tool_id == TravelPlaceLookupProvider.name
+    )
     provider = TravelPlaceLookupProvider(lookup)
     return SchemaToolGateway(
         (ToolRegistration(contract=contract, provider=provider),),

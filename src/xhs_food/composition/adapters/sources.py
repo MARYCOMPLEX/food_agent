@@ -1,23 +1,12 @@
-"""Concrete legacy source factories owned by the Composition Root."""
+"""Concrete place-source factories owned by the Composition Root."""
 
 from __future__ import annotations
 
-from xhs_food.di.factories import get_xhs_tool_registry
 from xhs_food.gateways import (
     AmapPlaceSourceConnector,
     PlaceLookupToolAdapter,
-    XHSSourceConnector,
 )
-from xhs_food.spider.apis.amap_api import AmapAPI, get_amap_api
-
-
-def build_xhs_source_connector() -> XHSSourceConnector:
-    registry = get_xhs_tool_registry()
-    return XHSSourceConnector(
-        search_provider=registry.get_required("xhs_search"),
-        note_provider=registry.get_required("xhs_note"),
-        batch_provider=registry.get_required("xhs_batch"),
-    )
+from xhs_food.services.amap_api import AmapAPI, get_amap_api
 
 
 def build_place_source_connector(
@@ -33,5 +22,4 @@ def build_place_tool(client: AmapAPI | None = None) -> PlaceLookupToolAdapter:
 __all__ = [
     "build_place_source_connector",
     "build_place_tool",
-    "build_xhs_source_connector",
 ]

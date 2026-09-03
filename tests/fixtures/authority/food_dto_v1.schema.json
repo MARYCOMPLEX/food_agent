@@ -44,15 +44,13 @@
     "publicExports": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["xhs_food", "xhs_food.schemas", "xhs_food.agents", "xhs_food.services", "xhs_food.events", "xhs_food.protocols", "xhs_food.di"],
+      "required": ["xhs_food", "xhs_food.schemas", "xhs_food.agents", "xhs_food.services", "xhs_food.events"],
       "properties": {
         "xhs_food": {"$ref": "#/$defs/publicExportArray"},
         "xhs_food.schemas": {"$ref": "#/$defs/publicExportArray"},
         "xhs_food.agents": {"$ref": "#/$defs/publicExportArray"},
         "xhs_food.services": {"$ref": "#/$defs/publicExportArray"},
-        "xhs_food.events": {"$ref": "#/$defs/publicExportArray"},
-        "xhs_food.protocols": {"$ref": "#/$defs/publicExportArray"},
-        "xhs_food.di": {"$ref": "#/$defs/publicExportArray"}
+        "xhs_food.events": {"$ref": "#/$defs/publicExportArray"}
       }
     }
   },

@@ -45,7 +45,7 @@ Upstream and distribution metadata were rechecked on 2026-08-24 against the
 linked official documentation/repositories and the Python Package Index JSON
 metadata. `uv.lock` was resolved for CPython 3.12 and currently contains 117
 packages with SHA-256
-`8301f2b046290c4e65a8ffdacafce7844d1f8da6e414df003809e161931cccff`.
+`98e8c2b67e4d2d07a9d797cbc356b79686094fee238526b7745f049da1079e45`.
 `uv lock --check` and a frozen Python 3.12 environment both resolve the exact
 versions below. The version probe and lock check were rerun on 2026-08-24;
 the qualification results are captured by

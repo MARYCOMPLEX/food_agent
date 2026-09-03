@@ -81,11 +81,6 @@ class Settings(BaseSettings):
     postgres_user: str = "postgres"
     postgres_password: Optional[str] = None
 
-    # ---------- XHS Spider ----------
-    xhs_cookies: Optional[str] = None
-    xhs_profile_dir: Optional[str] = None
-    xhs_log_db_path: Optional[str] = None
-
     # ---------- Logging ----------
     log_level: str = "INFO"
 

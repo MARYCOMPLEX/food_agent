@@ -11,10 +11,16 @@ from urllib.parse import urlsplit
 
 from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, field_validator
 
-from .account import PlatformChannel
-
 ACCOUNT_SERVICE_CONTRACT_VERSION = "account-service/v1"
 MCP_PROTOCOL_VERSION = "2025-06-18"
+
+
+class PlatformChannel(StrEnum):
+    """Remote account-service channels with isolated account namespaces."""
+
+    DIANPING = "dianping"
+    XHS_PC = "xhs_pc"
+    XHS_CREATOR = "xhs_creator"
 
 
 class AccountServiceProtocol(StrEnum):
@@ -65,6 +71,16 @@ _SECRET_ASSIGNMENT = re.compile(
 
 class RemotePayloadRejected(ValueError):
     """Raised before a remote boundary accepts secret-shaped material."""
+
+
+class AccountServiceControlPlaneError(RuntimeError):
+    """Stable failure exposed by the remote account-service control plane."""
+
+    def __init__(self, code: str, message: str, *, status_code: int) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+        self.status_code = status_code
 
 
 def validate_remote_payload(value: object, path: str = "payload") -> None:
@@ -120,7 +136,11 @@ def _validate_version(value: str, field_name: str) -> str:
 
 
 def _validate_ref(value: str, field_name: str, *, max_length: int = 256) -> str:
-    if not value or len(value) > max_length or any(char.isspace() or ord(char) < 32 for char in value):
+    if (
+        not value
+        or len(value) > max_length
+        or any(char.isspace() or ord(char) < 32 for char in value)
+    ):
         raise ValueError(f"{field_name} must be a non-empty opaque reference")
     return value
 
@@ -359,6 +379,7 @@ class McpToolCallResult(_RemoteModel):
 __all__ = [
     "ACCOUNT_SERVICE_CONTRACT_VERSION",
     "MCP_PROTOCOL_VERSION",
+    "AccountServiceControlPlaneError",
     "AccountServiceConfig",
     "AccountServiceDescriptor",
     "AccountServiceHealth",

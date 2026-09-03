@@ -8,9 +8,9 @@ from typing import Any
 
 from xhs_food.agents.analyzer import AnalyzerAgent, AnalyzeResult
 from xhs_food.composition.adapters.food_output import LegacyFoodOutputAdapter
+from xhs_food.contracts import SearchToolPort
 from xhs_food.domain_packs.food.pack import FoodBehavior, create_food_pack
 from xhs_food.observability.metrics import xhs_notes_fetched_total
-from xhs_food.protocols.mcp import MCPToolRegistry
 from xhs_food.schemas import (
     ConversationContext,
     FoodSearchIntent,
@@ -27,7 +27,7 @@ class SearchExecutor:
     def __init__(
         self,
         *,
-        xhs_registry: MCPToolRegistry,
+        search_tool: SearchToolPort,
         analyzer: AnalyzerAgent,
         context: ConversationContext,
         deep_search: bool = False,
@@ -37,7 +37,7 @@ class SearchExecutor:
         analyze_concurrency: int = 5,
         food_pack: FoodBehavior | None = None,
     ):
-        self._xhs_registry = xhs_registry
+        self._search_tool = search_tool
         self._analyzer = analyzer
         self._context = context
         self._deep_search = deep_search
@@ -101,7 +101,7 @@ class SearchExecutor:
         """执行4阶段搜索策略，快速模式下达到 fast_mode_limit 后提前返回."""
         all_notes: list[dict[str, Any]] = []
         seen_ids: set[str] = set()
-        search_tool = self._xhs_registry.get_required("xhs_search")
+        search_tool = self._search_tool
 
         def _should_stop() -> bool:
             if self._food_pack.workflow.should_stop(
@@ -162,7 +162,7 @@ class SearchExecutor:
             note_id = note.get("id") or note.get("note_id", "")
             if note_id:
                 seen_ids.add(note_id)
-        search_tool = self._xhs_registry.get_required("xhs_search")
+        search_tool = self._search_tool
         expand_keywords = self._food_pack.workflow.expand_keywords(intent)
         for kw in expand_keywords:
             notes = await self.search_with_keyword(search_tool, kw, seen_ids)
@@ -185,7 +185,7 @@ class SearchExecutor:
             if not result.success:
                 logger.warning(f"搜索失败: {keyword} - {result.error_message}")
                 return []
-            notes = result.data.get("notes", [])
+            notes = (result.data or {}).get("notes", [])
             new_notes = []
             for note in notes:
                 note_id = note.get("id") or note.get("note_id", "")

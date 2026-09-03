@@ -466,7 +466,9 @@ async def _cancel_research_workflow(
         **config.activity_config(timeout_seconds=30),
     )
     if not isinstance(receipt, Mapping) or not bool(receipt.get("committed")):
-        raise ApplicationError("authoritative cancellation was not confirmed", type="ResultCommitRejected")
+        raise ApplicationError(
+            "authoritative cancellation was not confirmed", type="ResultCommitRejected"
+        )
     terminal_status = _receipt_terminal_status(receipt, TaskStatus.CANCELLED)
     event_id = f"{value.task_id}:{run_id}:{terminal_status.value}"
     published = await workflow.execute_activity(
@@ -518,7 +520,9 @@ async def _fail_research_workflow(
         **config.activity_config(timeout_seconds=30),
     )
     if not isinstance(receipt, Mapping) or not bool(receipt.get("committed")):
-        raise ApplicationError("authoritative failure was not confirmed", type="ResultCommitRejected")
+        raise ApplicationError(
+            "authoritative failure was not confirmed", type="ResultCommitRejected"
+        )
     terminal_status = _receipt_terminal_status(receipt, TaskStatus.FAILED)
     event_id = f"{value.task_id}:{run_id}:{terminal_status.value}"
     published = await workflow.execute_activity(
@@ -659,9 +663,7 @@ def build_pydantic_ai_research_workflow(
                 output_payload = dict(output)
             else:
                 output_payload = {"value": output}
-            result_payload = TypeAdapter(ContractPayload).validate_python(
-                {"agent": output_payload}
-            )
+            result_payload = TypeAdapter(ContractPayload).validate_python({"agent": output_payload})
             receipt = await workflow.execute_activity(
                 RESEARCH_COMMIT_ACTIVITY,
                 args=[
@@ -819,7 +821,9 @@ class ReliableResearchActivities:
             TaskStatus.CANCELLED: "task.cancelled",
         }.get(status)
         if event_type is None:
-            raise ApplicationError("terminal event requires a terminal status", type="ValidationError")
+            raise ApplicationError(
+                "terminal event requires a terminal status", type="ValidationError"
+            )
         event = TaskEvent(
             event_id=event_id,
             task_id=task_id,
@@ -876,7 +880,9 @@ class ReliableResearchActivities:
         try:
             error = ContractError.model_validate(raw_error)
         except Exception as exc:
-            raise ApplicationError("failure error has an invalid contract", type="ValidationError") from exc
+            raise ApplicationError(
+                "failure error has an invalid contract", type="ValidationError"
+            ) from exc
         receipt = await self._authority.commit_failed(
             task_id,
             workflow_id,
@@ -1323,9 +1329,7 @@ def _required_text(value: Mapping[str, Any], key: str) -> str:
     return raw
 
 
-def _receipt_terminal_status(
-    receipt: Mapping[str, Any], fallback: TaskStatus
-) -> TaskStatus:
+def _receipt_terminal_status(receipt: Mapping[str, Any], fallback: TaskStatus) -> TaskStatus:
     raw = receipt.get("terminal_status")
     if isinstance(raw, TaskStatus):
         return raw

@@ -319,7 +319,6 @@ forbidden = {
     'xhs_food.orchestrator',
     'xhs_food.schemas',
     'xhs_food.services',
-    'xhs_food.spider',
 }
 print(json.dumps(sorted(forbidden.intersection(sys.modules))))
 """
@@ -359,10 +358,8 @@ def test_contract_package_has_no_framework_sdk_database_or_domain_imports() -> N
     forbidden_xhs_modules = {
         "xhs_food.agents",
         "xhs_food.orchestrator",
-        "xhs_food.providers",
         "xhs_food.schemas",
         "xhs_food.services",
-        "xhs_food.spider",
     }
 
     violations: list[str] = []

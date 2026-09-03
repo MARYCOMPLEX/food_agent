@@ -14,7 +14,6 @@ from typing import Any, Protocol, cast
 
 import httpx
 
-from xhs_food.contracts.account import PlatformChannel
 from xhs_food.contracts.account_service import (
     ACCOUNT_SERVICE_CONTRACT_VERSION,
     MCP_PROTOCOL_VERSION,
@@ -22,6 +21,7 @@ from xhs_food.contracts.account_service import (
     AccountServiceDescriptor,
     McpToolCallResult,
     McpToolDescriptor,
+    PlatformChannel,
     RemoteAccountProjection,
     RemoteErrorCategory,
     RemoteErrorEnvelope,
@@ -142,7 +142,9 @@ def _data(body: object) -> object:
     return body
 
 
-def _ensure_mapping(value: object, *, service_id: str, capability: str | None = None) -> Mapping[str, Any]:
+def _ensure_mapping(
+    value: object, *, service_id: str, capability: str | None = None
+) -> Mapping[str, Any]:
     if not isinstance(value, Mapping):
         raise RemoteAccountServiceError(
             RemoteErrorCategory.INVALID,
@@ -167,7 +169,10 @@ class HttpAccountServiceClient:
         self._client = client or httpx.AsyncClient(
             base_url=str(config.base_url).rstrip("/"),
             timeout=httpx.Timeout(config.timeout_seconds),
-            headers={"Accept": "application/json", "X-Account-Service-Contract": ACCOUNT_SERVICE_CONTRACT_VERSION},
+            headers={
+                "Accept": "application/json",
+                "X-Account-Service-Contract": ACCOUNT_SERVICE_CONTRACT_VERSION,
+            },
         )
         self._owns_client = client is None
         self._auth_headers = auth_headers
@@ -242,7 +247,8 @@ class HttpAccountServiceClient:
                 service_id=self.config.service_id,
                 status_code=response.status_code,
                 capability=capability,
-                retryable=category in {RemoteErrorCategory.TIMEOUT, RemoteErrorCategory.RATE_LIMITED},
+                retryable=category
+                in {RemoteErrorCategory.TIMEOUT, RemoteErrorCategory.RATE_LIMITED},
             )
         try:
             body = response.json()
@@ -269,7 +275,9 @@ class HttpAccountServiceClient:
         return sanitized
 
     async def capabilities(self) -> AccountServiceDescriptor:
-        body = _ensure_mapping(await self._request("GET", "/v1/capabilities"), service_id=self.config.service_id)
+        body = _ensure_mapping(
+            await self._request("GET", "/v1/capabilities"), service_id=self.config.service_id
+        )
         payload = _ensure_mapping(_data(body), service_id=self.config.service_id)
         try:
             descriptor = AccountServiceDescriptor.model_validate(payload)
@@ -329,13 +337,22 @@ class HttpAccountServiceClient:
         body = await self._request(
             "POST",
             "/v1/accounts",
-            json={"tenant_ref": tenant_ref, "platform": platform.value, "account_ref": account_ref, "alias": alias},
+            json={
+                "tenant_ref": tenant_ref,
+                "platform": platform.value,
+                "account_ref": account_ref,
+                "alias": alias,
+            },
             idempotency_key=idempotency_key,
             capability="account.register",
         )
-        return RemoteAccountProjection.model_validate(_ensure_mapping(_data(body), service_id=self.config.service_id))
+        return RemoteAccountProjection.model_validate(
+            _ensure_mapping(_data(body), service_id=self.config.service_id)
+        )
 
-    async def account(self, *, platform: PlatformChannel, account_ref: str, tenant_ref: str) -> RemoteAccountProjection:
+    async def account(
+        self, *, platform: PlatformChannel, account_ref: str, tenant_ref: str
+    ) -> RemoteAccountProjection:
         self._check_channel(platform)
         body = await self._request(
             "GET",
@@ -343,7 +360,9 @@ class HttpAccountServiceClient:
             params={"tenant_ref": tenant_ref},
             capability="account.read",
         )
-        return RemoteAccountProjection.model_validate(_ensure_mapping(_data(body), service_id=self.config.service_id))
+        return RemoteAccountProjection.model_validate(
+            _ensure_mapping(_data(body), service_id=self.config.service_id)
+        )
 
     async def start_qr_login(
         self,
@@ -361,7 +380,9 @@ class HttpAccountServiceClient:
             idempotency_key=idempotency_key,
             capability="account.login",
         )
-        return RemoteLoginFlowProjection.model_validate(_ensure_mapping(_data(body), service_id=self.config.service_id))
+        return RemoteLoginFlowProjection.model_validate(
+            _ensure_mapping(_data(body), service_id=self.config.service_id)
+        )
 
     async def start_login(
         self,
@@ -384,7 +405,9 @@ class HttpAccountServiceClient:
             idempotency_key=idempotency_key,
             capability="account.login",
         )
-        return RemoteLoginFlowProjection.model_validate(_ensure_mapping(_data(body), service_id=self.config.service_id))
+        return RemoteLoginFlowProjection.model_validate(
+            _ensure_mapping(_data(body), service_id=self.config.service_id)
+        )
 
     async def flow_status(self, *, flow_id: str, tenant_ref: str) -> RemoteLoginFlowProjection:
         body = await self._request(
@@ -393,7 +416,9 @@ class HttpAccountServiceClient:
             params={"tenant_ref": tenant_ref},
             capability="account.login",
         )
-        return RemoteLoginFlowProjection.model_validate(_ensure_mapping(_data(body), service_id=self.config.service_id))
+        return RemoteLoginFlowProjection.model_validate(
+            _ensure_mapping(_data(body), service_id=self.config.service_id)
+        )
 
     async def qr_presentation(self, *, flow_id: str, tenant_ref: str) -> RemoteQrPresentation:
         body = await self._request(
@@ -402,9 +427,13 @@ class HttpAccountServiceClient:
             params={"tenant_ref": tenant_ref},
             capability="account.login",
         )
-        return RemoteQrPresentation.model_validate(_ensure_mapping(_data(body), service_id=self.config.service_id))
+        return RemoteQrPresentation.model_validate(
+            _ensure_mapping(_data(body), service_id=self.config.service_id)
+        )
 
-    async def poll_login(self, *, flow_id: str, tenant_ref: str, idempotency_key: str | None = None) -> RemoteLoginFlowProjection:
+    async def poll_login(
+        self, *, flow_id: str, tenant_ref: str, idempotency_key: str | None = None
+    ) -> RemoteLoginFlowProjection:
         body = await self._request(
             "POST",
             f"/v1/login/{flow_id}/poll",
@@ -412,14 +441,22 @@ class HttpAccountServiceClient:
             idempotency_key=idempotency_key,
             capability="account.login",
         )
-        return RemoteLoginFlowProjection.model_validate(_ensure_mapping(_data(body), service_id=self.config.service_id))
+        return RemoteLoginFlowProjection.model_validate(
+            _ensure_mapping(_data(body), service_id=self.config.service_id)
+        )
 
-    async def cancel_login(self, *, flow_id: str, tenant_ref: str, reason: str | None = None) -> RemoteLoginFlowProjection:
+    async def cancel_login(
+        self, *, flow_id: str, tenant_ref: str, reason: str | None = None
+    ) -> RemoteLoginFlowProjection:
         payload: dict[str, object] = {"tenant_ref": tenant_ref}
         if reason:
             payload["reason"] = reason
-        body = await self._request("POST", f"/v1/login/{flow_id}/cancel", json=payload, capability="account.login")
-        return RemoteLoginFlowProjection.model_validate(_ensure_mapping(_data(body), service_id=self.config.service_id))
+        body = await self._request(
+            "POST", f"/v1/login/{flow_id}/cancel", json=payload, capability="account.login"
+        )
+        return RemoteLoginFlowProjection.model_validate(
+            _ensure_mapping(_data(body), service_id=self.config.service_id)
+        )
 
     async def invoke(self, request: RemoteSourceInvocation) -> object:
         if request.service_id != self.config.service_id:
@@ -599,19 +636,55 @@ class McpAccountServiceClient:
                 for item in allowed
             ):
                 continue
-            if descriptor.side_effect not in {RemoteSideEffect.READ_ONLY, RemoteSideEffect.ACCOUNT_LOGIN}:
+            if descriptor.side_effect not in {
+                RemoteSideEffect.READ_ONLY,
+                RemoteSideEffect.ACCOUNT_LOGIN,
+            }:
                 continue
             accepted[descriptor.name] = descriptor
         self._tools = accepted
         return tuple(accepted.values())
 
-    async def call_tool(self, name: str, arguments: Mapping[str, Any] | None = None) -> McpToolCallResult:
-        descriptor = self._tools.get(name)
+    async def call_tool(
+        self,
+        name: str,
+        arguments: Mapping[str, Any] | None = None,
+        *,
+        approved_descriptor: McpToolDescriptor | None = None,
+    ) -> McpToolCallResult:
+        descriptor = approved_descriptor or self._tools.get(name)
         if descriptor is None:
             raise RemoteAccountServiceError(
                 RemoteErrorCategory.AUTHORIZATION,
                 "MCP tool is not allow-listed",
                 service_id=self.config.service_id,
+            )
+        if descriptor.name != name:
+            raise RemoteAccountServiceError(
+                RemoteErrorCategory.AUTHORIZATION,
+                "approved MCP descriptor does not match the requested tool",
+                service_id=self.config.service_id,
+            )
+        allowed = set(self.config.capabilities)
+        if allowed and not any(
+            descriptor.capability == item or descriptor.capability.startswith(item + ".")
+            for item in allowed
+        ):
+            raise RemoteAccountServiceError(
+                RemoteErrorCategory.AUTHORIZATION,
+                "MCP capability is not configured for this service",
+                service_id=self.config.service_id,
+                capability=descriptor.capability,
+            )
+        if descriptor.side_effect not in {
+            RemoteSideEffect.READ_ONLY,
+            RemoteSideEffect.ACCOUNT_LOGIN,
+        }:
+            raise RemoteAccountServiceError(
+                RemoteErrorCategory.AUTHORIZATION,
+                "MCP tool side effect is not allowed",
+                service_id=self.config.service_id,
+                capability=descriptor.capability,
             )
         args = dict(arguments or {})
         try:
@@ -624,8 +697,12 @@ class McpAccountServiceClient:
                 capability=descriptor.capability,
             ) from exc
         result = await self._rpc("tools/call", {"name": name, "arguments": args})
-        content = sanitize_remote_payload(result.get("content", result))
-        return McpToolCallResult(tool_name=name, is_error=bool(result.get("isError", False)), content=content)
+        content = sanitize_remote_payload(
+            result.get("structuredContent", result.get("content", result))
+        )
+        return McpToolCallResult(
+            tool_name=name, is_error=bool(result.get("isError", False)), content=content
+        )
 
     async def aclose(self) -> None:
         if self._closed:

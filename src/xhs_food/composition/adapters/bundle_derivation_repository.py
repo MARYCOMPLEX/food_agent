@@ -22,18 +22,22 @@ class SQLAlchemyBundleDerivationRepository(BundleDerivationRepository):
 
     async def save_candidate_derivation(self, derivation: BundleDerivation) -> None:
         index = derivation.index.model_dump(mode="json")
-        statement = insert(bundle_derivations).values(
-            bundle_id=derivation.bundle_id,
-            family_id=derivation.family_id,
-            bundle_version=derivation.bundle_version,
-            profile_id=derivation.profile.profile_id,
-            profile_version=derivation.profile.model_version,
-            features=derivation.features,
-            public_scores=derivation.public_scores,
-            index_metadata=index,
-            content_hash=derivation.content_hash,
-            created_at=datetime.now(UTC),
-        ).on_conflict_do_nothing(index_elements=[bundle_derivations.c.bundle_id])
+        statement = (
+            insert(bundle_derivations)
+            .values(
+                bundle_id=derivation.bundle_id,
+                family_id=derivation.family_id,
+                bundle_version=derivation.bundle_version,
+                profile_id=derivation.profile.profile_id,
+                profile_version=derivation.profile.model_version,
+                features=derivation.features,
+                public_scores=derivation.public_scores,
+                index_metadata=index,
+                content_hash=derivation.content_hash,
+                created_at=datetime.now(UTC),
+            )
+            .on_conflict_do_nothing(index_elements=[bundle_derivations.c.bundle_id])
+        )
         async with self._unit_of_work_factory() as unit:
             await unit.session_for_adapter().execute(statement)
             await unit.commit()

@@ -73,10 +73,14 @@ class SQLAlchemyQueryFamilyRepository:
         )
         async with self._unit_of_work_factory() as unit:
             rows = (
-                await unit.session_for_adapter().execute(
-                    statement, {"alias_text": alias_text, "limit": limit}
+                (
+                    await unit.session_for_adapter().execute(
+                        statement, {"alias_text": alias_text, "limit": limit}
+                    )
                 )
-            ).mappings().all()
+                .mappings()
+                .all()
+            )
         return tuple(
             QueryFamilyMatch(
                 family_id=str(row["family_id"]),
@@ -110,11 +114,15 @@ class SQLAlchemyQueryFamilyRepository:
         )
         async with self._unit_of_work_factory() as unit:
             rows = (
-                await unit.session_for_adapter().execute(
-                    statement,
-                    {"vector": vector_text, "profile_id": profile.profile_id, "limit": limit},
+                (
+                    await unit.session_for_adapter().execute(
+                        statement,
+                        {"vector": vector_text, "profile_id": profile.profile_id, "limit": limit},
+                    )
                 )
-            ).mappings().all()
+                .mappings()
+                .all()
+            )
         return tuple(
             QueryFamilyMatch(
                 family_id=str(row["family_id"]),
@@ -129,20 +137,26 @@ class SQLAlchemyQueryFamilyRepository:
             for row in rows
         )
 
-    async def save_alias(self, match: QueryFamilyMatch, alias_text: str, *, language: str, region: str) -> None:
+    async def save_alias(
+        self, match: QueryFamilyMatch, alias_text: str, *, language: str, region: str
+    ) -> None:
         if match.layer is QueryMatchLayer.VECTOR:
             raise ValueError("vector matches cannot create alias ownership")
         alias_id = _alias_id(match.family_id, alias_text, language, region)
-        statement = insert(query_family_aliases).values(
-            alias_id=alias_id,
-            family_id=match.family_id,
-            canonical_key=match.canonical_key,
-            alias_text=alias_text,
-            language=language,
-            region=region,
-            rule_version=match.rule_version,
-            created_at=datetime.now(UTC),
-        ).on_conflict_do_nothing(index_elements=[query_family_aliases.c.alias_id])
+        statement = (
+            insert(query_family_aliases)
+            .values(
+                alias_id=alias_id,
+                family_id=match.family_id,
+                canonical_key=match.canonical_key,
+                alias_text=alias_text,
+                language=language,
+                region=region,
+                rule_version=match.rule_version,
+                created_at=datetime.now(UTC),
+            )
+            .on_conflict_do_nothing(index_elements=[query_family_aliases.c.alias_id])
+        )
         async with self._unit_of_work_factory() as unit:
             await unit.session_for_adapter().execute(statement)
             await unit.commit()
@@ -165,24 +179,28 @@ class SQLAlchemyQueryFamilyRepository:
         )
 
     async def save_freshness(self, state: FreshnessInput) -> None:
-        statement = insert(query_family_freshness).values(
-            family_id=state.family_id,
-            bundle_version=state.bundle_version,
-            verified_at=state.verified_at,
-            coverage=state.coverage,
-            watermarks=state.watermarks,
-            active_refresh_workflow_id=state.active_refresh_workflow_id,
-            updated_at=datetime.now(UTC),
-        ).on_conflict_do_update(
-            index_elements=[query_family_freshness.c.family_id],
-            set_={
-                "bundle_version": state.bundle_version,
-                "verified_at": state.verified_at,
-                "coverage": state.coverage,
-                "watermarks": state.watermarks,
-                "active_refresh_workflow_id": state.active_refresh_workflow_id,
-                "updated_at": datetime.now(UTC),
-            },
+        statement = (
+            insert(query_family_freshness)
+            .values(
+                family_id=state.family_id,
+                bundle_version=state.bundle_version,
+                verified_at=state.verified_at,
+                coverage=state.coverage,
+                watermarks=state.watermarks,
+                active_refresh_workflow_id=state.active_refresh_workflow_id,
+                updated_at=datetime.now(UTC),
+            )
+            .on_conflict_do_update(
+                index_elements=[query_family_freshness.c.family_id],
+                set_={
+                    "bundle_version": state.bundle_version,
+                    "verified_at": state.verified_at,
+                    "coverage": state.coverage,
+                    "watermarks": state.watermarks,
+                    "active_refresh_workflow_id": state.active_refresh_workflow_id,
+                    "updated_at": datetime.now(UTC),
+                },
+            )
         )
         async with self._unit_of_work_factory() as unit:
             await unit.session_for_adapter().execute(statement)
@@ -195,16 +213,20 @@ class SQLAlchemyQueryFamilyRepository:
             json.dumps(key.scope, separators=(",", ":")).encode("utf-8")
         ).hexdigest()
         now = datetime.now(UTC)
-        statement = insert(query_refresh_claims).values(
-            claim_key=claim_key,
-            family_id=key.family_id,
-            scope_hash=scope_hash,
-            policy_version=key.policy_version,
-            workflow_id=workflow_id,
-            status="active",
-            created_at=now,
-            updated_at=now,
-        ).on_conflict_do_nothing(index_elements=[query_refresh_claims.c.claim_key])
+        statement = (
+            insert(query_refresh_claims)
+            .values(
+                claim_key=claim_key,
+                family_id=key.family_id,
+                scope_hash=scope_hash,
+                policy_version=key.policy_version,
+                workflow_id=workflow_id,
+                status="active",
+                created_at=now,
+                updated_at=now,
+            )
+            .on_conflict_do_nothing(index_elements=[query_refresh_claims.c.claim_key])
+        )
         select_statement = select(query_refresh_claims).where(
             query_refresh_claims.c.claim_key == claim_key
         )
@@ -233,25 +255,37 @@ class SQLAlchemyQueryFamilyRepository:
         async with self._unit_of_work_factory() as unit:
             session = unit.session_for_adapter()
             if expected_bundle_version is None:
-                statement = insert(evidence_bundle_current).values(
-                    family_id=family_id,
-                    bundle_id=bundle_id,
-                    bundle_version=bundle_version,
-                    updated_at=now,
-                ).on_conflict_do_nothing(index_elements=[evidence_bundle_current.c.family_id])
+                statement = (
+                    insert(evidence_bundle_current)
+                    .values(
+                        family_id=family_id,
+                        bundle_id=bundle_id,
+                        bundle_version=bundle_version,
+                        updated_at=now,
+                    )
+                    .on_conflict_do_nothing(index_elements=[evidence_bundle_current.c.family_id])
+                )
                 result = await session.execute(statement)
                 if _rowcount(result) == 1:
                     await unit.commit()
                     return True
                 row = (
-                    await session.execute(
-                        select(evidence_bundle_current).where(
-                            evidence_bundle_current.c.family_id == family_id
+                    (
+                        await session.execute(
+                            select(evidence_bundle_current).where(
+                                evidence_bundle_current.c.family_id == family_id
+                            )
                         )
                     )
-                ).mappings().first()
+                    .mappings()
+                    .first()
+                )
                 await unit.rollback()
-                return bool(row and row["bundle_id"] == bundle_id and row["bundle_version"] == bundle_version)
+                return bool(
+                    row
+                    and row["bundle_id"] == bundle_id
+                    and row["bundle_version"] == bundle_version
+                )
 
             statement = (
                 update(evidence_bundle_current)
@@ -294,24 +328,32 @@ class SQLAlchemyQueryFamilyRepository:
         async with self._unit_of_work_factory() as unit:
             session = unit.session_for_adapter()
             profile_row = (
-                await session.execute(
-                    select(embedding_profile_read_pointer)
-                    .where(embedding_profile_read_pointer.c.pointer_key == "canonical_query")
-                    .with_for_update()
+                (
+                    await session.execute(
+                        select(embedding_profile_read_pointer)
+                        .where(embedding_profile_read_pointer.c.pointer_key == "canonical_query")
+                        .with_for_update()
+                    )
                 )
-            ).mappings().first()
+                .mappings()
+                .first()
+            )
             current_profile_id = str(profile_row["profile_id"]) if profile_row else None
             if current_profile_id != expected_profile_id:
                 await unit.rollback()
                 return False
 
             bundle_row = (
-                await session.execute(
-                    select(evidence_bundle_current)
-                    .where(evidence_bundle_current.c.family_id == family_id)
-                    .with_for_update()
+                (
+                    await session.execute(
+                        select(evidence_bundle_current)
+                        .where(evidence_bundle_current.c.family_id == family_id)
+                        .with_for_update()
+                    )
                 )
-            ).mappings().first()
+                .mappings()
+                .first()
+            )
             current_version = int(bundle_row["bundle_version"]) if bundle_row else None
             if current_version != expected_bundle_version:
                 await unit.rollback()

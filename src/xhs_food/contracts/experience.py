@@ -6,6 +6,7 @@ from typing import Protocol, runtime_checkable
 
 from pydantic import ConfigDict, Field
 
+from .agent import AgentToolExecutionContext
 from .base import ContractModel, ContractPayload, NonEmptyStr, VersionedContract
 from .tasks import ResearchOperation, ResearchRequest, ResearchTask
 
@@ -74,9 +75,20 @@ class ResearchTaskAdmission(VersionedContract):
 class ResearchTaskPort(Protocol):
     """Single use-case boundary consumed by the current search routes."""
 
-    async def start_new(self, query: str) -> ResearchTaskAdmission: ...
+    async def start_new(
+        self,
+        query: str,
+        *,
+        tool_context: AgentToolExecutionContext | None = None,
+    ) -> ResearchTaskAdmission: ...
 
-    async def refine(self, session_id: str, query: str) -> ResearchTaskAdmission: ...
+    async def refine(
+        self,
+        session_id: str,
+        query: str,
+        *,
+        tool_context: AgentToolExecutionContext | None = None,
+    ) -> ResearchTaskAdmission: ...
 
     async def recover(self, session_id: str) -> ContractPayload: ...
 

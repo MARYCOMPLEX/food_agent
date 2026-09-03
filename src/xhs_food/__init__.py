@@ -5,17 +5,8 @@
 - IntentParserAgent: 用户意图解析
 - AnalyzerAgent: 内容分析（网红店判断）
 
-使用示例:
-    from xhs_food import XHSFoodOrchestrator
-    from xhs_food.di import get_xhs_tool_registry
-    
-    orchestrator = XHSFoodOrchestrator(
-        xhs_registry=get_xhs_tool_registry()
-    )
-    result = await orchestrator.process(
-        "搜索自贡本地人经常吃的地道老店，不要网红店"
-    )
-    print(result.to_markdown_table())
+Food search receives its only source tool from the managed account-service MCP
+catalog at the application Composition Root.
 """
 
 # pyright: reportUnsupportedDunderAll=false

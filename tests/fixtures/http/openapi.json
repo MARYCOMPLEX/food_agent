@@ -153,7 +153,7 @@
       "HistoryAddRequest": {
         "description": "POST /v1/history 请求体.",
         "properties": {
-          "location": {
+    "location": {
             "anyOf": [
               {
                 "type": "string"
@@ -379,9 +379,33 @@
                 "type": "null"
               }
             ],
-            "description": "位置坐标 {lat, lng}",
-            "title": "Location"
-          },
+      "description": "位置坐标 {lat, lng}",
+      "title": "Location"
+    },
+    "platforms": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array",
+      "title": "Platforms",
+      "description": "本次允许使用的 MCP 平台"
+    },
+    "accountRefs": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": "object",
+      "title": "Accountrefs",
+      "description": "按平台选择的账户引用，不包含凭据"
+    },
+    "expectedSessionVersions": {
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "type": "object",
+      "title": "Expectedsessionversions",
+      "description": "按平台固定的账户会话版本"
+    },
           "query": {
             "anyOf": [
               {
@@ -644,6 +668,72 @@
               "application/json": {
                 "schema": {
                   "title": "Response List Account Service Tools V1 Platform Account Services  Platform  Tools Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/platform/agent-tools/catalog": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Agent Tool Catalog",
+        "description": "Return the policy-filtered, account-free Agent tool projection.",
+        "operationId": "agent_tool_catalog_v1_platform_agent_tools_catalog_get",
+        "parameters": [
+          {
+            "name": "X-User-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Id"
+            }
+          },
+          {
+            "name": "X-Device-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Device-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Agent Tool Catalog V1 Platform Agent Tools Catalog Get"
                 }
               }
             }
