@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Mapping
 from copy import deepcopy
 from typing import TYPE_CHECKING, Any
 
@@ -122,7 +123,7 @@ class XHSFoodOrchestrator:
     async def search_stream(
         self,
         user_input: str,
-        emitter: "SearchEventEmitter",
+        emitter: SearchEventEmitter,
         *,
         tool_context: AgentToolExecutionContext | None = None,
     ) -> None:
@@ -131,11 +132,16 @@ class XHSFoodOrchestrator:
         started = time.perf_counter()
         outcome = "error"
         try:
+            async def progress_sink(payload: Mapping[str, Any]) -> None:
+                kind = str(payload.get("kind", "progress"))
+                await emitter.emit_progress(kind, dict(payload))
+
             await emitter.step_start("step1", "结合完整会话解析研究意图...")
             execution = await self._workflow.execute(
                 user_input,
                 self._context,
                 tool_context=tool_context,
+                progress_sink=progress_sink,
             )
             response = execution.response
             if execution.intent is not None:

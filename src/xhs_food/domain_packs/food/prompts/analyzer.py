@@ -184,10 +184,13 @@ COMMENT_ANALYSIS_SYSTEM_PROMPT = """你是评论语义分析专家。针对每�
    - false: 其他
 
 4. **mentioned_shops**: 评论中提到的店铺名列表
+5. **mentioned_dishes**: 评论中明确提到的菜品名列表（没有则为空数组）
+6. **claims**: 可被原评论直接支持的事实或争议断言列表。每项可为字符串，或
+   `{"text": "...", "kind": "..."}`。不要推测评论没有表达的内容。
 
 ## 输出格式
 严格 JSON，无其他文字：
-{"results": [{"id": "c0", "identity": "strong", "sentiment": "positive", "is_correction": false, "mentioned_shops": ["店名1"]}, ...]}
+{"results": [{"id": "c0", "identity": "strong", "sentiment": "positive", "is_correction": false, "mentioned_shops": ["店名1"], "mentioned_dishes": ["菜品1"], "claims": [{"text": "从小吃到大", "kind": "local_signal"}]}, ...]}
 """
 
 COMMENT_ANALYSIS_USER_PROMPT = """请分析以下评论列表：

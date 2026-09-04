@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-09-04
+goal: Improve research latency and resilience without introducing multiple
+  Agents or losing raw comment evidence.

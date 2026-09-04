@@ -146,13 +146,35 @@ class CanonicalCommentEvidenceAdapter:
 
 
 class EvidenceRecord:
-    """Stable response reference paired with its lossless comment DTO."""
+    """Stable response reference paired with every observed comment version.
 
-    __slots__ = ("ref", "evidence")
+    The current ``evidence`` value is the latest provider observation.  The
+    additive ``occurrences`` and ``versions`` collections make an update to a
+    provider row observable without allowing duplicate rows to inflate the
+    analysis score.  ``occurrences`` intentionally includes byte-for-byte
+    repeats; a replay is still useful when auditing the provider response.
+    """
 
-    def __init__(self, ref: str, evidence: CommentEvidence) -> None:
+    __slots__ = ("ref", "evidence", "occurrences", "versions")
+
+    def __init__(
+        self,
+        ref: str,
+        evidence: CommentEvidence,
+        *,
+        occurrences: Sequence[CommentEvidence] | None = None,
+        versions: Sequence[CommentEvidence] | None = None,
+    ) -> None:
         self.ref = ref
         self.evidence = evidence
+        self.occurrences = list(occurrences or (evidence,))
+        self.versions = list(versions or (evidence,))
+
+    @property
+    def history(self) -> tuple[CommentEvidence, ...]:
+        """All distinct versions before the current one, in observation order."""
+
+        return tuple(self.versions[:-1])
 
 
 class EvidenceLedger:
@@ -168,6 +190,9 @@ class EvidenceLedger:
         self._lifecycle = lifecycle or CanonicalCommentEvidenceAdapter()
         self._records: dict[str, EvidenceRecord] = {}
         self._written_note_signatures: set[str] = set()
+        # A failed sink write must be retryable, while a successful replay of
+        # the same version must remain idempotent.
+        self._delivered_signatures: set[tuple[str, str]] = set()
         self._lifecycle_errors: list[Mapping[str, Any]] = []
 
     @property
@@ -199,12 +224,25 @@ class EvidenceLedger:
         refs: list[str] = []
         for evidence in note.comments:
             ref = evidence_ref(evidence)
-            if ref not in self._records:
-                self._records[ref] = EvidenceRecord(ref=ref, evidence=evidence)
-                if self._sink is not None:
-                    result = self._sink(evidence)
-                    if inspect.isawaitable(result):
-                        await result
+            signature = _evidence_signature(evidence)
+            record = self._records.get(ref)
+            if record is None:
+                record = EvidenceRecord(ref=ref, evidence=evidence)
+                self._records[ref] = record
+            else:
+                # Keep every raw occurrence, but only add a new semantic
+                # version when the provider payload actually changed.
+                record.occurrences.append(evidence)
+                if _evidence_signature(record.evidence) != signature:
+                    record.evidence = evidence
+                    record.versions.append(evidence)
+
+            delivery_key = (ref, signature)
+            if self._sink is not None and delivery_key not in self._delivered_signatures:
+                result = self._sink(evidence)
+                if inspect.isawaitable(result):
+                    await result
+                self._delivered_signatures.add(delivery_key)
             refs.append(ref)
         return tuple(dict.fromkeys(refs))
 
@@ -223,20 +261,14 @@ class EvidenceLedger:
 
         return tuple(
             {
+                **_export_evidence(item.evidence),
                 "ref": item.ref,
-                "source": item.evidence.source,
-                "note_id": item.evidence.note_id,
-                "comment_id": item.evidence.comment_id,
-                "text": item.evidence.text,
-                "author": dict(item.evidence.author),
-                "likes": item.evidence.likes,
-                "replies": item.evidence.replies,
-                "created_at": item.evidence.created_at.isoformat()
-                if item.evidence.created_at
-                else None,
-                "raw_payload": item.evidence.raw_payload,
-                "provenance": dict(item.evidence.provenance),
-                "metadata": dict(item.evidence.metadata),
+                # ``versions`` is the semantic update history; ``occurrences``
+                # is the complete lossless replay stream, including repeats.
+                "versions": [_export_evidence(value) for value in item.versions],
+                "occurrences": [
+                    _export_evidence(value) for value in item.occurrences
+                ],
             }
             for item in self._records.values()
         )
@@ -244,6 +276,39 @@ class EvidenceLedger:
 
 def evidence_ref(evidence: CommentEvidence) -> str:
     return f"{evidence.source}:note:{evidence.note_id}:comment:{evidence.comment_id}"
+
+
+def _evidence_signature(evidence: CommentEvidence) -> str:
+    """Fingerprint the complete typed/raw observation for update detection."""
+
+    encoded = json.dumps(
+        evidence.model_dump(mode="json"),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    )
+    return hashlib.sha256(encoded.encode()).hexdigest()
+
+
+def _export_evidence(evidence: CommentEvidence) -> dict[str, Any]:
+    """Serialize one version without dropping opaque provider fields."""
+
+    return {
+        "source": evidence.source,
+        "note_id": evidence.note_id,
+        "comment_id": evidence.comment_id,
+        "text": evidence.text,
+        "author": dict(evidence.author),
+        "likes": evidence.likes,
+        "replies": evidence.replies,
+        "created_at": evidence.created_at.isoformat()
+        if evidence.created_at
+        else None,
+        "raw_payload": evidence.raw_payload,
+        "provenance": dict(evidence.provenance),
+        "metadata": dict(evidence.metadata),
+    }
 
 
 def _default_shadow_policy() -> EvidenceShadowPolicy:

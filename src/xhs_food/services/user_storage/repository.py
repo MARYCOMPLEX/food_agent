@@ -1,10 +1,9 @@
-# -*- coding: utf-8 -*-
 """Database repository operations for restaurants, favorites, and search history."""
 from __future__ import annotations
 
 import json
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from loguru import logger
 
@@ -20,6 +19,18 @@ def _first_present(data: dict[str, Any], *keys: str) -> Any:
     return None
 
 
+def _normalise_restaurant_name(value: Any) -> str:
+    return "".join(character for character in str(value or "").casefold() if character.isalnum())
+
+
+def _normalise_provider_name(value: Any) -> str:
+    return str(value or "").strip().casefold()
+
+
+def _normalise_provider_ref(value: Any) -> str:
+    return str(value).strip() if value not in (None, "") else ""
+
+
 class RepositoryMixin:
     """Mixin: restaurant CRUD, favorites CRUD, and search history operations.
 
@@ -27,7 +38,7 @@ class RepositoryMixin:
     _row_to_restaurant, _row_to_history, _row_to_favorite_with_restaurant.
     """
 
-    async def upsert_restaurant(self, restaurant_data: Dict[str, Any]) -> Optional[Restaurant]:
+    async def upsert_restaurant(self, restaurant_data: dict[str, Any]) -> Restaurant | None:
         """Insert or update a restaurant."""
         if not self._initialized or not self._pool:
             return None
@@ -62,7 +73,7 @@ class RepositoryMixin:
                         $39, $40, $41, $42, $43, $44
                     )
                     ON CONFLICT (id) DO UPDATE SET
-                        name = EXCLUDED.name, alias = EXCLUDED.alias,
+                        name = EXCLUDED.name, alias = COALESCE(EXCLUDED.alias, restaurants.alias),
                         tel = COALESCE(EXCLUDED.tel, restaurants.tel),
                         address = COALESCE(EXCLUDED.address, restaurants.address),
                         city = COALESCE(EXCLUDED.city, restaurants.city),
@@ -153,7 +164,7 @@ class RepositoryMixin:
             logger.error(f"upsert_restaurant failed: {e}")
             return None
 
-    async def get_restaurant(self, restaurant_id: str) -> Optional[Restaurant]:
+    async def get_restaurant(self, restaurant_id: str) -> Restaurant | None:
         """Get a restaurant by ID."""
         if not self._initialized or not self._pool:
             return None
@@ -172,29 +183,69 @@ class RepositoryMixin:
         pool = getattr(self, "_pool", None)
         if not initialized or pool is None:
             return None
+        normalized_name = _normalise_restaurant_name(name)
+        if not normalized_name:
+            return None
         try:
             async with pool.acquire() as conn:
-                row = await conn.fetchrow(
-                    "SELECT * FROM restaurants WHERE name = $1 LIMIT 1",
-                    name,
-                )
-                if row is None:
-                    row = await conn.fetchrow(
-                        """
-                        SELECT * FROM restaurants
-                        WHERE name ILIKE $1 OR name ILIKE $2
-                        ORDER BY updated_at DESC NULLS LAST
-                        LIMIT 1
-                        """,
-                        f"{name}%",
-                        f"%{name}",
-                    )
-                return dict(row) if row else None
+                query = """
+                    SELECT * FROM restaurants
+                    WHERE regexp_replace(lower(name), '[^[:alnum:]]', '', 'g') = $1
+                    ORDER BY updated_at DESC NULLS LAST
+                """
+                fetch = getattr(conn, "fetch", None)
+                if callable(fetch):
+                    rows = await fetch(query, normalized_name)
+                else:
+                    row = await conn.fetchrow(f"{query} LIMIT 2", normalized_name)
+                    rows = [row] if row is not None else []
+                matches = [
+                    row
+                    for row in rows
+                    if _normalise_restaurant_name(row.get("name")) == normalized_name
+                ]
+                return dict(matches[0]) if len(matches) == 1 else None
         except Exception as exc:
             logger.debug(f"get_cached_restaurant_by_name failed: {exc}")
             return None
 
-    async def get_favorites(self, user_id: str) -> List[Favorite]:
+    async def get_cached_restaurant_by_provider_ref(
+        self,
+        provider: str,
+        provider_ref: str,
+    ) -> dict[str, Any] | None:
+        """Return one shop profile by its immutable provider identity.
+
+        Provider references are stored as JSONB so a provider id remains the
+        durable identity even when a shop changes its display name, phone, or
+        address.  The query intentionally does not fall back to a fuzzy name
+        match: a same-name branch must never be treated as the same shop.
+        """
+
+        initialized = bool(getattr(self, "_initialized", False))
+        pool = getattr(self, "_pool", None)
+        provider = _normalise_provider_name(provider)
+        provider_ref = _normalise_provider_ref(provider_ref)
+        if not initialized or pool is None or not provider or not provider_ref:
+            return None
+        try:
+            async with pool.acquire() as conn:
+                row = await conn.fetchrow(
+                    """
+                    SELECT * FROM restaurants
+                    WHERE btrim(provider_refs ->> $1) = $2
+                    ORDER BY updated_at DESC NULLS LAST
+                    LIMIT 1
+                    """,
+                    provider,
+                    provider_ref,
+                )
+                return dict(row) if row else None
+        except Exception as exc:
+            logger.debug(f"get_cached_restaurant_by_provider_ref failed: {exc}")
+            return None
+
+    async def get_favorites(self, user_id: str) -> list[Favorite]:
         """Get all favorites for a user with full restaurant details."""
         if not self._initialized or not self._pool:
             return []
@@ -223,7 +274,7 @@ class RepositoryMixin:
             logger.error(f"get_favorites failed: {e}")
             return []
 
-    async def add_favorite(self, user_id: str, restaurant_id: str) -> Optional[Favorite]:
+    async def add_favorite(self, user_id: str, restaurant_id: str) -> Favorite | None:
         """Add a restaurant to favorites."""
         if not self._initialized or not self._pool:
             return None
@@ -281,7 +332,7 @@ class RepositoryMixin:
             logger.error(f"check_favorite failed: {e}")
             return False
 
-    async def get_history(self, user_id: str, limit: int = 20, offset: int = 0) -> List[SearchHistory]:
+    async def get_history(self, user_id: str, limit: int = 20, offset: int = 0) -> list[SearchHistory]:
         """Get search history for a user."""
         if not self._initialized or not self._pool:
             return []
@@ -311,9 +362,9 @@ class RepositoryMixin:
             return 0
 
     async def add_history(
-        self, user_id: str, query: str, session_id: Optional[str] = None,
-        status: str = "loading", results_count: int = 0, location: Optional[str] = None,
-    ) -> Optional[SearchHistory]:
+        self, user_id: str, query: str, session_id: str | None = None,
+        status: str = "loading", results_count: int = 0, location: str | None = None,
+    ) -> SearchHistory | None:
         """Add a search to history."""
         if not self._initialized or not self._pool:
             return None
@@ -358,7 +409,7 @@ class RepositoryMixin:
             return 0
 
     async def update_history_status(
-        self, session_id: str, status: str, results_count: Optional[int] = None,
+        self, session_id: str, status: str, results_count: int | None = None,
     ) -> bool:
         """Update search history status by session_id."""
         if not self._initialized or not self._pool:
@@ -382,7 +433,7 @@ class RepositoryMixin:
             logger.error(f"update_history_status failed: {e}")
             return False
 
-    async def get_history_by_session(self, session_id: str) -> Optional[SearchHistory]:
+    async def get_history_by_session(self, session_id: str) -> SearchHistory | None:
         """Get search history by session_id."""
         if not self._initialized or not self._pool:
             return None

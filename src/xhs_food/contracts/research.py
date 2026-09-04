@@ -15,9 +15,9 @@ from typing import Any, Protocol, runtime_checkable
 
 from pydantic import Field
 
+from .account_service import PlatformChannel
 from .agent import AgentToolExecutionContext
 from .base import ContractModel, ContractPayload, JsonValue, NonEmptyStr, VersionedContract
-from .account_service import PlatformChannel
 
 
 class ResearchOutcome(StrEnum):
@@ -133,6 +133,13 @@ class ResearchRunResult(VersionedContract):
 
     notes: tuple[XhsNoteLead, ...] = ()
     profiles: tuple[ShopProfile, ...] = ()
+    # JSON projections keep this contract independent from the runtime module
+    # while making the agent's derived evidence reviewable without opening the
+    # opaque raw payload.
+    insights: tuple[JsonValue, ...] = ()
+    claims: tuple[JsonValue, ...] = ()
+    entities: tuple[JsonValue, ...] = ()
+    controversies: tuple[JsonValue, ...] = ()
     evidence_refs: tuple[str, ...] = ()
     gaps: tuple[ResearchGap, ...] = ()
     outcome: ResearchOutcome = ResearchOutcome.COMPLETE

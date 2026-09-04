@@ -421,17 +421,12 @@ async def test_composition_root_registers_comment_first_research_graph() -> None
     from xhs_food.composition.domain_packs import RegisteredDomainPack
     from xhs_food.domain_packs.food import FoodPack
     from xhs_food.orchestrator.coordinator import ResearchCoordinator
-    from xhs_food.research import (
-        CommentFirstResearchWorkflow,
-        DianpingMcpSource,
-        XhsMcpSource,
-    )
+    from xhs_food.research import CommentFirstResearchWorkflow
 
     root = build_composition_root()
     try:
         assert root.state is RegistryState.ACTIVE
         assert {name: list(registry.bindings) for name, registry in root.registries.items()} == {
-            "sources": ["xhs_comment_leads", "dianping_shop_profiles"],
             "models": ["legacy_llm_provider"],
             "repositories": [
                 "session_legacy",
@@ -467,8 +462,6 @@ async def test_composition_root_registers_comment_first_research_graph() -> None
         } == {
             "domain_packs.food_1_0_0",
             "domain_packs.registry",
-            "sources.xhs_comment_leads",
-            "sources.dianping_shop_profiles",
             "orchestrators.xhs_food_orchestrator",
             "research.comment_first_workflow",
             "use_cases.research_task",
@@ -492,10 +485,6 @@ async def test_composition_root_registers_comment_first_research_graph() -> None
         assert isinstance(registered_food.implementation, FoodPack)
         research_agent = await root.resolve_logical("research_agent")
         assert isinstance(research_agent, CommentFirstResearchWorkflow)
-        assert isinstance(await root.resolve("sources", "xhs_comment_leads"), XhsMcpSource)
-        assert isinstance(
-            await root.resolve("sources", "dianping_shop_profiles"), DianpingMcpSource
-        )
         orchestrator = await root.resolve("orchestrators", "xhs_food_orchestrator")
         assert orchestrator.workflow is research_agent
     finally:

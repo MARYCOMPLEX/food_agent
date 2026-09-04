@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Search event emitter — facade kept stable for orchestrator code.
 
 Replaces the previous in-process emitter with an :class:`EventBus`-backed
@@ -8,7 +7,7 @@ underlying event log lives on the bus.
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from .bus import EventBus, get_event_bus
 from .step_projection import LegacySixStepProjection
@@ -39,7 +38,7 @@ class SearchEventEmitter:
         return self._session_id
 
     @property
-    def steps(self) -> List[Dict[str, str]]:
+    def steps(self) -> list[dict[str, str]]:
         return self._step_projection.steps
 
     @property
@@ -49,7 +48,7 @@ class SearchEventEmitter:
     # Backwards-compat shims --------------------------------------------------
 
     @property
-    def _steps_legacy(self) -> List[Dict[str, str]]:
+    def _steps_legacy(self) -> list[dict[str, str]]:
         return self._step_projection.steps
 
     def reset(self) -> None:
@@ -67,6 +66,24 @@ class SearchEventEmitter:
         if event.is_terminal:
             self._completed = True
         return entry_id
+
+    async def emit_progress(self, kind: str, data: dict[str, Any] | None = None) -> str:
+        """Publish a workflow progress payload without exposing event types.
+
+        The orchestrator only knows about this transport-facing method.  The
+        mapping from internal workflow milestones to the concrete SSE event
+        enum stays in the event layer, which keeps the architecture dependency
+        direction explicit.
+        """
+
+        event_type = {
+            "intent_parsed": SearchEventType.INTENT_PARSED,
+            "note_collected": SearchEventType.NOTES_FOUND,
+            "note_analyzed": SearchEventType.ANALYSIS_DONE,
+        }.get(kind, SearchEventType.PROGRESS)
+        payload = dict(data or {})
+        payload.setdefault("kind", kind)
+        return await self.emit(SearchEvent(type=event_type, data=payload))
 
     # Step helpers ------------------------------------------------------------
 
@@ -94,11 +111,11 @@ class SearchEventEmitter:
         self,
         step_id: str,
         message: str = "",
-        extra: Optional[Dict[str, Any]] = None,
+        extra: dict[str, Any] | None = None,
     ) -> None:
         self._update_step(step_id, "done", message)
         self._step_projection.advance()
-        data: Dict[str, Any] = {
+        data: dict[str, Any] = {
             "step": step_id,
             "message": message,
             "steps": self.steps,
@@ -117,7 +134,7 @@ class SearchEventEmitter:
             )
         )
 
-    async def emit_restaurant(self, restaurant: Dict[str, Any]) -> None:
+    async def emit_restaurant(self, restaurant: dict[str, Any]) -> None:
         await self.emit(
             SearchEvent(type=SearchEventType.RESTAURANT, data={"restaurant": restaurant})
         )
@@ -147,7 +164,7 @@ class SearchEventEmitter:
 # ---------------------------------------------------------------------------
 
 
-_emitters: Dict[str, SearchEventEmitter] = {}
+_emitters: dict[str, SearchEventEmitter] = {}
 _emitters_lock = asyncio.Lock()
 
 

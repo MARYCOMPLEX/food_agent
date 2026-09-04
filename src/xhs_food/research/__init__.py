@@ -5,8 +5,10 @@ reviewed as a small object graph: MCP session -> source collectors -> insight
 analysis -> evidence ledger/profile repository -> response projection.
 """
 
+from .aggregation import AggregationResult, EntityControversyAggregator
 from .evidence import CanonicalCommentEvidenceAdapter, EvidenceLedger
 from .mcp import ManagedMcpToolSession, UnavailableMcpToolSession
+from .planner import PlannerDecision, ResearchPlanner
 from .profile_service import (
     ShopProfileRefreshPlan,
     ShopProfileRefreshPolicy,
@@ -18,27 +20,88 @@ from .repository import (
     UserStorageShopProfileRepository,
     profile_from_storage,
 )
+from .resource_limits import (
+    BoundedAsyncQueue,
+    BoundedAsyncQueueError,
+    BoundedQueue,
+    BudgetController,
+    BudgetExceededError,
+    BudgetUsage,
+    CircuitBreaker,
+    CircuitState,
+    QueueClosedError,
+    ResearchRuntimeBudget,
+    ResourceCallTimeoutError,
+    ResourceCircuitOpenError,
+    ResourceLimiter,
+    ResourcePool,
+    ResourcePoolConfig,
+    ResourcePoolManager,
+    ResourcePoolSet,
+    ResourcePoolSettings,
+    RetryableResourceError,
+    RunBudget,
+    RuntimeBudget,
+)
+from .runtime import (
+    ActionExecution,
+    ActionHandler,
+    ResearchRuntime,
+    ResearchRuntimeConfig,
+    RuntimeConfig,
+    RuntimeEventSink,
+    RuntimePolicyError,
+)
 from .sources import (
     AdaptiveQueryPlanner,
     DianpingMcpSource,
     DianpingShopEnricher,
-    DianpingSourceAdapterFactory,
     XhsCommentLeadCollector,
     XhsMcpSource,
-    XhsSourceAdapterFactory,
 )
 from .workflow import CommentFirstResearchWorkflow, WorkflowExecution
 
 __all__ = [
+    "AggregationResult",
+    "ActionExecution",
+    "ActionHandler",
     "AdaptiveQueryPlanner",
+    "BoundedAsyncQueue",
+    "BoundedAsyncQueueError",
+    "BoundedQueue",
+    "BudgetController",
+    "BudgetExceededError",
+    "BudgetUsage",
     "CanonicalCommentEvidenceAdapter",
+    "CircuitBreaker",
+    "CircuitState",
     "CommentFirstResearchWorkflow",
-    "DianpingSourceAdapterFactory",
+    "EntityControversyAggregator",
     "DianpingMcpSource",
     "DianpingShopEnricher",
     "EvidenceLedger",
     "InMemoryShopProfileRepository",
     "ManagedMcpToolSession",
+    "QueueClosedError",
+    "ResourceCallTimeoutError",
+    "ResourceCircuitOpenError",
+    "ResourceLimiter",
+    "ResourcePool",
+    "ResourcePoolConfig",
+    "ResourcePoolManager",
+    "ResourcePoolSet",
+    "ResourcePoolSettings",
+    "ResearchRuntime",
+    "ResearchRuntimeConfig",
+    "ResearchRuntimeBudget",
+    "RetryableResourceError",
+    "RunBudget",
+    "RuntimeBudget",
+    "RuntimeConfig",
+    "RuntimeEventSink",
+    "RuntimePolicyError",
+    "PlannerDecision",
+    "ResearchPlanner",
     "ShopProfileRefreshPlan",
     "ShopProfileRefreshPolicy",
     "ShopProfileService",
@@ -47,7 +110,6 @@ __all__ = [
     "UserStorageShopProfileRepository",
     "WorkflowExecution",
     "XhsCommentLeadCollector",
-    "XhsSourceAdapterFactory",
     "XhsMcpSource",
     "profile_from_storage",
 ]

@@ -512,7 +512,6 @@ def build_composition_root(
         EventBusPort,
         PersonalizationCanaryMode,
         PersonalizationCanarySettings,
-        PlatformChannel,
         ReliableTaskStorePort,
         TaskProgressProjectionPort,
     )
@@ -535,10 +534,8 @@ def build_composition_root(
     from xhs_food.personalization import PersonalizationCanary, PersonalizedReranker
     from xhs_food.research import (
         CommentFirstResearchWorkflow,
-        DianpingSourceAdapterFactory,
         ManagedMcpToolSession,
         UserStorageShopProfileRepository,
-        XhsSourceAdapterFactory,
     )
     from xhs_food.services import LLMService, get_session_manager, get_user_storage_service
 
@@ -851,26 +848,6 @@ def build_composition_root(
             registry_name="agent_tools",
             binding_name="account_service_mcp",
         )
-    sources = root.registry("sources")
-    sources.register(
-        AdapterBinding(
-            name="xhs_comment_leads",
-            contract_version="xhs-comment-source/v1",
-            factory=XhsSourceAdapterFactory(
-                research_session,
-                platform=PlatformChannel.XHS_PC,
-            ),
-            legacy=False,
-        )
-    )
-    sources.register(
-        AdapterBinding(
-            name="dianping_shop_profiles",
-            contract_version="dianping-profile-source/v1",
-            factory=DianpingSourceAdapterFactory(research_session),
-            legacy=False,
-        )
-    )
     root.registry("models").register(
         AdapterBinding(
             name="legacy_llm_provider",
@@ -1067,8 +1044,6 @@ def build_composition_root(
     allowed_non_legacy = {
         "domain_packs.food_1_0_0",
         "domain_packs.registry",
-        "sources.xhs_comment_leads",
-        "sources.dianping_shop_profiles",
         "orchestrators.xhs_food_orchestrator",
         "research.comment_first_workflow",
         "use_cases.research_task",
