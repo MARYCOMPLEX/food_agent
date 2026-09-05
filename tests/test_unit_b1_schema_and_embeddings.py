@@ -19,6 +19,7 @@ from xhs_food.contracts import (
     BackfillRow,
     CanonicalQueryResult,
     EmbeddingProfile,
+    PersonalConstraint,
     advance_backfill_cursor,
     initial_backfill_cursor,
     validate_embedding_vector,
@@ -148,3 +149,56 @@ async def test_shadow_repository_uses_one_uow_and_one_postgres_insert() -> None:
     compiled = str(session.statements[0].compile(dialect=postgresql_dialect()))
     assert "INSERT INTO canonical_queries" in compiled
     assert "ON CONFLICT (canonical_key) DO NOTHING" in compiled
+
+
+@pytest.mark.unit
+async def test_shadow_repository_does_not_persist_personal_constraint_values() -> None:
+    class Session:
+        def __init__(self) -> None:
+            self.statements: list[Any] = []
+
+        async def execute(self, statement: Any) -> None:
+            self.statements.append(statement)
+
+    class Unit:
+        def __init__(self, session: Session) -> None:
+            self.session = session
+            self.commits = 0
+
+        async def __aenter__(self) -> Unit:
+            return self
+
+        async def __aexit__(self, *_args: object) -> None:
+            return None
+
+        def session_for_adapter(self) -> Session:
+            return self.session
+
+        async def commit(self) -> None:
+            self.commits += 1
+
+    session = Session()
+    unit = Unit(session)
+    repository = SQLAlchemyCanonicalQueryShadowRepository(lambda: unit)  # type: ignore[arg-type]
+    result = _result().model_copy(
+        update={
+            "classification": _result().classification.model_copy(
+                update={
+                    "personal_constraints": (
+                        PersonalConstraint(
+                            constraint_id="taste-1",
+                            key="taste",
+                            value="private-preference",
+                            rule_id="taste.personal",
+                            rule_version="food-constraints/v1",
+                        ),
+                    )
+                }
+            )
+        }
+    )
+    await repository.save(result)
+    params = session.statements[0].compile(dialect=postgresql_dialect()).params
+    payload = params["payload"]
+    assert payload["classification"]["personal_constraints"] == []
+    assert "private-preference" not in str(payload)

@@ -8,6 +8,12 @@ from .account_services import (
     build_account_service_registry,
 )
 from .agent_tools import AccountServiceAgentToolCatalog, build_agent_tool_policy
+from .modular_bindings import (
+    CapabilityMode,
+    ModularAdapterOverrides,
+    ModularBindingPlan,
+    build_modular_binding_plan,
+)
 from .root import (
     AdapterBinding,
     BindingRegistry,
@@ -38,6 +44,10 @@ __all__ = [
     "ReliableRuntimeBindings",
     "build_account_service_registry",
     "build_agent_tool_policy",
+    "CapabilityMode",
+    "ModularAdapterOverrides",
+    "ModularBindingPlan",
+    "build_modular_binding_plan",
     "build_media_worker",
     "build_composition_root",
     "build_refresh_worker",

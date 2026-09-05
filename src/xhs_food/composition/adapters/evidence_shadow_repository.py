@@ -11,6 +11,11 @@ from xhs_food.contracts import CanonicalQueryResult
 from xhs_food.foundation.database import SQLAlchemyUnitOfWork
 from xhs_food.foundation.evidence_schema import canonical_queries
 
+from .evidence_bundle_repository import (
+    SQLAlchemyEvidenceShadowRepository,
+    SQLAlchemyEvidenceShadowSink,
+)
+
 UnitOfWorkFactory = Callable[[], SQLAlchemyUnitOfWork]
 
 
@@ -23,6 +28,12 @@ class SQLAlchemyCanonicalQueryShadowRepository:
     async def save(self, result: CanonicalQueryResult) -> str:
         query = result.canonical_query
         isolation = query.isolation
+        # Personal constraints are classifier output for request-time policy,
+        # not public Evidence identity.  Enforce the boundary again at the
+        # persistence adapter in case a caller bypasses ShadowSourceConnector.
+        public_classification = result.classification.model_copy(
+            update={"personal_constraints": ()}
+        )
         statement = (
             insert(canonical_queries)
             .values(
@@ -36,7 +47,7 @@ class SQLAlchemyCanonicalQueryShadowRepository:
                 classifier_version=query.classifier_version,
                 payload={
                     "canonical_query": query.model_dump(mode="json"),
-                    "classification": result.classification.model_dump(mode="json"),
+                    "classification": public_classification.model_dump(mode="json"),
                     "family_match": result.family_match.model_dump(mode="json"),
                 },
                 created_at=datetime.now(UTC),
@@ -48,5 +59,8 @@ class SQLAlchemyCanonicalQueryShadowRepository:
             await unit.commit()
         return result.canonical_key
 
-
-__all__ = ["SQLAlchemyCanonicalQueryShadowRepository"]
+__all__ = [
+    "SQLAlchemyCanonicalQueryShadowRepository",
+    "SQLAlchemyEvidenceShadowRepository",
+    "SQLAlchemyEvidenceShadowSink",
+]

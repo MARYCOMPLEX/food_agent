@@ -159,6 +159,7 @@ async def test_disabled_decorator_returns_legacy_batch_without_sink_activity() -
         policy=_policy(),
         sink=sink,
         gate=EvidenceShadowGate(EvidenceShadowSettings()),
+        defer_shadow=False,
     )
     assert await connector.search(_request()) == _batch()
     assert sink.calls == 0

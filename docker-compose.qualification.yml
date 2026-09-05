@@ -1,0 +1,38 @@
+# Isolated release qualification overlay. It only remaps host ports and uses
+# the image supplied by QUALIFICATION_IMAGE; the release Compose contract is
+# intentionally left unchanged.
+
+services:
+  app:
+    image: ${QUALIFICATION_IMAGE:-xhs-food-agent:qualification}
+    ports: !override
+      - "18080:8000"
+
+  migrate:
+    image: ${QUALIFICATION_IMAGE:-xhs-food-agent:qualification}
+
+  research-queue-smoke:
+    image: ${QUALIFICATION_IMAGE:-xhs-food-agent:qualification}
+
+  refresh-queue-smoke:
+    image: ${QUALIFICATION_IMAGE:-xhs-food-agent:qualification}
+
+  media-queue-smoke:
+    image: ${QUALIFICATION_IMAGE:-xhs-food-agent:qualification}
+
+  temporal:
+    ports: !override
+      - "17283:7233"
+
+  minio:
+    ports: !override
+      - "19080:9000"
+      - "19081:9001"
+
+  phoenix:
+    ports: !override
+      - "16080:6006"
+
+networks:
+  phoenix-observability:
+    name: food-agent-qualification-phoenix-observability

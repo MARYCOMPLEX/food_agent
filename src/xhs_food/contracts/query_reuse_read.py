@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Mapping, Sequence
 from enum import StrEnum
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
@@ -29,6 +30,10 @@ class QueryReuseReadSettings(ContractModel):
     sample_rate: float = Field(default=0.0, ge=0.0, le=1.0)
     personalization_enabled: Literal[False] = False
     background_refresh_enabled: Literal[False] = False
+    # A release record must explicitly opt in before a sampled candidate can
+    # replace the legacy result. Composition bindings may set this true only
+    # after the owner gate is recorded.
+    canary_gate_approved: bool = False
 
     @model_validator(mode="after")
     def validate_canary_rate(self) -> QueryReuseReadSettings:
@@ -43,6 +48,7 @@ class QueryReuseShadowStatus(StrEnum):
     MATCH = "match"
     MISMATCH = "mismatch"
     SKIPPED = "skipped"
+    FAILED = "failed"
 
 
 class QueryReuseShadowReport(ContractModel):
@@ -52,6 +58,9 @@ class QueryReuseShadowReport(ContractModel):
     legacy_digest: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     candidate_digest: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     served_candidate: bool = False
+    failure_code: str | None = Field(
+        default=None, pattern=r"^[a-z][a-z0-9_.-]{0,63}$"
+    )
 
 
 class QueryReuseReadOutcome(ContractModel):
@@ -85,12 +94,65 @@ def stable_sample(request_key: str, sample_rate: float) -> bool:
 def digest_public_result(value: object) -> str:
     """Hash only a JSON-compatible public result, never identity or memory state."""
 
-    if hasattr(value, "model_dump"):
-        value = value.model_dump(mode="json")  # type: ignore[union-attr]
+    value = _public_digest_value(value)
     encoded = json.dumps(
         value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str
     )
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+_PRIVATE_KEY_MARKERS = frozenset(
+    {
+        "user",
+        "users",
+        "userid",
+        "session",
+        "sessions",
+        "sessionid",
+        "subject",
+        "subjects",
+        "identity",
+        "identities",
+        "deviceid",
+        "private",
+        "preference",
+        "preferences",
+        "memory",
+        "favorite",
+        "favorites",
+        "click",
+        "clicks",
+        "cookie",
+        "token",
+        "credential",
+        "credentials",
+        "password",
+        "secret",
+        "account",
+    }
+)
+
+
+def _public_digest_value(value: object) -> Any:
+    """Drop identity-bearing keys before computing comparison digests."""
+
+    if hasattr(value, "model_dump"):
+        value = value.model_dump(mode="json")  # type: ignore[union-attr]
+    if isinstance(value, Mapping):
+        public: dict[str, Any] = {}
+        for key, item in value.items():
+            normalized = "".join(character for character in str(key).casefold() if character.isalnum())
+            if normalized in _PRIVATE_KEY_MARKERS or any(
+                marker in normalized for marker in _PRIVATE_KEY_MARKERS
+            ):
+                continue
+            public[str(key)] = _public_digest_value(item)
+        return public
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return [_public_digest_value(item) for item in value]
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return str(value)
 
 
 __all__ = [

@@ -17,12 +17,13 @@ from .outcomes import (
     project_legacy_place,
     single_attempt_coverage,
 )
-from .source_gateway import InMemorySourceControl, SourceGateway
+from .source_gateway import ConnectorDecorator, InMemorySourceControl, SourceGateway
 from .tools import ProviderResult, SchemaToolGateway, ToolRegistration
 
 __all__ = [
     "AccountServiceClientPort",
     "AuthHeaderProvider",
+    "ConnectorDecorator",
     "InMemorySourceControl",
     "LegacySourceProjection",
     "ProviderResult",

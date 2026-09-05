@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from datetime import datetime
 from hashlib import sha256
+from typing import Any, cast
 
 from sqlalchemy import or_, select, update
 from sqlalchemy.dialects.postgresql import insert
@@ -12,6 +13,7 @@ from sqlalchemy.dialects.postgresql import insert
 from xhs_food.contracts import (
     AnonymousClaimReceipt,
     AnonymousClaimRequest,
+    AnonymousIsolationKey,
     ContractPayload,
     MemoryAuthorityWrite,
     MemoryConversationTurn,
@@ -23,6 +25,7 @@ from xhs_food.contracts import (
     MemoryRepositoryPort,
     MemoryStatus,
     MemorySubject,
+    MemorySubjectKind,
     PreferenceSnapshot,
     UserIsolationKey,
     isolation_key_for,
@@ -119,19 +122,60 @@ class SQLAlchemyMemoryRepository(MemoryRepositoryPort):
         """Commit all authority facts and the projection instruction once."""
 
         async with self._unit_of_work_factory() as unit:
+            session = cast(Any, unit.session_for_adapter())
             if write.conversation_turn is not None:
-                await unit.session_for_adapter().execute(
-                    _conversation_statement(write.conversation_turn)
-                )
+                await session.execute(_conversation_statement(write.conversation_turn))
             if write.source_event is not None:
-                await unit.session_for_adapter().execute(
-                    _memory_event_statement(write.source_event)
-                )
+                await session.execute(_memory_event_statement(write.source_event))
             if write.record is not None:
-                await unit.session_for_adapter().execute(_record_statement(write.record))
-            await unit.session_for_adapter().execute(_outbox_statement(write.outbox))
+                await session.execute(_record_statement(write.record))
+            if write.snapshot is not None:
+                await session.execute(_snapshot_statement(write.snapshot))
+            await session.execute(_outbox_statement(write.outbox))
             await unit.commit()
         return write.outbox.outbox_id
+
+    async def list_pending_outbox(
+        self,
+        *,
+        available_at: datetime,
+        limit: int,
+    ) -> tuple[MemoryOutboxEvent, ...]:
+        """Read committed projection work without claiming authority ownership."""
+
+        if not 1 <= limit <= 1000:
+            raise ValueError("outbox replay limit must be between 1 and 1000")
+        statement = (
+            select(outbox)
+            .where(outbox.c.processed_at.is_(None), outbox.c.available_at <= available_at)
+            .order_by(outbox.c.available_at, outbox.c.outbox_id)
+            .limit(limit)
+        )
+        async with self._unit_of_work_factory() as unit:
+            result = await unit.session_for_adapter().execute(statement)
+            rows = result.mappings().all()
+        return tuple(_outbox_from_row(row) for row in rows)
+
+    async def mark_outbox_processed(
+        self,
+        *,
+        outbox_id: str,
+        processed_at: datetime,
+    ) -> bool:
+        """Ack one projection event only after its derived write succeeds."""
+
+        if not outbox_id:
+            raise ValueError("outbox_id must be non-empty")
+        statement = (
+            update(outbox)
+            .where(outbox.c.outbox_id == outbox_id, outbox.c.processed_at.is_(None))
+            .values(processed_at=processed_at)
+        )
+        async with self._unit_of_work_factory() as unit:
+            result = await unit.session_for_adapter().execute(statement)
+            await unit.commit()
+        rowcount = getattr(result, "rowcount", None)
+        return bool(rowcount if rowcount is not None else True)
 
     async def append_memory_event(self, event: MemoryEvent) -> str:
         statement = (
@@ -235,7 +279,7 @@ class SQLAlchemyMemoryRepository(MemoryRepositoryPort):
             ),
         )
         async with self._unit_of_work_factory() as unit:
-            session = unit.session_for_adapter()
+            session = cast(Any, unit.session_for_adapter())
             existing_idempotent = (await session.execute(idempotent_claim)).mappings().first()
             if existing_idempotent is not None:
                 return _receipt_from_claim_payload(existing_idempotent["payload"])
@@ -341,6 +385,89 @@ class SQLAlchemyMemoryRepository(MemoryRepositoryPort):
             await unit.commit()
         return snapshot.snapshot_id
 
+    async def supersede_record(
+        self,
+        *,
+        scope: MemoryIsolationKey,
+        previous_record_id: str,
+        replacement: MemoryRecord,
+        source_event: MemoryEvent,
+        outbox: MemoryOutboxEvent,
+    ) -> str:
+        """Append a correction and supersede its predecessor atomically."""
+
+        if not previous_record_id:
+            raise ValueError("previous_record_id must be non-empty")
+        if replacement.supersedes_record_id != previous_record_id:
+            raise ValueError("replacement must point at previous_record_id")
+        write = MemoryAuthorityWrite(
+            record=replacement,
+            source_event=source_event,
+            outbox=outbox,
+        )
+        _require_scope(scope, isolation_key_for(replacement))
+        async with self._unit_of_work_factory() as unit:
+            session = cast(Any, unit.session_for_adapter())
+            existing = await session.execute(
+                select(memory_records.c.record_id).where(
+                    memory_records.c.record_id == replacement.record_id,
+                    *_scope_clause(scope),
+                )
+            )
+            if existing.mappings().first() is not None:
+                await unit.commit()
+                return replacement.record_id
+            result = await session.execute(
+                update(memory_records)
+                .where(
+                    memory_records.c.record_id == previous_record_id,
+                    *_scope_clause(scope),
+                    memory_records.c.status == MemoryStatus.ACTIVE.value,
+                )
+                .values(status=MemoryStatus.SUPERSEDED.value, updated_at=replacement.updated_at)
+            )
+            rowcount = getattr(result, "rowcount", None)
+            if rowcount is not None and rowcount == 0:
+                raise ValueError("previous memory record is missing or already inactive")
+            await session.execute(_record_statement(replacement))
+            await session.execute(_memory_event_statement(source_event))
+            await session.execute(_outbox_statement(outbox))
+            await unit.commit()
+        return write.outbox.outbox_id
+
+    async def tombstone_scope(
+        self,
+        *,
+        scope: MemoryIsolationKey,
+        source_event: MemoryEvent,
+        outbox: MemoryOutboxEvent,
+    ) -> int:
+        """Tombstone a private scope and enqueue projection invalidation together."""
+
+        _require_scope(
+            scope,
+            _scope_from_subject(
+                tenant_id=source_event.tenant_id,
+                subject_kind=source_event.subject.kind.value,
+                subject_id=source_event.subject.id,
+                session_id=source_event.session_id,
+            ),
+        )
+        MemoryAuthorityWrite(source_event=source_event, outbox=outbox)
+        statement = (
+            update(memory_records)
+            .where(*_scope_clause(scope), memory_records.c.status != MemoryStatus.TOMBSTONED.value)
+            .values(status=MemoryStatus.TOMBSTONED.value, updated_at=source_event.occurred_at)
+        )
+        async with self._unit_of_work_factory() as unit:
+            session = cast(Any, unit.session_for_adapter())
+            result = await session.execute(statement)
+            await session.execute(_memory_event_statement(source_event))
+            await session.execute(_outbox_statement(outbox))
+            await unit.commit()
+        rowcount = getattr(result, "rowcount", None)
+        return int(rowcount if rowcount is not None else 0)
+
     async def enqueue_outbox(
         self,
         *,
@@ -387,7 +514,7 @@ def _scope_values(scope: MemoryIsolationKey) -> dict[str, str | None]:
     )
 
 
-def _conversation_statement(turn: MemoryConversationTurn) -> object:
+def _conversation_statement(turn: MemoryConversationTurn) -> Any:
     return (
         insert(conversation_turns)
         .values(
@@ -405,7 +532,7 @@ def _conversation_statement(turn: MemoryConversationTurn) -> object:
     )
 
 
-def _record_statement(record: MemoryRecord) -> object:
+def _record_statement(record: MemoryRecord) -> Any:
     scope = isolation_key_for(record)
     return (
         insert(memory_records)
@@ -431,7 +558,24 @@ def _record_statement(record: MemoryRecord) -> object:
     )
 
 
-def _memory_event_statement(event: MemoryEvent) -> object:
+def _snapshot_statement(snapshot: PreferenceSnapshot) -> Any:
+    scope = snapshot.isolation_key
+    return (
+        insert(preference_snapshots)
+        .values(
+            snapshot_id=snapshot.snapshot_id,
+            **_scope_values(scope),
+            snapshot_version=snapshot.snapshot_version,
+            policy_version=snapshot.policy_version,
+            source_record_versions=snapshot.source_record_versions,
+            payload=snapshot.model_dump(mode="json", by_alias=True),
+            generated_at=snapshot.generated_at,
+        )
+        .on_conflict_do_nothing(index_elements=[preference_snapshots.c.snapshot_id])
+    )
+
+
+def _memory_event_statement(event: MemoryEvent) -> Any:
     return (
         insert(memory_events)
         .values(
@@ -452,7 +596,7 @@ def _memory_event_statement(event: MemoryEvent) -> object:
     )
 
 
-def _outbox_statement(event: MemoryOutboxEvent) -> object:
+def _outbox_statement(event: MemoryOutboxEvent) -> Any:
     return (
         insert(outbox)
         .values(
@@ -460,7 +604,7 @@ def _outbox_statement(event: MemoryOutboxEvent) -> object:
             **_scope_values(event.scope),
             event_type=event.event_type,
             aggregate_id=event.aggregate_id,
-            payload=event.payload,
+            payload=_outbox_payload(event),
             idempotency_key=event.idempotency_key,
             available_at=event.available_at,
             attempts=0,
@@ -480,7 +624,7 @@ def _claimed_record(
         {
             "record_id": f"{record.record_id}:claimed:{request.claim_id}",
             "subject": MemorySubject(
-                kind="user",
+                kind=MemorySubjectKind.USER,
                 id=target.user_id,
                 cohort=record.subject.cohort,
                 locale=record.subject.locale,
@@ -530,12 +674,80 @@ def _subject_scope_values(
     }
 
 
-def _scope_clause(scope: MemoryIsolationKey) -> tuple[object, ...]:
+def _outbox_payload(event: MemoryOutboxEvent) -> ContractPayload:
+    """Persist the projection fence in the JSON payload for old schemas."""
+
+    if event.authority_version == 0 or "authorityVersion" in event.payload:
+        return event.payload
+    return {**event.payload, "authorityVersion": event.authority_version}
+
+
+def _outbox_from_row(row: object) -> MemoryOutboxEvent:
+    if not isinstance(row, Mapping):
+        raise ValueError("stored memory outbox row must expose a public mapping interface")
+    values: Mapping[str, Any] = row
+    payload = values.get("payload")
+    if not isinstance(payload, dict):
+        raise ValueError("stored memory outbox payload must be an object")
+    scope = _scope_from_subject(
+        tenant_id=str(values["tenant_id"]),
+        subject_kind=str(values["subject_kind"]),
+        subject_id=str(values["subject_id"]),
+        session_id=values.get("session_id"),
+    )
+    return MemoryOutboxEvent(
+        outbox_id=str(values["outbox_id"]),
+        scope=scope,
+        event_type=str(values["event_type"]),
+        aggregate_id=str(values["aggregate_id"]),
+        payload=payload,
+        idempotency_key=str(values["idempotency_key"]),
+        available_at=values["available_at"],
+        authority_version=_payload_authority_version(payload),
+    )
+
+
+def _payload_authority_version(payload: ContractPayload) -> int:
+    value = payload.get("authorityVersion", 0)
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError("stored memory outbox authorityVersion must be a non-negative integer")
+    return value
+
+
+def _scope_from_subject(
+    *, tenant_id: str, subject_kind: str, subject_id: str, session_id: str | None
+) -> MemoryIsolationKey:
+    if subject_kind == "anonymous":
+        if session_id is None:
+            raise ValueError("anonymous memory outbox scope requires session_id")
+        return AnonymousIsolationKey(
+            tenant_id=tenant_id,
+            anonymous_subject_id=subject_id,
+            session_id=session_id,
+        )
+    if subject_kind == "user":
+        return UserIsolationKey(tenant_id=tenant_id, user_id=subject_id, session_id=session_id)
+    raise ValueError("memory outbox scope has an unsupported subject kind")
+
+
+def _require_scope(left: MemoryIsolationKey, right: MemoryIsolationKey) -> None:
+    if _scope_key(left) != _scope_key(right):
+        raise PermissionError("memory access is outside the authorized scope")
+
+
+def _scope_key(scope: MemoryIsolationKey) -> tuple[str, str, str, str | None]:
+    subject_id = (
+        scope.user_id if isinstance(scope, UserIsolationKey) else scope.anonymous_subject_id
+    )
+    return (scope.tenant_id, str(scope.kind), subject_id, scope.session_id)
+
+
+def _scope_clause(scope: MemoryIsolationKey) -> tuple[Any, ...]:
     values = _scope_values(scope)
     return tuple(memory_records.c[column] == value for column, value in values.items())
 
 
-def _conversation_scope_clause(scope: MemoryIsolationKey) -> tuple[object, ...]:
+def _conversation_scope_clause(scope: MemoryIsolationKey) -> tuple[Any, ...]:
     values = _scope_values(scope)
     return tuple(conversation_turns.c[column] == value for column, value in values.items())
 

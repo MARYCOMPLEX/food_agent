@@ -547,6 +547,10 @@ def _projection_is_older(
             # fallback for legacy/non-numeric values without treating every
             # cross-turn candidate as stale.
             return (candidate.turn_id or "") < (current.turn_id or "")
+    # A terminal projection is authoritative only for its own turn.  A newer
+    # turn has already returned above and must be allowed to restart progress
+    # after refine/retry; otherwise a completed run would block every future
+    # turn for the same task.
     if current.status.is_terminal:
         return True
     if candidate.status is current.status and candidate.progress < current.progress:

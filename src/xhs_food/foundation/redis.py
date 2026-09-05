@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from dataclasses import dataclass
@@ -334,6 +335,34 @@ class RedisUserSessionWindow(MemorySessionWindowPort):
     """User-scoped Redis projection with the same bounded hot-state limits."""
 
     KEY_PREFIX = "session"
+    _VERSIONED_APPEND_SCRIPT = """
+local current = redis.call('GET', KEYS[2])
+if current and tonumber(current) > tonumber(ARGV[1]) then
+    return 0
+end
+if redis.call('EXISTS', KEYS[3]) == 1 then
+    return 0
+end
+redis.call('SET', KEYS[2], ARGV[1], 'EX', ARGV[2])
+redis.call('SET', KEYS[3], '1', 'EX', ARGV[2])
+redis.call('RPUSH', KEYS[1], ARGV[3])
+redis.call('LTRIM', KEYS[1], -tonumber(ARGV[4]), -1)
+redis.call('EXPIRE', KEYS[1], ARGV[2])
+return 1
+""".strip()
+    _VERSIONED_CLEAR_SCRIPT = """
+local current = redis.call('GET', KEYS[2])
+if current and tonumber(current) > tonumber(ARGV[1]) then
+    return 0
+end
+if redis.call('EXISTS', KEYS[3]) == 1 then
+    return 0
+end
+redis.call('SET', KEYS[2], ARGV[1], 'EX', ARGV[2])
+redis.call('SET', KEYS[3], '1', 'EX', ARGV[2])
+redis.call('DEL', KEYS[1])
+return 1
+""".strip()
 
     def __init__(
         self,
@@ -363,6 +392,36 @@ class RedisUserSessionWindow(MemorySessionWindowPort):
             await self._client.ltrim(redis_key, -self._contract.session_window_size, -1)
             await self._client.expire(redis_key, ttl_seconds)
 
+    async def append_if_newer(
+        self,
+        scope: MemoryIsolationKey,
+        message: ContractPayload,
+        ttl_seconds: int,
+        authority_version: int,
+        event_id: str,
+    ) -> bool:
+        """Atomically fence old authority versions and duplicate outbox events."""
+
+        self._validate_versioned_scope(scope, ttl_seconds, authority_version, event_id)
+        redis_key, version_key, event_key = self._versioned_keys(scope, event_id)
+        payload = json.dumps(message, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        with foundation_failure_boundary(
+            scope=ErrorScope.CACHE,
+            operation="cache.user_session_window.append_if_newer",
+        ):
+            result = await self._client.eval(
+                self._VERSIONED_APPEND_SCRIPT,
+                3,
+                redis_key,
+                version_key,
+                event_key,
+                authority_version,
+                ttl_seconds,
+                payload,
+                self._contract.session_window_size,
+            )
+            return bool(int(_text(result)))
+
     async def recent(
         self,
         scope: MemoryIsolationKey,
@@ -390,10 +449,73 @@ class RedisUserSessionWindow(MemorySessionWindowPort):
         ):
             return bool(await self._client.delete(redis_key))
 
+    async def clear_if_newer(
+        self,
+        scope: MemoryIsolationKey,
+        authority_version: int,
+        event_id: str,
+    ) -> bool:
+        """Atomically invalidate only when the event is not older than the cache."""
+
+        self._validate_versioned_scope(
+            scope,
+            self._contract.session_ttl_seconds,
+            authority_version,
+            event_id,
+        )
+        redis_key, version_key, event_key = self._versioned_keys(scope, event_id)
+        with foundation_failure_boundary(
+            scope=ErrorScope.CACHE,
+            operation="cache.user_session_window.clear_if_newer",
+        ):
+            result = await self._client.eval(
+                self._VERSIONED_CLEAR_SCRIPT,
+                3,
+                redis_key,
+                version_key,
+                event_key,
+                authority_version,
+                self._contract.session_ttl_seconds,
+            )
+            return bool(int(_text(result)))
+
     def _key(self, scope: MemoryIsolationKey) -> str:
         if not scope.session_id:
             raise ValueError("user-scoped session projection requires session_id")
         return f"{self.KEY_PREFIX}:{scope.namespaced_key('window')}"
+
+    def _versioned_keys(
+        self,
+        scope: MemoryIsolationKey,
+        event_id: str,
+    ) -> tuple[str, str, str]:
+        base = scope.namespaced_key("window")
+        event_digest = hashlib.sha256(event_id.encode("utf-8")).hexdigest()
+        return (
+            f"{self.KEY_PREFIX}:{base}",
+            f"{self.KEY_PREFIX}:{scope.namespaced_key('window-authority-version')}",
+            f"{self.KEY_PREFIX}:{scope.namespaced_key(f'window-event-{event_digest}')}",
+        )
+
+    def _validate_versioned_scope(
+        self,
+        scope: MemoryIsolationKey,
+        ttl_seconds: int,
+        authority_version: int,
+        event_id: str,
+    ) -> None:
+        if not scope.session_id:
+            raise ValueError("user-scoped session projection requires session_id")
+        if ttl_seconds != self._contract.session_ttl_seconds:
+            raise ValueError("session window TTL must match the target Redis contract")
+        if (
+            isinstance(authority_version, bool)
+            or not isinstance(authority_version, int)
+            or authority_version < 0
+        ):
+            raise ValueError("authority version must be a non-negative integer")
+        if not event_id:
+            raise ValueError("projection event id must be non-empty")
 
 
 class RedisEventBusAdapter:

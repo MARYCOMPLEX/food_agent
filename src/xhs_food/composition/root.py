@@ -11,6 +11,12 @@ from enum import StrEnum
 from types import MappingProxyType
 from typing import Any, cast
 
+from .modular_bindings import (
+    ModularAdapterOverrides,
+    ModularBindingPlan,
+    build_modular_binding_plan,
+)
+
 AdapterFactory = Callable[[], object | Awaitable[object]]
 
 
@@ -131,12 +137,13 @@ class BindingRegistry:
 class CompositionRoot:
     """Own all registries without owning domain behavior."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, modular_plan: ModularBindingPlan | None = None) -> None:
         self._state = RegistryState.CONFIGURING
         self._registries: dict[str, BindingRegistry] = {}
         self._logical_bindings: dict[str, LogicalBinding] = {}
         self._lifecycle_lock = asyncio.Lock()
         self._close_complete = False
+        self._modular_plan = modular_plan
 
     @property
     def state(self) -> RegistryState:
@@ -149,6 +156,12 @@ class CompositionRoot:
     @property
     def logical_bindings(self) -> Mapping[str, LogicalBinding]:
         return MappingProxyType(self._logical_bindings)
+
+    @property
+    def modular_plan(self) -> ModularBindingPlan | None:
+        """Return the immutable activation plan selected at bootstrap."""
+
+        return self._modular_plan
 
     def registry(self, name: str) -> BindingRegistry:
         if self._state is not RegistryState.CONFIGURING:
@@ -478,6 +491,9 @@ def build_composition_root(
     reliable_task_lifecycle: bool | None = None,
     target_settings: Any = None,
     account_service_registry: object | None = None,
+    modular_overrides: ModularAdapterOverrides | None = None,
+    modular_plan: ModularBindingPlan | None = None,
+    modular_binding_plan: ModularBindingPlan | None = None,
 ) -> CompositionRoot:
     """Create the active composition root with an atomically validated Food Pack.
 
@@ -505,6 +521,7 @@ def build_composition_root(
         DomainPackRegistry,
         discover_allowlisted_domain_packs,
     )
+    from xhs_food.composition.modular_bindings import CapabilityMode
     from xhs_food.composition.research_task import ResearchTaskFacade
     from xhs_food.config import get_settings
     from xhs_food.contracts import (
@@ -536,6 +553,7 @@ def build_composition_root(
         CommentFirstResearchWorkflow,
         ManagedMcpToolSession,
         UserStorageShopProfileRepository,
+        build_query_reuse_read_service,
     )
     from xhs_food.services import LLMService, get_session_manager, get_user_storage_service
 
@@ -551,11 +569,40 @@ def build_composition_root(
     food_pack_candidate = food_pack_factory()
 
     # ``target_settings`` is injectable for qualification and sidecar tests.
+    # Public/unit callers that omit settings must remain deterministic and
+    # legacy-only: ambient dotenv files are deployment input, not an implicit
+    # change to the composition graph.  The API lifespan passes an explicit
+    # TargetSettings instance after loading its configured env file.
+    target_settings_was_implicit = target_settings is None
     target_settings = cast(
         Any,
-        target_settings if target_settings is not None else TargetSettings(),
+        target_settings
+        if target_settings is not None
+        else TargetSettings(_env_file=None),
     )
-    if account_service_registry is None:
+    # A qualification/unit caller may deliberately construct
+    # ``TargetSettings(_env_file=None)`` while another imported application
+    # module has already loaded the repository ``.env`` into ``os.environ``.
+    # Only fields explicitly supplied to that settings object may change the
+    # default composition graph.  The API lifespan passes ``TargetSettings()``
+    # (whose environment fields are part of deployment configuration), so its
+    # configured account services continue to bind normally.
+    explicit_fields = getattr(
+        target_settings,
+        "explicit_input_fields",
+        getattr(target_settings, "model_fields_set", frozenset()),
+    )
+    ambient_environment_enabled = bool(
+        getattr(target_settings, "ambient_environment_enabled", True)
+    )
+    account_config_explicit = bool(
+        {"account_services_json", "account_services_file"} & set(explicit_fields)
+    )
+    policy_explicit = "agent_mcp_tool_policy_json" in set(explicit_fields)
+    ambient_target_bindings_enabled = bool(
+        ambient_environment_enabled and getattr(target_settings, "target_adapters_enabled", False)
+    )
+    if account_service_registry is None and (account_config_explicit or ambient_target_bindings_enabled):
         from xhs_food.composition.account_services import build_account_service_registry
 
         account_service_registry = build_account_service_registry(target_settings)
@@ -565,7 +612,14 @@ def build_composition_root(
         build_agent_tool_policy,
     )
 
-    agent_tool_policy = build_agent_tool_policy(target_settings)
+    if policy_explicit or ambient_target_bindings_enabled:
+        agent_tool_policy = build_agent_tool_policy(target_settings)
+    else:
+        # See the account-service note above: ambient dotenv values must not
+        # alter a caller's intentionally empty/unit composition graph.
+        from xhs_food.contracts import AgentToolPolicy
+
+        agent_tool_policy = AgentToolPolicy()
     managed_agent_tools: AccountServiceAgentToolCatalog | None = None
     if agent_tool_policy.enabled:
         if not isinstance(account_service_registry, AccountServiceRegistry):
@@ -579,9 +633,6 @@ def build_composition_root(
         if reliable_task_lifecycle is None
         else reliable_task_lifecycle
     )
-    canary_enabled = target_settings.personalization_canary_mode != "off"
-    if canary_enabled and not target_settings.target_adapters_enabled:
-        raise RuntimeError("personalization canary requires target_adapters_enabled")
     if reliable_enabled and reliable_policy is None:
         raise RuntimeError(
             "reliable_task_lifecycle requires an explicit Temporal/PostgreSQL policy adapter"
@@ -601,6 +652,236 @@ def build_composition_root(
     ):
         raise RuntimeError("reliable_event_bus must implement EventBusPort")
     owner_config = build_owner_config(get_settings(), cast(TargetSettings, target_settings))
+    if modular_overrides is None:
+        modular_overrides = ModularAdapterOverrides()
+    elif not isinstance(modular_overrides, ModularAdapterOverrides):
+        raise TypeError("modular_overrides must be a ModularAdapterOverrides instance")
+
+    # A caller may supply a prevalidated plan from a deployment coordinator or
+    # qualification fixture.  Keep both spellings for compatibility with the
+    # public design terminology, but reject two conflicting plan objects so the
+    # graph can never be assembled from mixed configuration snapshots.
+    if (
+        modular_plan is not None
+        and modular_binding_plan is not None
+        and modular_plan != modular_binding_plan
+    ):
+        raise ValueError("modular_plan and modular_binding_plan must identify one plan")
+    explicit_plan_supplied = modular_plan is not None or modular_binding_plan is not None
+    selected_plan = (
+        modular_plan if modular_plan is not None else modular_binding_plan
+    )
+    if selected_plan is None:
+        selected_plan = build_modular_binding_plan(
+            cast(TargetSettings, target_settings), owner_config
+        )
+    elif not isinstance(selected_plan, ModularBindingPlan):
+        raise TypeError("modular_plan must be a ModularBindingPlan instance")
+    # ``validate`` is intentionally called even for injected plans: the plan
+    # is the immutable activation boundary, not an unchecked dependency bag.
+    modular_plan = selected_plan.validate()
+    modular_overrides = cast(ModularAdapterOverrides, modular_overrides)
+    canary_enabled = modular_plan.personalization_mode is not CapabilityMode.OFF
+    memory_bindings_enabled = modular_plan.has_memory_bindings and (
+        not target_settings_was_implicit
+        or explicit_plan_supplied
+        or any(
+            value is not None
+            for value in (
+                modular_overrides.memory_repository,
+                modular_overrides.memory_session_window,
+                modular_overrides.memory_outbox_projector,
+                modular_overrides.memory_authority_writer,
+            )
+        )
+    )
+
+    def require_override(value: object | None, name: str) -> object:
+        if value is None:
+            raise RuntimeError(f"active modular capability requires {name} adapter override")
+        return value
+
+    def require_methods(value: object, name: str, methods: tuple[str, ...]) -> object:
+        missing = tuple(method for method in methods if not callable(getattr(value, method, None)))
+        if missing:
+            joined = ", ".join(missing)
+            raise TypeError(f"{name} adapter is missing required methods: {joined}")
+        return value
+
+    if modular_plan.evidence_mode is CapabilityMode.SHADOW:
+        evidence_shadow_sink = require_override(
+            modular_overrides.evidence_shadow_sink,
+            "evidence_shadow_sink",
+        )
+        require_methods(
+            evidence_shadow_sink,
+            "evidence_shadow_sink",
+            ("write",),
+        )
+        canonical_query_shadow = modular_overrides.canonical_query_shadow
+        if canonical_query_shadow is None and not getattr(
+            evidence_shadow_sink, "supports_atomic_canonical_query", False
+        ):
+            raise RuntimeError(
+                "active modular capability requires canonical_query_shadow adapter override "
+                "unless evidence_shadow_sink owns canonical identity atomically"
+            )
+        if canonical_query_shadow is not None:
+            require_methods(canonical_query_shadow, "canonical_query_shadow", ("save",))
+
+    # Source connectors are supplied by the runtime that owns platform
+    # credentials.  When that runtime injects the connector map, the
+    # Composition Root still owns the Source Gateway boundary and applies the
+    # explicitly supplied B1 decorator before registration.  A pre-built
+    # gateway remains injectable for deployments that own connector creation
+    # outside this process.
+    source_gateway: object | None = modular_overrides.source_gateway
+    if source_gateway is not None and modular_overrides.source_connectors is not None:
+        raise ValueError("source_gateway and source_connectors are mutually exclusive")
+    if source_gateway is not None:
+        require_methods(source_gateway, "source_gateway", ("collect", "collect_one"))
+    elif modular_overrides.source_connectors is not None:
+        source_connectors = modular_overrides.source_connectors
+        if not isinstance(source_connectors, Mapping):
+            raise TypeError("source_connectors must be a mapping")
+        for source_id, connector in source_connectors.items():
+            if not isinstance(source_id, str) or not source_id:
+                raise TypeError("source_connectors keys must be non-empty strings")
+            require_methods(connector, f"source_connectors[{source_id!r}]", ("search",))
+        connector_decorator = None
+        if modular_plan.evidence_mode is CapabilityMode.SHADOW:
+            connector_decorator = require_override(
+                modular_overrides.source_connector_decorator,
+                "source_connector_decorator",
+            )
+            if not callable(connector_decorator):
+                raise TypeError("source_connector_decorator must be callable")
+        # Ignore an accidentally supplied decorator while B1 is off.  This
+        # preserves the exact legacy connector instances and makes the
+        # closed-world setting authoritative at the composition boundary.
+        from xhs_food.gateways import SourceGateway
+
+        source_gateway = SourceGateway(
+            cast(Mapping[str, Any], source_connectors),
+            connector_decorator=cast(Any, connector_decorator),
+        )
+
+    query_family_repository: object | None = None
+    query_reuse_read: object | None = None
+    if modular_plan.query_mode is not CapabilityMode.OFF:
+        query_family_repository = require_override(
+            modular_overrides.query_family_repository,
+            "query_family_repository",
+        )
+        require_methods(
+            query_family_repository,
+            "query_family_repository",
+            (
+                "get_exact",
+                "search_trigram",
+                "search_vector",
+                "get_freshness",
+                "save_freshness",
+                "claim_refresh",
+                "activate_bundle_if_current",
+                "update_refresh_status",
+            ),
+        )
+        query_reuse_read = modular_overrides.query_reuse_read
+        if query_reuse_read is None:
+            query_reuse_read = build_query_reuse_read_service(
+                query_family_repository,
+                mode=modular_plan.query_reuse_read.mode,
+                sample_rate=modular_plan.query_reuse_read.sample_rate,
+                min_confidence=modular_plan.query_reuse_read.min_confidence,
+                canary_gate_approved=modular_plan.query_reuse_read.b1_gate_approved,
+            )
+        require_methods(query_reuse_read, "query_reuse_read", ("read",))
+    if memory_bindings_enabled:
+        require_methods(
+            require_override(modular_overrides.memory_repository, "memory_repository"),
+            "memory_repository",
+            (
+                "append_conversation_turn",
+                "save_record",
+                "commit_authority_write",
+                "append_memory_event",
+                "list_records",
+                "list_conversation_turns",
+                "claim_anonymous",
+                "save_preference_snapshot",
+                "enqueue_outbox",
+            ),
+        )
+        memory_session_window = require_override(
+            modular_overrides.memory_session_window,
+            "memory_session_window",
+        )
+        require_methods(
+            memory_session_window,
+            "memory_session_window",
+            ("append", "recent", "clear"),
+        )
+        if modular_overrides.memory_outbox_projector is not None:
+            require_methods(
+                modular_overrides.memory_outbox_projector,
+                "memory_outbox_projector",
+                ("project",),
+            )
+        if modular_overrides.memory_authority_writer is not None:
+            require_methods(
+                modular_overrides.memory_authority_writer,
+                "memory_authority_writer",
+                ("write",),
+            )
+    observation_port: object | None = None
+    evaluation_port: object | None = None
+    if modular_plan.observability_enabled:
+        if modular_overrides.observation_port is None:
+            if not modular_plan.observability.exporter_endpoint:
+                raise RuntimeError(
+                    "OTel enabled without an injected observation_port requires an OTLP exporter endpoint"
+                )
+            from xhs_food.composition.adapters import build_observation_exporter
+
+            observation_port = build_observation_exporter(
+                endpoint=modular_plan.observability.exporter_endpoint,
+                enabled=True,
+                service_name=modular_plan.observability.service_name,
+                api_version=modular_plan.observability.phoenix_api_version,
+                max_queue_size=modular_plan.observability.max_queue_size,
+                max_batch_size=modular_plan.observability.max_batch_size,
+                schedule_delay_ms=modular_plan.observability.schedule_delay_ms,
+                export_timeout_ms=modular_plan.observability.export_timeout_ms,
+                retry_limit=modular_plan.observability.retry_limit,
+                sampling_rate=modular_plan.observability.sampling_rate,
+                shutdown_flush_timeout_ms=modular_plan.observability.shutdown_flush_timeout_ms,
+                drop_policy=modular_plan.observability.drop_policy,
+            )
+        else:
+            observation_port = modular_overrides.observation_port
+        require_methods(
+            observation_port,
+            "observation_port",
+            ("observe", "flush", "health"),
+        )
+        if modular_overrides.evaluation_port is None:
+            from xhs_food.composition.adapters import build_evaluation_port
+
+            evaluation_port = build_evaluation_port(
+                endpoint=modular_plan.observability.phoenix_evaluation_endpoint,
+                enabled=modular_plan.phoenix_enabled,
+                api_version=modular_plan.observability.phoenix_api_version,
+                timeout_ms=modular_plan.observability.export_timeout_ms,
+                retry_limit=modular_plan.observability.retry_limit,
+            )
+        else:
+            evaluation_port = modular_overrides.evaluation_port
+        require_methods(
+            evaluation_port,
+            "evaluation_port",
+            ("submit_dataset", "submit_run", "close", "health"),
+        )
 
     domain_pack_registry = DomainPackRegistry(
         core_version="1.0.0",
@@ -737,9 +1018,26 @@ def build_composition_root(
     def target_object_store() -> Boto3ObjectStore:
         object_store = owner_config.object_store
         extra: dict[str, Any] = {}
-        if object_store.multipart_chunk_size != 8 * 1024 * 1024:
+        optional_config_allowed = bool(
+            getattr(target_settings, "ambient_environment_enabled", True)
+            or {
+                "object_store_environment",
+                "object_store_server_side_encryption",
+                "object_store_encryption_key_ref",
+                "object_store_signed_url_ttl_seconds",
+                "object_store_orphan_grace_seconds",
+            }
+            & set(
+                getattr(
+                    target_settings,
+                    "explicit_input_fields",
+                    getattr(target_settings, "model_fields_set", frozenset()),
+                )
+            )
+        )
+        if optional_config_allowed and object_store.multipart_chunk_size != 8 * 1024 * 1024:
             extra["multipart_chunksize"] = object_store.multipart_chunk_size
-        if object_store.max_bytes != 50 * 1024 * 1024:
+        if optional_config_allowed and object_store.max_bytes != 50 * 1024 * 1024:
             extra["max_object_bytes"] = object_store.max_bytes
         default_content_types = (
             "application/json",
@@ -752,15 +1050,15 @@ def build_composition_root(
         )
         if object_store.allowed_content_types != default_content_types:
             extra["allowed_content_types"] = object_store.allowed_content_types
-        if object_store.environment != "test":
+        if optional_config_allowed and object_store.environment != "test":
             extra["environment"] = object_store.environment
-        if object_store.server_side_encryption is not None:
+        if optional_config_allowed and object_store.server_side_encryption is not None:
             extra["server_side_encryption"] = object_store.server_side_encryption
-        if object_store.encryption_key_ref is not None:
+        if optional_config_allowed and object_store.encryption_key_ref is not None:
             extra["encryption_key_ref"] = object_store.encryption_key_ref
-        if object_store.signed_url_ttl_seconds is not None:
+        if optional_config_allowed and object_store.signed_url_ttl_seconds is not None:
             extra["signed_url_ttl_seconds"] = object_store.signed_url_ttl_seconds
-        if object_store.orphan_grace_seconds is not None:
+        if optional_config_allowed and object_store.orphan_grace_seconds is not None:
             extra["orphan_grace_seconds"] = object_store.orphan_grace_seconds
         if object_store.environment == "production":
             extra["require_encryption"] = True
@@ -805,10 +1103,11 @@ def build_composition_root(
         return coordinator
 
     def personalization_canary() -> PersonalizationCanary:
+        personalization = modular_plan.personalization
         settings = PersonalizationCanarySettings(
-            mode=PersonalizationCanaryMode(target_settings.personalization_canary_mode),
-            sample_rate=target_settings.personalization_canary_sample_rate,
-            projection_warmup_enabled=target_settings.personalization_projection_warmup_enabled,
+            mode=PersonalizationCanaryMode(personalization.mode),
+            sample_rate=personalization.sample_rate,
+            projection_warmup_enabled=personalization.projection_warmup_enabled,
         )
         telemetry = PersonalizationCanaryTelemetry()
         return PersonalizationCanary(
@@ -817,7 +1116,136 @@ def build_composition_root(
             recorder=telemetry.record,
         )
 
-    root = CompositionRoot()
+    root = CompositionRoot(modular_plan=modular_plan)
+
+    def bind_modular_value(
+        *,
+        registry_name: str,
+        binding_name: str,
+        logical_name: str,
+        contract_version: str,
+        value: object,
+    ) -> None:
+        registry = root.registry(registry_name)
+        registry.register(
+            AdapterBinding(
+                name=binding_name,
+                contract_version=contract_version,
+                factory=lambda value=value: value,
+                legacy=False,
+            )
+        )
+        root.bind_logical(
+            logical_name,
+            registry_name=registry_name,
+            binding_name=binding_name,
+        )
+
+    if source_gateway is not None:
+        bind_modular_value(
+            registry_name="gateways",
+            binding_name="source",
+            logical_name="source.gateway",
+            contract_version="source-gateway/v1",
+            value=source_gateway,
+        )
+    if modular_plan.evidence_mode is CapabilityMode.SHADOW:
+        if modular_overrides.canonical_query_shadow is not None:
+            bind_modular_value(
+                registry_name="evidence",
+                binding_name="canonical_query_shadow",
+                logical_name="evidence.canonical_query_shadow",
+                contract_version="canonical-query-shadow/v1",
+                value=modular_overrides.canonical_query_shadow,
+            )
+        bind_modular_value(
+            registry_name="evidence",
+            binding_name="shadow_sink",
+            logical_name="evidence.shadow_sink",
+            contract_version="evidence-shadow-sink/v1",
+            value=evidence_shadow_sink,
+        )
+    if modular_plan.query_mode is not CapabilityMode.OFF:
+        bind_modular_value(
+            registry_name="evidence",
+            binding_name="query_family_repository",
+            logical_name="evidence.query_family_repository",
+            contract_version="query-family-repository/v1",
+            value=query_family_repository,
+        )
+        bind_modular_value(
+            registry_name="evidence",
+            binding_name="query_reuse_read",
+            logical_name="evidence.query_reuse_read",
+            contract_version="query-reuse-read/v1",
+            value=query_reuse_read,
+        )
+    if memory_bindings_enabled:
+        from xhs_food.composition.adapters import MemoryAuthorityWriter, MemoryOutboxProjector
+
+        memory_repository = require_override(
+            modular_overrides.memory_repository,
+            "memory_repository",
+        )
+        memory_session_window = require_override(
+            modular_overrides.memory_session_window,
+            "memory_session_window",
+        )
+        outbox_projector = modular_overrides.memory_outbox_projector
+        if outbox_projector is None:
+            outbox_projector = MemoryOutboxProjector(cast(Any, memory_session_window))
+        require_methods(outbox_projector, "memory_outbox_projector", ("project",))
+        authority_writer = modular_overrides.memory_authority_writer
+        if authority_writer is None:
+            authority_writer = MemoryAuthorityWriter(
+                cast(Any, memory_repository), cast(Any, outbox_projector)
+            )
+        require_methods(authority_writer, "memory_authority_writer", ("write",))
+        bind_modular_value(
+            registry_name="memory",
+            binding_name="authority_repository",
+            logical_name="memory.authority_repository",
+            contract_version="memory-authority-repository/v1",
+            value=memory_repository,
+        )
+        bind_modular_value(
+            registry_name="memory",
+            binding_name="session_projection",
+            logical_name="memory.session_projection",
+            contract_version="memory-session-projection/v1",
+            value=memory_session_window,
+        )
+        bind_modular_value(
+            registry_name="memory",
+            binding_name="outbox_projector",
+            logical_name="memory.outbox_projector",
+            contract_version="memory-outbox-projector/v1",
+            value=outbox_projector,
+        )
+        bind_modular_value(
+            registry_name="memory",
+            binding_name="authority_writer",
+            logical_name="memory.authority_writer",
+            contract_version="memory-authority-writer/v1",
+            value=authority_writer,
+        )
+    if modular_plan.observability_enabled:
+        assert observation_port is not None
+        assert evaluation_port is not None
+        bind_modular_value(
+            registry_name="observability",
+            binding_name="observation_port",
+            logical_name="observability.observation_port",
+            contract_version="observation-port/v1",
+            value=observation_port,
+        )
+        bind_modular_value(
+            registry_name="observability",
+            binding_name="evaluation_port",
+            logical_name="observability.evaluation_port",
+            contract_version="evaluation-port/v1",
+            value=evaluation_port,
+        )
     if account_service_registry is not None:
         service_registry = root.registry("account_services")
         service_registry.register(
@@ -1048,6 +1476,38 @@ def build_composition_root(
         "research.comment_first_workflow",
         "use_cases.research_task",
     }
+    if modular_plan.evidence_mode is CapabilityMode.SHADOW:
+        allowed_non_legacy.update(
+            {
+                "evidence.canonical_query_shadow",
+                "evidence.shadow_sink",
+            }
+        )
+    if source_gateway is not None:
+        allowed_non_legacy.add("gateways.source")
+    if modular_plan.query_mode is not CapabilityMode.OFF:
+        allowed_non_legacy.update(
+            {
+                "evidence.query_family_repository",
+                "evidence.query_reuse_read",
+            }
+        )
+    if memory_bindings_enabled:
+        allowed_non_legacy.update(
+            {
+                "memory.authority_repository",
+                "memory.session_projection",
+                "memory.outbox_projector",
+                "memory.authority_writer",
+            }
+        )
+    if modular_plan.observability_enabled:
+        allowed_non_legacy.update(
+            {
+                "observability.observation_port",
+                "observability.evaluation_port",
+            }
+        )
     if reliable_enabled:
         allowed_non_legacy.update(
             {

@@ -50,7 +50,13 @@ def test_dependency_ledger_has_current_sources_versions_and_spikes() -> None:
 
 def test_lockfile_hash_and_runtime_versions_match_ledger() -> None:
     digest = hashlib.sha256(LOCK.read_bytes()).hexdigest()
-    assert digest == "98e8c2b67e4d2d07a9d797cbc356b79686094fee238526b7745f049da1079e45"
+    # The completed architecture baseline remains an accepted snapshot.  This
+    # change adds the pinned OTLP/HTTP exporter and records its new snapshot in
+    # the change-local baseline rather than mutating the completed change.
+    assert digest in {
+        "98e8c2b67e4d2d07a9d797cbc356b79686094fee238526b7745f049da1079e45",
+        "6b069630590e63a74f44b80614406374aa999ce85345be48ed8da2573de9145e",
+    }
     lock_text = LOCK.read_text(encoding="utf-8")
     assert "requires-python = \"==3.12.*\"" in lock_text
 

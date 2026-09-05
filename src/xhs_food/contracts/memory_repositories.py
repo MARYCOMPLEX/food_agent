@@ -40,6 +40,20 @@ class MemoryRepositoryPort(Protocol):
 
     async def commit_authority_write(self, write: MemoryAuthorityWrite) -> str: ...
 
+    async def list_pending_outbox(
+        self,
+        *,
+        available_at: datetime,
+        limit: int,
+    ) -> tuple[MemoryOutboxEvent, ...]: ...
+
+    async def mark_outbox_processed(
+        self,
+        *,
+        outbox_id: str,
+        processed_at: datetime,
+    ) -> bool: ...
+
     async def append_memory_event(self, event: MemoryEvent) -> str: ...
 
     async def list_records(
@@ -62,6 +76,24 @@ class MemoryRepositoryPort(Protocol):
     ) -> AnonymousClaimReceipt: ...
 
     async def save_preference_snapshot(self, snapshot: PreferenceSnapshot) -> str: ...
+
+    async def supersede_record(
+        self,
+        *,
+        scope: MemoryIsolationKey,
+        previous_record_id: str,
+        replacement: MemoryRecord,
+        source_event: MemoryEvent,
+        outbox: MemoryOutboxEvent,
+    ) -> str: ...
+
+    async def tombstone_scope(
+        self,
+        *,
+        scope: MemoryIsolationKey,
+        source_event: MemoryEvent,
+        outbox: MemoryOutboxEvent,
+    ) -> int: ...
 
     async def enqueue_outbox(
         self,
@@ -101,8 +133,30 @@ class MemorySessionWindowPort(Protocol):
     async def clear(self, scope: MemoryIsolationKey) -> bool: ...
 
 
+@runtime_checkable
+class VersionedMemorySessionWindowPort(Protocol):
+    """Optional atomic projection operations with authority-version fencing."""
+
+    async def append_if_newer(
+        self,
+        scope: MemoryIsolationKey,
+        message: ContractPayload,
+        ttl_seconds: int,
+        authority_version: int,
+        event_id: str,
+    ) -> bool: ...
+
+    async def clear_if_newer(
+        self,
+        scope: MemoryIsolationKey,
+        authority_version: int,
+        event_id: str,
+    ) -> bool: ...
+
+
 __all__ = [
     "MemoryOutboxProjectorPort",
     "MemoryRepositoryPort",
     "MemorySessionWindowPort",
+    "VersionedMemorySessionWindowPort",
 ]

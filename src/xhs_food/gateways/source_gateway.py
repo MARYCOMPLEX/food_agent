@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime, timedelta
 from math import ceil
@@ -19,6 +20,8 @@ from xhs_food.contracts import (
     SourceConnector,
     SourceControlPort,
 )
+
+ConnectorDecorator = Callable[[SourceConnector], SourceConnector]
 
 
 class InMemorySourceControl:
@@ -92,8 +95,21 @@ class SourceGateway:
         connectors: Mapping[str, SourceConnector],
         *,
         control: SourceControlPort | None = None,
+        connector_decorator: ConnectorDecorator | None = None,
     ) -> None:
-        self._connectors = dict(connectors)
+        # Decoration belongs at registration time, before the gateway owns
+        # the connector map.  This keeps source admission/outcome handling
+        # unchanged while making the shadow path an explicit composition
+        # decision.  With no decorator the mapping is copied exactly as
+        # before, which is the legacy/off behavior.
+        self._connectors = {
+            source_id: (
+                connector_decorator(connector)
+                if connector_decorator is not None
+                else connector
+            )
+            for source_id, connector in connectors.items()
+        }
         self._control = control or InMemorySourceControl()
 
     async def collect(self, request: CollectRequest) -> tuple[SourceCollectionOutcome, ...]:
@@ -175,6 +191,22 @@ class SourceGateway:
             batch=batch,
         )
 
+    async def aclose(self) -> None:
+        """Drain connector-owned background work before gateway shutdown.
+
+        Shadow decorators expose ``aclose`` without making it part of the
+        legacy ``SourceConnector`` protocol.  A gateway can therefore drain
+        those optional tasks while keeping ordinary connectors unchanged.
+        """
+
+        for connector in self._connectors.values():
+            close = getattr(connector, "aclose", None)
+            if not callable(close):
+                continue
+            result = close()
+            if inspect.isawaitable(result):
+                await result
+
     @staticmethod
     def _failure(
         source_id: str,
@@ -201,4 +233,4 @@ class SourceGateway:
         )
 
 
-__all__ = ["InMemorySourceControl", "SourceGateway"]
+__all__ = ["ConnectorDecorator", "InMemorySourceControl", "SourceGateway"]

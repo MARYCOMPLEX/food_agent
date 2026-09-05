@@ -28,6 +28,7 @@ from xhs_food.contracts import (
     IsolationCoordinates,
     LicenseStatus,
     LicenseUse,
+    QueryReuseReadMode,
     RetentionPolicy,
     VisibilityScope,
     XhsNoteLead,
@@ -45,6 +46,40 @@ _URL_ADAPTER = TypeAdapter(AnyUrl)
 
 class EvidenceLifecycleError(RuntimeError):
     """A canonical evidence projection could not be handed to its sink."""
+
+
+def build_query_reuse_read_service(
+    repository: Any,
+    *,
+    mode: QueryReuseReadMode | str,
+    sample_rate: float,
+    min_confidence: float,
+    canary_gate_approved: bool,
+) -> Any:
+    """Assemble the B2 reader at the research/Evidence boundary.
+
+    The Composition Root supplies the repository and immutable configuration;
+    keeping the Evidence service construction here preserves the declared
+    import direction while still allowing qualification fixtures to inject a
+    repository without constructing vendor adapters.
+    """
+
+    from xhs_food.contracts import QueryReuseReadSettings
+    from xhs_food.evidence import QueryFamilyReuseService, QueryReuseReadService
+
+    settings = QueryReuseReadSettings(
+        mode=QueryReuseReadMode(mode),
+        sample_rate=sample_rate,
+        canary_gate_approved=canary_gate_approved,
+    )
+    return QueryReuseReadService(
+        QueryFamilyReuseService(
+            repository,
+            trigram_threshold=max(0.90, min_confidence),
+            vector_threshold=min_confidence,
+        ),
+        settings=settings,
+    )
 
 
 class CanonicalCommentEvidenceAdapter:
@@ -381,6 +416,7 @@ def _canonical_url(value: str, note_id: str) -> AnyUrl:
 
 
 __all__ = [
+    "build_query_reuse_read_service",
     "CanonicalCommentEvidenceAdapter",
     "EvidenceLedger",
     "EvidenceLifecycleError",

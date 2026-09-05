@@ -6,7 +6,7 @@ import hashlib
 import json
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Literal, Protocol
+from typing import Literal, Protocol, Self
 
 from pydantic import Field, model_validator
 
@@ -35,11 +35,16 @@ class FreshnessState(StrEnum):
 
 class FreshnessReason(StrEnum):
     NO_BUNDLE = "no_bundle"
+    NO_FAMILY = "no_family"
     WITHIN_WINDOW = "within_window"
     STALE_TIME = "stale_time"
     COVERAGE_DEFICIT = "coverage_deficit"
     WATERMARK_ADVANCED = "watermark_advanced"
     ACTIVE_REFRESH = "active_refresh"
+    MAXIMUM_STALENESS = "maximum_staleness"
+    # Alias retained for callers that name the boundary as a limit.
+    STALE_LIMIT_EXCEEDED = "maximum_staleness"
+    REFRESH_FAILED = "refresh_failed"
 
 
 class QueryFamilyMatch(ContractModel):
@@ -52,9 +57,11 @@ class QueryFamilyMatch(ContractModel):
     confidence: float = Field(ge=0.0, le=1.0)
     matched_alias: str | None = None
     rule_version: ContractVersion
+    normalization_version: ContractVersion = "canonical-normalizer/v1"
     profile_id: RegisteredSlug | None = None
     profile_version: ContractVersion | None = None
     audit_basis: tuple[NonEmptyStr, ...] = ()
+    rationale: tuple[NonEmptyStr, ...] = ()
 
     @model_validator(mode="after")
     def validate_layer_metadata(self) -> QueryFamilyMatch:
@@ -65,16 +72,37 @@ class QueryFamilyMatch(ContractModel):
             raise ValueError("only vector matches may carry embedding profile metadata")
         if self.layer is QueryMatchLayer.DETERMINISTIC and self.confidence != 1.0:
             raise ValueError("deterministic matches must have confidence 1.0")
+        if self.layer is QueryMatchLayer.TRIGRAM and not self.matched_alias:
+            raise ValueError("trigram matches require the matched alias")
         return self
 
 
 class QueryReuseRequest(VersionedContract):
     """Public query inputs for the three-tier matcher; no user identity."""
 
+    schema_version: Literal["query-reuse/v1"] = QUERY_REUSE_VERSION
     canonical_key: NonEmptyStr
     alias_text: NonEmptyStr
     vector: tuple[float, ...] | None = None
     embedding_profile: EmbeddingProfile = BGE_M3_PROFILE_V1
+    normalization_version: ContractVersion = "canonical-normalizer/v1"
+    classifier_version: ContractVersion = "food-constraints/v1"
+
+    @model_validator(mode="after")
+    def validate_public_inputs(self) -> Self:
+        # The request is a shared cache key.  Private fields are rejected
+        # rather than silently becoming part of a supposedly public Family.
+        for field_name, value in (
+            ("canonical_key", self.canonical_key),
+            ("alias_text", self.alias_text),
+        ):
+            if not value.strip():
+                raise ValueError(f"{field_name} must be non-empty")
+            if _contains_private_marker(value):
+                raise ValueError(f"{field_name} contains a private identity marker")
+        if self.vector is not None and not self.vector:
+            raise ValueError("vector must not be empty")
+        return self
 
 
 class QueryReuseDecision(ContractModel):
@@ -91,12 +119,44 @@ class FreshnessPolicy(ContractModel):
     policy_version: ContractVersion
     max_staleness_seconds: int = Field(gt=0)
     minimum_coverage: dict[RegisteredSlug, float] = Field(default_factory=dict)
+    # ``max_staleness_seconds`` is the freshness window retained by the
+    # original contract.  Domain Packs may additionally provide a bounded
+    # stale fallback window without changing that wire field.
+    fresh_for_seconds: int | None = Field(default=None, gt=0)
+    max_stale_for_seconds: int | None = Field(default=None, gt=0)
+    maximum_staleness_seconds: int | None = Field(default=None, gt=0)
 
     @model_validator(mode="after")
     def validate_coverage(self) -> FreshnessPolicy:
         if any(not 0.0 <= value <= 1.0 for value in self.minimum_coverage.values()):
             raise ValueError("minimum coverage must be between 0 and 1")
+        if (
+            self.max_stale_for_seconds is not None
+            and self.fresh_for_seconds is not None
+            and self.max_stale_for_seconds < self.fresh_for_seconds
+        ):
+            raise ValueError("maximum stale window must not precede the fresh window")
+        if (
+            self.maximum_staleness_seconds is not None
+            and self.fresh_for_seconds is not None
+            and self.maximum_staleness_seconds < self.fresh_for_seconds
+        ):
+            raise ValueError("maximum stale window must not precede the fresh window")
+        if (
+            self.max_stale_for_seconds is not None
+            and self.maximum_staleness_seconds is not None
+            and self.max_stale_for_seconds != self.maximum_staleness_seconds
+        ):
+            raise ValueError("maximum stale windows must agree")
         return self
+
+    @property
+    def freshness_window_seconds(self) -> int:
+        return self.fresh_for_seconds or self.max_staleness_seconds
+
+    @property
+    def stale_fallback_window_seconds(self) -> int | None:
+        return self.max_stale_for_seconds or self.maximum_staleness_seconds
 
 
 class FreshnessInput(ContractModel):
@@ -116,6 +176,8 @@ class FreshnessInput(ContractModel):
             raise ValueError("verified_at requires a bundle_version")
         if any(not 0.0 <= value <= 1.0 for value in self.coverage.values()):
             raise ValueError("coverage must be between 0 and 1")
+        if self.active_refresh_workflow_id is not None and not self.active_refresh_workflow_id.strip():
+            raise ValueError("active refresh workflow identity must be non-empty")
         return self
 
 
@@ -128,6 +190,7 @@ class FreshnessDecision(ContractModel):
     active_refresh_workflow_id: str | None = None
     policy_id: RegisteredSlug
     policy_version: ContractVersion
+    age_seconds: int | None = Field(default=None, ge=0)
 
 
 class RefreshSingleFlightKey(ContractModel):
@@ -199,6 +262,16 @@ class QueryFamilyRepository(Protocol):
         bundle_version: int,
     ) -> bool: ...
 
+    async def update_refresh_status(
+        self, claim_key: str, status: Literal["active", "completed", "failed", "cancelled"]
+    ) -> bool: ...
+
+
+class FreshnessPolicyAdapter(Protocol):
+    """Domain Pack-owned policy source; storage supplies only authority facts."""
+
+    def policy(self) -> FreshnessPolicy: ...
+
 
 def stable_refresh_workflow_id(key: RefreshSingleFlightKey) -> str:
     """Derive a Temporal-safe ID without user/session or cache state."""
@@ -231,12 +304,19 @@ def decide_freshness(
     policy: FreshnessPolicy,
     *,
     now: datetime | None = None,
+    family_id: str | None = None,
 ) -> FreshnessDecision:
     """Classify a Family without comparing opaque connector watermarks."""
 
     if current is None:
-        raise ValueError("freshness input is required to identify the family")
+        if family_id is None or not family_id:
+            raise ValueError("freshness input or family_id is required to identify the family")
+        current = FreshnessInput(family_id=family_id)
+    elif family_id is not None and current.family_id != family_id:
+        raise ValueError("freshness input family does not match the requested family")
     clock = now or datetime.now(UTC)
+    if clock.tzinfo is None or clock.utcoffset() is None:
+        raise ValueError("freshness decision clock must be timezone-aware")
     if current.bundle_version is None or current.verified_at is None:
         return FreshnessDecision(
             family_id=current.family_id,
@@ -247,9 +327,23 @@ def decide_freshness(
             active_refresh_workflow_id=current.active_refresh_workflow_id,
         )
 
+    age_seconds = max(0, int((clock - current.verified_at).total_seconds()))
+    stale_limit = policy.stale_fallback_window_seconds
+    if stale_limit is not None and age_seconds > stale_limit:
+        return FreshnessDecision(
+            family_id=current.family_id,
+            state=FreshnessState.NEW,
+            reason=FreshnessReason.MAXIMUM_STALENESS,
+            base_bundle_version=current.bundle_version,
+            active_refresh_workflow_id=current.active_refresh_workflow_id,
+            policy_id=policy.policy_id,
+            policy_version=policy.policy_version,
+            age_seconds=age_seconds,
+        )
+
     if current.active_refresh_workflow_id:
         reason = FreshnessReason.ACTIVE_REFRESH
-    elif (clock - current.verified_at).total_seconds() > policy.max_staleness_seconds:
+    elif age_seconds > policy.freshness_window_seconds:
         reason = FreshnessReason.STALE_TIME
     elif any(
         current.coverage.get(dimension, 0.0) < minimum
@@ -274,7 +368,44 @@ def decide_freshness(
         active_refresh_workflow_id=current.active_refresh_workflow_id,
         policy_id=policy.policy_id,
         policy_version=policy.policy_version,
+        age_seconds=age_seconds,
     )
+
+
+_PRIVATE_MARKERS = frozenset(
+    {
+        "user",
+        "users",
+        "userid",
+        "session",
+        "sessions",
+        "sessionid",
+        "subject",
+        "subjects",
+        "identity",
+        "identities",
+        "deviceid",
+        "preference",
+        "preferences",
+        "favorite",
+        "favorites",
+        "memory",
+        "cookie",
+        "token",
+        "credential",
+        "credentials",
+        "password",
+        "secret",
+        "account",
+        "click",
+        "clicks",
+    }
+)
+
+
+def _contains_private_marker(value: str) -> bool:
+    normalized = "".join(character for character in value.casefold() if character.isalnum())
+    return any(marker in normalized for marker in _PRIVATE_MARKERS)
 
 
 __all__ = [
@@ -284,6 +415,7 @@ __all__ = [
     "FreshnessDecision",
     "FreshnessInput",
     "FreshnessPolicy",
+    "FreshnessPolicyAdapter",
     "FreshnessReason",
     "FreshnessState",
     "QueryFamilyMatch",

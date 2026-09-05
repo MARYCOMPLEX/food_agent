@@ -21,7 +21,11 @@ from xhs_food.contracts import (
     stable_refresh_claim_key,
     stable_refresh_workflow_id,
 )
-from xhs_food.evidence import QueryFamilyReuseService, RefreshSingleFlightService
+from xhs_food.evidence import (
+    InMemoryQueryFamilyRepository,
+    QueryFamilyReuseService,
+    RefreshSingleFlightService,
+)
 
 
 def _match(
@@ -29,10 +33,11 @@ def _match(
     *,
     confidence: float,
     family_id: str = "family.zigong",
+    canonical_key: str | None = None,
 ) -> QueryFamilyMatch:
     return QueryFamilyMatch(
         family_id=family_id,
-        canonical_key=f"query.{family_id}",
+        canonical_key=canonical_key or f"query.{family_id}",
         layer=layer,
         confidence=confidence,
         matched_alias="自贡本地美食" if layer is QueryMatchLayer.TRIGRAM else None,
@@ -103,13 +108,33 @@ def _request(*, vector: tuple[float, ...] | None = (0.1,) * 1024) -> QueryReuseR
 @pytest.mark.unit
 async def test_deterministic_match_short_circuits_other_tiers() -> None:
     repository = _Repository()
-    repository.exact = _match(QueryMatchLayer.DETERMINISTIC, confidence=1.0)
+    repository.exact = _match(
+        QueryMatchLayer.DETERMINISTIC,
+        confidence=1.0,
+        canonical_key="query.missing",
+    )
 
     decision = await QueryFamilyReuseService(repository).resolve(_request())
 
     assert decision.match is repository.exact
     assert decision.attempted_layers == (QueryMatchLayer.DETERMINISTIC,)
     assert repository.calls == ["deterministic"]
+
+
+@pytest.mark.unit
+async def test_deterministic_match_with_old_normalization_falls_through() -> None:
+    repository = _Repository()
+    repository.exact = _match(
+        QueryMatchLayer.DETERMINISTIC,
+        confidence=1.0,
+        canonical_key="query.missing",
+    ).model_copy(update={"normalization_version": "canonical-normalizer/v0"})
+    repository.trigram = (_match(QueryMatchLayer.TRIGRAM, confidence=0.93),)
+
+    decision = await QueryFamilyReuseService(repository).resolve(_request(vector=None))
+
+    assert decision.match is repository.trigram[0]
+    assert repository.calls == ["deterministic", "trigram"]
 
 
 @pytest.mark.unit
@@ -221,3 +246,58 @@ async def test_single_flight_service_accepts_only_deterministic_claim() -> None:
     claim = await RefreshSingleFlightService(repository).claim(key)
 
     assert claim.acquired is True
+
+
+@pytest.mark.unit
+async def test_in_memory_refresh_status_is_terminal_and_idempotent() -> None:
+    key = RefreshSingleFlightKey(
+        family_id="family.zigong",
+        scope=("restaurants",),
+        policy_version="freshness/v1",
+    )
+    repository = InMemoryQueryFamilyRepository()
+    await repository.claim_refresh(key)
+    claim_key = stable_refresh_claim_key(key)
+
+    assert await repository.update_refresh_status(claim_key, "completed") is True
+    assert await repository.update_refresh_status(claim_key, "completed") is True
+    assert await repository.update_refresh_status(claim_key, "failed") is False
+
+
+@pytest.mark.unit
+async def test_in_memory_bundle_cas_rejects_older_or_same_version_replacements() -> None:
+    repository = InMemoryQueryFamilyRepository()
+
+    assert await repository.activate_bundle_if_current(
+        "family.zigong", None, "bundle.v2", 2
+    ) is True
+    assert await repository.activate_bundle_if_current(
+        "family.zigong", 2, "bundle.v1", 1
+    ) is False
+    assert await repository.activate_bundle_if_current(
+        "family.zigong", 2, "bundle.other-v2", 2
+    ) is False
+    assert await repository.activate_bundle_if_current(
+        "family.zigong", 2, "bundle.v2", 2
+    ) is True
+
+    current = await repository.get_current_bundle("family.zigong")
+    assert current is not None
+    assert current.bundle_id == "bundle.v2"
+    assert current.bundle_version == 2
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("value", ["query.user", "query.session", "query.subject", "query.identity"])
+def test_query_reuse_request_rejects_extended_private_markers(value: str) -> None:
+    with pytest.raises(ValueError, match="private identity marker"):
+        QueryReuseRequest(canonical_key=value, alias_text="public food query")
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("value", ["query.user", "query.session", "query.subject", "query.identity"])
+async def test_in_memory_repository_rejects_extended_private_markers(value: str) -> None:
+    repository = InMemoryQueryFamilyRepository()
+
+    with pytest.raises(ValueError, match="private identity marker"):
+        await repository.get_exact(value)

@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
+import inspect
 import logging
 import sys
 import time
+from collections.abc import Awaitable
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import cast
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
@@ -138,6 +142,33 @@ async def lifespan(application: FastAPI):
     else:
         composition_root = build_composition_root(target_settings=target_settings)
     application.state.composition_root = composition_root
+
+    # Observability is a replaceable, non-authoritative dependency.  Resolve
+    # it through the Composition Root so the API never constructs an OTel or
+    # Phoenix client directly.  A configured exporter may start a background
+    # drain task, but its health must not gate business startup.
+    application.state.observation_port = None
+    application.state.evaluation_port = None
+    if "observability.observation_port" in composition_root.logical_bindings:
+        try:
+            observation_port = await composition_root.resolve_logical(
+                "observability.observation_port"
+            )
+            application.state.observation_port = observation_port
+            start = getattr(observation_port, "start", None)
+            if callable(start):
+                result = start()
+                if inspect.isawaitable(result):
+                    await result
+        except Exception as exc:
+            logger.warning("Observation exporter startup degraded: {}", type(exc).__name__)
+    if "observability.evaluation_port" in composition_root.logical_bindings:
+        try:
+            application.state.evaluation_port = await composition_root.resolve_logical(
+                "observability.evaluation_port"
+            )
+        except Exception as exc:
+            logger.warning("Evaluation gateway startup degraded: {}", type(exc).__name__)
     from xhs_food.composition.account_services import (
         AccountServiceRegistry,
         RemoteAccountServiceFacade,
@@ -208,6 +239,38 @@ async def lifespan(application: FastAPI):
         yield
     finally:
         logger.info("XHS Food Agent API shutting down…")
+        # Flush exactly once within the configured deadline.  Failures are
+        # logged and isolated; CompositionRoot.close remains responsible for
+        # final resource disposal and the business shutdown path continues.
+        observation_port = getattr(application.state, "observation_port", None)
+        if observation_port is not None:
+            flush = getattr(observation_port, "flush", None)
+            if callable(flush):
+                timeout_seconds = max(
+                    0.0, target_settings.otel_shutdown_flush_timeout_ms / 1000.0
+                )
+                try:
+                    flush_result = flush(timeout_seconds)
+                    if inspect.isawaitable(flush_result):
+                        await asyncio.wait_for(
+                            cast(Awaitable[object], flush_result),
+                            timeout=timeout_seconds or 0.001,
+                        )
+                except Exception as exc:
+                    logger.warning("Observation exporter flush degraded: {}", type(exc).__name__)
+        evaluation_port = getattr(application.state, "evaluation_port", None)
+        if evaluation_port is not None:
+            close_evaluation = getattr(evaluation_port, "close", None)
+            if callable(close_evaluation):
+                try:
+                    result = close_evaluation()
+                    if inspect.isawaitable(result):
+                        timeout_seconds = max(
+                            0.0, target_settings.otel_shutdown_flush_timeout_ms / 1000.0
+                        )
+                        await asyncio.wait_for(result, timeout=timeout_seconds or 0.001)
+                except Exception as exc:
+                    logger.warning("Evaluation gateway shutdown degraded: {}", type(exc).__name__)
         if storage._initialized:
             await storage.close()
         await session_manager.close()

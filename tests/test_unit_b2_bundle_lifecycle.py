@@ -161,6 +161,22 @@ def test_new_family_does_not_fabricate_old_bundle() -> None:
 
 
 @pytest.mark.unit
+def test_no_family_reason_is_preserved_for_unavailable_read() -> None:
+    freshness = FreshnessDecision(
+        family_id="family.new",
+        state=FreshnessState.NEW,
+        reason=FreshnessReason.NO_FAMILY,
+        policy_id="food.default",
+        policy_version="freshness/v1",
+    )
+
+    decision = decide_bundle_read(freshness, None, {})
+
+    assert decision.state is BundleReadState.UNAVAILABLE
+    assert decision.reason is FreshnessReason.NO_FAMILY
+
+
+@pytest.mark.unit
 async def test_service_maps_current_freshness_to_read_decision() -> None:
     current = FreshnessInput(
         family_id="family.zigong",

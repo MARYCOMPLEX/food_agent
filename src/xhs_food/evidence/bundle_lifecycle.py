@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
+from datetime import datetime
+from typing import cast
+
 from xhs_food.contracts import (
     BGE_M3_PROFILE_V1,
     BundleActivationRepository,
@@ -14,6 +18,7 @@ from xhs_food.contracts import (
     FreshnessInput,
     FreshnessPolicy,
     decide_bundle_read,
+    decide_bundle_read_after_refresh_failure,
     decide_freshness,
     validate_candidate_bundle,
 )
@@ -72,14 +77,31 @@ class BundleLifecycleService:
 
         if target.bundle_version >= expected_current_bundle_version:
             raise ValueError("rollback target must be older than the current Bundle")
-        restored = await self._repository.activate_bundle_and_profile_if_current(
-            target.family_id,
-            expected_current_bundle_version,
-            target.bundle_id,
-            target.bundle_version,
-            expected_current_profile_id,
-            target_profile,
-        )
+        restore = getattr(self._repository, "restore_bundle_and_profile_if_current", None)
+        if callable(restore):
+            restore_fn = cast(
+                Callable[[str, int, str, int, str | None, EmbeddingProfile], Awaitable[bool]],
+                restore,
+            )
+            restored = await restore_fn(
+                target.family_id,
+                expected_current_bundle_version,
+                target.bundle_id,
+                target.bundle_version,
+                expected_current_profile_id,
+                target_profile,
+            )
+        else:
+            # Keep compatibility with older test/deployment adapters while the
+            # explicit rollback port rolls out alongside monotonic activation.
+            restored = await self._repository.activate_bundle_and_profile_if_current(
+                target.family_id,
+                expected_current_bundle_version,
+                target.bundle_id,
+                target.bundle_version,
+                expected_current_profile_id,
+                target_profile,
+            )
         return BundleActivationResult(
             family_id=target.family_id,
             bundle_id=target.bundle_id,
@@ -95,11 +117,36 @@ class BundleLifecycleService:
         current_bundle: CurrentBundleRef | None,
         *,
         coverage: dict[str, float] | None = None,
+        now: datetime | None = None,
     ) -> BundleReadDecision:
         if current is None:
             raise ValueError("freshness input is required for a Bundle read")
-        freshness = decide_freshness(current, policy)
-        return decide_bundle_read(freshness, current_bundle, coverage or current.coverage)
+        freshness = decide_freshness(current, policy, now=now)
+        effective_coverage = current.coverage if coverage is None else coverage
+        return decide_bundle_read(freshness, current_bundle, effective_coverage)
+
+    async def read_decision_after_refresh_failure(
+        self,
+        current: FreshnessInput | None,
+        policy: FreshnessPolicy,
+        current_bundle: CurrentBundleRef | None,
+        *,
+        failure_category: str,
+        coverage: dict[str, float] | None = None,
+        now: datetime | None = None,
+    ) -> BundleReadDecision:
+        """Return a bounded stale fallback or an explicit unavailable result."""
+
+        if current is None:
+            raise ValueError("freshness input is required for a Bundle read")
+        freshness = decide_freshness(current, policy, now=now)
+        effective_coverage = current.coverage if coverage is None else coverage
+        return decide_bundle_read_after_refresh_failure(
+            freshness,
+            current_bundle,
+            effective_coverage,
+            failure_category=failure_category,
+        )
 
 
 __all__ = ["BundleLifecycleService"]

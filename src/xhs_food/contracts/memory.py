@@ -343,6 +343,10 @@ class MemoryOutboxEvent(_AuthorityModel):
     payload: ContractPayload
     idempotency_key: NonEmptyStr
     available_at: Timestamp
+    # A monotonic authority watermark used by rebuildable projections.  Zero
+    # keeps older producers wire-compatible; new writers should provide the
+    # committed authority version explicitly.
+    authority_version: int = Field(default=0, ge=0)
 
 
 class MemoryAuthorityWrite(_AuthorityModel):
@@ -351,11 +355,17 @@ class MemoryAuthorityWrite(_AuthorityModel):
     conversation_turn: MemoryConversationTurn | None = None
     record: MemoryRecord | None = None
     source_event: MemoryEvent | None = None
+    snapshot: PreferenceSnapshot | None = None
     outbox: MemoryOutboxEvent
 
     @model_validator(mode="after")
     def require_authority_fact(self) -> MemoryAuthorityWrite:
-        if self.conversation_turn is None and self.record is None and self.source_event is None:
+        if (
+            self.conversation_turn is None
+            and self.record is None
+            and self.source_event is None
+            and self.snapshot is None
+        ):
             raise ValueError(
                 "an authority write must include a conversation, record, or source event"
             )
@@ -392,6 +402,15 @@ class MemoryAuthorityWrite(_AuthorityModel):
                     self.source_event.subject.kind,
                     self.source_event.subject.id,
                     self.source_event.session_id,
+                )
+            )
+        if self.snapshot is not None:
+            scopes.add(
+                _scope_identity(
+                    self.snapshot.isolation_key.tenant_id,
+                    self.snapshot.isolation_key.kind,
+                    _scope_subject_id(self.snapshot.isolation_key),
+                    self.snapshot.isolation_key.session_id,
                 )
             )
         if len(scopes) != 1:

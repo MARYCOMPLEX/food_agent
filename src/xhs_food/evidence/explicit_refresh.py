@@ -145,7 +145,12 @@ def _scope(payload: Mapping[str, Any]) -> tuple[str, ...]:
         raise ValueError("refresh public_inputs.refresh_scope must be a non-empty array")
     if not all(isinstance(item, str) and item for item in value):
         raise ValueError("refresh scope entries must be non-empty strings")
-    return tuple(str(item) for item in value)
+    normalized = tuple(str(item).strip() for item in value)
+    if any(not item for item in normalized):
+        raise ValueError("refresh scope entries must be non-empty strings")
+    if len(normalized) != len(set(normalized)):
+        raise ValueError("refresh scope must not contain duplicates")
+    return tuple(sorted(normalized))
 
 
 def _required_wire_text(payload: Mapping[str, Any], key: str) -> str:

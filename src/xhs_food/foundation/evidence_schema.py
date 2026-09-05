@@ -13,6 +13,7 @@ from sqlalchemy import (
     Column,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     MetaData,
@@ -38,6 +39,29 @@ canonical_queries = Table(
     Column("classifier_version", String(64), nullable=False),
     Column("payload", JSONB, nullable=False),
     Column("created_at", DateTime(timezone=True), nullable=False),
+)
+
+source_batches = Table(
+    "evidence_source_batches",
+    SHADOW_METADATA,
+    Column("batch_id", String(256), primary_key=True),
+    Column("canonical_key", String(256)),
+    Column("source_id", String(128), nullable=False),
+    Column("connector_id", String(128), nullable=False),
+    Column("connector_version", String(64), nullable=False),
+    Column("normalizer_version", String(64), nullable=False),
+    Column("tenant_scope", String(128), nullable=False),
+    Column("language", String(32), nullable=False),
+    Column("region", String(8), nullable=False),
+    Column("watermark", Text),
+    Column("content_hash", String(64), nullable=False),
+    Column("payload", JSONB, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    ForeignKeyConstraint(
+        ["canonical_key"],
+        ["canonical_queries.canonical_key"],
+        name="fk_source_batch_query",
+    ),
 )
 
 source_locators = Table(
@@ -82,6 +106,23 @@ evidence_bundles = Table(
     Column("payload", JSONB, nullable=False),
     Column("created_at", DateTime(timezone=True), nullable=False),
     UniqueConstraint("family_id", "bundle_version", name="uq_evidence_bundle_family_version"),
+)
+
+source_batch_items = Table(
+    "evidence_source_batch_items",
+    SHADOW_METADATA,
+    Column(
+        "batch_id",
+        String(256),
+        ForeignKey("evidence_source_batches.batch_id", name="fk_source_batch_items_batch"),
+        primary_key=True,
+    ),
+    Column(
+        "evidence_id",
+        String(256),
+        ForeignKey("evidence_items.evidence_id", name="fk_source_batch_items_evidence"),
+        primary_key=True,
+    ),
 )
 
 evidence_bundle_current = Table(
@@ -204,6 +245,7 @@ query_family_freshness = Table(
     Column("verified_at", DateTime(timezone=True)),
     Column("coverage", JSONB, nullable=False),
     Column("watermarks", JSONB, nullable=False),
+    Column("watermark_advanced", Boolean, nullable=False, default=False),
     Column("active_refresh_workflow_id", String(256)),
     Column("updated_at", DateTime(timezone=True), nullable=False),
 )
@@ -228,6 +270,8 @@ query_refresh_claims = Table(
 )
 
 Index("ix_canonical_queries_family", canonical_queries.c.family_id)
+Index("ix_source_batches_source", source_batches.c.source_id)
+Index("ix_source_batch_items_evidence", source_batch_items.c.evidence_id)
 Index("ix_query_family_aliases_family", query_family_aliases.c.family_id)
 Index("ix_query_family_aliases_canonical", query_family_aliases.c.canonical_key)
 Index("ix_evidence_items_locator", evidence_items.c.source_locator_id)
@@ -250,6 +294,18 @@ B1_SHADOW_TABLES = (
     backfill_cursors,
 )
 
+# Source-batch provenance was added after the original B1 revision so an
+# installation at the existing head can converge with one additive migration.
+B1_SOURCE_BATCH_TABLES = (
+    source_batches,
+    source_batch_items,
+)
+
+# Explicit names make the table ownership discoverable to adapters without
+# requiring callers to know the local metadata variable names.
+evidence_source_batches = source_batches
+evidence_source_batch_items = source_batch_items
+
 B2_QUERY_REUSE_TABLES = (
     query_family_aliases,
     query_family_freshness,
@@ -260,6 +316,7 @@ B2_QUERY_REUSE_TABLES = (
 
 __all__ = [
     "B1_SHADOW_TABLES",
+    "B1_SOURCE_BATCH_TABLES",
     "B2_QUERY_REUSE_TABLES",
     "SHADOW_METADATA",
     "backfill_cursors",
@@ -270,9 +327,13 @@ __all__ = [
     "evidence_bundle_current",
     "evidence_bundles",
     "evidence_items",
+    "evidence_source_batches",
+    "evidence_source_batch_items",
     "query_embeddings",
     "query_family_aliases",
     "query_family_freshness",
     "query_refresh_claims",
+    "source_batches",
+    "source_batch_items",
     "source_locators",
 ]

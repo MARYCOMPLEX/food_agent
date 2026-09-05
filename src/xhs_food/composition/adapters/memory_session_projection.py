@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
+import inspect
+from typing import Any, cast
+
 from xhs_food.contracts import (
     ContractPayload,
     MemoryIsolationKey,
@@ -36,6 +40,9 @@ class MemorySessionProjection(MemorySessionWindowPort):
         self._authority = authority
         self._ttl_seconds = ttl_seconds
         self._window_size = window_size
+        self._authority_versions: dict[tuple[str, str, str, str | None], int] = {}
+        self._projected_events: set[str] = set()
+        self._projection_lock = asyncio.Lock()
 
     async def append(
         self,
@@ -46,6 +53,34 @@ class MemorySessionProjection(MemorySessionWindowPort):
         if ttl_seconds != self._ttl_seconds:
             raise ValueError("memory session projection TTL must be 24 hours")
         await self._cache.append(scope, message, ttl_seconds)
+
+    async def append_if_newer(
+        self,
+        scope: MemoryIsolationKey,
+        message: ContractPayload,
+        ttl_seconds: int,
+        authority_version: int,
+        event_id: str,
+    ) -> bool:
+        """Delegate atomic fencing when Redis supports it, else fence locally."""
+
+        versioned = getattr(self._cache, "append_if_newer", None)
+        if callable(versioned):
+            result = cast(Any, versioned)(
+                scope, message, ttl_seconds, authority_version, event_id
+            )
+            if inspect.isawaitable(result):
+                result = await result
+            return bool(result)
+        key = _scope_key(scope)
+        async with self._projection_lock:
+            latest = self._authority_versions.get(key, -1)
+            if event_id in self._projected_events or authority_version < latest:
+                return True
+            await self.append(scope, message, ttl_seconds)
+            self._authority_versions[key] = max(latest, authority_version)
+            self._projected_events.add(event_id)
+            return True
 
     async def recent(
         self,
@@ -66,6 +101,35 @@ class MemorySessionProjection(MemorySessionWindowPort):
 
     async def clear(self, scope: MemoryIsolationKey) -> bool:
         return await self._cache.clear(scope)
+
+    async def clear_if_newer(
+        self,
+        scope: MemoryIsolationKey,
+        authority_version: int,
+        event_id: str,
+    ) -> bool:
+        """Delegate atomic invalidation or provide a serialized test fallback."""
+
+        versioned = getattr(self._cache, "clear_if_newer", None)
+        if callable(versioned):
+            result = cast(Any, versioned)(scope, authority_version, event_id)
+            if inspect.isawaitable(result):
+                result = await result
+            return bool(result)
+        key = _scope_key(scope)
+        async with self._projection_lock:
+            latest = self._authority_versions.get(key, -1)
+            if event_id in self._projected_events or authority_version < latest:
+                return True
+            await self.clear(scope)
+            self._authority_versions[key] = max(latest, authority_version)
+            self._projected_events.add(event_id)
+            return True
+
+
+def _scope_key(scope: MemoryIsolationKey) -> tuple[str, str, str, str | None]:
+    subject_id = scope.user_id if scope.kind == "user" else scope.anonymous_subject_id
+    return (scope.tenant_id, str(scope.kind), subject_id, scope.session_id)
 
 
 __all__ = ["MemorySessionProjection", "SESSION_WINDOW_SIZE", "SESSION_WINDOW_TTL_SECONDS"]

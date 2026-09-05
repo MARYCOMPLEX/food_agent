@@ -13,6 +13,7 @@ from xhs_food.contracts import (
     QueryReuseRequest,
     RefreshClaim,
     RefreshSingleFlightKey,
+    digest_public_result,
     stable_refresh_claim_key,
     stable_refresh_workflow_id,
 )
@@ -109,7 +110,11 @@ async def test_canary_mode_is_deterministic_and_only_changes_sampled_reads() -> 
 
     service = QueryReuseReadService(
         QueryFamilyReuseService(_Repository()),
-        settings=QueryReuseReadSettings(mode=QueryReuseReadMode.CANARY, sample_rate=1.0),
+        settings=QueryReuseReadSettings(
+            mode=QueryReuseReadMode.CANARY,
+            sample_rate=1.0,
+            canary_gate_approved=True,
+        ),
     )
     first = await service.read(_request(), legacy, request_key="task-canary")
     second = await service.read(_request(), legacy, request_key="task-canary")
@@ -118,6 +123,42 @@ async def test_canary_mode_is_deterministic_and_only_changes_sampled_reads() -> 
     assert first.served_result == first.candidate.model_dump(mode="json")  # type: ignore[union-attr]
     assert first.shadow.request_key_hash == second.shadow.request_key_hash
     assert first.candidate == second.candidate
+
+
+@pytest.mark.unit
+async def test_canary_without_approval_computes_candidate_but_serves_legacy() -> None:
+    async def legacy():
+        return {"source": "legacy", "items": []}
+
+    outcome = await QueryReuseReadService(
+        QueryFamilyReuseService(_Repository()),
+        settings=QueryReuseReadSettings(mode=QueryReuseReadMode.CANARY, sample_rate=1.0),
+    ).read(_request(), legacy, request_key="task-canary-unapproved")
+
+    assert outcome.candidate is not None
+    assert outcome.served_candidate is False
+    assert outcome.shadow.served_candidate is False
+    assert outcome.served_result == outcome.legacy_result
+
+
+@pytest.mark.unit
+def test_public_digest_ignores_extended_private_keys() -> None:
+    first = {
+        "items": [{"id": "restaurant-1", "score": 0.9}],
+        "user": "user-a",
+        "session": "session-a",
+        "subject": "subject-a",
+        "identity": "identity-a",
+    }
+    second = {
+        "items": [{"id": "restaurant-1", "score": 0.9}],
+        "user": "user-b",
+        "session": "session-b",
+        "subject": "subject-b",
+        "identity": "identity-b",
+    }
+
+    assert digest_public_result(first) == digest_public_result(second)
 
 
 @pytest.mark.unit

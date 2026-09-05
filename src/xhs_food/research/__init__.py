@@ -6,7 +6,11 @@ analysis -> evidence ledger/profile repository -> response projection.
 """
 
 from .aggregation import AggregationResult, EntityControversyAggregator
-from .evidence import CanonicalCommentEvidenceAdapter, EvidenceLedger
+from .evidence import (
+    CanonicalCommentEvidenceAdapter,
+    EvidenceLedger,
+    build_query_reuse_read_service,
+)
 from .mcp import ManagedMcpToolSession, UnavailableMcpToolSession
 from .planner import PlannerDecision, ResearchPlanner
 from .profile_service import (
@@ -73,6 +77,7 @@ __all__ = [
     "BudgetExceededError",
     "BudgetUsage",
     "CanonicalCommentEvidenceAdapter",
+    "build_query_reuse_read_service",
     "CircuitBreaker",
     "CircuitState",
     "CommentFirstResearchWorkflow",

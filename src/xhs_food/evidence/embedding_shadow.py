@@ -43,6 +43,37 @@ class EmbeddingShadowComparison:
     stored_content_hash: str | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class ProfileBackfillQuality:
+    """Bounded quality receipt required before activating a read profile."""
+
+    profile_id: str
+    profile_version: str
+    expected_rows: int
+    indexed_rows: int
+    minimum_coverage: float
+
+    def __post_init__(self) -> None:
+        if not self.profile_id or not self.profile_version:
+            raise ValueError("profile backfill quality requires a profile identity")
+        if self.expected_rows < 0 or self.indexed_rows < 0:
+            raise ValueError("profile backfill row counts must be non-negative")
+        if self.indexed_rows > self.expected_rows:
+            raise ValueError("indexed profile rows cannot exceed expected rows")
+        if not 0.0 <= self.minimum_coverage <= 1.0:
+            raise ValueError("minimum profile coverage must be between 0 and 1")
+
+    @property
+    def coverage(self) -> float:
+        if self.expected_rows == 0:
+            return 1.0
+        return self.indexed_rows / self.expected_rows
+
+    @property
+    def passed(self) -> bool:
+        return self.coverage >= self.minimum_coverage
+
+
 class EmbeddingProducer(Protocol):
     async def embed(self, content: str, profile: EmbeddingProfile) -> tuple[float, ...]: ...
 
@@ -139,6 +170,53 @@ class EmbeddingShadowService:
         )
 
 
+class ProfileBackfillService:
+    """Run a resumable profile backfill and issue a quality receipt."""
+
+    def __init__(
+        self,
+        repository: EmbeddingShadowRepository,
+        *,
+        profile: EmbeddingProfile = BGE_M3_PROFILE_V1,
+    ) -> None:
+        self._service = EmbeddingShadowService(repository, profile=profile)
+        self._repository = repository
+        self._profile = profile
+
+    @property
+    def profile(self) -> EmbeddingProfile:
+        return self._profile
+
+    async def backfill(
+        self,
+        rows: tuple[EmbeddingBackfillInput, ...],
+        producer: EmbeddingProducer,
+        *,
+        minimum_coverage: float = 1.0,
+    ) -> tuple[EmbeddingBackfillCursor, ProfileBackfillQuality]:
+        if not 0.0 <= minimum_coverage <= 1.0:
+            raise ValueError("minimum profile coverage must be between 0 and 1")
+        cursor = await self._service.backfill(rows, producer)
+        indexed = 0
+        for row in rows:
+            stored = await self._repository.get_embedding(row.source_key, self._profile)
+            if stored is not None and stored.content_hash == row.content_hash:
+                indexed += 1
+        quality = ProfileBackfillQuality(
+            profile_id=self._profile.profile_id,
+            profile_version=self._profile.model_version,
+            expected_rows=len(rows),
+            indexed_rows=indexed,
+            minimum_coverage=minimum_coverage,
+        )
+        if not quality.passed:
+            raise ValueError(
+                f"profile backfill coverage {quality.coverage:.3f} is below "
+                f"{quality.minimum_coverage:.3f}"
+            )
+        return cursor, quality
+
+
 def _content_hash(content: str) -> str:
     if not isinstance(content, str) or not content.strip():
         raise ValueError("embedding content must be non-empty text")
@@ -150,6 +228,8 @@ __all__ = [
     "EmbeddingCompareStatus",
     "EmbeddingProducer",
     "EmbeddingShadowComparison",
+    "ProfileBackfillQuality",
+    "ProfileBackfillService",
     "EmbeddingShadowRepository",
     "EmbeddingShadowRow",
     "EmbeddingShadowService",

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import importlib.util
 import json
 from pathlib import Path
@@ -33,6 +34,7 @@ from xhs_food.evidence import (
     ShadowWriteRecord,
     UnclassifiedConstraintError,
 )
+from xhs_food.evidence.telemetry import B1ShadowTelemetry
 from xhs_food.foundation import SQLAlchemyUnitOfWork
 
 ROOT = Path(__file__).parents[1]
@@ -90,6 +92,7 @@ def _batch() -> CanonicalSourceBatch:
                 "title": "Fixture",
             },
         ),
+        watermark=None,
     )
 
 
@@ -117,6 +120,42 @@ async def test_transaction_abort_rolls_back_and_closes_the_owned_session() -> No
         async with unit:
             await unit.session_for_adapter().execute("shadow write")
     assert calls == ["begin", "execute", "rollback", "close"]
+
+
+@pytest.mark.unit
+async def test_candidate_repository_abort_rolls_back_before_commit_and_closes_session() -> None:
+    value = json.loads(EVIDENCE_FIXTURE.read_text(encoding="utf-8"))
+    bundle = EvidenceBundle.model_validate(value["bundles"][0]).model_copy(
+        update={"state": BundleState.CANDIDATE}
+    )
+    items = tuple(EvidenceItem.model_validate(item) for item in value["evidence_items"])
+    calls: list[str] = []
+
+    class Session:
+        async def begin(self) -> None:
+            calls.append("begin")
+
+        async def execute(self, statement: object) -> None:
+            del statement
+            calls.append("execute")
+            if calls.count("execute") == 2:
+                raise TimeoutError("candidate transaction timeout")
+
+        async def rollback(self) -> None:
+            calls.append("rollback")
+
+        async def close(self) -> None:
+            calls.append("close")
+
+        async def commit(self) -> None:
+            calls.append("commit")
+
+    unit = SQLAlchemyUnitOfWork(Session)
+    repository = SQLAlchemyCandidateBundleRepository(lambda: unit)  # type: ignore[arg-type]
+    with pytest.raises(TimeoutError, match="candidate transaction timeout"):
+        await repository.save_candidate(bundle, items)
+    assert calls == ["begin", "execute", "execute", "rollback", "close"]
+    assert "commit" not in calls
 
 
 @pytest.mark.unit
@@ -218,6 +257,92 @@ async def test_connector_timeout_is_legacy_visible_but_shadow_sink_is_not_called
     with pytest.raises(TimeoutError, match="connector timeout"):
         await connector.search(_request())
     assert sink.records == []
+
+
+@pytest.mark.unit
+async def test_sink_timeout_is_bounded_and_reported_without_changing_legacy_batch() -> None:
+    class Connector:
+        source_id = "fixture"
+
+        async def search(self, request: CollectRequest) -> CanonicalSourceBatch:
+            del request
+            return _batch()
+
+        async def fetch_document(self, ref: SourceLocator) -> Any:
+            del ref
+            raise AssertionError
+
+        async def fetch_comments(
+            self, document_ref: SourceLocator, cursor: str | None = None
+        ) -> Any:
+            del document_ref, cursor
+            raise AssertionError
+
+        async def list_media_refs(self, owner_ref: SourceLocator) -> tuple[Any, ...]:
+            del owner_ref
+            return ()
+
+    class FailingSink:
+        async def write(self, record: ShadowWriteRecord) -> None:
+            del record
+            raise TimeoutError("shadow postgres timeout")
+
+    telemetry = B1ShadowTelemetry()
+    connector = ShadowSourceConnector(
+        Connector(),
+        policy=_policy(),
+        sink=FailingSink(),
+        telemetry=telemetry,
+        defer_shadow=False,
+    )
+    assert await connector.search(_request()) == _batch()
+    assert telemetry.counts["failed"] == 1
+
+
+@pytest.mark.unit
+async def test_process_exit_after_candidate_commit_keeps_candidate_unpublished() -> None:
+    class Connector:
+        source_id = "fixture"
+
+        async def search(self, request: CollectRequest) -> CanonicalSourceBatch:
+            del request
+            return _batch()
+
+        async def fetch_document(self, ref: SourceLocator) -> Any:
+            del ref
+            raise AssertionError
+
+        async def fetch_comments(
+            self, document_ref: SourceLocator, cursor: str | None = None
+        ) -> Any:
+            del document_ref, cursor
+            raise AssertionError
+
+        async def list_media_refs(self, owner_ref: SourceLocator) -> tuple[Any, ...]:
+            del owner_ref
+            return ()
+
+    class CommitThenExitSink:
+        def __init__(self) -> None:
+            self.committed = False
+            self.record: ShadowWriteRecord | None = None
+
+        async def write(self, record: ShadowWriteRecord) -> None:
+            # The candidate transaction has committed; process shutdown can
+            # interrupt the detached task before its success observation.
+            self.record = record
+            self.committed = True
+            raise asyncio.CancelledError
+
+    sink = CommitThenExitSink()
+    connector = ShadowSourceConnector(Connector(), policy=_policy(), sink=sink)
+    assert await connector.search(_request()) == _batch()
+    await connector.aclose()
+
+    assert sink.committed is True
+    assert sink.record is not None
+    assert sink.record.candidate_bundle is not None
+    assert sink.record.candidate_bundle.state is BundleState.CANDIDATE
 
 
 @pytest.mark.unit

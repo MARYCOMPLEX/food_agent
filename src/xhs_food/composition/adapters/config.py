@@ -13,6 +13,7 @@ from xhs_food.foundation.config import (
     ObjectStoreConfigView,
     ObservabilityConfigView,
     PersonalizationCanaryConfigView,
+    QueryReuseReadConfigView,
     RedisConfigView,
     RepositoryConfigView,
     TargetSettings,
@@ -29,6 +30,7 @@ class OwnerConfigFacade:
     object_store: ObjectStoreConfigView
     observability: ObservabilityConfigView
     evidence_shadow: EvidenceShadowConfigView
+    query_reuse_read: QueryReuseReadConfigView
     personalization_canary: PersonalizationCanaryConfigView
 
 
@@ -89,11 +91,35 @@ def build_owner_config(
             enabled=target.otel_enabled,
             service_name=target.otel_service_name,
             exporter_endpoint=target.otel_exporter_endpoint,
+            phoenix_enabled=target.phoenix_enabled,
+            phoenix_evaluation_endpoint=target.phoenix_evaluation_endpoint,
+            phoenix_api_version=target.phoenix_api_version,
+            phoenix_token_ref=target.phoenix_token_ref,
+            max_queue_size=target.otel_queue_size or target.otel_max_queue_size,
+            max_batch_size=target.otel_batch_size or target.otel_max_batch_size,
+            schedule_delay_ms=target.otel_schedule_delay_ms,
+            export_timeout_ms=target.otel_export_timeout_ms,
+            retry_limit=target.otel_retry_limit,
+            sampling_rate=target.otel_sampling_rate,
+            shutdown_flush_timeout_ms=(
+                target.otel_shutdown_timeout_ms
+                if target.otel_shutdown_timeout_ms is not None
+                else target.otel_shutdown_flush_timeout_ms
+            ),
+            drop_policy=target.otel_drop_policy,
         ),
         evidence_shadow=EvidenceShadowConfigView(
             enabled=target.evidence_shadow_enabled,
             sample_rate=target.evidence_shadow_sample_rate,
             write_budget=target.evidence_shadow_write_budget,
+        ),
+        query_reuse_read=QueryReuseReadConfigView(
+            mode=target.query_reuse_read_mode,
+            sample_rate=target.query_reuse_read_sample_rate,
+            min_confidence=target.query_reuse_min_confidence,
+            max_staleness_seconds=target.query_reuse_max_staleness_seconds,
+            minimum_coverage=dict(target.query_reuse_minimum_coverage),
+            b1_gate_approved=target.query_reuse_b1_gate_approved,
         ),
         personalization_canary=PersonalizationCanaryConfigView(
             mode=target.personalization_canary_mode,

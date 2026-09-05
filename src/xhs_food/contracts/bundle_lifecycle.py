@@ -46,6 +46,7 @@ class BundleReadDecision(ContractModel):
     state: BundleReadState
     reason: FreshnessReason
     coverage: dict[RegisteredSlug, float] = Field(default_factory=dict)
+    refresh_failure: NonEmptyStr | None = None
 
     @model_validator(mode="after")
     def validate_reference(self) -> BundleReadDecision:
@@ -54,6 +55,12 @@ class BundleReadDecision(ContractModel):
             raise ValueError("bundle_id and bundle_version must be provided together")
         if self.state is BundleReadState.UNAVAILABLE and has_bundle:
             raise ValueError("unavailable Bundle reads cannot expose a Bundle reference")
+        if self.state is BundleReadState.FRESH and self.refresh_failure is not None:
+            raise ValueError("fresh Bundle reads cannot carry a refresh failure")
+        if self.state is BundleReadState.UNAVAILABLE and self.refresh_failure is not None:
+            # An unavailable result has no stale response to annotate.  The
+            # failure belongs in the surrounding research outcome instead.
+            raise ValueError("unavailable Bundle reads cannot carry stale fallback metadata")
         return self
 
 
@@ -62,6 +69,16 @@ class BundleActivationRepository(Protocol):
         self,
         family_id: str,
         expected_bundle_version: int | None,
+        bundle_id: str,
+        bundle_version: int,
+        expected_profile_id: str | None,
+        profile: EmbeddingProfile,
+    ) -> bool: ...
+
+    async def restore_bundle_and_profile_if_current(
+        self,
+        family_id: str,
+        expected_bundle_version: int,
         bundle_id: str,
         bundle_version: int,
         expected_profile_id: str | None,
@@ -90,11 +107,23 @@ def decide_bundle_read(
 ) -> BundleReadDecision:
     """Serve the last committed Bundle while reporting why it is not fresh."""
 
+    if current is not None and current.family_id != freshness.family_id:
+        raise ValueError("current Bundle belongs to a different Query Family")
     if current is None or freshness.state.value == "new":
         return BundleReadDecision(
             family_id=freshness.family_id,
             state=BundleReadState.UNAVAILABLE,
-            reason=FreshnessReason.NO_BUNDLE,
+            reason=(
+                freshness.reason
+                if freshness.reason
+                in {
+                    FreshnessReason.NO_FAMILY,
+                    FreshnessReason.NO_BUNDLE,
+                    FreshnessReason.MAXIMUM_STALENESS,
+                    FreshnessReason.STALE_LIMIT_EXCEEDED,
+                }
+                else FreshnessReason.NO_BUNDLE
+            ),
             coverage=coverage,
         )
     state = (
@@ -114,6 +143,28 @@ def decide_bundle_read(
     )
 
 
+def decide_bundle_read_after_refresh_failure(
+    freshness: FreshnessDecision,
+    current: CurrentBundleRef | None,
+    coverage: dict[RegisteredSlug, float],
+    *,
+    failure_category: str,
+) -> BundleReadDecision:
+    """Attach a bounded refresh failure only to an eligible stale fallback."""
+
+    if not isinstance(failure_category, str) or not failure_category.strip():
+        raise ValueError("refresh failure category must be non-empty")
+    decision = decide_bundle_read(freshness, current, coverage)
+    if decision.state not in {BundleReadState.STALE, BundleReadState.PARTIAL}:
+        return decision
+    return decision.model_copy(
+        update={
+            "reason": FreshnessReason.REFRESH_FAILED,
+            "refresh_failure": failure_category.strip(),
+        }
+    )
+
+
 __all__ = [
     "BUNDLE_ACTIVATION_VERSION",
     "BUNDLE_READ_VERSION",
@@ -123,5 +174,6 @@ __all__ = [
     "BundleReadState",
     "CurrentBundleRef",
     "decide_bundle_read",
+    "decide_bundle_read_after_refresh_failure",
     "validate_candidate_bundle",
 ]
