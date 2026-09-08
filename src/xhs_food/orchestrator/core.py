@@ -1,4 +1,4 @@
-"""Single entry point for the comment-first Food Research Agent."""
+"""Single entry point for the adaptive Food Research Agent."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from xhs_food.observability.metrics import (
     search_finished_total,
     search_started_total,
 )
-from xhs_food.research import CommentFirstResearchWorkflow
+from xhs_food.research.adaptive.food_workflow import AdaptiveFoodResearchWorkflow
 from xhs_food.schemas import ConversationContext, XHSFoodResponse
 
 if TYPE_CHECKING:
@@ -34,12 +34,12 @@ class XHSFoodOrchestrator:
     def __init__(
         self,
         *,
-        workflow: CommentFirstResearchWorkflow | None = None,
+        workflow: AdaptiveFoodResearchWorkflow | Any | None = None,
         llm_service: Any = None,
         **_: Any,
     ) -> None:
         self._context = ConversationContext()
-        self._workflow = workflow or CommentFirstResearchWorkflow()
+        self._workflow = workflow or _default_adaptive_workflow(llm_service)
         self._llm_service = llm_service
 
     @property
@@ -47,7 +47,7 @@ class XHSFoodOrchestrator:
         return self._context
 
     @property
-    def workflow(self) -> CommentFirstResearchWorkflow:
+    def workflow(self) -> AdaptiveFoodResearchWorkflow | Any:
         return self._workflow
 
     def reset_context(self) -> None:
@@ -177,7 +177,7 @@ class XHSFoodOrchestrator:
                 outcome = "ok"
             self._record_response(response)
         except Exception as exc:  # system boundary: turn into SSE error
-            logger.exception("comment-first stream failed")
+            logger.exception("adaptive stream failed")
             await emitter.emit_error(str(exc))
         finally:
             search_finished_total.labels(status=outcome).inc()
@@ -195,3 +195,33 @@ class XHSFoodOrchestrator:
 
 
 __all__ = ["XHSFoodOrchestrator"]
+
+
+def _default_adaptive_workflow(model: Any = None) -> AdaptiveFoodResearchWorkflow:
+    """Build the standalone fail-closed adaptive workflow.
+
+    The Composition Root normally injects the fully managed MCP session and
+    repositories.  This fallback keeps direct library construction useful
+    while ensuring an unconfigured process cannot call arbitrary tools.
+    """
+
+    from xhs_food.research import UnavailableMcpToolSession
+    from xhs_food.research.adaptive import (
+        AdaptiveCritic,
+        AdaptivePlanner,
+        ScriptedModelPort,
+    )
+
+    # The transport facade is usable as a library without bootstrapping the
+    # application Composition Root.  In that mode the default is deliberately
+    # fail-closed: no credentials, provider client, or implicit settings file
+    # are read, and the model immediately records why no MCP work can run.
+    # A fully configured Composition Root injects the real role-aware gateway.
+    model_port = model or ScriptedModelPort(
+        [{"stop": True, "reason": "managed MCP session is not configured"}]
+    )
+    return AdaptiveFoodResearchWorkflow(
+        session_factory=UnavailableMcpToolSession,
+        planner=AdaptivePlanner(model_port),
+        critic=AdaptiveCritic(model_port),
+    )

@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 
 from xhs_food.composition import build_composition_root
-from xhs_food.research import CommentFirstResearchWorkflow
+from xhs_food.research.adaptive.food_workflow import AdaptiveFoodResearchWorkflow
 
 
 @pytest.mark.unit
@@ -23,7 +23,7 @@ async def test_composition_root_exposes_named_research_boundaries_only() -> None
 
         agent = await root.resolve_logical("research_agent")
         task = await root.resolve_logical("research_task")
-        assert isinstance(agent, CommentFirstResearchWorkflow)
+        assert isinstance(agent, AdaptiveFoodResearchWorkflow)
         assert hasattr(task, "start_new")
         assert hasattr(task, "refine")
     finally:

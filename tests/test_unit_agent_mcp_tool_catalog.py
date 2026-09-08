@@ -270,6 +270,9 @@ async def test_catalog_pins_refresh_and_rejects_malformed_output_or_unknown_snap
     )
     assert malformed.success is False
     assert malformed.error is not None and malformed.error.code == "TOOL_OUTPUT_INVALID"
+    assert malformed.metadata["raw_provider_content"] == [
+        {"type": "json", "json": {"unexpected": True}}
+    ]
 
     unavailable = await catalog.execute(
         snapshot_ref="agent-tools-v1:missing",

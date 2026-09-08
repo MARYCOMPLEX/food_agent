@@ -417,11 +417,11 @@ async def test_reliable_root_exposes_explicit_projection_and_event_bus_bindings(
         await root.close()
 
 
-async def test_composition_root_registers_comment_first_research_graph() -> None:
+async def test_composition_root_registers_adaptive_research_graph() -> None:
     from xhs_food.composition.domain_packs import RegisteredDomainPack
     from xhs_food.domain_packs.food import FoodPack
     from xhs_food.orchestrator.coordinator import ResearchCoordinator
-    from xhs_food.research import CommentFirstResearchWorkflow
+    from xhs_food.research.adaptive.food_workflow import AdaptiveFoodResearchWorkflow
 
     root = build_composition_root()
     try:
@@ -450,7 +450,7 @@ async def test_composition_root_registers_comment_first_research_graph() -> None
                 "observability",
             ],
             "orchestrators": ["xhs_food_orchestrator"],
-            "research": ["comment_first_workflow"],
+            "research": ["adaptive_food_workflow"],
             "domain_packs": ["registry", "food_1_0_0"],
             "use_cases": ["research_task"],
         }
@@ -463,7 +463,7 @@ async def test_composition_root_registers_comment_first_research_graph() -> None
             "domain_packs.food_1_0_0",
             "domain_packs.registry",
             "orchestrators.xhs_food_orchestrator",
-            "research.comment_first_workflow",
+            "research.adaptive_food_workflow",
             "use_cases.research_task",
         }
         logical = root.logical_bindings["research_task"]
@@ -484,7 +484,7 @@ async def test_composition_root_registers_comment_first_research_graph() -> None
         assert isinstance(registered_food, RegisteredDomainPack)
         assert isinstance(registered_food.implementation, FoodPack)
         research_agent = await root.resolve_logical("research_agent")
-        assert isinstance(research_agent, CommentFirstResearchWorkflow)
+        assert isinstance(research_agent, AdaptiveFoodResearchWorkflow)
         orchestrator = await root.resolve("orchestrators", "xhs_food_orchestrator")
         assert orchestrator.workflow is research_agent
     finally:

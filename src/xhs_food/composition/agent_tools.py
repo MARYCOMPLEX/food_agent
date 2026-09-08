@@ -36,6 +36,7 @@ from xhs_food.contracts import (
 )
 from xhs_food.contracts.account_service import (
     McpToolDescriptor,
+    sanitize_remote_payload,
     validate_remote_payload,
 )
 from xhs_food.gateways.account_service import RemoteAccountServiceError
@@ -178,6 +179,7 @@ class AccountServiceAgentToolCatalog:
                 "MCP_TOOL_ERROR",
                 ErrorCategory.DEPENDENCY_UNAVAILABLE,
                 retryable=False,
+                metadata={"raw_provider_content": _safe_provider_content(remote.content)},
             )
         try:
             output = _normalize_mcp_content(remote.content)
@@ -188,6 +190,7 @@ class AccountServiceAgentToolCatalog:
                 "TOOL_OUTPUT_INVALID",
                 ErrorCategory.MALFORMED_RESPONSE,
                 message=_safe_error(exc),
+                metadata={"raw_provider_content": _safe_provider_content(remote.content)},
             )
         return ToolResult(
             call_id=call.call_id,
@@ -452,6 +455,18 @@ def _safe_error(exc: BaseException) -> str:
     return type(exc).__name__
 
 
+def _safe_provider_content(value: object) -> JsonValue:
+    """Keep malformed provider content available to the audit boundary.
+
+    MCP content is untrusted.  Sanitization removes credential-shaped fields,
+    while preserving every ordinary scalar, list, and object field so an
+    operator can diagnose a schema mismatch without asking the model to infer
+    from a lossy error string.
+    """
+
+    return sanitize_remote_payload(value)  # type: ignore[return-value]
+
+
 def _remote_failure(call: ToolCall, exc: RemoteAccountServiceError) -> ToolResult:
     categories = {
         RemoteErrorCategory.TIMEOUT: ErrorCategory.TIMEOUT,
@@ -476,6 +491,7 @@ def _failure(
     *,
     message: str | None = None,
     retryable: bool = False,
+    metadata: Mapping[str, JsonValue] | None = None,
 ) -> ToolResult:
     return ToolResult(
         call_id=call.call_id,
@@ -488,6 +504,7 @@ def _failure(
             boundary_ref=call.tool_name,
             message=message,
         ),
+        metadata=dict(metadata or {}),
     )
 
 

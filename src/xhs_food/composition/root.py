@@ -6,7 +6,6 @@ import asyncio
 import inspect
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import timedelta
 from enum import StrEnum
 from types import MappingProxyType
 from typing import Any, cast
@@ -503,7 +502,6 @@ def build_composition_root(
     process-local task execution or projection state.
     """
 
-    from xhs_food.agents import AnalyzerAgent, IntentParserAgent
     from xhs_food.composition.adapters import (
         DisabledPublicEvidenceRepository,
         LegacyEventBusAdapter,
@@ -515,6 +513,7 @@ def build_composition_root(
         LegacySessionWindowAdapter,
         LegacyStateStoreAdapter,
         LegacyUserRepositoryAdapter,
+        ProviderModelGateway,
         build_owner_config,
     )
     from xhs_food.composition.domain_packs import (
@@ -533,6 +532,7 @@ def build_composition_root(
         TaskProgressProjectionPort,
     )
     from xhs_food.domain_packs.food import load_food_contract_resources
+    from xhs_food.domain_packs.food.adaptive_pack import FoodAdaptivePack
     from xhs_food.domain_packs.food.pack import FoodBehavior
     from xhs_food.foundation import (
         Boto3ObjectStore,
@@ -550,11 +550,14 @@ def build_composition_root(
     from xhs_food.orchestrator.core import XHSFoodOrchestrator
     from xhs_food.personalization import PersonalizationCanary, PersonalizedReranker
     from xhs_food.research import (
-        CommentFirstResearchWorkflow,
+        EvidenceLedger,
         ManagedMcpToolSession,
+        UnavailableMcpToolSession,
         UserStorageShopProfileRepository,
         build_query_reuse_read_service,
     )
+    from xhs_food.research.adaptive import AdaptiveCritic, AdaptivePlanner
+    from xhs_food.research.adaptive.food_workflow import AdaptiveFoodResearchWorkflow
     from xhs_food.services import LLMService, get_session_manager, get_user_storage_service
 
     discovered_food_factories = discover_allowlisted_domain_packs(("food",))
@@ -908,26 +911,40 @@ def build_composition_root(
     def research_session() -> ManagedMcpToolSession:
         """Create one MCP session; a workflow closes it after each turn."""
 
+        if managed_agent_tools is None:
+            # Fail closed when no explicit account-service policy is enabled.
+            # The adaptive planner still runs and records a typed policy gap;
+            # it can never reach an arbitrary provider client.
+            return UnavailableMcpToolSession()
         return ManagedMcpToolSession(managed_agent_tools, managed_agent_tools)
 
-    def research_workflow() -> CommentFirstResearchWorkflow:
+    def research_workflow() -> AdaptiveFoodResearchWorkflow:
         profile_repository = UserStorageShopProfileRepository(get_user_storage_service)
-
-        return CommentFirstResearchWorkflow(
+        evidence_ledger = EvidenceLedger()
+        # Planner and Critic share the same provider gateway but retain
+        # separate model roles, so management can tune/replace them without
+        # coupling the investigation engine to an SDK.
+        model_adapter = LegacyLLMProviderAdapter(configured_llm, model_view)
+        model_gateway = ProviderModelGateway(
+            {
+                "research_planner": model_adapter,
+                "research_critic": model_adapter,
+            }
+        )
+        return AdaptiveFoodResearchWorkflow(
             session_factory=research_session,
-            intent_parser=IntentParserAgent(configured_llm),
-            analyzer=AnalyzerAgent(configured_llm),
+            planner=AdaptivePlanner(
+                model_gateway,
+                max_actions_per_round=getattr(get_settings(), "search_note_limit", 30),
+            ),
+            critic=AdaptiveCritic(model_gateway),
+            domain_pack=FoodAdaptivePack(),
             profiles=profile_repository,
-            max_notes=getattr(get_settings(), "search_note_limit", 30),
-            max_restaurants=getattr(get_settings(), "search_max_restaurants", 10),
-            analysis_concurrency=getattr(get_settings(), "analyze_concurrency", 3),
-            profile_concurrency=getattr(get_settings(), "profile_concurrency", 3),
-            profile_refresh_after=timedelta(
-                hours=getattr(get_settings(), "shop_profile_refresh_hours", 168)
-            ),
-            partial_profile_retry_after=timedelta(
-                hours=getattr(get_settings(), "shop_profile_partial_retry_hours", 12)
-            ),
+            evidence=evidence_ledger,
+            max_rounds=5,
+            max_concurrency=getattr(get_settings(), "analyze_concurrency", 3),
+            capabilities=None,
+            observation_port=observation_port,
         )
 
     # One immutable dependency graph is shared by session-scoped orchestrator
@@ -1374,7 +1391,7 @@ def build_composition_root(
     root.registry("orchestrators").register(
         AdapterBinding(
             name="xhs_food_orchestrator",
-            contract_version="comment-first-agent/v1",
+            contract_version="adaptive-investigation-agent/v1",
             factory=lambda: XHSFoodOrchestrator(
                 workflow=active_research_workflow,
             ),
@@ -1383,8 +1400,8 @@ def build_composition_root(
     )
     root.registry("research").register(
         AdapterBinding(
-            name="comment_first_workflow",
-            contract_version="comment-first-workflow/v1",
+            name="adaptive_food_workflow",
+            contract_version="adaptive-food-workflow/v1",
             factory=lambda: active_research_workflow,
             legacy=False,
         )
@@ -1392,7 +1409,7 @@ def build_composition_root(
     root.bind_logical(
         "research_agent",
         registry_name="research",
-        binding_name="comment_first_workflow",
+        binding_name="adaptive_food_workflow",
     )
     packs = root.registry("domain_packs")
     packs.register(
@@ -1473,7 +1490,7 @@ def build_composition_root(
         "domain_packs.food_1_0_0",
         "domain_packs.registry",
         "orchestrators.xhs_food_orchestrator",
-        "research.comment_first_workflow",
+        "research.adaptive_food_workflow",
         "use_cases.research_task",
     }
     if modular_plan.evidence_mode is CapabilityMode.SHADOW:
