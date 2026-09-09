@@ -1,0 +1,3 @@
+schema: spec-driven
+created: 2026-09-09
+goal: Build a rich assistant-ui research experience over the versioned UserResearchProjection v1 without replacing the Vue application shell or the domain event contract.
