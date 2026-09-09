@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-09-09
+goal: Create one extensible, lossless-safe experience projection boundary
+  between the single-Agent runtime and all clients.

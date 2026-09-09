@@ -3,6 +3,8 @@
  * Aligned with openapi.yaml and backend Python schemas.
  */
 
+export * from './research'
+
 export type PlatformChannel = 'xhs_pc' | 'xhs_creator' | 'dianping'
 export type AccountStatus = 'active' | 'degraded' | 'expired' | 'disabled'
 export type AccountHealth = 'healthy' | 'warning' | 'critical' | 'unknown'
