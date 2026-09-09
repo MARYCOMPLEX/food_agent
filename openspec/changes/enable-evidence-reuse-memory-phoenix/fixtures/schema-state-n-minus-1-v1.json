@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "schema-state-fixture/v1",
+  "state": "n_minus_1",
+  "versionTable": true,
+  "revisions": [
+    "20260905_0011_b2_freshness_watermark"
+  ],
+  "tables": {
+    "evidence_source_batch_items": [],
+    "evidence_source_batches": [],
+    "query_family_freshness": [
+      "active_refresh_workflow_id",
+      "bundle_version",
+      "coverage",
+      "family_id",
+      "updated_at",
+      "verified_at",
+      "watermark_advanced",
+      "watermarks"
+    ]
+  },
+  "extensions": []
+}

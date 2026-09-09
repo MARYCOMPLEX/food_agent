@@ -1,0 +1,90 @@
+{
+  "cases": [
+    {
+      "case_id": "b3-contract-shape",
+      "expected": {
+        "accepted": true,
+        "classification": "public"
+      },
+      "input": {
+        "items": [
+          {
+            "confidence": 0.84,
+            "kind": "ranking"
+          }
+        ],
+        "scenario": "contract_shape",
+        "source_kind": "synthetic_public"
+      },
+      "schema_version": "evaluation/v1",
+      "tags": [
+        "contract",
+        "public"
+      ]
+    },
+    {
+      "case_id": "b3-privacy-redaction",
+      "expected": {
+        "accepted": true,
+        "classification": "public",
+        "redacted_fields": [
+          "credential_marker",
+          "session_marker"
+        ]
+      },
+      "input": {
+        "fields": [
+          "display_name",
+          "constraint_kind",
+          "scope"
+        ],
+        "scenario": "privacy_redaction",
+        "source_kind": "synthetic_public"
+      },
+      "schema_version": "evaluation/v1",
+      "tags": [
+        "privacy",
+        "redaction"
+      ]
+    },
+    {
+      "case_id": "b3-failure-recovery",
+      "expected": {
+        "business_commit": false,
+        "outcome": "retryable"
+      },
+      "input": {
+        "failure": "projection_restart",
+        "scenario": "failure_recovery",
+        "source_kind": "synthetic_public"
+      },
+      "schema_version": "evaluation/v1",
+      "tags": [
+        "failure",
+        "rollback"
+      ]
+    },
+    {
+      "case_id": "b3-personalization-qualification",
+      "expected": {
+        "outcome": "pass",
+        "public_digest_stable": true
+      },
+      "input": {
+        "sample_count": 4,
+        "scenario": "b3_personalization_qualification",
+        "source_kind": "synthetic_public"
+      },
+      "schema_version": "evaluation/v1",
+      "tags": [
+        "milestone",
+        "deterministic"
+      ]
+    }
+  ],
+  "dataset_id": "qualification-b3",
+  "dataset_version": "v1",
+  "digest": "be007587de5ff914c01ab15152817471549e9e93a3c3faaaa8177c90565a2d0d",
+  "redaction_version": "evaluation-redaction/v1",
+  "schema_version": "evaluation/v1"
+}

@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "schema-state-fixture/v1",
+  "state": "current",
+  "versionTable": true,
+  "revisions": [
+    "20260905_0012_b1_source_batches"
+  ],
+  "tables": {
+    "evidence_source_batch_items": [
+      "batch_id",
+      "evidence_id"
+    ],
+    "evidence_source_batches": [
+      "batch_id",
+      "canonical_key",
+      "connector_id",
+      "connector_version",
+      "content_hash",
+      "created_at",
+      "language",
+      "normalizer_version",
+      "payload",
+      "region",
+      "source_id",
+      "tenant_scope",
+      "watermark"
+    ],
+    "query_family_freshness": [
+      "active_refresh_workflow_id",
+      "bundle_version",
+      "coverage",
+      "family_id",
+      "updated_at",
+      "verified_at",
+      "watermark_advanced",
+      "watermarks"
+    ]
+  },
+  "extensions": []
+}

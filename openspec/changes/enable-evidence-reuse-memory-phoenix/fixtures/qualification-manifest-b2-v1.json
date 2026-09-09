@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "qualification-manifest/v1",
+  "milestone": "b2",
+  "dataset": {
+    "schemaVersion": "evaluation/v1",
+    "version": "v1",
+    "path": "fixtures/evaluation-dataset-b2-v1.json"
+  },
+  "evaluator": {
+    "version": "deterministic-exact/v1",
+    "deterministic": true
+  },
+  "requiredObservations": [
+    "public-contract",
+    "privacy-redaction",
+    "freshness-routing"
+  ],
+  "failureInjection": [
+    "refresh-conflict",
+    "stale-fallback"
+  ],
+  "thresholds": {
+    "minimumPassRate": 1.0,
+    "privacyViolations": 0,
+    "legacyDigestMismatch": 0
+  },
+  "rollback": {
+    "mode": "legacy-reader",
+    "decision": "blocked-until-owner-approval"
+  }
+}

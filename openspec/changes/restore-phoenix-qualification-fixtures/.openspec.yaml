@@ -1,0 +1,3 @@
+schema: spec-driven
+created: 2026-09-09
+goal: Restore the repository-owned qualification fixtures required by the Phoenix and schema-state contract tests without changing runtime behavior.

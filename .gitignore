@@ -124,6 +124,7 @@ downloads/
 !frontend/src/lib/
 !frontend/src/lib/utils.ts
 !tests/fixtures/**/*.json
+!openspec/changes/enable-evidence-reuse-memory-phoenix/fixtures/**/*.json
 
 # ----- XHS Spider Specific -----
 cookies.txt

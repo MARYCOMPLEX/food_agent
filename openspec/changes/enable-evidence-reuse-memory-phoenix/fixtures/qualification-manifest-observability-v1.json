@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "qualification-manifest/v1",
+  "milestone": "observability",
+  "dataset": {
+    "schemaVersion": "evaluation/v1",
+    "version": "v1",
+    "path": "fixtures/evaluation-dataset-observability-v1.json"
+  },
+  "evaluator": {
+    "version": "deterministic-exact/v1",
+    "deterministic": true
+  },
+  "requiredObservations": [
+    "redaction-before-export",
+    "bounded-delivery",
+    "business-health-independence"
+  ],
+  "failureInjection": [
+    "exporter-timeout",
+    "queue-saturation"
+  ],
+  "thresholds": {
+    "minimumPassRate": 1.0,
+    "forbiddenValuesExported": 0,
+    "businessFailuresFromExporter": 0
+  },
+  "rollback": {
+    "mode": "exporter-disabled",
+    "decision": "blocked-until-owner-approval"
+  }
+}

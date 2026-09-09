@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "qualification-manifest/v1",
+  "evaluatorVersion": "deterministic-exact/v1",
+  "datasets": {
+    "b1": "fixtures/evaluation-dataset-b1-v1.json",
+    "b2": "fixtures/evaluation-dataset-b2-v1.json",
+    "b3": "fixtures/evaluation-dataset-b3-v1.json",
+    "observability": "fixtures/evaluation-dataset-observability-v1.json"
+  },
+  "milestoneManifests": {
+    "b1": "fixtures/qualification-manifest-b1-v1.json",
+    "b2": "fixtures/qualification-manifest-b2-v1.json",
+    "b3": "fixtures/qualification-manifest-b3-v1.json",
+    "observability": "fixtures/qualification-manifest-observability-v1.json"
+  }
+}

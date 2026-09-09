@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "schema-state-fixture/v1",
+  "state": "divergent",
+  "versionTable": true,
+  "revisions": [
+    "20260905_unknown"
+  ],
+  "tables": {},
+  "extensions": []
+}
