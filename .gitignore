@@ -158,6 +158,7 @@ bug-records/
 !docs/
 docs/*
 !docs/backend-api.md
+!docs/frontend-ui-requirements.md
 
 # OpenSpec project artifacts and Codex skills
 !openspec/**/*.md
