@@ -242,4 +242,4 @@ def test_documented_deployment_conflicts_are_frozen_as_current_facts() -> None:
     )
     assert "node-deps" not in dockerfile
     assert "/app/.xhs_profiles" not in dockerfile
-    assert len(expected["known_conflicts"]) == 4
+    assert len(expected["known_conflicts"]) == 2

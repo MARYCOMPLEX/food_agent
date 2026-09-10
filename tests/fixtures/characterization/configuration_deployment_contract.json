@@ -149,6 +149,8 @@
       "MODULAR_QUERY_REUSE_MIN_CONFIDENCE",
       "MODULAR_QUERY_REUSE_READ_MODE",
       "MODULAR_QUERY_REUSE_READ_SAMPLE_RATE",
+      "MODULAR_RELIABLE_TASK_LIFECYCLE",
+      "MODULAR_TARGET_ADAPTERS_ENABLED",
       "MODULAR_TEMPORAL_ADDRESS",
       "MODULAR_TEMPORAL_MEDIA_QUEUE",
       "MODULAR_TEMPORAL_NAMESPACE",
@@ -169,7 +171,7 @@
       "SEARCH_NOTE_LIMIT",
       "SHOP_PROFILE_PARTIAL_RETRY_HOURS",
       "SHOP_PROFILE_REFRESH_HOURS",
-      "SSE_TIMEOUT"
+      "SSE_TIMEOUT_SECONDS"
     ],
     "active_names": [
       "DEFAULT_LLM_MODEL",
@@ -180,7 +182,7 @@
       "SEARCH_NOTE_LIMIT",
       "SHOP_PROFILE_PARTIAL_RETRY_HOURS",
       "SHOP_PROFILE_REFRESH_HOURS",
-      "SSE_TIMEOUT"
+      "SSE_TIMEOUT_SECONDS"
     ],
     "settings_only_names": [
       "ANALYZE_CONCURRENCY",
@@ -195,8 +197,7 @@
       "RATE_LIMIT_SEARCH",
       "REDIS_URL",
       "REDIS_USERNAME",
-      "SSE_HEARTBEAT_SECONDS",
-      "SSE_TIMEOUT_SECONDS"
+      "SSE_HEARTBEAT_SECONDS"
     ],
     "env_example_only_names": [
       "MODULAR_ACCOUNT_SERVICES_FILE",
@@ -242,15 +243,15 @@
       "MODULAR_QUERY_REUSE_MIN_CONFIDENCE",
       "MODULAR_QUERY_REUSE_READ_MODE",
       "MODULAR_QUERY_REUSE_READ_SAMPLE_RATE",
+      "MODULAR_RELIABLE_TASK_LIFECYCLE",
+      "MODULAR_TARGET_ADAPTERS_ENABLED",
       "MODULAR_TEMPORAL_ADDRESS",
       "MODULAR_TEMPORAL_MEDIA_QUEUE",
       "MODULAR_TEMPORAL_NAMESPACE",
       "MODULAR_TEMPORAL_REFRESH_QUEUE",
-      "MODULAR_TEMPORAL_RESEARCH_QUEUE",
-      "SSE_TIMEOUT"
+      "MODULAR_TEMPORAL_RESEARCH_QUEUE"
     ],
     "known_conflicts": {
-      "sse_timeout": "SSE_TIMEOUT is documented and active in .env.example, but Settings consumes SSE_TIMEOUT_SECONDS.",
       "cors_origins": "Settings documents comma splitting, while pydantic-settings rejects a raw comma-delimited environment value before the validator runs."
     }
   },
@@ -345,15 +346,13 @@
       "healthcheck_url": "http://127.0.0.1:8000/health"
     },
     "readme": {
-      "python_requirement": "Python 3.10+",
-      "startup_command": "uvicorn src.api.main:app --reload --port 8000",
+      "python_requirement": "Python 3.12",
+      "startup_command": "uv run uvicorn api.main:app --reload --port 8000",
       "docker_support_checked": false
     },
     "known_conflicts": [
       "Docker builder/runtime use Python 3.11 while pyproject.toml requires Python >=3.12,<3.13.",
-      "Compose configures Redis connectivity but does not set EVENT_BUS_BACKEND=redis, so the Settings default remains memory.",
-      "README claims Python 3.10+ and marks Docker support incomplete despite the Python 3.12 project constraint and committed container manifests.",
-      "README starts src.api.main:app while the container starts api.main:app."
+      "Compose configures Redis connectivity but does not set EVENT_BUS_BACKEND=redis, so the Settings default remains memory."
     ]
   }
 }

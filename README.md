@@ -4,13 +4,12 @@
 
 **小红书美食智能推荐 Agent** — 让"找吃的"变得更聪明
 
-[![Python 3.10+](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![Pydantic AI](https://img.shields.io/badge/Pydantic%20AI-V2-E92063?style=for-the-badge)](https://ai.pydantic.dev/)
 [![Temporal](https://img.shields.io/badge/Temporal-durable%20workflows-000000?style=for-the-badge)](https://temporal.io/)
 [![Redis](https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&logo=redis&logoColor=white)](https://redis.io/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 
 <p align="center">
   <strong>🔍 智能搜索 · 🎯 本地推荐 · ❌ 过滤网红 · 💬 多轮对话 · 🧠 长期记忆</strong>
@@ -83,10 +82,10 @@
 <tr>
 <td width="50%">
 
-### 🚀 生产就绪
+### 🚀 运行与观测
 - **SSE 流式输出** — 实时获取搜索进度
-- **断线恢复** — 无感重连，数据不丢失
-- **多用户支持** — 完整的会话管理 API
+- **有限重放** — 在事件保留窗口内可用 `Last-Event-ID` 重连
+- **用户数据分区** — 收藏、历史和设置按解析出的用户 ID 访问
 
 </td>
 <td width="50%">
@@ -152,8 +151,8 @@ Spider、签名器、浏览器登录、Cookie 或本地 provider。
 │                         XHS Food Agent                                │
 ├──────────────────────────────────────────────────────────────────────┤
 │  ┌──────────────┐   ┌─────────────────┐   ┌────────────────────────┐ │
-│  │   FastAPI    │───│  SessionManager │───│   Multi-Agent System   │ │
-│  │ (SSE + REST) │   │  (会话编排器)    │   │  Intent │ Analyzer    │ │
+│  │   FastAPI    │───│  SessionManager │───│ Autonomous Research    │ │
+│  │ (SSE + REST) │   │  (会话编排器)    │   │ Agent + Tool Loop      │ │
 │  └──────────────┘   └─────────────────┘   └────────────────────────┘ │
 │         │                  │    │                     │              │
 │         ▼                  ▼    ▼                     ▼              │
@@ -195,9 +194,10 @@ flowchart LR
 `src/xhs_food/contracts/account_service.py` 和
 `src/xhs_food/gateways/account_service.py` 的 HTTP/MCP 适配层调用它们，不导入
 上游 Python 包，也不保存 Cookie、浏览器 profile、二维码字节或 signer 状态。
-只需在 `MODULAR_ACCOUNT_SERVICES_FILE` 或 `MODULAR_ACCOUNT_SERVICES_JSON` 中写入
-两个服务的 URL、频道、能力白名单和 `auth_ref`，Composition Root 会在启动时刷新
-能力并按频道路由。HTTP 是账号/登录资源的权威边界；Agent 搜索只通过 MCP 的
+在 `MODULAR_ACCOUNT_SERVICES_FILE` 或 `MODULAR_ACCOUNT_SERVICES_JSON` 中写入
+两个服务的 URL、频道和能力白名单后，Composition Root 会在启动时刷新能力并按频道
+路由。默认装配尚不会解析可选 `auth_ref`；需要认证 header 的上游必须注入自定义 secret
+resolver/client factory，详情见接入文档。HTTP 是账号/登录资源的权威边界；Agent 搜索只通过 MCP 的
 `tools/list` 与 `tools/call` 发现和执行经过双重 allow-list 的只读工具。部署示例与完整 endpoint 清单见
 [`docs/account-services.md`](docs/account-services.md) 和
 [`docker-compose.account-services.yml`](docker-compose.account-services.yml)。
@@ -224,7 +224,7 @@ MODULAR_AGENT_MCP_TOOL_POLICY_JSON='{"enabled":true,"allowed_platforms":["xhs_pc
 2. `xhs_pc`/`xhs_creator` 登录命令由对应 Account Service 执行：
    `POST /v1/platform/accounts/{platform}/{account_ref}/login/qr` 创建短期 QR 流程，
    `GET /v1/platform/login/{flow_id}/qr` 只返回限时展示引用，`POST .../poll` 推进状态。
-3. 也可通过 `/login` 使用 `CREDENTIAL_REF`；主应用只转发不透明引用，不接收
+3. 也可通过 `/login` 使用 `credential_ref`；主应用只转发不透明引用，不接收
    Cookie、二维码内容、storage-state 或 signer 输入。
 4. 账号隔离、session 版本与风控状态由远端服务负责；主应用只持有账号引用。
 
@@ -236,8 +236,8 @@ MODULAR_AGENT_MCP_TOOL_POLICY_JSON='{"enabled":true,"allowed_platforms":["xhs_pc
 ### 1️⃣ 克隆项目
 
 ```bash
-git clone https://github.com/your-username/xhs-food-agent.git
-cd xhs-food-agent
+git clone https://github.com/MARYCOMPLEX/food_agent.git
+cd food_agent
 ```
 
 ### 2️⃣ 配置环境变量
@@ -274,13 +274,13 @@ irm https://astral.sh/uv/install.ps1 | iex
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # 同步依赖 (自动创建虚拟环境)
-uv sync
+uv sync --extra dev
 ```
 
 ### 4️⃣ 启动服务
 
 ```bash
-uvicorn src.api.main:app --reload --port 8000
+uv run uvicorn api.main:app --reload --port 8000
 ```
 
 🎉 **服务已启动!** 访问 http://localhost:8000/docs 查看 API 文档
@@ -292,22 +292,27 @@ uvicorn src.api.main:app --reload --port 8000
 无需真实平台账号即可运行非 live 合约与单元测试：
 
 ```bash
-uv run pytest -q -m "not live"
+uv run --extra dev pytest -q -m "not live"
 ```
 
 ---
 
 ## 📡 API 接口
 
-### 搜索接口
+当前 API 的完整路由清单、请求/响应合同、SSE 恢复语义、平台账号控制面、身份边界、
+错误映射和已知限制见 [后端 API 指南](docs/backend-api.md)。可机器读取的提交版合同为
+[OpenAPI YAML](contracts/openapi.yaml)，运行时以 `GET /openapi.json` 为准。
+
+### 搜索示例
 
 ```bash
 # 新建会话
 curl -X POST http://localhost:8000/v1/search/ \
   -H "Content-Type: application/json" \
-  -d '{"query": "成都本地人常去的老火锅"}'
+  -H "X-User-Id: 11111111-1111-1111-1111-111111111111" \
+  -d '{"query":"成都本地人常去的老火锅","accountRefs":{"xhs_pc":"xhs-main","dianping":"dianping-main"}}'
 
-# SSE 流式搜索 (推荐)
+# 默认 legacy SSE
 curl -N "http://localhost:8000/v1/search/stream/{sessionId}"
 ```
 
@@ -317,28 +322,15 @@ curl -N "http://localhost:8000/v1/search/stream/{sessionId}"
 # 同一会话继续研究（仍走统一入口）
 curl -X POST http://localhost:8000/v1/search/ \
   -H "Content-Type: application/json" \
-  -d '{"sessionId": "<sessionId>", "query": "评论里争议最大的菜是什么？"}'
+  -H "X-User-Id: 11111111-1111-1111-1111-111111111111" \
+  -d '{"sessionId":"<sessionId>","query":"评论里争议最大的菜是什么？","accountRefs":{"xhs_pc":"xhs-main","dianping":"dianping-main"}}'
 
 # 查询会话状态
 curl http://localhost:8000/v1/search/status/{sessionId}
 ```
 
-<details>
-<summary>📋 <strong>完整 API 端点列表</strong></summary>
-
-| 方法 | 端点 | 说明 |
-|------|------|------|
-| `GET` | `/health` | 健康检查 |
-| `POST` | `/v1/search/` | 新建或继续一轮研究 |
-| `GET` | `/v1/search/stream/{id}` | SSE 流式搜索 |
-| `GET` | `/v1/search/status/{id}` | 查询研究状态 |
-| `GET` | `/v1/search/results/{id}` | 查询研究结果 |
-| `GET` | `/v1/favorites` | 收藏列表 |
-| `POST` | `/v1/favorites` | 添加收藏 |
-| `GET` | `/v1/history` | 搜索历史 |
-| `GET` | `/v1/user/profile` | 用户资料 |
-
-</details>
+搜索只有这个统一命令入口；不存在独立的 `/start`、`/refine` 或 `/recover` 路由。
+可靠任务 SSE v1 必须显式使用 `?sseVersion=v1` 且部署对应的可靠运行时。
 
 ---
 
@@ -349,7 +341,7 @@ xhs_food_agent/
 ├── 📁 src/
 │   ├── 📁 api/                    # FastAPI 服务层
 │   │   ├── main.py               # 应用入口
-│   │   ├── search.py             # 搜索 API (SSE)
+│   │   ├── search/               # 搜索 API、SSE 与 transport 映射
 │   │   ├── favorites.py          # 收藏功能
 │   │   └── README.md             # 📖 模块文档
 │   │
@@ -357,7 +349,7 @@ xhs_food_agent/
 │       ├── orchestrator/          # Agent facade and transport projection
 │       ├── schemas/               # API and conversation models
 │       │
-│       ├── 📁 agents/            # 子 Agent
+│       ├── 📁 agents/            # 兼容分析组件（非多 Agent 编排）
 │       │   ├── intent_parser.py  # 意图解析
 │       │   ├── analyzer.py       # 评论证据分析
 │       │   └── README.md         # 📖 模块文档
@@ -401,13 +393,15 @@ src/
 
 ---
 
-## � 文档
+## 📖 文档
 
 | 文档 | 说明 |
 |------|------|
 | [agents/README.md](src/xhs_food/agents/README.md) | Agent 模块架构与扩展 |
 | [services/README.md](src/xhs_food/services/README.md) | 服务层配置与使用 |
-| [api/README.md](src/api/README.md) | API 端点与 SSE 规范 |
+| [后端 API 指南](docs/backend-api.md) | 完整路由、响应、SSE、身份、错误和配置合同 |
+| [OpenAPI YAML](contracts/openapi.yaml) | 从 FastAPI 运行时确定性生成的机器合同 |
+| [api/README.md](src/api/README.md) | FastAPI 传输层归属和维护方法 |
 | [Account Service 接入](docs/account-services.md) | HTTP/MCP 配置、工具策略和错误边界 |
 | [Comment-first OpenSpec](openspec/changes/comment-first-agent-cutover/design.md) | 评论证据优先、点评店铺档案和 source ports |
 
@@ -463,11 +457,11 @@ Account Service、Agent MCP 策略和 ObjectStore 的完整变量模板以仓库
 - [x] Redis 会话缓存
 - [x] PostgreSQL 持久化存储
 - [x] pgvector 向量搜索
-- [x] 断线恢复机制
+- [x] 事件保留窗口内的 SSE 重放
 - [ ] 🚧 地理位置感知 (GPS 推荐)
 - [ ] 🚧 用户偏好学习
 - [ ] 📱 移动端 App
-- [ ] 🐳 Docker 部署支持
+- [ ] 🐳 Docker 部署支持（当前 Dockerfile Python 版本待对齐）
 
 ---
 
@@ -529,12 +523,6 @@ Account Service、Agent MCP 策略和 ObjectStore 的完整变量模板以仓库
 - 合理的请求频率限制
 
 **请勿将本项目用于商业用途或任何可能损害小红书平台利益的行为。**
-
----
-
-## 📄 License
-
-本项目采用 [MIT License](LICENSE) 开源协议。
 
 ---
 

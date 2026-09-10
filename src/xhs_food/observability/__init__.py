@@ -27,7 +27,20 @@ from .metrics import (
 metrics_router = APIRouter()
 
 
-@metrics_router.get("/metrics")
+@metrics_router.get(
+    "/metrics",
+    response_class=Response,
+    responses={
+        200: {
+            "description": "Prometheus text exposition format.",
+            "content": {
+                CONTENT_TYPE_LATEST: {
+                    "schema": {"type": "string"},
+                }
+            },
+        }
+    },
+)
 def metrics_endpoint() -> Response:
     """Expose Prometheus metrics in the text exposition format."""
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)

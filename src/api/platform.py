@@ -276,7 +276,7 @@ async def list_account_service_tools(
     platform: str,
     principal_id: str = Depends(get_current_user_id),
 ) -> Any:
-    """Expose the refreshed, redacted MCP tool catalog to an agent."""
+    """Expose the refreshed, redacted raw MCP catalog for control-plane diagnostics."""
 
     del principal_id
     registry = getattr(request.app.state, "account_service_registry", None)

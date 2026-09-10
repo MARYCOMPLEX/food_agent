@@ -1,289 +1,62 @@
-# 🌐 API 模块
+# API 模块
 
-**FastAPI 服务层** — RESTful + SSE 流式接口
+`src/api` 是主应用的 FastAPI 传输层。完整的请求、响应、SSE、身份和错误合同见
+[后端 API 指南](../../docs/backend-api.md)；本文件只说明代码归属和维护方式。
 
----
+## 启动
 
-## 📋 概述
-
-API 模块基于 FastAPI 构建，提供 RESTful 接口和 SSE 流式推送，支持多用户会话管理。
-
----
-
-## 🚀 快速启动
+从仓库根目录运行：
 
 ```bash
-# 开发模式
-uvicorn src.api.main:app --reload --port 8000
-
-# 生产模式
-uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --workers 4
+uv run uvicorn api.main:app --reload --port 8000
 ```
 
-访问 http://localhost:8000/docs 查看 Swagger 文档
+Swagger UI 位于 `http://localhost:8000/docs`，运行时 schema 位于
+`http://localhost:8000/openapi.json`。
 
----
+## 模块归属
 
-## 📂 文件结构
+| 路径 | 职责 |
+|---|---|
+| `main.py` | 应用生命周期、中间件、Composition Root 装配、router 注册 |
+| `search/` | 统一搜索命令、状态/结果快照、legacy 与 reliable SSE 适配 |
+| `platform.py` | 上游 Account Service 账号、登录、readiness 和 MCP 控制面 |
+| `favorites.py` | 收藏读写 |
+| `history.py` | 搜索历史读写 |
+| `user.py` | 用户资料、统计和设置 |
+| `help.py` | FAQ 和反馈接收 |
+| `deps.py` | 身份解析和用户存储依赖 |
+| `schemas.py` | 公共 FastAPI/Pydantic 模型 |
 
-| 文件 | 职责 |
-|------|------|
-| `main.py` | 应用入口，中间件配置 |
-| `routes.py` | 通用路由 |
-| `search.py` | 搜索相关端点 (SSE) |
-| `favorites.py` | 收藏功能 |
-| `history.py` | 历史记录 |
-| `user.py` | 用户管理 |
-| `help.py` | 帮助与反馈 |
-| `schemas.py` | 请求/响应模型 |
-| `deps.py` | 依赖注入 |
+传输层只做协议适配：解析 HTTP 输入、调用 application port、映射稳定输出。Agent
+规划、MCP 工具选择、研究状态、评论证据和店铺档案逻辑不应写入 route handler。
 
----
+## 当前协议边界
 
-## 🔗 API 端点概览
+- 搜索只有一个命令入口：`POST /v1/search/`。
+- 默认 SSE 是 legacy；可靠任务流必须显式请求 `?sseVersion=v1` 并启用可靠运行时。
+- `ResearchEvent v1` 和 `UserResearchProjection v1` 尚未挂载到当前 FastAPI transport。
+- `X-User-Id` / `X-Device-Id` 只负责身份解析，不是认证或授权。
+- 平台控制面禁止原始 Cookie、token、二维码字节和浏览器 profile 穿过主应用。
 
-### 搜索
+## OpenAPI 维护
 
-| 方法 | 端点 | 说明 |
-|------|------|------|
-| `POST` | `/v1/search/` | 新建或继续一轮研究 |
-| `GET` | `/v1/search/stream/{sessionId}` | SSE 流式接收结果 |
-| `GET` | `/v1/search/status/{sessionId}` | 查询状态 |
-| `GET` | `/v1/search/results/{sessionId}` | 查询结果 |
-
-### 收藏
-
-| 方法 | 端点 | 说明 |
-|------|------|------|
-| `GET` | `/v1/favorites` | 获取收藏列表 |
-| `POST` | `/v1/favorites` | 添加收藏 |
-| `DELETE` | `/v1/favorites/{id}` | 取消收藏 |
-| `GET` | `/v1/favorites/{id}/check` | 检查收藏状态 |
-
-### 历史记录
-
-| 方法 | 端点 | 说明 |
-|------|------|------|
-| `GET` | `/v1/history` | 获取搜索历史 |
-| `POST` | `/v1/history` | 添加记录 |
-| `DELETE` | `/v1/history/{id}` | 删除单条 |
-| `DELETE` | `/v1/history` | 清空全部 |
-
-### 用户
-
-| 方法 | 端点 | 说明 |
-|------|------|------|
-| `GET` | `/v1/user/profile` | 获取资料 |
-| `PUT` | `/v1/user/profile` | 更新资料 |
-| `GET` | `/v1/user/settings` | 获取设置 |
-| `PUT` | `/v1/user/settings` | 更新设置 |
-
----
-
-## 🔐 认证机制
-
-通过 HTTP Header 识别用户：
-
-```
-X-Device-Id: <设备唯一标识>   # 推荐，自动创建用户
-X-User-Id: <用户UUID>         # 可选，显式指定
-```
-
-### 依赖注入
-
-```python
-from src.api.deps import get_current_user
-
-@router.get("/profile")
-async def get_profile(user: User = Depends(get_current_user)):
-    return user
-```
-
----
-
-## 📡 SSE 流式响应
-
-### 事件类型
-
-| Event | 说明 |
-|-------|------|
-| `step_start` | 步骤开始 |
-| `step_done` | 步骤完成 |
-| `step_error` | 步骤失败 |
-| `restaurant` | 单个餐厅数据 |
-| `result` | 最终汇总 |
-| `done` | 流结束 |
-| `progress` | 心跳保活 |
-
-### 流程示例
-
-```
-Client                          Server
-  |                               |
-  |-- POST /search/ -------------->|
-  |<---- { sessionId } -----------|
-  |                               |
-  |-- GET /search/stream/{id} --->|
-  |<---- step_start(step1) -------|
-  |<---- step_done(step1) --------|
-  |<---- step_start(step2) -------|
-  |<---- ...                      |
-  |<---- restaurant × N ----------|
-  |<---- result ------------------|
-  |<---- done --------------------|
-  |                               |
-```
-
-### 继续研究与恢复
-
-用于从历史记录恢复完整的多轮对话，返回所有轮次的搜索结果。
-
-**请求示例**:
-```bash
-curl -X POST http://localhost:8000/v1/search/ \
-  -H "Content-Type: application/json" \
-  -d '{"sessionId":"<sessionId>","query":"继续分析评论争议"}'
-```
-
-**响应示例** (status: completed):
-```json
-{
-  "success": true,
-  "data": {
-    "sessionId": "abc-123-def",
-    "status": "completed",
-    "turnId": 2,
-    "query": "便宜点的",
-    "restaurants": [...],
-    "summary": "根据您的要求...",
-    "total": 3,
-    "turns": [
-      {
-        "turnId": 1,
-        "query": "成都火锅推荐",
-        "restaurants": [...],
-        "summary": "为您找到以下火锅店...",
-        "total": 8,
-        "createdAt": "2026-01-09T15:30:00"
-      },
-      {
-        "turnId": 2,
-        "query": "便宜点的",
-        "restaurants": [...],
-        "summary": "根据您的要求...",
-        "total": 3,
-        "createdAt": "2026-01-09T15:31:00"
-      }
-    ],
-    "turnCount": 2,
-    "fromDatabase": true
-  }
-}
-```
-
-**响应示例** (status: loading):
-```json
-{
-  "success": true,
-  "data": {
-    "sessionId": "abc-123-def",
-    "status": "loading",
-    "streamUrl": "/v1/search/stream/abc-123-def?lastEventIndex=5",
-    "lastEventIndex": 5,
-    "message": "搜索进行中，请连接 SSE 流继续接收"
-  }
-}
-```
-
-**响应示例** (status: not_found):
-```json
-{
-  "success": false,
-  "data": {
-    "sessionId": "abc-123-def",
-    "status": "not_found",
-    "message": "会话不存在或已过期"
-  }
-}
-```
-
-**状态说明**:
-
-| status | 说明 | 处理方式 |
-|--------|------|----------|
-| `completed` | 搜索已完成 | 直接使用 `turns` 渲染历史 |
-| `loading` | 搜索进行中 | 连接 `streamUrl` 继续接收 |
-| `interrupted` | 搜索中断（服务重启） | 提示用户重新搜索 |
-| `error` | 搜索失败 | 显示错误信息 |
-| `not_found` | 会话不存在 | 返回首页 |
-
----
-
-## ❌ 错误处理
-
-### 统一响应格式
-
-**成功**:
-```json
-{
-  "success": true,
-  "data": { ... }
-}
-```
-
-**错误**:
-```json
-{
-  "success": false,
-  "error": "error_code",
-  "message": "错误描述"
-}
-```
-
-### HTTP 状态码
-
-| 状态码 | 说明 |
-|--------|------|
-| 200 | 成功 |
-| 400 | 请求参数错误 |
-| 401 | 未授权 |
-| 404 | 资源不存在 |
-| 500 | 服务器内部错误 |
-
----
-
-## 🧪 测试
+不要手工编辑生成文件。路由或 schema 变化后执行：
 
 ```bash
-# 健康检查
-curl http://localhost:8000/health
-
-# 新建搜索
-curl -X POST http://localhost:8000/v1/search/ \
-  -H "Content-Type: application/json" \
-  -d '{"query": "成都火锅推荐"}'
-
-# SSE 流式接收
-curl -N "http://localhost:8000/v1/search/stream/{sessionId}"
+uv run python scripts/export_openapi.py
+uv run python scripts/export_openapi.py --check
+uv run pytest -q tests/test_backend_api_documentation.py
 ```
 
----
+生成结果：
 
-## ⚙️ 配置
+- `contracts/openapi.yaml`：供外部接入和评审使用。
+- `tests/fixtures/http/openapi.json`：运行时合同快照。
 
-```bash
-# 服务配置
-API_HOST=0.0.0.0
-API_PORT=8000
+## 相关文档
 
-# CORS
-CORS_ORIGINS=["http://localhost:3000"]
-```
-
----
-
-## 📚 相关文档
-
-- [API 完整规范](../../internal-docs/API.md)
-- [SSE 事件规范](../../internal-docs/SSE_SPEC.md)
-- [前端集成指南](../../internal-docs/FRONTEND_SSE_GUIDE.md)
+- [完整后端 API 指南](../../docs/backend-api.md)
+- [Account Service HTTP/MCP 接入](../../docs/account-services.md)
+- [可靠任务回滚手册](../../openspec/changes/define-modular-architecture/runbooks/b0-reliable-task-rollback.md)
+- [研究体验合同 schema](../../openspec/changes/freeze-research-experience-contracts/schema.md)

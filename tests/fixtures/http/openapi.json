@@ -1,49 +1,33 @@
 {
   "components": {
     "schemas": {
-      "AccountServiceToolCallRequest": {
-        "properties": {
-          "arguments": {
-            "additionalProperties": true,
-            "title": "Arguments",
-            "type": "object"
-          }
-        },
-        "additionalProperties": false,
-        "title": "AccountServiceToolCallRequest",
-        "type": "object"
-      },
       "AccountServiceInvokeRequest": {
+        "additionalProperties": false,
         "properties": {
           "account_ref": {
-            "type": "string",
             "maxLength": 128,
             "minLength": 1,
             "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$",
-            "title": "Account Ref"
+            "title": "Account Ref",
+            "type": "string"
           },
           "capability": {
-            "type": "string",
             "maxLength": 128,
             "minLength": 1,
-            "title": "Capability"
+            "title": "Capability",
+            "type": "string"
           },
           "correlation_id": {
-            "type": "string",
             "maxLength": 128,
             "minLength": 1,
-            "title": "Correlation Id"
-          },
-          "query": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Query"
+            "title": "Correlation Id",
+            "type": "string"
           },
           "expected_session_version": {
             "anyOf": [
               {
-                "type": "integer",
-                "minimum": 1.0
+                "minimum": 1.0,
+                "type": "integer"
               },
               {
                 "type": "null"
@@ -51,22 +35,38 @@
             ],
             "title": "Expected Session Version"
           },
+          "query": {
+            "additionalProperties": true,
+            "title": "Query",
+            "type": "object"
+          },
           "timeout_seconds": {
-            "type": "number",
-            "maximum": 300.0,
+            "default": 30.0,
             "exclusiveMinimum": 0.1,
+            "maximum": 300.0,
             "title": "Timeout Seconds",
-            "default": 30.0
+            "type": "number"
           }
         },
-        "additionalProperties": false,
-        "type": "object",
         "required": [
           "account_ref",
           "capability",
           "correlation_id"
         ],
-        "title": "AccountServiceInvokeRequest"
+        "title": "AccountServiceInvokeRequest",
+        "type": "object"
+      },
+      "AccountServiceToolCallRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "arguments": {
+            "additionalProperties": true,
+            "title": "Arguments",
+            "type": "object"
+          }
+        },
+        "title": "AccountServiceToolCallRequest",
+        "type": "object"
       },
       "FavoriteAddRequest": {
         "description": "POST /v1/favorites 请求体.",
@@ -153,7 +153,7 @@
       "HistoryAddRequest": {
         "description": "POST /v1/history 请求体.",
         "properties": {
-    "location": {
+          "location": {
             "anyOf": [
               {
                 "type": "string"
@@ -365,8 +365,24 @@
         "type": "object"
       },
       "UnifiedSearchRequest": {
-        "description": "POST /v1/search 统一请求体.\n\n智能判断操作类型：\n- 无 sessionId → 新查询（必须有 query）\n- 有 sessionId + query → 追问/继续对话\n- 有 sessionId + 无 query → 恢复历史会话",
+        "description": "POST /v1/search/ 统一请求体.\n\n智能判断操作类型：\n- 无 sessionId → 新查询（必须有 query）\n- 有 sessionId + query → 追问/继续对话\n- 有 sessionId + 无 query → 恢复历史会话",
         "properties": {
+          "accountRefs": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "按平台选择的账户引用，不包含凭据",
+            "title": "Accountrefs",
+            "type": "object"
+          },
+          "expectedSessionVersions": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "按平台固定的账户会话版本",
+            "title": "Expectedsessionversions",
+            "type": "object"
+          },
           "location": {
             "anyOf": [
               {
@@ -379,33 +395,17 @@
                 "type": "null"
               }
             ],
-      "description": "位置坐标 {lat, lng}",
-      "title": "Location"
-    },
-    "platforms": {
-      "items": {
-        "type": "string"
-      },
-      "type": "array",
-      "title": "Platforms",
-      "description": "本次允许使用的 MCP 平台；默认先取 XHS 评论，再用点评补充店铺档案"
-    },
-    "accountRefs": {
-      "additionalProperties": {
-        "type": "string"
-      },
-      "type": "object",
-      "title": "Accountrefs",
-      "description": "按平台选择的账户引用，不包含凭据"
-    },
-    "expectedSessionVersions": {
-      "additionalProperties": {
-        "type": "integer"
-      },
-      "type": "object",
-      "title": "Expectedsessionversions",
-      "description": "按平台固定的账户会话版本"
-    },
+            "description": "位置坐标 {lat, lng}",
+            "title": "Location"
+          },
+          "platforms": {
+            "description": "本次允许使用的 MCP 平台；默认先取 XHS 评论，再用点评补充店铺档案",
+            "items": {
+              "type": "string"
+            },
+            "title": "Platforms",
+            "type": "array"
+          },
           "query": {
             "anyOf": [
               {
@@ -600,341 +600,16 @@
         "responses": {
           "200": {
             "content": {
-              "application/json": {
-                "schema": {}
+              "text/plain; version=1.0.0; charset=utf-8": {
+                "schema": {
+                  "type": "string"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Prometheus text exposition format."
           }
         },
         "summary": "Metrics Endpoint"
-      }
-    },
-    "/v1/platform/account-services/{platform}/tools": {
-      "get": {
-        "tags": [
-          "platform"
-        ],
-        "summary": "List Account Service Tools",
-        "description": "Expose the refreshed, redacted MCP tool catalog to an agent.",
-        "operationId": "list_account_service_tools_v1_platform_account_services__platform__tools_get",
-        "parameters": [
-          {
-            "name": "platform",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Platform"
-            }
-          },
-          {
-            "name": "X-User-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-User-Id"
-            }
-          },
-          {
-            "name": "X-Device-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Device-Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "title": "Response List Account Service Tools V1 Platform Account Services  Platform  Tools Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/platform/agent-tools/catalog": {
-      "get": {
-        "tags": [
-          "platform"
-        ],
-        "summary": "Agent Tool Catalog",
-        "description": "Return the policy-filtered, account-free Agent tool projection.",
-        "operationId": "agent_tool_catalog_v1_platform_agent_tools_catalog_get",
-        "parameters": [
-          {
-            "name": "X-User-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-User-Id"
-            }
-          },
-          {
-            "name": "X-Device-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Device-Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "title": "Response Agent Tool Catalog V1 Platform Agent Tools Catalog Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/platform/account-services/{platform}/tools/{tool_name}": {
-      "post": {
-        "tags": [
-          "platform"
-        ],
-        "summary": "Call Account Service Tool",
-        "description": "Call one allow-listed MCP tool with opaque tenant context only.",
-        "operationId": "call_account_service_tool_v1_platform_account_services__platform__tools__tool_name__post",
-        "parameters": [
-          {
-            "name": "platform",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Platform"
-            }
-          },
-          {
-            "name": "tool_name",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Tool Name"
-            }
-          },
-          {
-            "name": "X-User-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-User-Id"
-            }
-          },
-          {
-            "name": "X-Device-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Device-Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "anyOf": [
-                  {
-                    "$ref": "#/components/schemas/AccountServiceToolCallRequest"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Body"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "title": "Response Call Account Service Tool V1 Platform Account Services  Platform  Tools  Tool Name  Post"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/platform/account-services/{platform}/invoke": {
-      "post": {
-        "tags": [
-          "platform"
-        ],
-        "summary": "Invoke Account Service Source",
-        "description": "Invoke an account-bound upstream source with tenant context injected.",
-        "operationId": "invoke_account_service_source_v1_platform_account_services__platform__invoke_post",
-        "parameters": [
-          {
-            "name": "platform",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Platform"
-            }
-          },
-          {
-            "name": "X-User-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-User-Id"
-            }
-          },
-          {
-            "name": "X-Device-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Device-Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AccountServiceInvokeRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "title": "Response Invoke Account Service Source V1 Platform Account Services  Platform  Invoke Post"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
       }
     },
     "/v1/favorites": {
@@ -1587,6 +1262,267 @@
         ]
       }
     },
+    "/v1/platform/account-services/{platform}/invoke": {
+      "post": {
+        "description": "Invoke an account-bound upstream source with tenant context injected.",
+        "operationId": "invoke_account_service_source_v1_platform_account_services__platform__invoke_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "platform",
+            "required": true,
+            "schema": {
+              "title": "Platform",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Device-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Device-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountServiceInvokeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Invoke Account Service Source V1 Platform Account Services  Platform  Invoke Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Invoke Account Service Source",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/v1/platform/account-services/{platform}/tools": {
+      "get": {
+        "description": "Expose the refreshed, redacted raw MCP catalog for control-plane diagnostics.",
+        "operationId": "list_account_service_tools_v1_platform_account_services__platform__tools_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "platform",
+            "required": true,
+            "schema": {
+              "title": "Platform",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Device-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Device-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response List Account Service Tools V1 Platform Account Services  Platform  Tools Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Account Service Tools",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/v1/platform/account-services/{platform}/tools/{tool_name}": {
+      "post": {
+        "description": "Call one allow-listed MCP tool with opaque tenant context only.",
+        "operationId": "call_account_service_tool_v1_platform_account_services__platform__tools__tool_name__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "platform",
+            "required": true,
+            "schema": {
+              "title": "Platform",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "tool_name",
+            "required": true,
+            "schema": {
+              "title": "Tool Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Device-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Device-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/AccountServiceToolCallRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Call Account Service Tool V1 Platform Account Services  Platform  Tools  Tool Name  Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Call Account Service Tool",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
     "/v1/platform/accounts": {
       "post": {
         "operationId": "register_platform_account_v1_platform_accounts_post",
@@ -2079,6 +2015,72 @@
         ]
       }
     },
+    "/v1/platform/agent-tools/catalog": {
+      "get": {
+        "description": "Return the policy-filtered, account-free Agent tool projection.",
+        "operationId": "agent_tool_catalog_v1_platform_agent_tools_catalog_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-User-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-User-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Device-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Device-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Agent Tool Catalog V1 Platform Agent Tools Catalog Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Agent Tool Catalog",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
     "/v1/platform/login/{flow_id}": {
       "get": {
         "operationId": "get_platform_login_status_v1_platform_login__flow_id__get",
@@ -2507,6 +2509,44 @@
       "post": {
         "description": "Single entry point — branches on ``(sessionId, query)`` presence.",
         "operationId": "unified_search_v1_search__post",
+        "parameters": [
+          {
+            "description": "Unverified subject selector; preferred for cross-route tenant consistency.",
+            "in": "header",
+            "name": "X-User-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Unverified subject selector; preferred for cross-route tenant consistency.",
+              "title": "X-User-Id"
+            }
+          },
+          {
+            "description": "Unverified device selector; search uses the raw value without UUID resolution.",
+            "in": "header",
+            "name": "X-Device-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Unverified device selector; search uses the raw value without UUID resolution.",
+              "title": "X-Device-Id"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -2521,10 +2561,52 @@
           "200": {
             "content": {
               "application/json": {
+                "examples": {
+                  "newSearch": {
+                    "summary": "Start a new research session",
+                    "value": {
+                      "data": {
+                        "action": "new_search",
+                        "sessionId": "session-example",
+                        "streamUrl": "/v1/search/stream/session-example"
+                      },
+                      "success": true
+                    }
+                  },
+                  "recoverNotFound": {
+                    "summary": "Business-level recovery miss",
+                    "value": {
+                      "data": {
+                        "message": "会话不存在或已过期",
+                        "sessionId": "missing-session",
+                        "status": "not_found"
+                      },
+                      "success": false
+                    }
+                  },
+                  "refine": {
+                    "summary": "Continue an existing session",
+                    "value": {
+                      "data": {
+                        "action": "refine",
+                        "sessionId": "session-example",
+                        "streamUrl": "/v1/search/stream/session-example",
+                        "turnId": 2
+                      },
+                      "success": true
+                    }
+                  }
+                },
                 "schema": {}
               }
             },
-            "description": "Successful Response"
+            "description": "Search admission, refinement admission, or session recovery envelope."
+          },
+          "400": {
+            "description": "A new search omitted query."
+          },
+          "404": {
+            "description": "The session for a refinement does not exist."
           },
           "422": {
             "content": {
@@ -2535,6 +2617,9 @@
               }
             },
             "description": "Validation Error"
+          },
+          "503": {
+            "description": "A required reliable-task dependency is unavailable."
           }
         },
         "summary": "Unified Search",
@@ -2633,7 +2718,7 @@
     },
     "/v1/search/stream/{sessionId}": {
       "get": {
-        "description": "Server-sent events with Redis-Stream-backed replay.\n\nThe browser's ``EventSource`` records ``id:`` on every event and sends\nit back as ``Last-Event-ID`` on reconnect. The EventBus replays from\nthat id, so the client needs no special reconnection logic.",
+        "description": "Server-sent events with backend-dependent replay.\n\nThe browser's ``EventSource`` records ``id:`` on every event and sends\nit back as ``Last-Event-ID`` on reconnect. Legacy replay is bounded by\nthe configured in-memory/Redis retention; reliable v1 explicitly signals\nan expired cursor and requires snapshot resynchronization.",
         "operationId": "search_stream_v1_search_stream__sessionId__get",
         "parameters": [
           {
@@ -2683,11 +2768,29 @@
         "responses": {
           "200": {
             "content": {
-              "application/json": {
-                "schema": {}
+              "text/event-stream": {
+                "examples": {
+                  "legacy": {
+                    "summary": "Default legacy progress and terminal events",
+                    "value": "id: mem-1\nevent: step_start\ndata: {\"step\":\"step1\",\"message\":\"解析用户意图\",\"progress\":0}\n\nid: mem-2\nevent: done\ndata: {\"message\":\"搜索完成\"}\n\n"
+                  },
+                  "reliableV1": {
+                    "summary": "Opt-in reliable terminal event",
+                    "value": "id: 1734567890000-2\nevent: done\ndata: {\"schemaVersion\":\"v1\",\"sessionId\":\"session-example\",\"taskId\":\"task-example\",\"turnId\":1,\"message\":\"搜索完成\"}\n\n"
+                  }
+                },
+                "schema": {
+                  "type": "string"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "Server-sent event stream. Omit sseVersion or use legacy for the default compatibility stream; use v1 only with the reliable task runtime."
+          },
+          "404": {
+            "description": "The reliable v1 session projection does not exist."
+          },
+          "406": {
+            "description": "sseVersion is not legacy or v1."
           },
           "422": {
             "content": {
@@ -2698,6 +2801,9 @@
               }
             },
             "description": "Validation Error"
+          },
+          "503": {
+            "description": "The selected event bus or reliable projection store is unavailable."
           }
         },
         "summary": "Search Stream",

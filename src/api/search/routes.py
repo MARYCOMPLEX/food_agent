@@ -1,11 +1,10 @@
 """Search endpoints (unified search + SSE stream).
 
 Endpoints:
-- ``POST /v1/search`` — new search / refine / recover (auto-dispatched by params)
+- ``POST /v1/search/`` — new search / refine / recover (auto-dispatched by params)
 - ``GET  /v1/search/stream/{sessionId}`` — SSE event stream backed by the
-  EventBus. The ``Last-Event-ID`` header (sent automatically by browser
-  EventSource on reconnect) is used for replay; no client-side bookkeeping
-  required.
+  configured EventBus. ``Last-Event-ID`` is best-effort for legacy streams;
+  reliable v1 emits ``replay_expired`` when the retained cursor is gone.
 - ``GET  /v1/search/status/{sessionId}``
 - ``GET  /v1/search/results/{sessionId}``
 """
@@ -50,6 +49,94 @@ router = APIRouter()
 # Preserve direct unit calls while FastAPI injects the real request object.
 _OPTIONAL_REQUEST = cast(Request, None)
 
+_SEARCH_COMMAND_RESPONSES: dict[int, dict[str, Any]] = {
+    200: {
+        "description": "Search admission, refinement admission, or session recovery envelope.",
+        "content": {
+            "application/json": {
+                "examples": {
+                    "newSearch": {
+                        "summary": "Start a new research session",
+                        "value": {
+                            "success": True,
+                            "data": {
+                                "sessionId": "session-example",
+                                "streamUrl": "/v1/search/stream/session-example",
+                                "action": "new_search",
+                            },
+                        },
+                    },
+                    "refine": {
+                        "summary": "Continue an existing session",
+                        "value": {
+                            "success": True,
+                            "data": {
+                                "sessionId": "session-example",
+                                "streamUrl": "/v1/search/stream/session-example",
+                                "turnId": 2,
+                                "action": "refine",
+                            },
+                        },
+                    },
+                    "recoverNotFound": {
+                        "summary": "Business-level recovery miss",
+                        "value": {
+                            "success": False,
+                            "data": {
+                                "sessionId": "missing-session",
+                                "status": "not_found",
+                                "message": "会话不存在或已过期",
+                            },
+                        },
+                    },
+                }
+            }
+        },
+    },
+    400: {"description": "A new search omitted query."},
+    404: {"description": "The session for a refinement does not exist."},
+    503: {"description": "A required reliable-task dependency is unavailable."},
+}
+
+_SEARCH_STREAM_RESPONSES: dict[int, dict[str, Any]] = {
+    200: {
+        "description": (
+            "Server-sent event stream. Omit sseVersion or use legacy for the default "
+            "compatibility stream; use v1 only with the reliable task runtime."
+        ),
+        "content": {
+            "text/event-stream": {
+                "schema": {"type": "string"},
+                "examples": {
+                    "legacy": {
+                        "summary": "Default legacy progress and terminal events",
+                        "value": (
+                            "id: mem-1\n"
+                            "event: step_start\n"
+                            'data: {"step":"step1","message":"解析用户意图","progress":0}\n\n'
+                            "id: mem-2\n"
+                            "event: done\n"
+                            'data: {"message":"搜索完成"}\n\n'
+                        ),
+                    },
+                    "reliableV1": {
+                        "summary": "Opt-in reliable terminal event",
+                        "value": (
+                            "id: 1734567890000-2\n"
+                            "event: done\n"
+                            'data: {"schemaVersion":"v1","sessionId":"session-example",'
+                            '"taskId":"task-example","turnId":1,"message":"搜索完成"}\n\n'
+                        ),
+                    },
+                },
+            }
+        },
+    },
+    404: {"description": "The reliable v1 session projection does not exist."},
+    406: {"description": "sseVersion is not legacy or v1."},
+    503: {"description": "The selected event bus or reliable projection store is unavailable."},
+}
+
 
 def _stream_url(session_id: str) -> str:
     return f"/v1/search/stream/{session_id}"
@@ -77,13 +164,28 @@ def _tool_context(
 # ---------------------------------------------------------------------------
 
 
-@router.post("/")
+@router.post("/", responses=_SEARCH_COMMAND_RESPONSES)
 async def unified_search(
     request: UnifiedSearchRequest,
     tasks: Annotated[ResearchTaskPort, Depends(get_research_task)],
     http_request: Request = _OPTIONAL_REQUEST,
+    x_user_id: Annotated[
+        str | None,
+        Header(
+            alias="X-User-Id",
+            description="Unverified subject selector; preferred for cross-route tenant consistency.",
+        ),
+    ] = None,
+    x_device_id: Annotated[
+        str | None,
+        Header(
+            alias="X-Device-Id",
+            description="Unverified device selector; search uses the raw value without UUID resolution.",
+        ),
+    ] = None,
 ):
     """Single entry point — branches on ``(sessionId, query)`` presence."""
+    del x_user_id, x_device_id  # Values are consumed from Request by the shared context mapper.
     app_state = getattr(getattr(http_request, "app", None), "state", None)
     reliable_enabled = bool(getattr(app_state, "reliable_task_lifecycle", False))
     # Case 1: new search
@@ -191,18 +293,23 @@ async def unified_search(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/stream/{sessionId}")
+@router.get(
+    "/stream/{sessionId}",
+    response_class=EventSourceResponse,
+    responses=_SEARCH_STREAM_RESPONSES,
+)
 async def search_stream(
     request: Request,
     sessionId: str = Path(..., description="会话ID"),
     last_event_id: str | None = Header(None, alias="Last-Event-ID"),
     sse_version: str | None = Query(None, alias="sseVersion"),
 ):
-    """Server-sent events with Redis-Stream-backed replay.
+    """Server-sent events with backend-dependent replay.
 
     The browser's ``EventSource`` records ``id:`` on every event and sends
-    it back as ``Last-Event-ID`` on reconnect. The EventBus replays from
-    that id, so the client needs no special reconnection logic.
+    it back as ``Last-Event-ID`` on reconnect. Legacy replay is bounded by
+    the configured in-memory/Redis retention; reliable v1 explicitly signals
+    an expired cursor and requires snapshot resynchronization.
     """
     if sse_version not in {None, "legacy", "v1"}:
         raise HTTPException(

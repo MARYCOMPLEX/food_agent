@@ -1,223 +1,91 @@
-# 🔧 Services 模块
+# Services 模块
 
-**核心服务层** — 提供存储、缓存、AI 调用等基础能力
+`src/xhs_food/services` 保存现有基础设施适配器和兼容服务。HTTP 接口、SSE 和外部接入
+合同见[后端 API 指南](../../../docs/backend-api.md)；Agent 的新业务能力应优先依赖
+`contracts` 中的 port，并由 Composition Root 注入实现，而不是直接绑定这些具体类。
 
----
+## 模块清单
 
-## 📋 概述
+| 路径 | 当前职责 |
+|---|---|
+| `llm_service.py` | 使用 LangChain `ChatOpenAI` 调用 OpenAI-compatible Chat API |
+| `session_manager.py` | 协调短期会话窗口和 PostgreSQL 聊天历史 |
+| `redis_memory.py` | Redis 会话窗口；连接不可用时降级到进程内字典 |
+| `postgres_storage.py` | 聊天历史和语义检索的 PostgreSQL 适配器 |
+| `postgres_vector.py` | embedding 与 pgvector 辅助能力 |
+| `user_storage/` | 用户、收藏、历史和餐厅持久化访问 |
+| `preprocessing.py` | 文本预处理辅助函数 |
+| `scoring.py` | legacy 推荐评分辅助函数 |
 
-Services 模块封装了所有基础设施交互逻辑，为上层 Agent 提供统一的服务接口。采用依赖注入设计，支持优雅降级。
+## LLMService
 
----
+`LLMService` 不维护固定 provider 或模型白名单。模型和地址由部署配置决定：
 
-## 🏗️ 架构
+| 参数/变量 | 优先级与作用 |
+|---|---|
+| 构造参数 `model_name` | 高于 `DEFAULT_LLM_MODEL` |
+| `DEFAULT_LLM_MODEL` | 默认模型名 |
+| `OPENAI_API_KEY` | 必需的模型凭据 |
+| `OPENAI_API_BASE` | OpenAI-compatible API 基址 |
+| `LLM_REASONING_EFFORT` | GPT-5/o 系列的 reasoning effort |
+| `LLM_TEMPERATURE` | 非 GPT-5/o 系列的 temperature |
+| `LLM_MAX_TOKENS` | GPT-5/o 系列映射到 `max_completion_tokens`，其他模型映射到 `max_tokens` |
 
-```mermaid
-flowchart TB
-    subgraph Services["服务层"]
-        LLM[LLMService<br/>AI 调用]
-        SM[SessionManager<br/>会话管理]
-        RM[RedisMemory<br/>L1 缓存]
-        PS[PostgresStorage<br/>L2 存储]
-        US[UserStorage<br/>用户数据]
-    end
-    
-    SM --> RM
-    SM --> PS
-    
-    subgraph External["外部依赖"]
-        LLMAPI[LLM API]
-        Redis[(Redis)]
-        PG[(PostgreSQL)]
-    end
-    
-    LLM --> LLMAPI
-    RM --> Redis
-    PS --> PG
-    US --> PG
-```
-
----
-
-## 📂 服务列表
-
-| 服务 | 文件 | 职责 |
-|------|------|------|
-| **LLMService** | `llm_service.py` | AI 模型调用，多模型支持 |
-| **SessionManager** | `session_manager.py` | 会话统一管理，双写策略 |
-| **RedisMemory** | `redis_memory.py` | L1 缓存，滑动窗口消息 |
-| **PostgresStorage** | `postgres_storage.py` | L2 存储，向量检索 |
-| **UserStorage** | `user_storage.py` | 用户数据，收藏/历史 |
-| **Scoring** | `scoring.py` | 信任分数计算 |
-| **Preprocessing** | `preprocessing.py` | 数据预处理 |
-
----
-
-## 🤖 LLMService - AI 服务
-
-### 功能
-- 封装 OpenAI 兼容 API 调用
-- 支持多模型切换与降级
-- 统一错误处理
-
-### 支持模型
-
-| 提供商 | 模型 | 说明 |
-|--------|------|------|
-| SiliconFlow | Qwen3-8B | 默认推荐 |
-| OpenAI | gpt-4o-mini | 备选 |
-| DeepSeek | deepseek-chat | 备选 |
-
-### 使用示例
+最小示例：
 
 ```python
+from langchain_core.messages import HumanMessage
 from xhs_food.services import LLMService
 
-llm = LLMService(default_model="siliconflow_qwen3_8b")
-response = await llm.chat_completion([
-    {"role": "user", "content": "推荐成都火锅"}
-])
+llm = LLMService(model_name="gpt-5.6-sol", reasoning_effort="medium")
+response = await llm.call([HumanMessage(content="总结这些评论证据")])
 ```
 
----
+具体模型是否接受某个参数仍由上游 OpenAI-compatible 服务决定。不要在应用文档中把
+某个示例模型描述成代码强制的 allow-list；管理端模型放行是独立的产品/策略能力。
 
-## 🗂️ SessionManager - 会话管理
+## 会话存储
 
-### 功能
-- 统一管理 Redis 和 PostgreSQL
-- 双写策略：同步 Redis + 异步 PostgreSQL
-- 缓存预热：冷启动时从 PostgreSQL 恢复
+`SessionManager` 的当前行为：
 
-### 读写流程
-
-```
-写入: 消息 → Redis (同步) → PostgreSQL (异步)
-读取: Redis → [命中] → 返回
-              → [未命中] → PostgreSQL → 缓存预热 → 返回
+```text
+写入: RedisMemory 同步写入 -> PostgreSQL 后台任务持久化
+读取: RedisMemory -> 未命中时读取 PostgreSQL -> 回填短期窗口
 ```
 
-### 使用示例
+- `RedisMemory` 默认窗口最多 20 条、TTL 24 小时；未配置或连接失败时使用进程内字典。
+- `SessionManager` 暴露给 LLM 的默认上下文是最近 10 条消息。
+- PostgreSQL 初始化失败时，SessionManager 继续运行 Redis-only 模式；这不等于长期历史
+  已持久化。
+- 进程退出时 `close()` 会等待已登记的后台保存任务。
 
-```python
-from xhs_food.services import SessionManager
+`SessionManager` 是兼容会话服务。可靠任务、证据、店铺档案和事件流各自有独立 port 与
+存储权威，不应把它当成所有 Agent 状态的唯一数据库。
 
-session_mgr = SessionManager()
+## 用户与餐厅存储
 
-# 添加消息
-await session_mgr.add_message(session_id, "user", "你好")
+`user_storage/` 使用 PostgreSQL，并通过 Alembic 已部署 schema 做启动检查；运行时不会
+根据 README 中的 SQL 自动建表。未配置数据库、驱动不可用或 schema 不满足要求时，
+服务标为未初始化：
 
-# 获取上下文
-context = await session_mgr.get_context(session_id)
-```
+- 身份读取可退化为匿名用户对象。
+- 收藏、历史、资料更新和餐厅持久化不能因此被视为可靠成功。
+- 表和字段的权威来源是 Alembic migrations 与 `user_storage/schema.py`，不是手写示例。
 
----
+餐厅持久化模型包含点评补充的地址、坐标、评分、均价、营业时间、图片、推荐菜、活动、
+provider refs、档案完整度、缺口和刷新状态；评论证据仍由证据生命周期和对应 repository
+管理，不应塞进低频店铺档案字段。
 
-## 📦 RedisMemory - L1 缓存
+## 配置边界
 
-### 功能
-- 滑动窗口消息存储
-- 24 小时 TTL 自动过期
-- 优雅降级为内存 Dict
+- 完整 legacy settings 定义：`src/xhs_food/config.py`。
+- target/modular settings 定义：`src/xhs_food/foundation/config.py`。
+- 可复制的示例：仓库根目录 `.env.example`。
+- 环境变量中的 API key、数据库密码、对象存储密钥不得写进文档、fixture 或日志。
 
-### Key 设计
+## 相关文档
 
-| Key Pattern | 用途 |
-|-------------|------|
-| `session:{id}:window` | 滑动窗口消息 |
-
-### 配置
-
-```bash
-REDIS_HOST=localhost
-REDIS_PORT=6379
-REDIS_DATABASE=0
-REDIS_PASSWORD=
-```
-
----
-
-## 🗄️ PostgresStorage - L2 存储
-
-### 功能
-- 持久化对话历史
-- pgvector 向量嵌入
-- 语义相似度搜索
-
-### 表结构
-
-```sql
-CREATE TABLE chat_history (
-    id SERIAL PRIMARY KEY,
-    session_id VARCHAR(255),
-    role VARCHAR(20),
-    content TEXT,
-    embedding VECTOR(4096),
-    created_at TIMESTAMPTZ
-);
-```
-
-### 使用示例
-
-```python
-from xhs_food.services import PostgresStorage
-
-storage = PostgresStorage()
-
-# 保存消息 (自动生成向量)
-await storage.save_message(session_id, "user", content)
-
-# 语义搜索
-similar = await storage.search_similar(query_embedding, top_k=5)
-```
-
----
-
-## 👤 UserStorage - 用户数据
-
-### 功能
-- 用户信息管理
-- 收藏功能
-- 搜索历史
-- 软删除支持
-
-### 表关系
-
-```mermaid
-erDiagram
-    users ||--o{ favorites : has
-    users ||--o{ search_history : has
-    restaurants ||--o{ favorites : referenced_by
-```
-
----
-
-## ⚙️ 配置汇总
-
-```bash
-# Redis (可选，降级为内存)
-REDIS_HOST=localhost
-REDIS_PORT=6379
-
-# PostgreSQL (必选)
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_DB=food_agent
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=
-
-# LLM API
-OPENAI_API_KEY=sk-xxx
-OPENAI_API_BASE=https://api.siliconflow.cn/v1/
-
-# Embedding (可选)
-EMBEDDING_API_KEY=
-EMBEDDING_MODEL=text-embedding-3-small
-```
-
----
-
-## 📚 相关文档
-
-- [Orchestrator 编排器](../orchestrator.py)
-- [会话架构](../../../internal-docs/session_architecture.md)
-- [存储架构](../../../internal-docs/STORAGE_ARCHITECTURE.md)
+- [后端 API 指南](../../../docs/backend-api.md)
+- [Account Service HTTP/MCP 接入](../../../docs/account-services.md)
+- [Agent 模块说明](../agents/README.md)
+- [可靠任务回滚手册](../../../openspec/changes/define-modular-architecture/runbooks/b0-reliable-task-rollback.md)

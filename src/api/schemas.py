@@ -1,7 +1,7 @@
 """
 API Schemas - Pydantic 请求/响应模型.
 
-按照 API.md 规范定义。
+公开 HTTP 行为以 ``docs/backend-api.md`` 和运行时 OpenAPI 为准。
 """
 
 from typing import Any
@@ -29,7 +29,7 @@ class LoadingStep(BaseModel):
 
 
 class UnifiedSearchRequest(BaseModel):
-    """POST /v1/search 统一请求体.
+    """POST /v1/search/ 统一请求体.
 
     智能判断操作类型：
     - 无 sessionId → 新查询（必须有 query）
@@ -202,9 +202,15 @@ class ErrorResponse(BaseModel):
 
 
 class StreamEvent(BaseModel):
-    """SSE事件."""
+    """Legacy SSE event helper; not the ResearchEvent v1 experience contract."""
 
-    event: str = Field(..., description="事件类型: status, progress, result, error, done")
+    event: str = Field(
+        ...,
+        description=(
+            "Legacy event type: step_start, step_done, step_error, progress, "
+            "intent_parsed, notes_found, analysis_done, restaurant, result, error, done"
+        ),
+    )
     data: dict[str, Any] = Field(..., description="事件数据")
 
 

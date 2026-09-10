@@ -11,18 +11,76 @@ paths:
       summary: Unified Search
       description: Single entry point — branches on ``(sessionId, query)`` presence.
       operationId: unified_search_v1_search__post
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Unverified subject selector; preferred for cross-route tenant
+            consistency.
+          title: X-User-Id
+        description: Unverified subject selector; preferred for cross-route tenant
+          consistency.
+      - name: X-Device-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Unverified device selector; search uses the raw value without
+            UUID resolution.
+          title: X-Device-Id
+        description: Unverified device selector; search uses the raw value without
+          UUID resolution.
       requestBody:
+        required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/UnifiedSearchRequest'
-        required: true
       responses:
         '200':
-          description: Successful Response
+          description: Search admission, refinement admission, or session recovery
+            envelope.
           content:
             application/json:
               schema: {}
+              examples:
+                newSearch:
+                  summary: Start a new research session
+                  value:
+                    success: true
+                    data:
+                      sessionId: session-example
+                      streamUrl: /v1/search/stream/session-example
+                      action: new_search
+                refine:
+                  summary: Continue an existing session
+                  value:
+                    success: true
+                    data:
+                      sessionId: session-example
+                      streamUrl: /v1/search/stream/session-example
+                      turnId: 2
+                      action: refine
+                recoverNotFound:
+                  summary: Business-level recovery miss
+                  value:
+                    success: false
+                    data:
+                      sessionId: missing-session
+                      status: not_found
+                      message: 会话不存在或已过期
+        '400':
+          description: A new search omitted query.
+        '404':
+          description: The session for a refinement does not exist.
+        '503':
+          description: A required reliable-task dependency is unavailable.
         '422':
           description: Validation Error
           content:
@@ -34,14 +92,16 @@ paths:
       tags:
       - search
       summary: Search Stream
-      description: 'Server-sent events with Redis-Stream-backed replay.
+      description: 'Server-sent events with backend-dependent replay.
 
 
         The browser''s ``EventSource`` records ``id:`` on every event and sends
 
-        it back as ``Last-Event-ID`` on reconnect. The EventBus replays from
+        it back as ``Last-Event-ID`` on reconnect. Legacy replay is bounded by
 
-        that id, so the client needs no special reconnection logic.'
+        the configured in-memory/Redis retention; reliable v1 explicitly signals
+
+        an expired cursor and requires snapshot resynchronization.'
       operationId: search_stream_v1_search_stream__sessionId__get
       parameters:
       - name: sessionId
@@ -70,10 +130,46 @@ paths:
           title: Last-Event-Id
       responses:
         '200':
-          description: Successful Response
+          description: Server-sent event stream. Omit sseVersion or use legacy for
+            the default compatibility stream; use v1 only with the reliable task runtime.
           content:
-            application/json:
-              schema: {}
+            text/event-stream:
+              schema:
+                type: string
+              examples:
+                legacy:
+                  summary: Default legacy progress and terminal events
+                  value: 'id: mem-1
+
+                    event: step_start
+
+                    data: {"step":"step1","message":"解析用户意图","progress":0}
+
+
+                    id: mem-2
+
+                    event: done
+
+                    data: {"message":"搜索完成"}
+
+
+                    '
+                reliableV1:
+                  summary: Opt-in reliable terminal event
+                  value: 'id: 1734567890000-2
+
+                    event: done
+
+                    data: {"schemaVersion":"v1","sessionId":"session-example","taskId":"task-example","turnId":1,"message":"搜索完成"}
+
+
+                    '
+        '404':
+          description: The reliable v1 session projection does not exist.
+        '406':
+          description: sseVersion is not legacy or v1.
+        '503':
+          description: The selected event bus or reliable projection store is unavailable.
         '422':
           description: Validation Error
           content:
@@ -825,7 +921,8 @@ paths:
       tags:
       - platform
       summary: List Account Service Tools
-      description: Expose the refreshed, redacted MCP tool catalog to an agent.
+      description: Expose the refreshed, redacted raw MCP catalog for control-plane
+        diagnostics.
       operationId: list_account_service_tools_v1_platform_account_services__platform__tools_get
       parameters:
       - name: platform
@@ -857,6 +954,44 @@ paths:
             application/json:
               schema:
                 title: Response List Account Service Tools V1 Platform Account Services  Platform  Tools
+                  Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/platform/agent-tools/catalog:
+    get:
+      tags:
+      - platform
+      summary: Agent Tool Catalog
+      description: Return the policy-filtered, account-free Agent tool projection.
+      operationId: agent_tool_catalog_v1_platform_agent_tools_catalog_get
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      - name: X-Device-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Device-Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                title: Response Agent Tool Catalog V1 Platform Agent Tools Catalog
                   Get
         '422':
           description: Validation Error
@@ -1492,10 +1627,11 @@ paths:
       operationId: metrics_endpoint_metrics_get
       responses:
         '200':
-          description: Successful Response
+          description: Prometheus text exposition format.
           content:
-            application/json:
-              schema: {}
+            text/plain; version=1.0.0; charset=utf-8:
+              schema:
+                type: string
   /health:
     get:
       summary: Health Check
@@ -1782,9 +1918,27 @@ components:
           - type: 'null'
           title: Location
           description: 位置坐标 {lat, lng}
+        platforms:
+          items:
+            type: string
+          type: array
+          title: Platforms
+          description: 本次允许使用的 MCP 平台；默认先取 XHS 评论，再用点评补充店铺档案
+        accountRefs:
+          additionalProperties:
+            type: string
+          type: object
+          title: Accountrefs
+          description: 按平台选择的账户引用，不包含凭据
+        expectedSessionVersions:
+          additionalProperties:
+            type: integer
+          type: object
+          title: Expectedsessionversions
+          description: 按平台固定的账户会话版本
       type: object
       title: UnifiedSearchRequest
-      description: 'POST /v1/search 统一请求体.
+      description: 'POST /v1/search/ 统一请求体.
 
 
         智能判断操作类型：

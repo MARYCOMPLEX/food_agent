@@ -154,6 +154,11 @@ bug-records/
 *.tex
 *.db
 
+# Public backend integration contract
+!docs/
+docs/*
+!docs/backend-api.md
+
 # OpenSpec project artifacts and Codex skills
 !openspec/**/*.md
 !.agents/skills/openspec-*/SKILL.md

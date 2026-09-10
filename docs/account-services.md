@@ -1,5 +1,11 @@
 # Account Service Deployment
 
+> This document defines the upstream contract and deployment boundary between
+> the main application and the independent XHS/Dianping account services. For
+> browser-facing `/v1/platform/*`, search, SSE, identity, and error behavior,
+> see the [backend API guide](backend-api.md). The two URL surfaces are not
+> interchangeable.
+
 The main application uses a provider-neutral account-service boundary. The
 upstream service owns provider SDKs, Playwright/browser profiles, signer state,
 QR bytes, credentials, leases, and its account database. The main application
@@ -23,7 +29,8 @@ publishing remains unavailable unless a future capability is explicitly
 approved.
 
 The upstream implementations can be FastAPI, Go, Node, or another HTTP server.
-They must implement the versioned resources described in the OpenSpec change:
+They must implement the versioned resources in the
+[account-service HTTP contract](../openspec/changes/platform-account-service-mcp/specs/account-service-http-contract/spec.md):
 
 ```text
 GET  /v1/capabilities
@@ -58,9 +65,8 @@ keeps the two providers isolated and enables MCP discovery for both:
     "mcp_url": "http://HOST:PORT_XHS/mcp",
     "protocol": "http+mcp",
     "channels": ["xhs_pc", "xhs_creator"],
-    "capabilities": ["account.register", "account.read", "account.login", "notes.search"],
+    "capabilities": ["account.register", "account.read", "account.login", "notes.search", "notes.detail", "comments.search"],
     "descriptor_version": "account-service/v1",
-    "auth_ref": "XHS_SERVICE_AUTH_REF",
     "timeout_seconds": 10
   },
   {
@@ -69,17 +75,21 @@ keeps the two providers isolated and enables MCP discovery for both:
     "mcp_url": "http://HOST:PORT_DIANPING/mcp",
     "protocol": "http+mcp",
     "channels": ["dianping"],
-    "capabilities": ["account.register", "account.read", "account.login", "place.lookup", "reviews.search"],
+    "capabilities": ["account.register", "account.read", "account.login", "places.search", "places.detail", "reviews.search"],
     "descriptor_version": "account-service/v1",
-    "auth_ref": "DIANPING_SERVICE_AUTH_REF",
     "timeout_seconds": 10
   }
 ]
 ```
 
-`auth_ref` is a deployment reference. Resolve it to an outbound header in the
-secret manager; never put the token itself in this file, the repository, query
-identity, Temporal history, Redis, or MCP arguments.
+`auth_ref` is a deployment reference; never replace it with the token itself in
+this file, the repository, query identity, Temporal history, Redis, or MCP
+arguments. The gateway clients accept an injected `AuthHeaderProvider`, but the
+default `AccountServiceRegistry` currently constructs them without one and does
+not resolve `auth_ref`. A protected upstream therefore needs a deployment-owned
+client factory/secret resolver that is not yet included in the stock
+Composition Root. Without that extension, use only a trusted internal upstream
+that does not require the missing header.
 
 On startup the Composition Root creates one HTTP/MCP client pair per service,
 refreshes `/v1/capabilities` and `tools/list`, and exposes redacted status at
@@ -99,7 +109,7 @@ This is not the model-visible catalog. Configure a second, application-owned
 policy before any discovered tool can be exposed natively to the Agent:
 
 ```bash
-MODULAR_AGENT_MCP_TOOL_POLICY_JSON='{"enabled":true,"allowed_platforms":["xhs_pc","dianping"],"allowed_capabilities":["notes.search","place.lookup","reviews.search"]}'
+MODULAR_AGENT_MCP_TOOL_POLICY_JSON='{"enabled":true,"allowed_platforms":["xhs_pc","dianping"],"allowed_capabilities":["notes.search","notes.detail","comments.search","places.search","places.detail","reviews.search"]}'
 ```
 
 The final policy-filtered projection is available at:
