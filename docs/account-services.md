@@ -5,6 +5,8 @@
 > browser-facing `/v1/platform/*`, search, SSE, identity, and error behavior,
 > see the [backend API guide](backend-api.md). The two URL surfaces are not
 > interchangeable.
+> 
+> 💡 **对外集成与开发接入指南（中文）**：如需接入新的外部爬虫或数据源，请参阅 [外部 MCP 服务接入规范与接口指南](mcp-service-integration-guide.md)。
 
 The main application uses a provider-neutral account-service boundary. The
 upstream service owns provider SDKs, Playwright/browser profiles, signer state,

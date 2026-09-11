@@ -159,6 +159,8 @@ bug-records/
 docs/*
 !docs/backend-api.md
 !docs/frontend-ui-requirements.md
+!docs/account-services.md
+!docs/mcp-service-integration-guide.md
 
 # OpenSpec project artifacts and Codex skills
 !openspec/**/*.md
