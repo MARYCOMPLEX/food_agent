@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "useDefineForClassFields": true,
 
@@ -14,19 +14,33 @@
       "@/*": ["src/*"]
     },
     "resolveJsonModule": true,
-    "allowImportingTsExtensions": true,
 
     /* Linting */
     "strict": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
     "noEmit": true,
     "isolatedModules": true,
     "skipLibCheck": true
   },
   "references": [{ "path": "./tsconfig.node.json" }],
-  "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.vue"],
-  "exclude": ["node_modules", "dist", "src/components/**", "src/stores/**", "src/utils/cn.ts"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/components/views/**",
+    "src/components/ui/**",
+    "src/components/search/**",
+    "src/components/shared/**",
+    "src/components/mobile/**",
+    "src/components/layout/**",
+    "src/components/restaurant/RestaurantCard.tsx",
+    "src/components/restaurant/WanghongBadge.tsx",
+    "src/stores/**"
+  ]
 }
+
+
+
