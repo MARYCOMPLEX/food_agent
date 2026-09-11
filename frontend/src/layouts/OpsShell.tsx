@@ -8,8 +8,8 @@ import {
   Cpu,
   ArrowLeft,
   CheckCircle2,
-  Sparkles,
 } from 'lucide-react'
+import { OpenAiLogo } from '../components/OpenAiLogo'
 
 export function OpsShell() {
   const navigate = useNavigate()
@@ -38,7 +38,7 @@ export function OpsShell() {
 
           <div className="flex items-center gap-2.5">
             <div className="w-6 h-6 rounded-md bg-[#10a37f] text-white flex items-center justify-center font-bold">
-              <Sparkles className="w-3.5 h-3.5" />
+              <OpenAiLogo size={15} className="text-white" />
             </div>
             <span className="font-semibold text-sm text-zinc-900 tracking-tight">
               Food Agent <span className="text-zinc-500 font-normal">Platform</span>
