@@ -5,7 +5,7 @@ import type {
   PlatformAccountCreateRequest,
 } from '../../../shared/contracts'
 
-const ACCOUNTS_STORAGE_KEY = 'anyfast_saved_platform_accounts'
+const ACCOUNTS_STORAGE_KEY = 'food_agent_saved_platform_accounts'
 
 export const platformAccountsApi = {
   registerAccount: async (req: PlatformAccountCreateRequest): Promise<PlatformAccount> => {

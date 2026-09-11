@@ -24,19 +24,19 @@ function safeSetItem(key: string, value: string): void {
 }
 
 export function getTenantId(): string {
-  let tenantId = safeGetItem('anyfast_tenant_id')
+  let tenantId = safeGetItem('food_agent_tenant_id')
   if (!tenantId) {
     tenantId = `user_${Math.random().toString(36).substring(2, 11)}`
-    safeSetItem('anyfast_tenant_id', tenantId)
+    safeSetItem('food_agent_tenant_id', tenantId)
   }
   return tenantId
 }
 
 export function getDeviceId(): string {
-  let deviceId = safeGetItem('anyfast_device_id')
+  let deviceId = safeGetItem('food_agent_device_id')
   if (!deviceId) {
     deviceId = `dev_${Math.random().toString(36).substring(2, 11)}`
-    safeSetItem('anyfast_device_id', deviceId)
+    safeSetItem('food_agent_device_id', deviceId)
   }
   return deviceId
 }

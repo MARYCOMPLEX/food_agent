@@ -1,5 +1,5 @@
 /**
- * Shared API & Domain Contracts for AnyFast / Food Agent.
+ * Shared API & Domain Contracts for Food Agent.
  * Aligned with openapi.yaml and backend Python schemas.
  */
 

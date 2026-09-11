@@ -93,7 +93,7 @@ export function UnifiedChatWorkbench() {
 
   // History sessions list
   const [historyList, setHistoryList] = useState<any[]>(() => {
-    const saved = storage.get<any[]>('anyfast_search_history', [])
+    const saved = storage.get<any[]>('food_agent_search_history', [])
     if (saved.length === 0) {
       const defaultHistory = [
         {
@@ -107,7 +107,7 @@ export function UnifiedChatWorkbench() {
           created_at: new Date(Date.now() - 86400000).toISOString(),
         },
       ]
-      storage.set('anyfast_search_history', defaultHistory)
+      storage.set('food_agent_search_history', defaultHistory)
       return defaultHistory
     }
     return saved
@@ -165,7 +165,7 @@ export function UnifiedChatWorkbench() {
   const [compareList, setCompareList] = useState<Restaurant[]>([])
   const [isCompareModalOpen, setIsCompareModalOpen] = useState<boolean>(false)
   const [favorites, setFavorites] = useState<string[]>(() =>
-    storage.get<string[]>('anyfast_user_favorites', ['shop_fav_1']),
+    storage.get<string[]>('food_agent_user_favorites', ['shop_fav_1']),
   )
 
   // Platform Accounts & QR Modal
@@ -233,7 +233,7 @@ export function UnifiedChatWorkbench() {
     e.stopPropagation()
     const next = historyList.filter((h) => h.session_id !== sid)
     setHistoryList(next)
-    storage.set('anyfast_search_history', next)
+    storage.set('food_agent_search_history', next)
     if (currentSessionId === sid && next.length > 0 && next[0]) {
       handleSelectSession(next[0].session_id)
     }
@@ -289,7 +289,7 @@ export function UnifiedChatWorkbench() {
       }
       const nextHistory = [newHistoryItem, ...historyList]
       setHistoryList(nextHistory)
-      storage.set('anyfast_search_history', nextHistory)
+      storage.set('food_agent_search_history', nextHistory)
     }
 
     setInputText('')
@@ -347,7 +347,7 @@ export function UnifiedChatWorkbench() {
       showToast(`已收藏 ${shopName}`, 'success')
     }
     setFavorites(next)
-    storage.set('anyfast_user_favorites', next)
+    storage.set('food_agent_user_favorites', next)
   }
 
   // Add to compare

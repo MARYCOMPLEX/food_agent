@@ -2,7 +2,7 @@ import { httpClient } from '../../../shared/api/httpClient'
 import { storage } from '../../../shared/utils/storage'
 import type { McpTool, ServiceEndpointConfig } from '../../../shared/contracts'
 
-const SERVICES_KEY = 'anyfast_registered_services'
+const SERVICES_KEY = 'food_agent_registered_services'
 
 export const serviceCatalogApi = {
   getServices: async (): Promise<ServiceEndpointConfig[]> => {
