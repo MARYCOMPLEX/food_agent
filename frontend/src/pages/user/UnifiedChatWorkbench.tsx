@@ -2,15 +2,12 @@ import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   Sparkles,
-  Send,
+  ArrowUp,
   StopCircle,
   Plus,
-  History,
   Bookmark,
   Layers,
-  Shield,
   Server,
-  Settings,
   X,
   ChevronRight,
   ChevronDown,
@@ -23,13 +20,13 @@ import {
   ExternalLink,
   Trash2,
   ArrowRight,
-  UtensilsCrossed,
-  Tag,
-  Search,
-  RefreshCw,
   PanelRightClose,
   PanelRightOpen,
-  Menu,
+  PanelLeftClose,
+  PanelLeft,
+  RefreshCw,
+  Tag,
+  SquarePen,
 } from 'lucide-react'
 import { useResearchSessionReact } from '../../features/research-session/domain/useResearchSessionReact'
 import { EvidenceTimeline } from '../../components/research-surface/EvidenceTimeline'
@@ -43,7 +40,6 @@ import { platformAccountsApi } from '../../features/platform-accounts/api/platfo
 import type {
   ResearchProfileViewV1,
   ResearchRecommendationViewV1,
-  ResearchControversyViewV1,
 } from '../../shared/contracts/research'
 import type { Restaurant } from '../../shared/contracts'
 
@@ -63,7 +59,6 @@ export function UnifiedChatWorkbench() {
   const {
     state,
     projection,
-    transportState,
     start,
     stop,
     appendEvent,
@@ -136,6 +131,14 @@ export function UnifiedChatWorkbench() {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [projection?.summary, projection?.recommendations?.length])
 
+  // Auto expand textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 180)}px`
+    }
+  }, [inputText])
+
   // Is investigation running
   const isRunning = state.syncState === 'synced' && projection?.status === 'running'
 
@@ -155,10 +158,10 @@ export function UnifiedChatWorkbench() {
 
   // Suggestion chips
   const suggestions = [
-    '附近步行20分钟内是否有替代老店？',
+    '附近步行20分钟内是否有口碑老店？',
     '核实排队时间到底要多久？',
-    '只对比前两家的人均与口味评价',
-    '有无完全免辣的锅底推荐？',
+    '对比前两家的人均与必点招牌菜',
+    '评论中反映的最严重缺点是什么？',
   ]
 
   // Start new search
@@ -184,7 +187,7 @@ export function UnifiedChatWorkbench() {
     const next = historyList.filter((h) => h.session_id !== sid)
     setHistoryList(next)
     storage.set('anyfast_search_history', next)
-    if (currentSessionId === sid && next.length > 0) {
+    if (currentSessionId === sid && next.length > 0 && next[0]) {
       handleSelectSession(next[0].session_id)
     }
   }
@@ -298,30 +301,32 @@ export function UnifiedChatWorkbench() {
   const plan = projection?.plan || []
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-slate-50 text-slate-900 font-sans">
-      {/* 1. Left Sidebar (Collapsible History & Accounts) */}
+    <div className="flex h-screen w-screen overflow-hidden bg-white text-zinc-900 font-sans">
+      {/* 1. Left Sidebar (Authentic ChatGPT style) */}
       <aside
         className={`${
           sidebarOpen ? 'w-64 sm:w-72' : 'w-0 -ml-72'
-        } flex flex-col bg-slate-900 text-slate-200 border-r border-slate-800 transition-all duration-200 z-30 flex-shrink-0 select-none`}
+        } flex flex-col bg-[#f9f9f9] border-r border-zinc-200/80 transition-all duration-200 z-30 flex-shrink-0 select-none overflow-hidden`}
       >
         {/* Sidebar Header */}
-        <div className="p-3.5 border-b border-slate-800/80 flex items-center justify-between">
+        <div className="p-3.5 flex items-center justify-between border-b border-zinc-200/60">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-orange-600 text-white flex items-center justify-center font-bold shadow-sm shadow-orange-600/30">
-              <UtensilsCrossed className="w-4 h-4" />
+            <div className="w-7 h-7 rounded-lg bg-[#10a37f] text-white flex items-center justify-center font-bold shadow-2xs">
+              <Sparkles className="w-4 h-4" />
             </div>
-            <div className="flex flex-col">
-              <span className="font-bold text-sm text-white tracking-tight">Food Agent</span>
-              <span className="text-[10px] text-slate-400 font-medium -mt-0.5">真实评论调查助手</span>
+            <div className="flex items-center gap-1.5">
+              <span className="font-semibold text-sm text-zinc-900 tracking-tight">Food Agent</span>
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-zinc-200/70 text-zinc-600 font-medium">
+                4o
+              </span>
             </div>
           </div>
           <button
             onClick={() => setSidebarOpen(false)}
-            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-            title="收起边栏"
+            className="p-1 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-200/60 transition-colors"
+            title="收起侧栏"
           >
-            <X className="w-4 h-4" />
+            <PanelLeftClose className="w-4 h-4" />
           </button>
         </div>
 
@@ -329,17 +334,20 @@ export function UnifiedChatWorkbench() {
         <div className="p-3">
           <button
             onClick={handleStartNewChat}
-            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-orange-600 hover:bg-orange-500 text-white text-xs font-semibold shadow-sm transition-all"
+            className="w-full flex items-center justify-between py-2 px-3 rounded-xl bg-white hover:bg-zinc-100 border border-zinc-200/80 text-zinc-800 text-xs font-medium transition-all shadow-2xs group"
           >
-            <Plus className="w-4 h-4" />
-            <span>新建美食调查</span>
+            <span className="flex items-center gap-2">
+              <Plus className="w-3.5 h-3.5 text-zinc-600" />
+              <span>新建美食调研</span>
+            </span>
+            <SquarePen className="w-3.5 h-3.5 text-zinc-400 group-hover:text-zinc-700 transition-colors" />
           </button>
         </div>
 
         {/* Sessions History List */}
-        <div className="flex-1 overflow-y-auto px-2 space-y-1 text-xs">
-          <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
-            历史调查记录
+        <div className="flex-1 overflow-y-auto px-2 space-y-0.5 text-xs">
+          <div className="px-3 py-1.5 text-[10px] font-medium text-zinc-400 uppercase tracking-wider">
+            历史对话
           </div>
           {historyList.map((item) => {
             const isSelected = item.session_id === currentSessionId
@@ -347,20 +355,20 @@ export function UnifiedChatWorkbench() {
               <div
                 key={item.session_id}
                 onClick={() => handleSelectSession(item.session_id)}
-                className={`group flex items-center justify-between p-2.5 rounded-xl cursor-pointer transition-colors ${
+                className={`group flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer transition-colors ${
                   isSelected
-                    ? 'bg-slate-800 text-white font-medium shadow-xs'
-                    : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
+                    ? 'bg-zinc-200/80 text-zinc-900 font-medium'
+                    : 'text-zinc-600 hover:bg-zinc-200/50 hover:text-zinc-900'
                 }`}
               >
                 <div className="flex items-center gap-2 min-w-0 flex-1">
-                  <MessageSquare className={`w-3.5 h-3.5 flex-shrink-0 ${isSelected ? 'text-orange-500' : 'text-slate-500'}`} />
+                  <MessageSquare className={`w-3.5 h-3.5 flex-shrink-0 ${isSelected ? 'text-[#10a37f]' : 'text-zinc-400'}`} />
                   <span className="truncate text-xs">{item.query}</span>
                 </div>
                 <button
                   onClick={(e) => handleDeleteSession(item.session_id, e)}
-                  className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-rose-400 rounded transition-opacity"
-                  title="删除此记录"
+                  className="opacity-0 group-hover:opacity-100 p-1 text-zinc-400 hover:text-red-500 rounded transition-opacity"
+                  title="删除此会话"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
@@ -369,34 +377,28 @@ export function UnifiedChatWorkbench() {
           })}
         </div>
 
-        {/* Sidebar Footer (Platform Status & Ops Link) */}
-        <div className="p-3 border-t border-slate-800/80 space-y-2 text-xs">
-          {/* Account Status Chips */}
-          <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800 space-y-1.5">
-            <div className="flex items-center justify-between text-[11px]">
-              <span className="text-slate-400">数据源就绪度：</span>
-              <span className="text-slate-500 font-mono text-[10px]">MCP CHANNEL</span>
+        {/* Sidebar Footer */}
+        <div className="p-3 border-t border-zinc-200/80 space-y-2 text-xs">
+          {/* Account Connectivity Status */}
+          <div className="bg-white p-2.5 rounded-xl border border-zinc-200/80 space-y-1.5 shadow-2xs">
+            <div className="flex items-center justify-between text-[11px] text-zinc-500 font-medium">
+              <span>探店数据源</span>
+              <span className="text-[10px] font-mono text-zinc-400">STATUS</span>
             </div>
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
               <button
                 onClick={() => setLoginModalPlatform('xhs_pc')}
-                className={`flex-1 py-1 px-2 rounded-lg text-[10px] font-medium border text-center transition-colors ${
-                  xhsDegraded
-                    ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
-                    : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                }`}
+                className="flex-1 py-1 px-2 rounded-lg bg-zinc-50 hover:bg-zinc-100 border border-zinc-200/70 text-[11px] font-medium flex items-center justify-center gap-1.5 transition-colors"
               >
-                小红书: {xhsDegraded ? '需验证' : '正常'}
+                <span className={`w-1.5 h-1.5 rounded-full ${xhsDegraded ? 'bg-amber-500' : 'bg-[#10a37f]'}`} />
+                <span>小红书</span>
               </button>
               <button
                 onClick={() => setLoginModalPlatform('dianping')}
-                className={`flex-1 py-1 px-2 rounded-lg text-[10px] font-medium border text-center transition-colors ${
-                  dpDegraded
-                    ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
-                    : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                }`}
+                className="flex-1 py-1 px-2 rounded-lg bg-zinc-50 hover:bg-zinc-100 border border-zinc-200/70 text-[11px] font-medium flex items-center justify-center gap-1.5 transition-colors"
               >
-                大众点评: {dpDegraded ? '需验证' : '正常'}
+                <span className={`w-1.5 h-1.5 rounded-full ${dpDegraded ? 'bg-amber-500' : 'bg-[#10a37f]'}`} />
+                <span>大众点评</span>
               </button>
             </div>
           </div>
@@ -404,13 +406,13 @@ export function UnifiedChatWorkbench() {
           {/* Link to Ops console */}
           <button
             onClick={() => navigate('/ops')}
-            className="w-full flex items-center justify-between p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200/60 transition-colors"
           >
             <span className="flex items-center gap-2">
-              <Server className="w-3.5 h-3.5" />
-              <span>内部运维管控台</span>
+              <Server className="w-3.5 h-3.5 text-zinc-500" />
+              <span className="text-xs font-medium">运维管控中台</span>
             </span>
-            <ExternalLink className="w-3 h-3 text-slate-500" />
+            <ExternalLink className="w-3 h-3 text-zinc-400" />
           </button>
         </div>
       </aside>
@@ -418,67 +420,54 @@ export function UnifiedChatWorkbench() {
       {/* 2. Main Chat Conversation Body */}
       <main className="flex-1 flex flex-col h-full min-w-0 bg-white relative">
         {/* Chat Top Header */}
-        <header className="h-14 border-b border-slate-100 px-4 sm:px-6 flex items-center justify-between bg-white/90 backdrop-blur-md z-10 flex-shrink-0">
+        <header className="h-14 border-b border-zinc-100 px-4 sm:px-6 flex items-center justify-between bg-white/95 backdrop-blur-md z-10 flex-shrink-0">
           <div className="flex items-center gap-3 min-w-0">
             {!sidebarOpen && (
               <button
                 onClick={() => setSidebarOpen(true)}
-                className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors"
+                className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition-colors"
                 title="展开边栏"
               >
-                <Menu className="w-5 h-5" />
+                <PanelLeft className="w-4 h-4" />
               </button>
             )}
 
-            <div className="truncate">
-              <h2 className="font-bold text-slate-900 text-sm sm:text-base truncate leading-tight">
-                {currentQuery}
-              </h2>
-              <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5">
-                <span className="flex items-center gap-1 font-mono">
-                  <span
-                    className={`w-1.5 h-1.5 rounded-full ${
-                      isRunning ? 'bg-orange-500 animate-ping' : 'bg-emerald-500'
-                    }`}
-                  />
-                  {isRunning ? '正在调查评论...' : '调查已完成'}
-                </span>
-                <span>·</span>
-                <span>第 {projection?.turnId || 1} 轮</span>
-                {evidenceItems.length > 0 && (
-                  <>
-                    <span>·</span>
-                    <span className="font-mono">{evidenceItems.length} 条评论证据</span>
-                  </>
-                )}
-              </div>
+            {/* Model Pill */}
+            <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl hover:bg-zinc-100 cursor-pointer transition-colors">
+              <span className="font-semibold text-zinc-900 text-sm">Food Agent 4o</span>
+              <ChevronDown className="w-3.5 h-3.5 text-zinc-400" />
             </div>
           </div>
 
-          {/* Header Action Buttons */}
+          {/* Header Actions */}
           <div className="flex items-center gap-2">
             {compareList.length > 0 && (
               <button
                 onClick={() => setIsCompareModalOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-orange-50 text-orange-800 border border-orange-200 text-xs font-semibold hover:bg-orange-100 transition-colors shadow-xs"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs font-medium transition-colors"
               >
-                <Layers className="w-3.5 h-3.5" />
-                <span>已选 {compareList.length} 家对比</span>
+                <Layers className="w-3.5 h-3.5 text-zinc-600" />
+                <span>对比 ({compareList.length})</span>
               </button>
             )}
 
             {/* Toggle Right Inspector Button */}
             <button
               onClick={() => setRightPanelOpen(!rightPanelOpen)}
-              className={`p-2 rounded-xl border text-xs flex items-center gap-1.5 transition-colors ${
+              className={`p-2 rounded-xl text-xs flex items-center gap-1.5 transition-colors ${
                 rightPanelOpen
-                  ? 'bg-orange-50 text-orange-700 border-orange-200'
-                  : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                  ? 'bg-zinc-900 text-white shadow-2xs'
+                  : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
               }`}
-              title={rightPanelOpen ? '收起右侧详情抽屉' : '展开右侧证据与档案'}
+              title={rightPanelOpen ? '收起检查器' : '展开评论与档案检查器'}
             >
               {rightPanelOpen ? <PanelRightClose className="w-4 h-4" /> : <PanelRightOpen className="w-4 h-4" />}
-              <span className="hidden sm:inline">证据与档案</span>
+              <span className="hidden sm:inline">检查器</span>
+              {evidenceItems.length > 0 && (
+                <span className={`text-[10px] px-1.5 rounded-full font-mono ${rightPanelOpen ? 'bg-zinc-800 text-white' : 'bg-white text-zinc-700'}`}>
+                  {evidenceItems.length}
+                </span>
+              )}
             </button>
           </div>
         </header>
@@ -486,55 +475,49 @@ export function UnifiedChatWorkbench() {
         {/* Messages Stream Scroll Area */}
         <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 space-y-6">
           {/* User Message Bubble */}
-          <div className="flex items-start gap-3 max-w-3xl mx-auto">
-            <div className="w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center font-semibold text-xs flex-shrink-0">
-              你
-            </div>
-            <div className="flex-1 bg-slate-100 text-slate-900 p-4 rounded-2xl rounded-tl-sm text-sm leading-relaxed shadow-xs">
+          <div className="max-w-3xl mx-auto flex justify-end">
+            <div className="max-w-[85%] bg-[#f4f4f4] text-zinc-900 px-5 py-3.5 rounded-[24px] text-sm leading-relaxed shadow-2xs">
               {currentQuery}
             </div>
           </div>
 
           {/* Assistant Response Container */}
-          <div className="flex items-start gap-3 max-w-3xl mx-auto">
-            <div className="w-8 h-8 rounded-full bg-orange-600 text-white flex items-center justify-center font-semibold text-xs flex-shrink-0 shadow-sm shadow-orange-600/30">
-              <UtensilsCrossed className="w-4 h-4" />
+          <div className="max-w-3xl mx-auto flex items-start gap-3.5">
+            {/* Assistant Avatar */}
+            <div className="w-7 h-7 rounded-full bg-[#10a37f] text-white flex items-center justify-center flex-shrink-0 shadow-2xs mt-0.5">
+              <Sparkles className="w-3.5 h-3.5" />
             </div>
 
             <div className="flex-1 space-y-4 min-w-0">
-              {/* 1. Collapsible Investigation Plan & Progress Accordion */}
+              {/* 1. Thought Process (OpenAI o1 / o3-mini style) */}
               {plan.length > 0 && (
-                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3.5 text-xs">
-                  <div
-                    className="flex items-center justify-between cursor-pointer"
+                <div>
+                  <button
                     onClick={() => setPlanExpanded(!planExpanded)}
+                    className="inline-flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-800 font-medium py-1 transition-colors group"
                   >
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="w-3.5 h-3.5 text-orange-600" />
-                      <span className="font-semibold text-slate-800">Agent 调查过程与步骤</span>
-                      <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-white text-slate-600 border border-slate-200">
-                        {plan.filter((s) => s.status === 'succeeded').length}/{plan.length} 完成
-                      </span>
-                    </div>
-                    <button className="text-slate-400 hover:text-slate-600 p-0.5">
-                      {planExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                    </button>
-                  </div>
+                    <span>思考与检索步骤 ({plan.length} 步)</span>
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 text-zinc-400 group-hover:text-zinc-700 transition-transform duration-200 ${
+                        planExpanded ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </button>
 
                   {planExpanded && (
-                    <div className="mt-3 pt-3 border-t border-slate-200/70 space-y-2">
+                    <div className="mt-2 mb-3 pl-3.5 border-l-2 border-zinc-200 space-y-2 text-xs text-zinc-500 animate-in fade-in duration-150">
                       {plan.map((s, idx) => (
-                        <div key={idx} className="flex items-start gap-2 text-slate-600">
+                        <div key={idx} className="flex items-start gap-2">
                           {s.status === 'succeeded' ? (
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 mt-0.5 flex-shrink-0" />
+                            <CheckCircle2 className="w-3.5 h-3.5 text-[#10a37f] mt-0.5 flex-shrink-0" />
                           ) : s.status === 'running' ? (
-                            <RefreshCw className="w-3.5 h-3.5 text-orange-500 animate-spin mt-0.5 flex-shrink-0" />
+                            <RefreshCw className="w-3.5 h-3.5 text-zinc-700 animate-spin mt-0.5 flex-shrink-0" />
                           ) : (
-                            <Clock className="w-3.5 h-3.5 text-slate-300 mt-0.5 flex-shrink-0" />
+                            <Clock className="w-3.5 h-3.5 text-zinc-300 mt-0.5 flex-shrink-0" />
                           )}
-                          <div className="flex-1">
-                            <span className="font-medium text-slate-800">{s.label}</span>
-                            {s.detail && <div className="text-[11px] text-slate-400 mt-0.5">{s.detail}</div>}
+                          <div>
+                            <span className="font-medium text-zinc-700">{s.label}</span>
+                            {s.detail && <div className="text-[11px] text-zinc-400 mt-0.5">{s.detail}</div>}
                           </div>
                         </div>
                       ))}
@@ -545,22 +528,21 @@ export function UnifiedChatWorkbench() {
 
               {/* 2. Agent Synthesis Summary */}
               {projection?.summary ? (
-                <div className="bg-white border border-slate-200 p-4 rounded-2xl text-sm leading-relaxed text-slate-800 shadow-xs">
+                <div className="text-sm leading-relaxed text-zinc-900 font-normal">
                   <p className="whitespace-pre-line">{projection.summary}</p>
                 </div>
               ) : (
-                <div className="flex items-center gap-2 text-xs text-slate-400 p-3">
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-orange-500" />
-                  <span>正在分析评论线索，整理候选与避雷细节...</span>
+                <div className="flex items-center gap-2 text-xs text-zinc-400 py-2">
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-zinc-600" />
+                  <span>正在检索分析小红书与大众点评真实评论...</span>
                 </div>
               )}
 
               {/* 3. Embedded Recommendation Cards */}
               {recommendations.length > 0 && (
-                <div className="space-y-3 pt-1">
-                  <div className="flex items-center justify-between text-xs text-slate-500 font-semibold uppercase tracking-wider">
-                    <span>精选推荐候选 ({recommendations.length})</span>
-                    <span className="text-[11px] font-normal text-slate-400">点击卡片可查看右侧完整证据</span>
+                <div className="space-y-3 pt-2">
+                  <div className="text-xs text-zinc-400 font-medium uppercase tracking-wider">
+                    精选建议候选 ({recommendations.length})
                   </div>
 
                   <div className="space-y-3">
@@ -573,12 +555,12 @@ export function UnifiedChatWorkbench() {
                       return (
                         <div
                           key={rec.recommendationId}
-                          className="bg-white rounded-2xl border border-slate-200/90 p-4.5 shadow-xs hover:shadow-md hover:border-orange-200 transition-all space-y-3 group"
+                          className="bg-white rounded-2xl border border-zinc-200 p-4.5 shadow-2xs hover:border-zinc-300 hover:shadow-xs transition-all space-y-3"
                         >
-                          {/* Card Header: Rank, Title, Price, Actions */}
+                          {/* Card Header: Rank, Title, Price, Bookmark */}
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex items-start gap-3">
-                              <div className="w-7 h-7 rounded-xl bg-orange-600 text-white font-bold text-xs flex items-center justify-center flex-shrink-0 shadow-sm shadow-orange-600/20">
+                              <div className="w-6 h-6 rounded-full bg-zinc-100 text-zinc-800 font-mono font-semibold text-xs flex items-center justify-center flex-shrink-0 mt-0.5">
                                 {rec.rank || idx + 1}
                               </div>
 
@@ -586,76 +568,85 @@ export function UnifiedChatWorkbench() {
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <h4
                                     onClick={() => openInspector('profile', matchedProfile || null, rec)}
-                                    className="font-bold text-slate-900 text-base group-hover:text-orange-600 transition-colors cursor-pointer"
+                                    className="font-semibold text-zinc-900 text-base hover:text-[#10a37f] transition-colors cursor-pointer"
                                   >
                                     {rec.title}
                                   </h4>
                                   {matchedProfile?.averagePrice && (
-                                    <span className="text-orange-600 font-medium text-xs">
-                                      ￥{matchedProfile.averagePrice}/人
+                                    <span className="font-mono text-xs text-zinc-500">
+                                      ¥{matchedProfile.averagePrice}/人
                                     </span>
                                   )}
                                 </div>
                                 {matchedProfile?.address && (
-                                  <div className="flex items-center gap-1 text-xs text-slate-400 mt-0.5">
-                                    <MapPin className="w-3 h-3 text-slate-400" />
+                                  <div className="flex items-center gap-1 text-xs text-zinc-400 mt-0.5">
+                                    <MapPin className="w-3 h-3 text-zinc-400" />
                                     <span className="truncate max-w-xs">{matchedProfile.address}</span>
                                   </div>
                                 )}
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-1">
-                              <button
-                                onClick={() => handleToggleFavorite(rec.recommendationId, rec.title)}
-                                className={`p-1.5 rounded-lg border text-xs transition-colors ${
-                                  isFavorite
-                                    ? 'bg-amber-50 text-amber-600 border-amber-200'
-                                    : 'bg-slate-50 text-slate-400 border-slate-200 hover:text-amber-500'
-                                }`}
-                                title={isFavorite ? '已收藏' : '收藏'}
-                              >
-                                <Bookmark className={`w-3.5 h-3.5 ${isFavorite ? 'fill-current' : ''}`} />
-                              </button>
-                            </div>
+                            <button
+                              onClick={() => handleToggleFavorite(rec.recommendationId, rec.title)}
+                              className={`p-1.5 rounded-lg text-xs transition-colors ${
+                                isFavorite
+                                  ? 'text-amber-500'
+                                  : 'text-zinc-400 hover:text-zinc-700'
+                              }`}
+                              title={isFavorite ? '已收藏' : '收藏'}
+                            >
+                              <Bookmark className={`w-4 h-4 ${isFavorite ? 'fill-current' : ''}`} />
+                            </button>
                           </div>
 
-                          {/* One-liner conclusion */}
+                          {/* Highlights & Warnings Pills */}
+                          <div className="flex flex-wrap gap-1.5 text-xs">
+                            {rec.highlights?.map((h, i) => (
+                              <span
+                                key={i}
+                                className="px-2.5 py-0.5 rounded-full bg-zinc-100 text-zinc-700 text-xs font-medium border border-zinc-200/50"
+                              >
+                                {h}
+                              </span>
+                            ))}
+                            {rec.warnings?.map((w, i) => (
+                              <span
+                                key={i}
+                                className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 text-xs font-medium border border-amber-200/60"
+                              >
+                                避雷: {w}
+                              </span>
+                            ))}
+                          </div>
+
+                          {/* One-liner summary */}
                           {rec.summary && (
-                            <div className="text-xs text-slate-700 bg-slate-50 p-2.5 rounded-xl border border-slate-100 leading-relaxed">
+                            <div className="text-xs text-zinc-600 leading-relaxed">
                               {rec.summary}
                             </div>
                           )}
 
-                          {/* Highlights & Warnings */}
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                            {rec.highlights?.slice(0, 2).map((h, i) => (
-                              <div key={i} className="text-emerald-800 flex items-start gap-1 leading-snug">
-                                <span className="text-emerald-500 font-bold">✓</span>
-                                <span>{h}</span>
-                              </div>
-                            ))}
-                            {rec.warnings?.slice(0, 1).map((w, i) => (
-                              <div key={i} className="text-amber-800 flex items-start gap-1 leading-snug">
-                                <AlertTriangle className="w-3 h-3 text-amber-500 flex-shrink-0 mt-0.5" />
-                                <span>{w}</span>
-                              </div>
-                            ))}
-                          </div>
-
-                          {/* Footer Buttons */}
-                          <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2 text-xs">
-                            <div className="flex items-center gap-2">
+                          {/* Footer Action Buttons (OpenAI Pill Buttons) */}
+                          <div className="pt-2 border-t border-zinc-100 flex items-center justify-between gap-2 text-xs flex-wrap">
+                            <div className="flex items-center gap-1.5">
                               <button
                                 onClick={() => openInspector('evidence', matchedProfile || null, rec)}
-                                className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition-colors"
+                                className="px-3 py-1.5 rounded-full border border-zinc-200 hover:bg-zinc-50 text-zinc-700 font-medium transition-colors text-xs"
                               >
                                 查阅真实评论 ({rec.evidenceRefs?.length || 0})
                               </button>
 
                               <button
+                                onClick={() => openInspector('profile', matchedProfile || null, rec)}
+                                className="px-3 py-1.5 rounded-full border border-zinc-200 hover:bg-zinc-50 text-zinc-700 font-medium transition-colors text-xs hidden sm:inline"
+                              >
+                                店铺档案
+                              </button>
+
+                              <button
                                 onClick={() => handleAddToCompare(rec, matchedProfile)}
-                                className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition-colors hidden sm:inline"
+                                className="px-3 py-1.5 rounded-full border border-zinc-200 hover:bg-zinc-50 text-zinc-700 font-medium transition-colors text-xs hidden sm:inline"
                               >
                                 加入对比
                               </button>
@@ -666,7 +657,7 @@ export function UnifiedChatWorkbench() {
                                 setAttachedContext({ type: 'shop', title: rec.title })
                                 textareaRef.current?.focus()
                               }}
-                              className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-slate-900 hover:bg-orange-600 text-white font-medium transition-colors shadow-xs"
+                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-zinc-900 hover:bg-zinc-800 text-white font-medium transition-colors shadow-2xs text-xs"
                             >
                               <span>就此店追问</span>
                               <ArrowRight className="w-3 h-3" />
@@ -683,16 +674,16 @@ export function UnifiedChatWorkbench() {
               {controversies.length > 0 && (
                 <div
                   onClick={() => openInspector('controversies')}
-                  className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-900 flex items-center justify-between cursor-pointer hover:bg-amber-500/15 transition-colors"
+                  className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200/80 text-xs text-amber-900 flex items-center justify-between cursor-pointer hover:bg-amber-100/50 transition-colors"
                 >
                   <div className="flex items-center gap-2">
                     <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
-                    <span className="font-semibold">
-                      已识别出 {controversies.length} 项评论分歧争议（如排队、口味偏咸等）
+                    <span className="font-medium">
+                      发现 {controversies.length} 项评论分歧争议（如排队耗时、服务体验）
                     </span>
                   </div>
-                  <span className="text-amber-700 font-medium flex items-center gap-1">
-                    <span>查看争议双方详情</span>
+                  <span className="text-amber-800 font-medium flex items-center gap-1">
+                    <span>查看争议对抗详情</span>
                     <ChevronRight className="w-3.5 h-3.5" />
                   </span>
                 </div>
@@ -701,15 +692,12 @@ export function UnifiedChatWorkbench() {
               {/* 5. Follow-up Quick Chips */}
               <div className="pt-2">
                 <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                  <span className="text-slate-400 text-[11px] flex items-center gap-1 mr-1">
-                    <Sparkles className="w-3 h-3 text-orange-500" />
-                    快捷建议：
-                  </span>
+                  <span className="text-zinc-400 text-[11px] mr-1">建议追问：</span>
                   {suggestions.map((sug, i) => (
                     <button
                       key={i}
                       onClick={() => handleSendMessage(sug)}
-                      className="px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-orange-50 hover:text-orange-700 text-slate-700 transition-colors"
+                      className="px-3 py-1.5 rounded-full border border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-700 font-medium transition-all shadow-2xs"
                     >
                       {sug}
                     </button>
@@ -722,99 +710,105 @@ export function UnifiedChatWorkbench() {
           <div ref={chatBottomRef} />
         </div>
 
-        {/* Sticky Chat Composer at Bottom */}
-        <div className="p-4 border-t border-slate-100 bg-white/95 backdrop-blur-md">
+        {/* 3. Floating ChatGPT Composer at Bottom */}
+        <div className="sticky bottom-0 bg-gradient-to-t from-white via-white/95 to-transparent pt-4 pb-3 px-4 z-20">
           <div className="max-w-3xl mx-auto space-y-2">
-            {/* Context attachment chip */}
-            {attachedContext && (
-              <div className="flex items-center justify-between bg-orange-50 border border-orange-200 px-3 py-1 rounded-xl text-xs text-orange-900 w-fit">
-                <span className="font-semibold flex items-center gap-1.5">
-                  <Tag className="w-3 h-3 text-orange-600" />
-                  针对店铺：{attachedContext.title}
-                </span>
-                <button onClick={() => setAttachedContext(null)} className="ml-2 hover:text-orange-600">
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-            )}
-
-            {/* Input box */}
-            <div className="flex items-end gap-2 bg-slate-100/80 focus-within:bg-white focus-within:ring-2 focus-within:ring-orange-500/20 focus-within:border-orange-500 border border-slate-200 rounded-2xl p-2 transition-all">
-              <textarea
-                ref={textareaRef}
-                rows={1}
-                placeholder={
-                  attachedContext
-                    ? `向 Agent 追问关于“${attachedContext.title}”的具体细节（如排队、避雷菜品、人均）...`
-                    : '用自然语言继续输入需求，例如：“只看步行20分钟内”、“第一家排队有多严重”...'
-                }
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                onCompositionStart={() => setIsComposing(true)}
-                onCompositionEnd={() => setIsComposing(false)}
-                onKeyDown={handleKeyDown}
-                disabled={isRunning}
-                className="flex-1 bg-transparent resize-none p-2 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none max-h-32 leading-relaxed"
-              />
-
-              {isRunning ? (
-                <button
-                  onClick={stop}
-                  className="p-2.5 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 transition-colors"
-                  title="停止调查"
-                >
-                  <StopCircle className="w-4 h-4" />
-                </button>
-              ) : (
-                <button
-                  onClick={() => handleSendMessage()}
-                  disabled={!inputText.trim()}
-                  className="p-2.5 rounded-xl bg-slate-900 hover:bg-orange-600 text-white transition-colors disabled:opacity-30 disabled:hover:bg-slate-900 shadow-xs"
-                  title="发送需求"
-                >
-                  <Send className="w-4 h-4" />
-                </button>
+            {/* Input Box Container */}
+            <div className="bg-[#f4f4f4] focus-within:bg-white focus-within:ring-1 focus-within:ring-zinc-300 focus-within:shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-transparent focus-within:border-zinc-200 rounded-[26px] p-3 pl-4 transition-all space-y-2">
+              {/* Attached context chip */}
+              {attachedContext && (
+                <div className="inline-flex items-center gap-1.5 bg-white border border-zinc-200 px-2.5 py-1 rounded-full text-xs text-zinc-800 shadow-2xs">
+                  <Tag className="w-3 h-3 text-[#10a37f]" />
+                  <span className="font-medium">针对：{attachedContext.title}</span>
+                  <button onClick={() => setAttachedContext(null)} className="ml-1 text-zinc-400 hover:text-zinc-700">
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
               )}
+
+              {/* Textarea */}
+              <div className="flex items-end gap-2">
+                <textarea
+                  ref={textareaRef}
+                  rows={1}
+                  placeholder={
+                    attachedContext
+                      ? `向 Food Agent 追问关于“${attachedContext.title}”的具体评价或排队避坑...`
+                      : '向 Food Agent 提问，例如：“静安寺200元内正宗本帮菜”、“第一家排队严重吗”...'
+                  }
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  onCompositionStart={() => setIsComposing(true)}
+                  onCompositionEnd={() => setIsComposing(false)}
+                  onKeyDown={handleKeyDown}
+                  disabled={isRunning}
+                  className="flex-1 bg-transparent resize-none p-1 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none max-h-44 leading-relaxed"
+                />
+
+                {isRunning ? (
+                  <button
+                    onClick={stop}
+                    className="w-8 h-8 rounded-full bg-zinc-900 text-white flex items-center justify-center hover:bg-zinc-800 transition-colors flex-shrink-0"
+                    title="停止生成"
+                  >
+                    <StopCircle className="w-4 h-4" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleSendMessage()}
+                    disabled={!inputText.trim()}
+                    className="w-8 h-8 rounded-full bg-zinc-900 text-white flex items-center justify-center disabled:bg-zinc-200 disabled:text-zinc-400 hover:bg-zinc-800 transition-all flex-shrink-0"
+                    title="发送"
+                  >
+                    <ArrowUp className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Bottom Disclaimer */}
+            <div className="text-[11px] text-zinc-400 text-center">
+              Food Agent 可能会提供不准确的商户信息，请核对重要餐饮与排队信息。
             </div>
           </div>
         </div>
       </main>
 
-      {/* 3. Right Inspector Slide-over (Evidence, Controversies, Shop Profiles) */}
+      {/* 4. Right Inspector Slide-over (OpenAI Canvas style) */}
       <aside
         className={`${
           rightPanelOpen ? 'w-full md:w-[440px]' : 'w-0 hidden md:flex md:w-0'
-        } border-l border-slate-200 bg-white flex flex-col h-full z-20 transition-all duration-200 overflow-hidden flex-shrink-0 shadow-lg md:shadow-none`}
+        } border-l border-zinc-200 bg-white flex flex-col h-full z-20 transition-all duration-200 overflow-hidden flex-shrink-0 shadow-lg md:shadow-none`}
       >
-        {/* Inspector Header & Tabs */}
-        <div className="p-3 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-          <div className="flex items-center gap-1 text-xs">
+        {/* Inspector Header & Segmented Tabs */}
+        <div className="p-3 border-b border-zinc-100 flex items-center justify-between">
+          <div className="flex items-center gap-1 bg-zinc-100 p-1 rounded-xl text-xs">
             <button
               onClick={() => setRightPanelTab('evidence')}
-              className={`px-3 py-1.5 rounded-xl font-semibold transition-colors ${
+              className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${
                 rightPanelTab === 'evidence'
-                  ? 'bg-white text-orange-700 shadow-xs'
-                  : 'text-slate-500 hover:text-slate-800'
+                  ? 'bg-white text-zinc-900 shadow-2xs'
+                  : 'text-zinc-500 hover:text-zinc-900'
               }`}
             >
               评论证据 ({evidenceItems.length})
             </button>
             <button
               onClick={() => setRightPanelTab('controversies')}
-              className={`px-3 py-1.5 rounded-xl font-semibold transition-colors ${
+              className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${
                 rightPanelTab === 'controversies'
-                  ? 'bg-white text-orange-700 shadow-xs'
-                  : 'text-slate-500 hover:text-slate-800'
+                  ? 'bg-white text-zinc-900 shadow-2xs'
+                  : 'text-zinc-500 hover:text-zinc-900'
               }`}
             >
               争议焦点 ({controversies.length})
             </button>
             <button
               onClick={() => setRightPanelTab('profile')}
-              className={`px-3 py-1.5 rounded-xl font-semibold transition-colors ${
+              className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${
                 rightPanelTab === 'profile'
-                  ? 'bg-white text-orange-700 shadow-xs'
-                  : 'text-slate-500 hover:text-slate-800'
+                  ? 'bg-white text-zinc-900 shadow-2xs'
+                  : 'text-zinc-500 hover:text-zinc-900'
               }`}
             >
               店铺档案
@@ -823,8 +817,8 @@ export function UnifiedChatWorkbench() {
 
           <button
             onClick={() => setRightPanelOpen(false)}
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors"
-            title="关闭右侧面板"
+            className="p-1 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 transition-colors"
+            title="关闭检查器"
           >
             <X className="w-4 h-4" />
           </button>
@@ -852,41 +846,40 @@ export function UnifiedChatWorkbench() {
 
           {rightPanelTab === 'profile' && (
             <div className="space-y-4">
-              <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              <div className="text-xs font-medium text-zinc-400 uppercase tracking-wider">
                 大众点评店铺事实档案
               </div>
               {(() => {
                 const p = selectedProfile || (profiles.length > 0 ? profiles[0] : null)
                 if (!p) {
                   return (
-                    <div className="p-8 text-center text-xs text-slate-400">
+                    <div className="p-8 text-center text-xs text-zinc-400">
                       请在推荐列表中点击某家店铺以查看其大众点评结构化档案
                     </div>
                   )
                 }
                 return (
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/90 space-y-3 text-xs">
-                    <div className="font-bold text-slate-900 text-base">{p.name || '精选门店'}</div>
+                  <div className="bg-zinc-50/80 p-4.5 rounded-2xl border border-zinc-200 space-y-3 text-xs">
+                    <div className="font-semibold text-zinc-900 text-base">{p.name || '精选门店'}</div>
                     {p.address && (
-                      <div className="flex items-start gap-2 text-slate-700">
-                        <MapPin className="w-3.5 h-3.5 text-slate-400 mt-0.5 flex-shrink-0" />
+                      <div className="flex items-start gap-2 text-zinc-700">
+                        <MapPin className="w-3.5 h-3.5 text-zinc-400 mt-0.5 flex-shrink-0" />
                         <span>{p.address}</span>
                       </div>
                     )}
                     {p.openingHours && (
-                      <div className="flex items-start gap-2 text-slate-700">
-                        <Clock className="w-3.5 h-3.5 text-slate-400 mt-0.5 flex-shrink-0" />
+                      <div className="flex items-start gap-2 text-zinc-700">
+                        <Clock className="w-3.5 h-3.5 text-zinc-400 mt-0.5 flex-shrink-0" />
                         <span>营业时间：{p.openingHours}</span>
                       </div>
                     )}
-                    <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-slate-600">
+                    <div className="pt-2 border-t border-zinc-200 flex items-center justify-between text-zinc-600">
                       <span>人均消费：{p.averagePrice ? `￥${p.averagePrice}` : '暂无'}</span>
                       <span>点评评分：{p.rating ? `${p.rating} 分` : '暂无'}</span>
                     </div>
                   </div>
                 )
               })()}
-
             </div>
           )}
         </div>
@@ -898,6 +891,10 @@ export function UnifiedChatWorkbench() {
         restaurants={compareList}
         onClose={() => setIsCompareModalOpen(false)}
         onRemoveRestaurant={(id) => setCompareList(compareList.filter((r) => r.id !== id))}
+        onSelectForFollowUp={(r) => {
+          setAttachedContext({ type: 'shop', title: r.name })
+          textareaRef.current?.focus()
+        }}
       />
 
       {/* QR Login Modal */}
@@ -915,3 +912,4 @@ export function UnifiedChatWorkbench() {
     </div>
   )
 }
+

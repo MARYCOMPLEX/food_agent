@@ -1,8 +1,0 @@
-export { default as ResearchSurface } from './ResearchSurface.vue'
-export { default as ResearchPlanPanel } from './ResearchPlanPanel.vue'
-export { default as EvidenceTimeline } from './EvidenceTimeline.vue'
-export { default as ControversyPanel } from './ControversyPanel.vue'
-export { default as ShopProfileGrid } from './ShopProfileGrid.vue'
-export { default as RecommendationList } from './RecommendationList.vue'
-export { default as ResearchGapsPanel } from './ResearchGapsPanel.vue'
-export type { ResearchSurfaceProps, ResearchSurfaceProjection, ResearchSurfaceState } from './researchSurface.types'

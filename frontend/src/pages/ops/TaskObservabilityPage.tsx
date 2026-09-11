@@ -4,10 +4,7 @@ import {
   Search,
   CheckCircle2,
   AlertTriangle,
-  Clock,
   RefreshCw,
-  XCircle,
-  Eye,
   RotateCcw,
   StopCircle,
   ChevronRight,
@@ -36,7 +33,7 @@ export function TaskObservabilityPage() {
   const [searchQuery, setSearchQuery] = useState<string>('')
   const [selectedTask, setSelectedTask] = useState<ObservabilityTaskItem | null>(null)
 
-  const [tasks, setTasks] = useState<ObservabilityTaskItem[]>([
+  const [tasks] = useState<ObservabilityTaskItem[]>([
     {
       taskId: 'task_cd_hotpot_001',
       sessionId: 'session_demo_cd_hotpot',
@@ -97,6 +94,12 @@ export function TaskObservabilityPage() {
     },
   ])
 
+  const filteredTasks = tasks.filter(
+    (t) =>
+      t.taskId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      t.query.toLowerCase().includes(searchQuery.toLowerCase()),
+  )
+
   const handleRetryTask = (task: ObservabilityTaskItem) => {
     showToast(`已向调度器发送任务重试请求: ${task.taskId}`, 'info')
   }
@@ -108,34 +111,34 @@ export function TaskObservabilityPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-zinc-200/80">
         <div>
-          <h1 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
-            <Activity className="w-5 h-5 text-orange-500" />
+          <h1 className="text-xl font-semibold text-zinc-900 tracking-tight flex items-center gap-2">
+            <Activity className="w-5 h-5 text-[#10a37f]" />
             <span>任务执行观测台</span>
           </h1>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className="text-xs text-zinc-500 mt-1">
             全量调查任务链路流转、Temporal 状态、耗时与错误排查
           </p>
         </div>
 
         {/* Search */}
         <div className="relative">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             placeholder="搜索 Task ID 或 Query..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 pr-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500 w-56"
+            className="pl-9 pr-3 py-1.5 bg-white border border-zinc-200 rounded-full text-xs text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-400 shadow-2xs w-60"
           />
         </div>
       </div>
 
       {/* Task Table */}
-      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-x-auto shadow-xs">
-        <table className="w-full text-left text-xs text-slate-300">
-          <thead className="bg-slate-950/70 border-b border-slate-800 text-slate-400 uppercase text-[11px] font-mono">
+      <div className="bg-white border border-zinc-200/80 rounded-2xl overflow-x-auto shadow-2xs">
+        <table className="w-full text-left text-xs text-zinc-700">
+          <thead className="bg-zinc-50/70 border-b border-zinc-200/80 text-zinc-500 uppercase text-[11px] font-mono">
             <tr>
               <th className="p-3.5">Task ID / 时间</th>
               <th className="p-3.5">需求摘要</th>
@@ -145,23 +148,23 @@ export function TaskObservabilityPage() {
               <th className="p-3.5 text-right">操作</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800/60 font-mono">
-            {tasks.map((task) => {
+          <tbody className="divide-y divide-zinc-100 font-mono">
+            {filteredTasks.map((task) => {
               let statusBadge = {
                 text: 'SUCCEEDED',
-                class: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+                class: 'bg-emerald-50 text-[#10a37f] border-emerald-200/60',
                 icon: CheckCircle2,
               }
               if (task.status === 'running') {
                 statusBadge = {
                   text: 'RUNNING',
-                  class: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
+                  class: 'bg-amber-50 text-amber-700 border-amber-200/60',
                   icon: RefreshCw,
                 }
               } else if (task.status === 'partial') {
                 statusBadge = {
                   text: 'PARTIAL',
-                  class: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+                  class: 'bg-zinc-100 text-zinc-700 border-zinc-200',
                   icon: AlertTriangle,
                 }
               }
@@ -169,42 +172,42 @@ export function TaskObservabilityPage() {
               const StatusIcon = statusBadge.icon
 
               return (
-                <tr key={task.taskId} className="hover:bg-slate-800/30 transition-colors">
+                <tr key={task.taskId} className="hover:bg-zinc-50/60 transition-colors">
                   <td className="p-3.5">
-                    <div className="font-bold text-white text-xs">{task.taskId}</div>
-                    <div className="text-[10px] text-slate-500 mt-0.5">{task.createdAt}</div>
+                    <div className="font-semibold text-zinc-900 text-xs">{task.taskId}</div>
+                    <div className="text-[10px] text-zinc-400 mt-0.5">{task.createdAt}</div>
                   </td>
 
                   <td className="p-3.5 max-w-xs font-sans">
-                    <div className="truncate text-slate-200">{task.query}</div>
-                    <div className="text-[10px] text-slate-500 font-mono mt-0.5">{task.sessionId}</div>
+                    <div className="truncate text-zinc-800">{task.query}</div>
+                    <div className="text-[10px] text-zinc-400 font-mono mt-0.5">{task.sessionId}</div>
                   </td>
 
                   <td className="p-3.5">
                     <span
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${statusBadge.class}`}
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-medium border ${statusBadge.class}`}
                     >
                       <StatusIcon className={`w-3 h-3 ${task.status === 'running' ? 'animate-spin' : ''}`} />
                       <span>{statusBadge.text}</span>
                     </span>
                   </td>
 
-                  <td className="p-3.5 text-slate-400">{task.durationMs}ms</td>
+                  <td className="p-3.5 text-zinc-500">{task.durationMs}ms</td>
 
-                  <td className="p-3.5 text-slate-400">
+                  <td className="p-3.5 text-zinc-500">
                     <div>
                       {task.evidenceCount} 证据 / {task.profileCount} 档案
                     </div>
-                    {task.gapCount > 0 && <div className="text-amber-400 text-[10px]">{task.gapCount} 个缺口</div>}
+                    {task.gapCount > 0 && <div className="text-amber-600 text-[10px]">{task.gapCount} 个缺口</div>}
                   </td>
 
                   <td className="p-3.5 text-right font-sans">
                     <button
                       onClick={() => setSelectedTask(task)}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium transition-colors"
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full border border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-700 text-xs font-medium transition-colors shadow-2xs"
                     >
                       <span>时间线</span>
-                      <ChevronRight className="w-3 h-3 text-slate-400" />
+                      <ChevronRight className="w-3 h-3 text-zinc-400" />
                     </button>
                   </td>
                 </tr>
@@ -214,47 +217,50 @@ export function TaskObservabilityPage() {
         </table>
       </div>
 
-      {/* Task Detail Modal / Drawer */}
+      {/* Task Detail Modal */}
       {selectedTask && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white border border-zinc-200 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-xl">
+            <div className="flex items-center justify-between border-b border-zinc-100 pb-3">
               <div>
-                <h3 className="font-bold text-white text-base font-mono">{selectedTask.taskId}</h3>
-                <p className="text-xs text-slate-400 font-sans mt-0.5">{selectedTask.query}</p>
+                <h3 className="font-semibold text-zinc-900 text-sm font-mono">{selectedTask.taskId}</h3>
+                <p className="text-xs text-zinc-500 font-sans mt-0.5">{selectedTask.query}</p>
               </div>
-              <button onClick={() => setSelectedTask(null)} className="text-slate-400 hover:text-white p-1">
-                <X className="w-5 h-5" />
+              <button
+                onClick={() => setSelectedTask(null)}
+                className="text-zinc-400 hover:text-zinc-700 p-1 rounded-md transition-colors"
+              >
+                <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* Timeline */}
             <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
-              <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider font-mono">
+              <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wider font-mono">
                 动作执行生命周期
               </div>
-              <div className="space-y-2 border-l-2 border-slate-800 ml-2 pl-3">
+              <div className="space-y-3 border-l-2 border-zinc-200 ml-2 pl-3">
                 {selectedTask.timeline.map((step, idx) => (
                   <div key={idx} className="space-y-0.5 text-xs font-mono">
                     <div className="flex items-center gap-2">
-                      <span className="text-slate-500 text-[11px]">{step.time}</span>
-                      <span className="text-orange-400 font-bold">{step.action}</span>
-                      <span className="text-[10px] px-1.5 rounded bg-slate-800 text-slate-300">
+                      <span className="text-zinc-400 text-[11px]">{step.time}</span>
+                      <span className="text-zinc-900 font-medium">{step.action}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-zinc-100 text-zinc-600 border border-zinc-200/60">
                         {step.status}
                       </span>
                     </div>
-                    {step.detail && <div className="text-slate-400 text-[11px] font-sans">{step.detail}</div>}
+                    {step.detail && <div className="text-zinc-500 text-[11px] font-sans">{step.detail}</div>}
                   </div>
                 ))}
               </div>
             </div>
 
             {/* Actions */}
-            <div className="pt-3 border-t border-slate-800 flex items-center justify-between">
+            <div className="pt-3 border-t border-zinc-100 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => handleRetryTask(selectedTask)}
-                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium flex items-center gap-1.5 transition-colors"
+                  className="px-3 py-1.5 rounded-full border border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-700 text-xs font-medium flex items-center gap-1.5 transition-colors shadow-2xs"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                   <span>重新触发</span>
@@ -262,7 +268,7 @@ export function TaskObservabilityPage() {
                 {selectedTask.status === 'running' && (
                   <button
                     onClick={() => handleCancelTask(selectedTask)}
-                    className="px-3 py-1.5 rounded-xl bg-rose-900/40 hover:bg-rose-900/60 text-rose-300 text-xs font-medium flex items-center gap-1.5 transition-colors"
+                    className="px-3 py-1.5 rounded-full border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-medium flex items-center gap-1.5 transition-colors"
                   >
                     <StopCircle className="w-3.5 h-3.5" />
                     <span>终止任务</span>
@@ -272,7 +278,7 @@ export function TaskObservabilityPage() {
 
               <button
                 onClick={() => setSelectedTask(null)}
-                className="px-4 py-1.5 rounded-xl bg-slate-800 text-white text-xs font-semibold hover:bg-slate-700 transition-colors"
+                className="px-4 py-1.5 rounded-full bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-medium transition-colors shadow-2xs"
               >
                 关闭
               </button>

@@ -29,7 +29,7 @@ export function getWanghongLabel(score: string): { text: string; color: string }
     case 'unknown':
       return { text: '待验证', color: 'bg-gray-100 text-gray-600' }
     case 'likely_wanghong':
-      return { text: '疑似网红', color: 'bg-orange-100 text-orange-700' }
+      return { text: '疑似网红', color: 'bg-amber-100 text-amber-800' }
     case 'definitely_wanghong':
       return { text: '网红店', color: 'bg-red-100 text-red-700' }
     default:

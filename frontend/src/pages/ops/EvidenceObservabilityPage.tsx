@@ -2,15 +2,8 @@ import React, { useState } from 'react'
 import {
   Database,
   Search,
-  CheckCircle2,
-  AlertTriangle,
-  Clock,
   ShieldCheck,
-  Tag,
-  Layers,
-  Sparkles,
 } from 'lucide-react'
-import { useToast } from '../../context/ToastContext'
 
 interface EvidenceBundleRecord {
   bundleId: string
@@ -25,10 +18,9 @@ interface EvidenceBundleRecord {
 }
 
 export function EvidenceObservabilityPage() {
-  const { showToast } = useToast()
   const [searchQuery, setSearchQuery] = useState<string>('')
 
-  const [bundles, setBundles] = useState<EvidenceBundleRecord[]>([
+  const [bundles] = useState<EvidenceBundleRecord[]>([
     {
       bundleId: 'bundle_cd_hotpot_v1',
       familyId: 'family_cd_spicy_dining',
@@ -64,57 +56,63 @@ export function EvidenceObservabilityPage() {
     },
   ])
 
+  const filteredBundles = bundles.filter(
+    (b) =>
+      b.bundleId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      b.familyId.toLowerCase().includes(searchQuery.toLowerCase()),
+  )
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-zinc-200/80">
         <div>
-          <h1 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
-            <Database className="w-5 h-5 text-orange-500" />
+          <h1 className="text-xl font-semibold text-zinc-900 tracking-tight flex items-center gap-2">
+            <Database className="w-5 h-5 text-[#10a37f]" />
             <span>证据数据质量与 Bundle 观测</span>
           </h1>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className="text-xs text-zinc-500 mt-1">
             监控 Evidence Bundle 版本游标、去重比率、隐私脱敏合规性与时效窗口
           </p>
         </div>
 
         <div className="relative">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             placeholder="搜索 Bundle ID 或 Family..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 pr-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500 w-56"
+            className="pl-9 pr-3 py-1.5 bg-white border border-zinc-200 rounded-full text-xs text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-400 shadow-2xs w-60"
           />
         </div>
       </div>
 
       {/* Overview Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs font-mono">
-        <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl">
-          <div className="text-slate-400 text-[11px] font-sans">活动 Evidence Bundles</div>
-          <div className="text-2xl font-bold text-white mt-1">3 组</div>
-          <div className="text-[11px] text-emerald-400 font-sans mt-0.5">全量版本指针同步正常</div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+        <div className="bg-white border border-zinc-200/80 p-5 rounded-2xl shadow-2xs">
+          <div className="text-zinc-500 text-xs">活动 Evidence Bundles</div>
+          <div className="text-2xl font-semibold text-zinc-900 font-mono mt-1">3 组</div>
+          <div className="text-[11px] text-[#10a37f] font-medium mt-1">全量版本指针同步正常</div>
         </div>
 
-        <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl">
-          <div className="text-slate-400 text-[11px] font-sans">评论自动去重准确度</div>
-          <div className="text-2xl font-bold text-orange-400 mt-1">98.1%</div>
-          <div className="text-[11px] text-slate-500 font-sans mt-0.5">多笔记重复评论实体合并</div>
+        <div className="bg-white border border-zinc-200/80 p-5 rounded-2xl shadow-2xs">
+          <div className="text-zinc-500 text-xs">评论自动去重准确度</div>
+          <div className="text-2xl font-semibold text-zinc-900 font-mono mt-1">98.1%</div>
+          <div className="text-[11px] text-zinc-400 mt-1">多笔记重复评论实体合并</div>
         </div>
 
-        <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl">
-          <div className="text-slate-400 text-[11px] font-sans">隐私脱敏与敏感词过滤</div>
-          <div className="text-2xl font-bold text-emerald-400 mt-1">100% 合规</div>
-          <div className="text-[11px] text-slate-500 font-sans mt-0.5">电话/敏感字段严格掩码</div>
+        <div className="bg-white border border-zinc-200/80 p-5 rounded-2xl shadow-2xs">
+          <div className="text-zinc-500 text-xs">隐私脱敏与敏感词过滤</div>
+          <div className="text-2xl font-semibold text-[#10a37f] font-mono mt-1">100% 合规</div>
+          <div className="text-[11px] text-zinc-400 mt-1">电话/敏感字段严格掩码</div>
         </div>
       </div>
 
       {/* Bundle Table */}
-      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-x-auto shadow-xs">
-        <table className="w-full text-left text-xs text-slate-300">
-          <thead className="bg-slate-950/70 border-b border-slate-800 text-slate-400 uppercase text-[11px] font-mono">
+      <div className="bg-white border border-zinc-200/80 rounded-2xl overflow-x-auto shadow-2xs">
+        <table className="w-full text-left text-xs text-zinc-700">
+          <thead className="bg-zinc-50/70 border-b border-zinc-200/80 text-zinc-500 uppercase text-[11px] font-mono">
             <tr>
               <th className="p-3.5">Bundle ID / 版本</th>
               <th className="p-3.5">查询家族 (Family ID)</th>
@@ -125,37 +123,37 @@ export function EvidenceObservabilityPage() {
               <th className="p-3.5 text-right">生成时间</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800/60 font-mono">
-            {bundles.map((b) => (
-              <tr key={b.bundleId} className="hover:bg-slate-800/30 transition-colors">
+          <tbody className="divide-y divide-zinc-100 font-mono">
+            {filteredBundles.map((b) => (
+              <tr key={b.bundleId} className="hover:bg-zinc-50/60 transition-colors">
                 <td className="p-3.5">
-                  <div className="font-bold text-white text-xs">{b.bundleId}</div>
-                  <div className="text-[10px] text-orange-400">v{b.version}</div>
+                  <div className="font-semibold text-zinc-900 text-xs">{b.bundleId}</div>
+                  <div className="text-[10px] text-zinc-500">v{b.version}</div>
                 </td>
 
-                <td className="p-3.5 text-slate-300 font-sans">{b.familyId}</td>
+                <td className="p-3.5 text-zinc-800 font-sans">{b.familyId}</td>
 
                 <td className="p-3.5">
                   <div>{b.itemCount} 条评论</div>
-                  <div className="text-[10px] text-slate-500">
+                  <div className="text-[10px] text-zinc-400">
                     小红书: {b.sourcesBreakdown.xhs_pc} / 点评: {b.sourcesBreakdown.dianping}
                   </div>
                 </td>
 
-                <td className="p-3.5 text-slate-400">
-                  <span className="text-slate-200">{b.freshnessHours}h 前</span>
+                <td className="p-3.5 text-zinc-500">
+                  <span className="text-zinc-700">{b.freshnessHours}h 前</span>
                 </td>
 
-                <td className="p-3.5 text-emerald-400 font-bold">{b.dedupRate}</td>
+                <td className="p-3.5 text-zinc-900 font-semibold">{b.dedupRate}</td>
 
                 <td className="p-3.5">
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px]">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-[#10a37f] border border-emerald-200/60 text-[10px] font-medium">
                     <ShieldCheck className="w-3 h-3" />
                     <span>PASSED</span>
                   </span>
                 </td>
 
-                <td className="p-3.5 text-right text-slate-500 text-[11px]">{b.createdAt}</td>
+                <td className="p-3.5 text-right text-zinc-400 text-[11px]">{b.createdAt}</td>
               </tr>
             ))}
           </tbody>
