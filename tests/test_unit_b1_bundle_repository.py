@@ -9,9 +9,9 @@ from typing import Any
 import pytest
 from sqlalchemy.dialects.postgresql import dialect as postgresql_dialect
 
-from xhs_food.composition.adapters import SQLAlchemyCandidateBundleRepository
-from xhs_food.contracts import BundleState, EvidenceBundle, EvidenceItem
-from xhs_food.foundation.evidence_schema import evidence_bundles
+from food_agent.composition.adapters import SQLAlchemyCandidateBundleRepository
+from food_agent.contracts import BundleState, EvidenceBundle, EvidenceItem
+from food_agent.foundation.evidence_schema import evidence_bundles
 
 FIXTURE = Path(__file__).parent / "fixtures" / "authority" / "evidence_bundle_v1.json"
 

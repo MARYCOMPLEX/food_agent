@@ -7,25 +7,25 @@ from typing import Any
 
 import pytest
 
-from xhs_food.contracts import (
+from food_agent.contracts import (
     CommentEvidence,
     ResearchOutcome,
     ShopProfile,
     SourceCall,
     XhsNoteLead,
 )
-from xhs_food.domain_packs.food.intent import FoodSearchIntent
-from xhs_food.research.evidence import CanonicalCommentEvidenceAdapter, EvidenceLedger
-from xhs_food.research.profile_service import (
+from food_agent.domain_packs.food.intent import FoodSearchIntent
+from food_agent.research.evidence import CanonicalCommentEvidenceAdapter, EvidenceLedger
+from food_agent.research.profile_service import (
     ShopProfileRefreshPolicy,
     ShopProfileService,
 )
-from xhs_food.research.repository import (
+from food_agent.research.repository import (
     merge_profiles,
     profile_from_storage,
     profile_to_storage,
 )
-from xhs_food.research.sources import (
+from food_agent.research.sources import (
     AdaptiveQueryPlanner,
     DianpingShopEnricher,
     XhsCommentLeadCollector,
@@ -723,7 +723,7 @@ def test_shop_profile_merge_keeps_legacy_fields_and_normalizes_provider_refs() -
 
 @pytest.mark.asyncio
 async def test_shop_profile_service_reuses_fresh_profile_without_dianping_call() -> None:
-    from xhs_food.research.repository import InMemoryShopProfileRepository
+    from food_agent.research.repository import InMemoryShopProfileRepository
 
     now = datetime(2026, 9, 4, tzinfo=UTC)
     repository = InMemoryShopProfileRepository()
@@ -751,7 +751,7 @@ async def test_shop_profile_service_reuses_fresh_profile_without_dianping_call()
 
 @pytest.mark.asyncio
 async def test_shop_profile_service_refreshes_stale_profile_and_keeps_it_on_failure() -> None:
-    from xhs_food.research.repository import InMemoryShopProfileRepository
+    from food_agent.research.repository import InMemoryShopProfileRepository
 
     now = datetime(2026, 9, 4, tzinfo=UTC)
     repository = InMemoryShopProfileRepository()
@@ -774,7 +774,7 @@ async def test_shop_profile_service_refreshes_stale_profile_and_keeps_it_on_fail
 
 @pytest.mark.asyncio
 async def test_shop_profile_commit_uses_provider_id_before_name_and_keeps_unidentified_profile() -> None:
-    from xhs_food.research.repository import InMemoryShopProfileRepository
+    from food_agent.research.repository import InMemoryShopProfileRepository
 
     repository = InMemoryShopProfileRepository()
     old = ShopProfile(
@@ -803,8 +803,8 @@ async def test_shop_profile_commit_uses_provider_id_before_name_and_keeps_uniden
 
 @pytest.mark.asyncio
 async def test_shop_profile_name_fallback_does_not_merge_branch_by_substring() -> None:
-    from xhs_food.research.profile_service import ShopProfileRefreshPlan
-    from xhs_food.research.repository import InMemoryShopProfileRepository
+    from food_agent.research.profile_service import ShopProfileRefreshPlan
+    from food_agent.research.repository import InMemoryShopProfileRepository
 
     repository = InMemoryShopProfileRepository()
     service = ShopProfileService(repository)
@@ -822,7 +822,7 @@ async def test_shop_profile_name_fallback_does_not_merge_branch_by_substring() -
 
 @pytest.mark.asyncio
 async def test_user_storage_profile_repository_prefers_provider_identity() -> None:
-    from xhs_food.research.repository import UserStorageShopProfileRepository
+    from food_agent.research.repository import UserStorageShopProfileRepository
 
     class _Storage:
         def __init__(self) -> None:
@@ -871,7 +871,7 @@ async def test_user_storage_profile_repository_prefers_provider_identity() -> No
 async def test_user_storage_provider_identity_never_falls_back_to_name(
     provider_failure: bool,
 ) -> None:
-    from xhs_food.research.repository import UserStorageShopProfileRepository
+    from food_agent.research.repository import UserStorageShopProfileRepository
 
     class _Storage:
         def __init__(self) -> None:
@@ -908,7 +908,7 @@ async def test_user_storage_provider_identity_never_falls_back_to_name(
 
 @pytest.mark.asyncio
 async def test_user_storage_profile_repository_reuses_existing_row_id() -> None:
-    from xhs_food.research.repository import UserStorageShopProfileRepository
+    from food_agent.research.repository import UserStorageShopProfileRepository
 
     class _Storage:
         def __init__(self) -> None:
@@ -948,7 +948,7 @@ async def test_user_storage_profile_repository_reuses_existing_row_id() -> None:
 
 @pytest.mark.asyncio
 async def test_user_storage_reuses_legacy_row_id_when_provider_refs_are_not_backfilled() -> None:
-    from xhs_food.research.repository import UserStorageShopProfileRepository
+    from food_agent.research.repository import UserStorageShopProfileRepository
 
     class _Storage:
         def __init__(self) -> None:
@@ -1021,7 +1021,7 @@ def test_profile_storage_normalizes_name_identity_and_preserves_legacy_fields() 
 
 @pytest.mark.asyncio
 async def test_user_storage_profile_repository_uses_only_exact_name_fallback() -> None:
-    from xhs_food.research.repository import UserStorageShopProfileRepository
+    from food_agent.research.repository import UserStorageShopProfileRepository
 
     class _Storage:
         async def get_cached_restaurant_by_name(self, name: str) -> dict[str, Any] | None:

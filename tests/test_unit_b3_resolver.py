@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from xhs_food.contracts import MemoryRecord, PreferenceSnapshot, UserIsolationKey
-from xhs_food.personalization import PreferenceResolver
+from food_agent.contracts import MemoryRecord, PreferenceSnapshot, UserIsolationKey
+from food_agent.personalization import PreferenceResolver
 
 ROOT = Path(__file__).parents[1]
 FIXTURE = ROOT / "tests" / "fixtures" / "authority" / "memory_privacy_v1.json"

@@ -1,7 +1,7 @@
 [project]
-name = "xhs-food-agent"
+name = "food-agent"
 version = "1.0.0"
-description = "小红书美食智能推荐Agent - 独立版"
+description = "Food Agent 美食智能推荐与调研平台 - 独立微服务版"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
@@ -71,14 +71,14 @@ dev = [
 ]
 
 [project.entry-points."food_agent.domain_packs"]
-food = "xhs_food.domain_packs.food:create_food_pack"
+food = "food_agent.domain_packs.food:create_food_pack"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/xhs_food", "src/api"]
+packages = ["src/food_agent", "src/api"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

@@ -211,37 +211,37 @@ Static, OpenSpec, and tree-integrity gates:
 
 ```powershell
 uv run --frozen ruff check `
-  src/xhs_food/composition/adapters `
-  src/xhs_food/composition/legacy_poi.py `
-  src/xhs_food/contracts `
-  src/xhs_food/foundation `
-  src/xhs_food/gateways `
+  src/food_agent/composition/adapters `
+  src/food_agent/composition/legacy_poi.py `
+  src/food_agent/contracts `
+  src/food_agent/foundation `
+  src/food_agent/gateways `
   tests/test_unit_s3_*.py `
   tests/test_unit_object_store_adapter.py `
   tests/test_unit_poi_place_boundary.py `
   tests/test_unit_contract_sdk.py `
   tests/test_unit_architecture_boundaries.py
 uv run --frozen ruff format --check `
-  src/xhs_food/composition/adapters `
-  src/xhs_food/composition/legacy_poi.py `
-  src/xhs_food/contracts `
-  src/xhs_food/foundation `
-  src/xhs_food/gateways `
+  src/food_agent/composition/adapters `
+  src/food_agent/composition/legacy_poi.py `
+  src/food_agent/contracts `
+  src/food_agent/foundation `
+  src/food_agent/gateways `
   tests/test_unit_s3_*.py `
   tests/test_unit_object_store_adapter.py `
   tests/test_unit_poi_place_boundary.py `
   tests/test_unit_contract_sdk.py `
   tests/test_unit_architecture_boundaries.py
 uv run --frozen pyright `
-  src/xhs_food/agents/poi_enricher.py `
-  src/xhs_food/agents/poi_search.py `
-  src/xhs_food/composition/root.py `
-  src/xhs_food/composition/legacy_poi.py `
-  src/xhs_food/composition/adapters `
-  src/xhs_food/contracts `
-  src/xhs_food/foundation `
-  src/xhs_food/gateways `
-  src/xhs_food/services/session_manager.py
+  src/food_agent/agents/poi_enricher.py `
+  src/food_agent/agents/poi_search.py `
+  src/food_agent/composition/root.py `
+  src/food_agent/composition/legacy_poi.py `
+  src/food_agent/composition/adapters `
+  src/food_agent/contracts `
+  src/food_agent/foundation `
+  src/food_agent/gateways `
+  src/food_agent/services/session_manager.py
 openspec validate define-modular-architecture --strict --json
 git -c core.autocrlf=false diff --check
 ```

@@ -34,5 +34,5 @@ Focused qualification:
 
 ```powershell
 uv run --frozen pytest -q tests/test_unit_b5_travel_pack.py tests/test_unit_s4_domain_pack_registry.py tests/test_unit_s4_food_pack_compatibility.py tests/test_unit_architecture_boundaries.py
-uv run --frozen ruff check src/xhs_food/domain_packs/travel tests/test_unit_b5_travel_pack.py src/xhs_food/composition/adapters/travel_output.py src/xhs_food/composition/adapters/travel_tools.py
+uv run --frozen ruff check src/food_agent/domain_packs/travel tests/test_unit_b5_travel_pack.py src/food_agent/composition/adapters/travel_output.py src/food_agent/composition/adapters/travel_tools.py
 ```

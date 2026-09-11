@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from xhs_food.contracts import (
+from food_agent.contracts import (
     AnonymousIsolationKey,
     ConsentBasis,
     ConsentStatus,
@@ -16,7 +16,7 @@ from xhs_food.contracts import (
     MemoryConsent,
     UserIsolationKey,
 )
-from xhs_food.personalization import FeedbackIngestor
+from food_agent.personalization import FeedbackIngestor
 
 
 def _scope() -> UserIsolationKey:

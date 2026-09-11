@@ -14,10 +14,10 @@ from typing import Any
 import pytest
 from botocore.exceptions import ClientError
 
-from xhs_food.contracts import ObjectRef
-from xhs_food.foundation import FoundationAdapterError
-from xhs_food.foundation import object_store as object_store_module
-from xhs_food.foundation.object_store import Boto3ObjectStore, minio_s3_client_factory
+from food_agent.contracts import ObjectRef
+from food_agent.foundation import FoundationAdapterError
+from food_agent.foundation import object_store as object_store_module
+from food_agent.foundation.object_store import Boto3ObjectStore, minio_s3_client_factory
 
 
 async def byte_chunks(*parts: bytes) -> AsyncIterator[bytes]:
@@ -251,7 +251,7 @@ def test_minio_factory_is_endpoint_compatible_without_creating_client(
         captured.update(kwargs)
         return object()
 
-    monkeypatch.setattr("xhs_food.foundation.object_store.boto3.client", fake_client)
+    monkeypatch.setattr("food_agent.foundation.object_store.boto3.client", fake_client)
     factory = minio_s3_client_factory(
         endpoint_url="http://minio:9000",
         access_key_id="minio",

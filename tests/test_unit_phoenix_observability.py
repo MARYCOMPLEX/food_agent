@@ -12,14 +12,14 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
-from xhs_food.contracts import (
+from food_agent.contracts import (
     EvaluationCase,
     EvaluationDataset,
     EvaluationOutcome,
     ObservationKind,
     ObservationRecord,
 )
-from xhs_food.foundation import (
+from food_agent.foundation import (
     BoundedObservationExporter,
     CapturingObservationBackend,
     DeterministicEvaluator,

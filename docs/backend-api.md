@@ -11,8 +11,8 @@ Pydantic 模型、稳定映射器和合同测试为准，不把 OpenSpec 中的�
 | 可提交的 OpenAPI 文件 | `contracts/openapi.yaml` |
 | 测试快照 | `tests/fixtures/http/openapi.json` |
 | 搜索与 SSE 运行时行为 | `src/api/search/routes.py` 及 HTTP/SSE 合同测试 |
-| 上游账号服务合同 | `src/xhs_food/contracts/account_service.py` |
-| 未来研究体验事件合同 | `src/xhs_food/contracts/research_experience.py` |
+| 上游账号服务合同 | `src/food_agent/contracts/account_service.py` |
+| 未来研究体验事件合同 | `src/food_agent/contracts/research_experience.py` |
 
 三份 OpenAPI 表达必须保持语义一致。生成与校验方法见[第 12 节](#12-openapi-生成与验证)。
 

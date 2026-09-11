@@ -15,7 +15,7 @@ from fastapi import APIRouter, Path, Depends
 from pydantic import BaseModel
 
 from api.deps import get_current_user_id, get_current_user, get_storage
-from xhs_food.services.user_storage import UserStorageService, User
+from food_agent.services.user_storage import UserStorageService, User
 
 router = APIRouter(prefix="/v1/user", tags=["user"])
 

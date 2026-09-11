@@ -1,7 +1,7 @@
 # Research Experience Contract v1
 
 This file is the field-level freeze for the public experience boundary. The
-Python models in `src/xhs_food/contracts/research_experience.py` are the
+Python models in `src/food_agent/contracts/research_experience.py` are the
 server authority and `frontend/src/shared/contracts/research.ts` is the
 client mirror. JSON names below are wire names (camel case).
 

@@ -9,12 +9,12 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from sqlalchemy import text
 
-from xhs_food.composition.adapters import (
+from food_agent.composition.adapters import (
     PostgresReliableTaskAuthority,
     PostgresReliableTaskStore,
     PostgresTaskProgressProjectionStore,
 )
-from xhs_food.contracts import (
+from food_agent.contracts import (
     RequestIdentity,
     RequestPolicy,
     ResearchOperation,
@@ -23,7 +23,7 @@ from xhs_food.contracts import (
     TaskProgressProjection,
     TaskStatus,
 )
-from xhs_food.foundation.database import SQLAlchemyDatabase
+from food_agent.foundation.database import SQLAlchemyDatabase
 
 
 def _request(prefix: str) -> ResearchRequest:

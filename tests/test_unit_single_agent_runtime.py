@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from xhs_food.contracts import (
+from food_agent.contracts import (
     AnalyzeCommentBatch,
     ResearchActionResult,
     ResearchEvent,
@@ -28,8 +28,8 @@ from xhs_food.contracts import (
     parse_semantic_action,
     reduce_research_event,
 )
-from xhs_food.orchestrator.scheduler import StepScheduler
-from xhs_food.research.resource_limits import (
+from food_agent.orchestrator.scheduler import StepScheduler
+from food_agent.research.resource_limits import (
     BoundedAsyncQueue,
     BudgetController,
     CircuitBreaker,
@@ -40,7 +40,7 @@ from xhs_food.research.resource_limits import (
     RetryableResourceError,
     RuntimeBudget,
 )
-from xhs_food.research.runtime import ResearchRuntime, ResearchRuntimeConfig
+from food_agent.research.runtime import ResearchRuntime, ResearchRuntimeConfig
 
 
 @pytest.mark.unit

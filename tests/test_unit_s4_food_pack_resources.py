@@ -7,8 +7,8 @@ from typing import Any, cast
 
 import pytest
 
-from xhs_food.contracts import DomainPackManifest, DomainSchemaBundle, canonical_manifest_digest
-from xhs_food.domain_packs import (
+from food_agent.contracts import DomainPackManifest, DomainSchemaBundle, canonical_manifest_digest
+from food_agent.domain_packs import (
     FOOD_DOMAIN_ID,
     FOOD_PACK_VERSION,
     load_food_contract_resources,
@@ -87,7 +87,7 @@ def test_food_manifest_declares_the_complete_versioned_contract() -> None:
 
 @pytest.mark.unit
 def test_food_resources_are_package_local_immutable_singletons() -> None:
-    packaged_resources = files("xhs_food.domain_packs.food.resources")
+    packaged_resources = files("food_agent.domain_packs.food.resources")
     loader_source = packaged_resources.joinpath("__init__.py").read_text(encoding="utf-8")
 
     assert packaged_resources.joinpath("manifest_v1.json.resource").is_file()

@@ -10,14 +10,14 @@ from typing import Any
 import pytest
 from test_unit_refresh_media_contracts import _artifact, _limits, _media_asset, _source_locator
 
-from xhs_food.contracts import (
+from food_agent.contracts import (
     DerivedArtifact,
     MediaFetchRequest,
     MediaProcessingRequest,
     ObjectRef,
 )
-from xhs_food.contracts.refresh_media import EvidenceExtractionRequest
-from xhs_food.evidence import EvidenceExtractorRegistry, MediaAssetFetcher, MediaProcessorRegistry
+from food_agent.contracts.refresh_media import EvidenceExtractionRequest
+from food_agent.evidence import EvidenceExtractorRegistry, MediaAssetFetcher, MediaProcessorRegistry
 
 
 async def _chunks(*parts: bytes) -> AsyncIterator[bytes]:

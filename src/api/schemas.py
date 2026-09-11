@@ -8,7 +8,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
-from xhs_food.contracts import PlatformChannel
+from food_agent.contracts import PlatformChannel
 
 # =============================================================================
 # Loading Steps

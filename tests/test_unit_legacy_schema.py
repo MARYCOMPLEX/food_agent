@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from xhs_food.foundation.legacy_schema import LEGACY_METADATA, LEGACY_TABLES
+from food_agent.foundation.legacy_schema import LEGACY_METADATA, LEGACY_TABLES
 
 ROOT = Path(__file__).parents[1]
 MIGRATION = ROOT / "alembic" / "versions" / "20260825_0008_legacy_schema_baseline.py"

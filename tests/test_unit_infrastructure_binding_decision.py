@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from xhs_food.foundation import Boto3ObjectStore, TemporalTaskQueues
+from food_agent.foundation import Boto3ObjectStore, TemporalTaskQueues
 
 ADR = (
     Path(__file__).parents[1]

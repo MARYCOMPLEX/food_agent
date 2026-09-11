@@ -55,7 +55,7 @@ def search_http(
     from api.main import app
     from api.search import tasks as tasks_mod
     from api.search.dependencies import get_research_task
-    from xhs_food.contracts import ResearchOperation, ResearchTaskAdmission
+    from food_agent.contracts import ResearchOperation, ResearchTaskAdmission
 
     calls = _CallLog()
     storage = _Storage()

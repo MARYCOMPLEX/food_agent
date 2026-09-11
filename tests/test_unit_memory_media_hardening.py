@@ -11,7 +11,7 @@ from typing import Any, cast
 import pytest
 from pydantic import ValidationError
 
-from xhs_food.contracts import (
+from food_agent.contracts import (
     MediaAsset,
     MemoryRecord,
     PersonalizationPolicy,
@@ -19,8 +19,8 @@ from xhs_food.contracts import (
     ToolCall,
     UserIsolationKey,
 )
-from xhs_food.contracts.ports import ObjectRef
-from xhs_food.contracts.refresh_media import RefreshDeltaScope, RefreshJob, RefreshPriorityReason
+from food_agent.contracts.ports import ObjectRef
+from food_agent.contracts.refresh_media import RefreshDeltaScope, RefreshJob, RefreshPriorityReason
 
 ROOT = Path(__file__).parents[1]
 MEMORY_FIXTURE = ROOT / "tests/fixtures/authority/memory_privacy_v1.json"

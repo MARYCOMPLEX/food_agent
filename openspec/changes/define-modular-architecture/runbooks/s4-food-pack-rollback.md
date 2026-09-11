@@ -57,7 +57,7 @@ construction and new `SearchExecutor` instances capture that selection.
 Verify the selected root:
 
 ```powershell
-uv run --frozen python -c "import asyncio; from xhs_food.composition import build_legacy_composition_root; r=build_legacy_composition_root(); print(r.logical_bindings['food_pack']); print(r.logical_bindings['modular_core']); asyncio.run(r.close())"
+uv run --frozen python -c "import asyncio; from food_agent.composition import build_legacy_composition_root; r=build_legacy_composition_root(); print(r.logical_bindings['food_pack']); print(r.logical_bindings['modular_core']); asyncio.run(r.close())"
 ```
 
 The first binding must be `domain_packs.food_legacy`; the second must remain
@@ -101,17 +101,17 @@ Then run the non-live compatibility and integrity gates:
 
 ```powershell
 uv run --frozen pytest -q -m "unit or integration"
-uv run --frozen ruff check src/xhs_food/domain_packs `
-  src/xhs_food/composition/domain_packs.py `
-  src/xhs_food/composition/adapters/food_output.py `
-  src/xhs_food/composition/adapters/food_tools.py `
-  src/xhs_food/composition/adapters/legacy_food.py `
+uv run --frozen ruff check src/food_agent/domain_packs `
+  src/food_agent/composition/domain_packs.py `
+  src/food_agent/composition/adapters/food_output.py `
+  src/food_agent/composition/adapters/food_tools.py `
+  src/food_agent/composition/adapters/legacy_food.py `
   tests/test_unit_s4_*.py
-uv run --frozen pyright src/xhs_food/domain_packs `
-  src/xhs_food/composition/domain_packs.py `
-  src/xhs_food/composition/adapters/food_output.py `
-  src/xhs_food/composition/adapters/food_tools.py `
-  src/xhs_food/composition/adapters/legacy_food.py
+uv run --frozen pyright src/food_agent/domain_packs `
+  src/food_agent/composition/domain_packs.py `
+  src/food_agent/composition/adapters/food_output.py `
+  src/food_agent/composition/adapters/food_tools.py `
+  src/food_agent/composition/adapters/legacy_food.py
 uv lock --check
 openspec validate define-modular-architecture --strict --json
 git -c core.autocrlf=false diff --check

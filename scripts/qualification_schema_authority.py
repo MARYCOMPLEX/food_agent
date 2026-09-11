@@ -23,10 +23,10 @@ _LEGACY_PATHS = frozenset(
         "scripts/migrate_sse_recovery.py",
         "scripts/migrate_turn_id.py",
         "src/scripts/migrate_favorites.py",
-        "src/xhs_food/services/postgres_storage.py",
-        "src/xhs_food/services/postgres_vector.py",
-        "src/xhs_food/services/user_storage/schema.py",
-        "src/xhs_food/services/user_storage/service.py",
+        "src/food_agent/services/postgres_storage.py",
+        "src/food_agent/services/postgres_vector.py",
+        "src/food_agent/services/user_storage/schema.py",
+        "src/food_agent/services/user_storage/service.py",
     }
 )
 _TELEMETRY_PATHS: frozenset[str] = frozenset()

@@ -17,14 +17,14 @@ from temporalio.client import Client
 from temporalio.contrib.pydantic import pydantic_data_converter
 from temporalio.testing import WorkflowEnvironment
 
-from xhs_food.composition import build_reliable_research_worker
-from xhs_food.composition.adapters import (
+from food_agent.composition import build_reliable_research_worker
+from food_agent.composition.adapters import (
     PostgresReliableTaskAuthority,
     PostgresReliableTaskStore,
     PostgresTaskProgressProjectionStore,
     ReliableTaskEventBusPublisher,
 )
-from xhs_food.contracts import (
+from food_agent.contracts import (
     ContractPayload,
     RequestIdentity,
     RequestPolicy,
@@ -34,20 +34,20 @@ from xhs_food.contracts import (
     TaskProgressProjection,
     TaskStatus,
 )
-from xhs_food.foundation import (
+from food_agent.foundation import (
     RedisEventBusAdapter,
     SQLAlchemyDatabase,
     TemporalTaskQueues,
     TemporalWorkflowAdapter,
 )
-from xhs_food.orchestrator import (
+from food_agent.orchestrator import (
     ReliableResearchActivities,
     ResearchWorkflowOutput,
     build_workflow_start,
     stable_research_task_id,
     stable_research_workflow_id,
 )
-from xhs_food.orchestrator.coordinator import ResearchCoordinator
+from food_agent.orchestrator.coordinator import ResearchCoordinator
 
 QUEUE = "research"
 

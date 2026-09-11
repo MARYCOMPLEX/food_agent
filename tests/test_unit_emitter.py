@@ -1,4 +1,4 @@
-"""Unit tests for :class:`xhs_food.events.emitter.SearchEventEmitter`."""
+"""Unit tests for :class:`food_agent.events.emitter.SearchEventEmitter`."""
 
 from __future__ import annotations
 
@@ -6,9 +6,9 @@ from typing import List, Tuple
 
 import pytest
 
-from xhs_food.events.bus import InMemoryEventBus
-from xhs_food.events.emitter import SearchEventEmitter
-from xhs_food.events.types import SearchEvent, SearchEventType
+from food_agent.events.bus import InMemoryEventBus
+from food_agent.events.emitter import SearchEventEmitter
+from food_agent.events.types import SearchEvent, SearchEventType
 
 
 # ---------------------------------------------------------------------------

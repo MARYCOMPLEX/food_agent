@@ -520,52 +520,52 @@ def test_current_source_has_no_new_cross_object_private_attribute_access() -> No
 
 def test_default_deny_and_composition_root_exception_are_exercised(tmp_path: Path) -> None:
     policy = _load_policy()
-    bad = tmp_path / "xhs_food/contracts/bad.py"
+    bad = tmp_path / "food_agent/contracts/bad.py"
     bad.parent.mkdir(parents=True)
     bad.write_text(
-        "import redis\nfrom xhs_food.services import LLMService\n",
+        "import redis\nfrom food_agent.services import LLMService\n",
         encoding="utf-8",
     )
     assert _scan_import_violations(tmp_path, policy) == {
-        "xhs_food.contracts.bad|contracts->foundation|xhs_food.services.LLMService",
-        "xhs_food.contracts.bad|contracts->third_party|redis",
+        "food_agent.contracts.bad|contracts->foundation|food_agent.services.LLMService",
+        "food_agent.contracts.bad|contracts->third_party|redis",
     }
 
     bad.unlink()
-    wiring = tmp_path / "xhs_food/composition/wiring.py"
+    wiring = tmp_path / "food_agent/composition/wiring.py"
     wiring.parent.mkdir(parents=True, exist_ok=True)
     wiring.write_text(
-        "from xhs_food.contracts import LLMProvider\nfrom xhs_food.services import LLMService\n",
+        "from food_agent.contracts import LLMProvider\nfrom food_agent.services import LLMService\n",
         encoding="utf-8",
     )
     assert _scan_import_violations(tmp_path, policy) == set()
 
     wiring.unlink()
-    unowned = tmp_path / "xhs_food/new_core.py"
+    unowned = tmp_path / "food_agent/new_core.py"
     unowned.write_text("VALUE = 1\n", encoding="utf-8")
     assert _scan_import_violations(tmp_path, policy) == {
-        "xhs_food.new_core|unclassified-source-module"
+        "food_agent.new_core|unclassified-source-module"
     }
 
 
 def test_parent_package_import_is_classified_by_imported_submodule(tmp_path: Path) -> None:
     policy = _load_policy()
-    module = tmp_path / "xhs_food/state.py"
+    module = tmp_path / "food_agent/state.py"
     module.parent.mkdir(parents=True)
-    module.write_text("from xhs_food import services\n", encoding="utf-8")
+    module.write_text("from food_agent import services\n", encoding="utf-8")
 
     assert _scan_import_violations(tmp_path, policy) == {
-        "xhs_food.state|legacy_shell->foundation|xhs_food.services"
+        "food_agent.state|legacy_shell->foundation|food_agent.services"
     }
 
 
 def test_private_gate_distinguishes_own_state_from_cross_object_access(
     tmp_path: Path,
 ) -> None:
-    module = tmp_path / "xhs_food/contracts/private_fixture.py"
+    module = tmp_path / "food_agent/contracts/private_fixture.py"
     module.parent.mkdir(parents=True)
     module.write_text(
-        "from xhs_food.services import _private_factory\n"
+        "from food_agent.services import _private_factory\n"
         "class Fixture:\n"
         "    def read(self, storage):\n"
         "        own = self._cache\n"
@@ -576,9 +576,9 @@ def test_private_gate_distinguishes_own_state_from_cross_object_access(
 
     violations = _scan_private_access_violations(tmp_path)
     assert violations == {
-        "xhs_food.contracts.private_fixture|<module>|xhs_food.services._private_factory",
-        "xhs_food.contracts.private_fixture|Fixture.read|storage._client",
-        "xhs_food.contracts.private_fixture|Fixture.read|storage._pool",
+        "food_agent.contracts.private_fixture|<module>|food_agent.services._private_factory",
+        "food_agent.contracts.private_fixture|Fixture.read|storage._client",
+        "food_agent.contracts.private_fixture|Fixture.read|storage._pool",
     }
 
 
@@ -586,18 +586,18 @@ def test_s3_target_layers_and_third_party_allowlists_are_explicit() -> None:
     policy = _load_policy()
     rules_by_prefix = {item["prefix"]: item for item in policy["module_layers"]}
 
-    assert rules_by_prefix["xhs_food.gateways"] == {
-        "prefix": "xhs_food.gateways",
+    assert rules_by_prefix["food_agent.gateways"] == {
+        "prefix": "food_agent.gateways",
         "layer": "gateway",
         "mode": "target",
     }
-    assert rules_by_prefix["xhs_food.foundation"] == {
-        "prefix": "xhs_food.foundation",
+    assert rules_by_prefix["food_agent.foundation"] == {
+        "prefix": "food_agent.foundation",
         "layer": "target_foundation",
         "mode": "target",
     }
-    assert rules_by_prefix["xhs_food.composition.adapters"] == {
-        "prefix": "xhs_food.composition.adapters",
+    assert rules_by_prefix["food_agent.composition.adapters"] == {
+        "prefix": "food_agent.composition.adapters",
         "layer": "compatibility_adapter",
         "mode": "target",
     }
@@ -612,8 +612,8 @@ def test_s4_domain_pack_layer_and_boundaries_are_explicit(tmp_path: Path) -> Non
     policy = _load_policy()
     rules_by_prefix = {item["prefix"]: item for item in policy["module_layers"]}
 
-    assert rules_by_prefix["xhs_food.domain_packs"] == {
-        "prefix": "xhs_food.domain_packs",
+    assert rules_by_prefix["food_agent.domain_packs"] == {
+        "prefix": "food_agent.domain_packs",
         "layer": "domain_pack",
         "mode": "target",
     }
@@ -625,46 +625,46 @@ def test_s4_domain_pack_layer_and_boundaries_are_explicit(tmp_path: Path) -> Non
     assert policy["target_third_party_allowlist"]["domain_pack"] == []
     assert not _scan_domain_pack_boundary_violations(SRC, policy)
 
-    allowed = tmp_path / "xhs_food/domain_packs/food/model.py"
+    allowed = tmp_path / "food_agent/domain_packs/food/model.py"
     allowed.parent.mkdir(parents=True)
     allowed.write_text(
-        "from xhs_food.contracts import DomainPackManifest\n"
+        "from food_agent.contracts import DomainPackManifest\n"
         "from .resources import load_food_manifest\n",
         encoding="utf-8",
     )
     assert not _scan_import_violations(tmp_path, policy)
     assert not _scan_domain_pack_boundary_violations(tmp_path, policy)
 
-    forbidden = tmp_path / "xhs_food/domain_packs/food/bad.py"
+    forbidden = tmp_path / "food_agent/domain_packs/food/bad.py"
     forbidden.write_text(
         "import pydantic\n"
-        "from xhs_food.foundation import RedisStateStore\n"
-        "from xhs_food.gateways import XhsPcSourceConnector\n"
-        "from xhs_food.orchestrator import XHSFoodOrchestrator\n"
-        "from xhs_food.services import LLMService\n",
+        "from food_agent.foundation import RedisStateStore\n"
+        "from food_agent.gateways import XhsPcSourceConnector\n"
+        "from food_agent.orchestrator import XHSFoodOrchestrator\n"
+        "from food_agent.services import LLMService\n",
         encoding="utf-8",
     )
     assert _scan_import_violations(tmp_path, policy) == {
-        "xhs_food.domain_packs.food.bad|domain_pack->foundation|xhs_food.services.LLMService",
-        "xhs_food.domain_packs.food.bad|domain_pack->gateway|xhs_food.gateways.XhsPcSourceConnector",
-        "xhs_food.domain_packs.food.bad|domain_pack->orchestrator|"
-        "xhs_food.orchestrator.XHSFoodOrchestrator",
-        "xhs_food.domain_packs.food.bad|domain_pack->target_foundation|"
-        "xhs_food.foundation.RedisStateStore",
-        "xhs_food.domain_packs.food.bad|domain_pack->third_party|pydantic",
+        "food_agent.domain_packs.food.bad|domain_pack->foundation|food_agent.services.LLMService",
+        "food_agent.domain_packs.food.bad|domain_pack->gateway|food_agent.gateways.XhsPcSourceConnector",
+        "food_agent.domain_packs.food.bad|domain_pack->orchestrator|"
+        "food_agent.orchestrator.XHSFoodOrchestrator",
+        "food_agent.domain_packs.food.bad|domain_pack->target_foundation|"
+        "food_agent.foundation.RedisStateStore",
+        "food_agent.domain_packs.food.bad|domain_pack->third_party|pydantic",
     }
 
-    cross_pack = tmp_path / "xhs_food/domain_packs/food/cross_pack.py"
+    cross_pack = tmp_path / "food_agent/domain_packs/food/cross_pack.py"
     cross_pack.write_text(
-        "from xhs_food.domain_packs.travel import TravelPack\n"
-        "from xhs_food.domain_packs import load_travel_manifest\n",
+        "from food_agent.domain_packs.travel import TravelPack\n"
+        "from food_agent.domain_packs import load_travel_manifest\n",
         encoding="utf-8",
     )
     assert _scan_domain_pack_boundary_violations(tmp_path, policy) == {
-        "xhs_food.domain_packs.food.cross_pack|cross-pack-import|"
-        "xhs_food.domain_packs.travel.TravelPack",
-        "xhs_food.domain_packs.food.cross_pack|domain-pack-aggregate-import|"
-        "xhs_food.domain_packs.load_travel_manifest",
+        "food_agent.domain_packs.food.cross_pack|cross-pack-import|"
+        "food_agent.domain_packs.travel.TravelPack",
+        "food_agent.domain_packs.food.cross_pack|domain-pack-aggregate-import|"
+        "food_agent.domain_packs.load_travel_manifest",
     }
 
 
@@ -708,12 +708,12 @@ def test_forbidden_frameworks_are_not_declared_locked_or_imported(
     assert not forbidden_packages & locked
     assert not _scan_forbidden_imports(SRC, forbidden_imports)
 
-    bad = tmp_path / "xhs_food/gateways/bad_runtime.py"
+    bad = tmp_path / "food_agent/gateways/bad_runtime.py"
     bad.parent.mkdir(parents=True)
     bad.write_text("import agents\nfrom celery import Celery\n", encoding="utf-8")
     assert _scan_forbidden_imports(tmp_path, set(policy["forbidden_import_roots"])) == {
-        "xhs_food.gateways.bad_runtime|forbidden-import|agents",
-        "xhs_food.gateways.bad_runtime|forbidden-import|celery",
+        "food_agent.gateways.bad_runtime|forbidden-import|agents",
+        "food_agent.gateways.bad_runtime|forbidden-import|celery",
     }
 
 
@@ -722,10 +722,10 @@ def test_owner_port_and_foundation_food_boundaries_are_absolute(
 ) -> None:
     policy = _load_policy()
     assert {
-        "xhs_food.agents",
-        "xhs_food.domain_packs",
-        "xhs_food.orchestrator",
-        "xhs_food.repositories",
+        "food_agent.agents",
+        "food_agent.domain_packs",
+        "food_agent.orchestrator",
+        "food_agent.repositories",
     } <= set(policy["owner_port_consumer_module_prefixes"])
     assert {
         "asyncpg",
@@ -733,49 +733,49 @@ def test_owner_port_and_foundation_food_boundaries_are_absolute(
         "redis",
         "sqlalchemy",
         "temporalio",
-        "xhs_food.gateways",
-        "xhs_food.services.postgres_storage",
-        "xhs_food.services.redis_memory",
-        "xhs_food.services.user_storage",
+        "food_agent.gateways",
+        "food_agent.services.postgres_storage",
+        "food_agent.services.redis_memory",
+        "food_agent.services.user_storage",
     } <= set(policy["owner_port_forbidden_import_prefixes"])
     assert {"get_user_storage_service"} <= set(
         policy["owner_port_forbidden_import_symbols"]
     )
     assert not _scan_owner_port_boundary_violations(SRC, policy)
 
-    agent = tmp_path / "xhs_food/agents/bad_place.py"
+    agent = tmp_path / "food_agent/agents/bad_place.py"
     agent.parent.mkdir(parents=True)
     agent.write_text(
         "import redis\n"
-        "from xhs_food.gateways.place import PlaceLookupToolAdapter\n"
-        "from xhs_food.services import get_user_storage_service\n"
-        "from xhs_food.services.user_storage import UserStorageService\n",
+        "from food_agent.gateways.place import PlaceLookupToolAdapter\n"
+        "from food_agent.services import get_user_storage_service\n"
+        "from food_agent.services.user_storage import UserStorageService\n",
         encoding="utf-8",
     )
-    domain_pack = tmp_path / "xhs_food/domain_packs/bad_food.py"
+    domain_pack = tmp_path / "food_agent/domain_packs/bad_food.py"
     domain_pack.parent.mkdir(parents=True)
     domain_pack.write_text("import boto3\n", encoding="utf-8")
-    repository = tmp_path / "xhs_food/repositories/bad_cache.py"
+    repository = tmp_path / "food_agent/repositories/bad_cache.py"
     repository.parent.mkdir(parents=True)
     repository.write_text("import temporalio\n", encoding="utf-8")
-    foundation = tmp_path / "xhs_food/foundation/bad_food.py"
+    foundation = tmp_path / "food_agent/foundation/bad_food.py"
     foundation.parent.mkdir(parents=True)
     foundation.write_text(
-        "from xhs_food.schemas import RestaurantRecommendation\n",
+        "from food_agent.schemas import RestaurantRecommendation\n",
         encoding="utf-8",
     )
 
     assert _scan_owner_port_boundary_violations(tmp_path, policy) == {
-        "xhs_food.agents.bad_place|owner-port-bypass|redis",
-        "xhs_food.agents.bad_place|owner-port-bypass|"
-        "xhs_food.gateways.place.PlaceLookupToolAdapter",
-        "xhs_food.agents.bad_place|owner-port-bypass|xhs_food.services.get_user_storage_service",
-        "xhs_food.agents.bad_place|owner-port-bypass|"
-        "xhs_food.services.user_storage.UserStorageService",
-        "xhs_food.domain_packs.bad_food|owner-port-bypass|boto3",
-        "xhs_food.repositories.bad_cache|owner-port-bypass|temporalio",
-        "xhs_food.foundation.bad_food|foundation-food-dependency|"
-        "xhs_food.schemas.RestaurantRecommendation",
+        "food_agent.agents.bad_place|owner-port-bypass|redis",
+        "food_agent.agents.bad_place|owner-port-bypass|"
+        "food_agent.gateways.place.PlaceLookupToolAdapter",
+        "food_agent.agents.bad_place|owner-port-bypass|food_agent.services.get_user_storage_service",
+        "food_agent.agents.bad_place|owner-port-bypass|"
+        "food_agent.services.user_storage.UserStorageService",
+        "food_agent.domain_packs.bad_food|owner-port-bypass|boto3",
+        "food_agent.repositories.bad_cache|owner-port-bypass|temporalio",
+        "food_agent.foundation.bad_food|foundation-food-dependency|"
+        "food_agent.schemas.RestaurantRecommendation",
     }
 
 
@@ -784,7 +784,7 @@ def test_target_has_one_database_pool_owner_and_no_runtime_schema_authority(
 ) -> None:
     policy = _load_policy()
     assert policy["database_pool_factories"] == {
-        "sqlalchemy.ext.asyncio.create_async_engine": "xhs_food.foundation.database"
+        "sqlalchemy.ext.asyncio.create_async_engine": "food_agent.foundation.database"
     }
     assert {
         "asyncpg.create_pool",
@@ -796,7 +796,7 @@ def test_target_has_one_database_pool_owner_and_no_runtime_schema_authority(
     assert {"create_all", "drop_all"} <= set(policy["forbidden_runtime_schema_calls"])
     assert not _scan_target_authority_violations(SRC, policy)
 
-    bad = tmp_path / "xhs_food/gateways/bad_database.py"
+    bad = tmp_path / "food_agent/gateways/bad_database.py"
     bad.parent.mkdir(parents=True)
     bad.write_text(
         "import alembic\n"
@@ -809,11 +809,11 @@ def test_target_has_one_database_pool_owner_and_no_runtime_schema_authority(
         encoding="utf-8",
     )
     assert _scan_target_authority_violations(tmp_path, policy) == {
-        "xhs_food.gateways.bad_database|database-pool-owner|"
-        "sqlalchemy.ext.asyncio.create_async_engine->xhs_food.foundation.database",
-        "xhs_food.gateways.bad_database|forbidden-database-pool|asyncpg.create_pool",
-        "xhs_food.gateways.bad_database|runtime-ddl|CREATE TABLE",
-        "xhs_food.gateways.bad_database|runtime-schema-import|alembic",
+        "food_agent.gateways.bad_database|database-pool-owner|"
+        "sqlalchemy.ext.asyncio.create_async_engine->food_agent.foundation.database",
+        "food_agent.gateways.bad_database|forbidden-database-pool|asyncpg.create_pool",
+        "food_agent.gateways.bad_database|runtime-ddl|CREATE TABLE",
+        "food_agent.gateways.bad_database|runtime-schema-import|alembic",
     }
 
 
@@ -892,13 +892,13 @@ def test_redis_target_surface_is_hot_state_only() -> None:
 
 def test_research_boundary_is_explicit_and_removed_routes_stay_absent() -> None:
     policy = _load_policy()
-    assert _layer_for("xhs_food.research.sources", _rules(policy)) is not None
-    assert _layer_for("xhs_food.research.sources", _rules(policy)).layer == "research"
+    assert _layer_for("food_agent.research.sources", _rules(policy)) is not None
+    assert _layer_for("food_agent.research.sources", _rules(policy)).layer == "research"
     assert _scan_private_access_violations(SRC) <= set(policy["legacy_private_access_violations"])
-    assert not (SRC / "xhs_food" / "services" / "amap_api.py").exists()
-    assert not (SRC / "xhs_food" / "agents" / "poi_enricher.py").exists()
-    assert not (SRC / "xhs_food" / "orchestrator" / "search_executor.py").exists()
-    assert not (SRC / "xhs_food" / "orchestrator" / "follow_up.py").exists()
+    assert not (SRC / "food_agent" / "services" / "amap_api.py").exists()
+    assert not (SRC / "food_agent" / "agents" / "poi_enricher.py").exists()
+    assert not (SRC / "food_agent" / "orchestrator" / "search_executor.py").exists()
+    assert not (SRC / "food_agent" / "orchestrator" / "follow_up.py").exists()
     assert all(
         "amap" not in value.casefold()
         and "poi_enricher" not in value.casefold()

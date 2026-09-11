@@ -282,7 +282,7 @@ uv run --frozen pytest -q tests/test_unit_b3_schema.py tests/test_unit_b3_resolv
 uv run --frozen pytest -q tests/test_unit_b0_schema.py tests/test_unit_b1_schema_and_embeddings.py tests/test_unit_b2_profile_fixture.py
 # 8 passed
 
-uv run --frozen ruff check src/xhs_food/foundation/memory_schema.py src/xhs_food/contracts/memory_repositories.py src/xhs_food/composition/adapters/memory_repository.py src/xhs_food/foundation/__init__.py src/xhs_food/contracts/__init__.py src/xhs_food/composition/adapters/__init__.py alembic/versions/20260824_0007_b3_personalization_memory.py alembic/env.py tests/test_unit_b3_schema.py
+uv run --frozen ruff check src/food_agent/foundation/memory_schema.py src/food_agent/contracts/memory_repositories.py src/food_agent/composition/adapters/memory_repository.py src/food_agent/foundation/__init__.py src/food_agent/contracts/__init__.py src/food_agent/composition/adapters/__init__.py alembic/versions/20260824_0007_b3_personalization_memory.py alembic/env.py tests/test_unit_b3_schema.py
 # All checks passed
 
 git diff --check

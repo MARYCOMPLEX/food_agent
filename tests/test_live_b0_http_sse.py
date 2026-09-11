@@ -14,9 +14,9 @@ from redis import asyncio as aioredis
 from sqlalchemy import text
 
 from api.search.routes import router
-from xhs_food.composition.adapters import PostgresTaskProgressProjectionStore
-from xhs_food.contracts import EventEnvelope, TaskEvent, TaskProgressProjection, TaskStatus
-from xhs_food.foundation import (
+from food_agent.composition.adapters import PostgresTaskProgressProjectionStore
+from food_agent.contracts import EventEnvelope, TaskEvent, TaskProgressProjection, TaskStatus
+from food_agent.foundation import (
     RedisEventBusAdapter,
     RedisHotStateContract,
     SQLAlchemyDatabase,

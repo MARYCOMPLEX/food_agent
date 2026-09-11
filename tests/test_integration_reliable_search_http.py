@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 
 from api.search.dependencies import get_research_task
 from api.search.routes import router
-from xhs_food.contracts import (
+from food_agent.contracts import (
     EventEnvelope,
     ResearchOperation,
     ResearchRequest,
@@ -20,7 +20,7 @@ from xhs_food.contracts import (
     TaskProgressProjection,
     TaskStatus,
 )
-from xhs_food.foundation import RedisReplayExpiredError
+from food_agent.foundation import RedisReplayExpiredError
 
 _NOW = datetime(2026, 8, 24, tzinfo=UTC)
 

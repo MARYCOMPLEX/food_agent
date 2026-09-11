@@ -8,9 +8,9 @@ from datetime import UTC, datetime
 import pytest
 from sqlalchemy.dialects.postgresql import dialect as postgresql_dialect
 
-from xhs_food.composition.adapters import SQLAlchemyEmbeddingShadowRepository
-from xhs_food.contracts import BGE_M3_PROFILE_V1, EmbeddingProfile
-from xhs_food.evidence import (
+from food_agent.composition.adapters import SQLAlchemyEmbeddingShadowRepository
+from food_agent.contracts import BGE_M3_PROFILE_V1, EmbeddingProfile
+from food_agent.evidence import (
     EmbeddingBackfillInput,
     EmbeddingCompareStatus,
     EmbeddingShadowRow,

@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 import pytest
 from pydantic import ValidationError
 
-from xhs_food.contracts.adaptive_investigation import (
+from food_agent.contracts.adaptive_investigation import (
     BudgetUsage,
     CritiqueDecision,
     Hypothesis,

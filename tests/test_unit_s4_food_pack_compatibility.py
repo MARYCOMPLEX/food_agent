@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from xhs_food.composition import build_composition_root
-from xhs_food.domain_packs.food import create_food_pack, load_food_contract_resources
-from xhs_food.domain_packs.food.intent import FoodSearchIntent
-from xhs_food.domain_packs.food.preprocessing import preprocess_comments
-from xhs_food.schemas import RestaurantRecommendation
+from food_agent.composition import build_composition_root
+from food_agent.domain_packs.food import create_food_pack, load_food_contract_resources
+from food_agent.domain_packs.food.intent import FoodSearchIntent
+from food_agent.domain_packs.food.preprocessing import preprocess_comments
+from food_agent.schemas import RestaurantRecommendation
 
 
 def test_food_pack_exposes_constraint_and_comment_evidence_policies() -> None:

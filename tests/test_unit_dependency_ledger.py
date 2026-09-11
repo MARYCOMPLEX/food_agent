@@ -56,6 +56,7 @@ def test_lockfile_hash_and_runtime_versions_match_ledger() -> None:
     assert digest in {
         "98e8c2b67e4d2d07a9d797cbc356b79686094fee238526b7745f049da1079e45",
         "6b069630590e63a74f44b80614406374aa999ce85345be48ed8da2573de9145e",
+        "f975a3aaf965c85a2f7092c9614d5367dc135543508c87c897fd683943d44e99",
     }
     lock_text = LOCK.read_text(encoding="utf-8")
     assert "requires-python = \"==3.12.*\"" in lock_text

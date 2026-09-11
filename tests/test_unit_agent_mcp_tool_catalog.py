@@ -11,12 +11,12 @@ from pydantic_ai.models.test import TestModel
 
 from api.deps import get_current_user_id
 from api.platform import router as platform_router
-from xhs_food.composition import build_composition_root
-from xhs_food.composition.agent_tools import (
+from food_agent.composition import build_composition_root
+from food_agent.composition.agent_tools import (
     AccountServiceAgentToolCatalog,
     build_agent_tool_policy,
 )
-from xhs_food.contracts import (
+from food_agent.contracts import (
     AgentDependencies,
     AgentRunRequest,
     AgentToolCatalogSnapshot,
@@ -30,8 +30,8 @@ from xhs_food.contracts import (
     ToolCall,
     ToolResult,
 )
-from xhs_food.foundation import TargetSettings
-from xhs_food.orchestrator.agent_runtime import PydanticAIAgentRuntime
+from food_agent.foundation import TargetSettings
+from food_agent.orchestrator.agent_runtime import PydanticAIAgentRuntime
 
 pytestmark = pytest.mark.unit
 

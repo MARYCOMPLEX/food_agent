@@ -118,10 +118,10 @@
     }
   },
   "publicExports": {
-    "xhs_food": ["XHSFoodOrchestrator", "XHSFoodState", "FoodSearchIntent", "XHSFoodResponse", "RestaurantRecommendation", "SearchPhase", "CommentWeight", "CrossValidationResult", "RecommendationLevel", "WanghongScore", "FollowUpType", "ConversationContext"],
-    "xhs_food.schemas": ["WanghongScore", "SearchPhase", "RecommendationLevel", "FollowUpType", "CommentWeight", "CrossValidationResult", "ConversationContext", "FoodSearchIntent", "XHSNote", "RestaurantInfo", "WanghongAnalysis", "MustTryItem", "BlackListItem", "ShopStats", "RestaurantRecommendation", "XHSFoodResponse"],
-    "xhs_food.agents": ["IntentParserAgent", "IntentParseResult", "AnalyzerAgent", "AnalyzeResult", "POIEnricherAgent", "EnrichedRestaurant", "get_poi_enricher"],
-    "xhs_food.services": ["LLMService", "RedisMemory", "ChatMessage", "PostgresStorage", "ChatHistoryRecord", "SessionManager", "get_session_manager", "UserStorageService", "get_user_storage_service", "ProcessedComment", "preprocess_comments", "extract_likes_from_text", "calculate_interaction_score", "format_comments_for_llm", "CommentAnalysis", "CommentScore", "ShopScore", "calculate_scores", "calculate_comment_score", "get_top_shops"],
-    "xhs_food.events": ["SearchEvent", "SearchEventType", "EventBus", "InMemoryEventBus", "RedisStreamEventBus", "get_event_bus", "SearchEventEmitter", "get_emitter", "remove_emitter"]
+    "food_agent": ["XHSFoodOrchestrator", "XHSFoodState", "FoodSearchIntent", "XHSFoodResponse", "RestaurantRecommendation", "SearchPhase", "CommentWeight", "CrossValidationResult", "RecommendationLevel", "WanghongScore", "FollowUpType", "ConversationContext"],
+    "food_agent.schemas": ["WanghongScore", "SearchPhase", "RecommendationLevel", "FollowUpType", "CommentWeight", "CrossValidationResult", "ConversationContext", "FoodSearchIntent", "XHSNote", "RestaurantInfo", "WanghongAnalysis", "MustTryItem", "BlackListItem", "ShopStats", "RestaurantRecommendation", "XHSFoodResponse"],
+    "food_agent.agents": ["IntentParserAgent", "IntentParseResult", "AnalyzerAgent", "AnalyzeResult", "POIEnricherAgent", "EnrichedRestaurant", "get_poi_enricher"],
+    "food_agent.services": ["LLMService", "RedisMemory", "ChatMessage", "PostgresStorage", "ChatHistoryRecord", "SessionManager", "get_session_manager", "UserStorageService", "get_user_storage_service", "ProcessedComment", "preprocess_comments", "extract_likes_from_text", "calculate_interaction_score", "format_comments_for_llm", "CommentAnalysis", "CommentScore", "ShopScore", "calculate_scores", "calculate_comment_score", "get_top_shops"],
+    "food_agent.events": ["SearchEvent", "SearchEventType", "EventBus", "InMemoryEventBus", "RedisStreamEventBus", "get_event_bus", "SearchEventEmitter", "get_emitter", "remove_emitter"]
   }
 }

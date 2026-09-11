@@ -12,7 +12,7 @@ from sqlalchemy import Table, inspect, text
 from sqlalchemy.exc import NoSuchTableError
 
 from alembic import context, op
-from xhs_food.foundation.legacy_schema import LEGACY_TABLES
+from food_agent.foundation.legacy_schema import LEGACY_TABLES
 
 revision = "20260825_0008_legacy_schema"
 down_revision = "20260824_0007_b3_personalization_memory"

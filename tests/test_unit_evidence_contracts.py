@@ -11,7 +11,7 @@ import pytest
 from jsonschema import Draft202012Validator, FormatChecker
 from pydantic import ValidationError
 
-from xhs_food.contracts import (
+from food_agent.contracts import (
     AuthorityModel,
     BundleState,
     CanonicalAuthor,
@@ -26,7 +26,7 @@ from xhs_food.contracts import (
     PublicConstraint,
     SourceLocator,
 )
-from xhs_food.contracts import evidence as evidence_module
+from food_agent.contracts import evidence as evidence_module
 
 AUTHORITY = Path(__file__).parent / "fixtures" / "authority"
 
@@ -594,7 +594,7 @@ def test_nested_json_is_deeply_immutable_and_model_copy_revalidates() -> None:
 
 
 def test_evidence_module_and_top_level_exports_are_identical() -> None:
-    from xhs_food import contracts
+    from food_agent import contracts
 
     assert set(evidence_module.__all__).issubset(set(contracts.__all__))
     assert all(hasattr(contracts, name) for name in evidence_module.__all__)

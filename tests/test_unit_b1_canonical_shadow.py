@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from xhs_food.domain_packs.food.pack import FoodPack
-from xhs_food.evidence import CanonicalQueryNormalizer, UnclassifiedConstraintError
+from food_agent.domain_packs.food.pack import FoodPack
+from food_agent.evidence import CanonicalQueryNormalizer, UnclassifiedConstraintError
 
 FIXTURES = Path(__file__).parent / "fixtures" / "authority"
 

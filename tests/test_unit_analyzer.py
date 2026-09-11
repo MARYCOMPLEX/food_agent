@@ -1,4 +1,4 @@
-"""Unit tests for :class:`xhs_food.agents.analyzer.AnalyzerAgent`.
+"""Unit tests for :class:`food_agent.agents.analyzer.AnalyzerAgent`.
 
 These tests verify the 3-stage pipeline end-to-end with a stubbed LLM
 and a small, deterministic comment list. The focus is the WanghongScore
@@ -10,8 +10,8 @@ from __future__ import annotations
 import json
 from typing import Any, Dict, List
 
-from xhs_food.agents.analyzer import AnalyzerAgent
-from xhs_food.schemas import WanghongScore
+from food_agent.agents.analyzer import AnalyzerAgent
+from food_agent.schemas import WanghongScore
 
 
 def _build_comments(texts: List[str]) -> List[Dict[str, Any]]:

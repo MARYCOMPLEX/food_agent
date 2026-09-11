@@ -19,7 +19,7 @@ def test_release_dockerfile_is_python312_and_non_root() -> None:
     assert "uv sync --no-dev --frozen" in text
     assert "COPY src/ /app/src/" in text
     assert "node-deps" not in text
-    assert "xhs_food/auth" not in text
+    assert "food_agent/auth" not in text
     assert ".xhs_profiles" not in text
     assert "CREATE TABLE" not in text
     assert "CMD [\"uvicorn\", \"api.main:app\"" in text

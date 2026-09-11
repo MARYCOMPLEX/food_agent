@@ -8,19 +8,19 @@ from pathlib import Path
 
 import pytest
 
-from xhs_food.contracts import (
+from food_agent.contracts import (
     EvidenceItem,
     IsolationCoordinates,
     SourceLocator,
 )
-from xhs_food.evidence import (
+from food_agent.evidence import (
     CanonicalSourceBatchNormalizer,
     EvidenceQuarantineError,
     SourceNormalizationError,
     quarantine_evidence,
     validate_evidence_provenance,
 )
-from xhs_food.evidence.source import evidence_content_hash
+from food_agent.evidence.source import evidence_content_hash
 
 FIXTURE = Path(__file__).parent / "fixtures" / "authority" / "evidence_bundle_v1.json"
 NOW = datetime(2026, 8, 24, tzinfo=UTC)

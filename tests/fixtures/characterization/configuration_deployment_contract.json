@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "settings": {
-    "source": "src/xhs_food/config.py",
+    "source": "src/food_agent/config.py",
     "model_config": {
       "env_file": ".env",
       "env_file_encoding": "utf-8",

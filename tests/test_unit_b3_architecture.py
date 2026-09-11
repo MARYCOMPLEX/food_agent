@@ -8,11 +8,11 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from xhs_food.contracts import PersonalizedRanking
-from xhs_food.foundation.memory_schema import B3_MEMORY_TABLES
+from food_agent.contracts import PersonalizedRanking
+from food_agent.foundation.memory_schema import B3_MEMORY_TABLES
 
 ROOT = Path(__file__).parents[1]
-SRC = ROOT / "src" / "xhs_food"
+SRC = ROOT / "src" / "food_agent"
 
 
 @pytest.mark.unit

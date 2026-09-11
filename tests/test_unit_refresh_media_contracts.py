@@ -9,8 +9,8 @@ from datetime import UTC, datetime
 import pytest
 from pydantic import ValidationError
 
-import xhs_food.contracts as contracts
-from xhs_food.contracts import (
+import food_agent.contracts as contracts
+from food_agent.contracts import (
     EvidenceExtractionRequest,
     EvidenceExtractor,
     MediaAsset,
@@ -22,7 +22,7 @@ from xhs_food.contracts import (
     RefreshPriorityReason,
     WorkloadPort,
 )
-from xhs_food.contracts.evidence import (
+from food_agent.contracts.evidence import (
     DerivedArtifact,
     EvidenceLicense,
     EvidenceVisibility,
@@ -34,7 +34,7 @@ from xhs_food.contracts.evidence import (
     SourceLocator,
     VisibilityScope,
 )
-from xhs_food.contracts.ports import ObjectRef
+from food_agent.contracts.ports import ObjectRef
 
 NOW = datetime(2026, 8, 19, 12, 0, tzinfo=UTC)
 HASH = "a" * 64

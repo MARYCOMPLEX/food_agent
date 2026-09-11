@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from xhs_food.contracts import SourceEnvelope
-from xhs_food.domain_packs.food.adaptive_pack import (
+from food_agent.contracts import SourceEnvelope
+from food_agent.domain_packs.food.adaptive_pack import (
     FoodAdaptivePack,
     FoodClaimType,
     FoodEvidenceType,

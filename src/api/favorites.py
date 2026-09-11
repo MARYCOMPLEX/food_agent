@@ -12,7 +12,7 @@ from fastapi import APIRouter, Path, Depends
 
 from api.schemas import FavoriteAddRequest, FavoriteResponse
 from api.deps import get_current_user_id, get_storage
-from xhs_food.services.user_storage import UserStorageService
+from food_agent.services.user_storage import UserStorageService
 
 router = APIRouter(prefix="/v1/favorites", tags=["favorites"])
 

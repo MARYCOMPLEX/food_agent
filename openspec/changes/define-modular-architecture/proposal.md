@@ -41,6 +41,6 @@
 
 ## Impact
 
-- 规划涉及未来对 `src/api`、`src/xhs_food/orchestrator`、`agents`、`services`、`spider`、`schemas`、`events`、`providers`、`frontend`、数据库迁移、队列/缓存和测试目录的分阶段调整。
+- 规划涉及未来对 `src/api`、`src/food_agent/orchestrator`、`agents`、`services`、`spider`、`schemas`、`events`、`providers`、`frontend`、数据库迁移、队列/缓存和测试目录的分阶段调整。
 - 未来实现将新增模块端口、Domain Pack 注册、Query Family/Evidence Bundle 持久化与刷新协调能力，但应通过适配器保持现有 API、SSE、存储数据和配置合同。
 - 本 proposal 不新增运行时依赖、不执行数据迁移、不修改部署拓扑或生产代码。

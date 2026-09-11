@@ -9,13 +9,13 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from xhs_food.contracts import ContractError, ErrorCategory, ErrorScope
-from xhs_food.events.bus import (
+from food_agent.contracts import ContractError, ErrorCategory, ErrorScope
+from food_agent.events.bus import (
     STREAM_START,
     EventBusDependencyError,
     InMemoryEventBus,
 )
-from xhs_food.events.types import SearchEvent, SearchEventType
+from food_agent.events.types import SearchEvent, SearchEventType
 
 FIXTURES = Path(__file__).parent / "fixtures" / "sse_characterization"
 

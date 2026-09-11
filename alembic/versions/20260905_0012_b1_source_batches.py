@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from alembic import op
-from xhs_food.foundation.evidence_schema import B1_SOURCE_BATCH_TABLES
+from food_agent.foundation.evidence_schema import B1_SOURCE_BATCH_TABLES
 
 revision = "20260905_0012_b1_source_batches"
 down_revision = "20260905_0011_b2_freshness_watermark"

@@ -138,7 +138,7 @@ def _block_external_network(
 @pytest.fixture
 def settings_override():
     """Yield a fresh, mutable Settings instance and reset the cached singleton."""
-    from xhs_food.config import get_settings
+    from food_agent.config import get_settings
 
     get_settings.cache_clear()
     settings = get_settings()
@@ -191,7 +191,7 @@ async def mock_llm() -> FakeLLMService:
 @pytest.fixture
 def event_bus():
     """Return a fresh in-memory event bus per-test."""
-    from xhs_food.events.bus import InMemoryEventBus
+    from food_agent.events.bus import InMemoryEventBus
 
     return InMemoryEventBus()
 

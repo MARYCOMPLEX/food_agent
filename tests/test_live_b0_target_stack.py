@@ -14,32 +14,32 @@ from sqlalchemy import text
 from temporalio.client import Client
 from temporalio.contrib.pydantic import pydantic_data_converter
 
-from xhs_food.composition import build_reliable_research_worker
-from xhs_food.composition.adapters import (
+from food_agent.composition import build_reliable_research_worker
+from food_agent.composition.adapters import (
     PostgresReliableTaskAuthority,
     PostgresReliableTaskStore,
     PostgresTaskProgressProjectionStore,
     ReliableTaskEventBusPublisher,
 )
-from xhs_food.contracts import (
+from food_agent.contracts import (
     ContractPayload,
     RequestIdentity,
     RequestPolicy,
     ResearchOperation,
     ResearchRequest,
 )
-from xhs_food.foundation import (
+from food_agent.foundation import (
     RedisEventBusAdapter,
     SQLAlchemyDatabase,
     TemporalTaskQueues,
     TemporalWorkflowAdapter,
 )
-from xhs_food.orchestrator import (
+from food_agent.orchestrator import (
     ReliableResearchActivities,
     ResearchWorkflowOutput,
     stable_research_task_id,
 )
-from xhs_food.orchestrator.coordinator import ResearchCoordinator
+from food_agent.orchestrator.coordinator import ResearchCoordinator
 
 
 class _LegacyPort:
@@ -133,7 +133,7 @@ async def test_target_stack_pg_commit_survives_redis_loss_and_reconciles() -> No
             task_queues=TemporalTaskQueues(),
             enabled=True,
         )
-        from xhs_food.orchestrator import TemporalReliableResearchPolicy
+        from food_agent.orchestrator import TemporalReliableResearchPolicy
 
         policy = TemporalReliableResearchPolicy(workflow_port)
 

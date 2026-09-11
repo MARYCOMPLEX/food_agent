@@ -6,11 +6,11 @@ from typing import Any
 
 import pytest
 
-from xhs_food.composition.adapters import TravelOutputAdapter, build_travel_tool_gateway
-from xhs_food.composition.domain_packs import DomainPackRegistry
-from xhs_food.contracts import ToolCall
-from xhs_food.domain_packs.food import create_food_pack, load_food_contract_resources
-from xhs_food.domain_packs.travel import (
+from food_agent.composition.adapters import TravelOutputAdapter, build_travel_tool_gateway
+from food_agent.composition.domain_packs import DomainPackRegistry
+from food_agent.contracts import ToolCall
+from food_agent.domain_packs.food import create_food_pack, load_food_contract_resources
+from food_agent.domain_packs.travel import (
     create_travel_pack,
     load_travel_contract_resources,
 )

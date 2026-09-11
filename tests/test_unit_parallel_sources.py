@@ -8,14 +8,14 @@ from typing import Any
 
 import pytest
 
-from xhs_food.contracts import (
+from food_agent.contracts import (
     PlatformChannel,
     ResearchOutcome,
     ResourceClass,
     SourceCall,
 )
-from xhs_food.domain_packs.food.intent import FoodSearchIntent
-from xhs_food.research.sources import (
+from food_agent.domain_packs.food.intent import FoodSearchIntent
+from food_agent.research.sources import (
     AdaptiveQueryPlanner,
     DianpingMcpSource,
     DianpingShopEnricher,

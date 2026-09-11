@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from xhs_food.contracts import (
+from food_agent.contracts import (
     BGE_M3_PROFILE_V1,
     QueryFamilyMatch,
     QueryMatchLayer,
@@ -17,7 +17,7 @@ from xhs_food.contracts import (
     stable_refresh_claim_key,
     stable_refresh_workflow_id,
 )
-from xhs_food.evidence import QueryFamilyReuseService, QueryReuseReadService
+from food_agent.evidence import QueryFamilyReuseService, QueryReuseReadService
 
 
 class _Repository:

@@ -8,13 +8,13 @@ from typing import Any
 
 import pytest
 
-from xhs_food.events.bus import (
+from food_agent.events.bus import (
     STREAM_START,
     InMemoryEventBus,
     RedisStreamEventBus,
 )
-from xhs_food.events.emitter import SearchEventEmitter
-from xhs_food.events.types import SearchEvent, SearchEventType
+from food_agent.events.emitter import SearchEventEmitter
+from food_agent.events.types import SearchEvent, SearchEventType
 
 
 async def _collect(
@@ -153,8 +153,8 @@ async def test_same_session_refine_keeps_old_done_in_event_log(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Freeze stale-DONE replay: refine resets the emitter, not its bus stream."""
-    from xhs_food.composition import research_task
-    from xhs_food.composition.research_task import ResearchTaskFacade
+    from food_agent.composition import research_task
+    from food_agent.composition.research_task import ResearchTaskFacade
 
     bus = InMemoryEventBus()
     emitter = SearchEventEmitter("refine-session", bus)

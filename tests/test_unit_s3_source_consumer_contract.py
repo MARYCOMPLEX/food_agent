@@ -6,8 +6,8 @@ from typing import Any
 
 import pytest
 
-from xhs_food.contracts import PlatformChannel, SourceCall
-from xhs_food.research.sources import DianpingMcpSource, XhsMcpSource
+from food_agent.contracts import PlatformChannel, SourceCall
+from food_agent.research.sources import DianpingMcpSource, XhsMcpSource
 
 
 class _Session:

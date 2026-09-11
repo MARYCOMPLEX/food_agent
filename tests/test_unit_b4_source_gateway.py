@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from xhs_food.contracts import (
+from food_agent.contracts import (
     CanonicalSourceBatch,
     CanonicalSourceDocument,
     CollectRequest,
@@ -16,7 +16,7 @@ from xhs_food.contracts import (
     ErrorScope,
     IsolationCoordinates,
 )
-from xhs_food.gateways import InMemorySourceControl, SourceGateway
+from food_agent.gateways import InMemorySourceControl, SourceGateway
 
 
 def _request() -> CollectRequest:

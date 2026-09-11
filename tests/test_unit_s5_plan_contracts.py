@@ -7,7 +7,7 @@ import json
 import pytest
 from pydantic import ValidationError
 
-from xhs_food.contracts import (
+from food_agent.contracts import (
     PlanBudget,
     PlanStatus,
     PlanStepStatus,

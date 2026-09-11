@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from xhs_food.contracts import EvaluationDataset
-from xhs_food.foundation import DeterministicEvaluator
+from food_agent.contracts import EvaluationDataset
+from food_agent.foundation import DeterministicEvaluator
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_ROOT = ROOT / "openspec" / "changes" / "enable-evidence-reuse-memory-phoenix"

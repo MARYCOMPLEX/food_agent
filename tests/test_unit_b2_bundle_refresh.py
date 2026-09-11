@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from xhs_food.contracts import (
+from food_agent.contracts import (
     BGE_M3_PROFILE_V1,
     DeltaCollectionResult,
     EmbeddingProfile,
@@ -20,7 +20,7 @@ from xhs_food.contracts import (
     RefreshPriorityReason,
     validate_candidate_bundle,
 )
-from xhs_food.evidence import BundleRefreshService, InMemoryBundleDerivationRepository
+from food_agent.evidence import BundleRefreshService, InMemoryBundleDerivationRepository
 
 FIXTURE = Path(__file__).parent / "fixtures" / "authority" / "evidence_bundle_v1.json"
 
@@ -77,7 +77,7 @@ class _ActivationRepository:
     async def get_current_bundle(self, family_id: str):
         if family_id != self.bundle.family_id:
             return None
-        from xhs_food.contracts import CurrentBundleRef
+        from food_agent.contracts import CurrentBundleRef
 
         return CurrentBundleRef(
             family_id=self.bundle.family_id,

@@ -7,13 +7,13 @@ from typing import Any
 
 import pytest
 
-from xhs_food.composition.adapters import MemorySessionProjection
-from xhs_food.contracts import (
+from food_agent.composition.adapters import MemorySessionProjection
+from food_agent.contracts import (
     MemoryConversationTurn,
     MemorySessionWindowPort,
     UserIsolationKey,
 )
-from xhs_food.foundation import RedisHotStateContract, RedisUserSessionWindow
+from food_agent.foundation import RedisHotStateContract, RedisUserSessionWindow
 
 
 def _scope(user_id: str = "user-2b4aa1b95c884d64") -> UserIsolationKey:

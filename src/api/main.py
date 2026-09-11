@@ -24,7 +24,7 @@ from slowapi.util import get_remote_address
 
 load_dotenv()
 
-from xhs_food.config import settings  # noqa: E402 — must come after load_dotenv
+from food_agent.config import settings  # noqa: E402 — must come after load_dotenv
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -71,7 +71,7 @@ def _configure_logging() -> None:
             logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
 
     logging.basicConfig(handlers=[_InterceptHandler()], level=logging.DEBUG, force=True)
-    for name in ("xhs_food", "api", "uvicorn.access"):
+    for name in ("food_agent", "api", "uvicorn.access"):
         logging.getLogger(name).setLevel(logging.DEBUG)
 
 
@@ -95,7 +95,7 @@ from api.history import router as history_router  # noqa: E402
 from api.platform import router as platform_router  # noqa: E402
 from api.search import router as search_router  # noqa: E402
 from api.user import router as user_router  # noqa: E402
-from xhs_food.observability import (  # noqa: E402
+from food_agent.observability import (  # noqa: E402
     http_request_duration_seconds,
     http_requests_total,
     metrics_router,
@@ -112,14 +112,14 @@ async def lifespan(application: FastAPI):
 
     if not settings.openai_api_key:
         logger.warning("OPENAI_API_KEY not set — LLM calls will fail")
-    from xhs_food.composition import (
+    from food_agent.composition import (
         build_composition_root,
         build_reliable_runtime_bindings,
     )
-    from xhs_food.events.bus import get_event_bus, shutdown_event_bus
-    from xhs_food.foundation import TargetSettings
-    from xhs_food.services import get_session_manager
-    from xhs_food.services.user_storage import get_user_storage_service
+    from food_agent.events.bus import get_event_bus, shutdown_event_bus
+    from food_agent.foundation import TargetSettings
+    from food_agent.services import get_session_manager
+    from food_agent.services.user_storage import get_user_storage_service
 
     target_settings = TargetSettings()
     reliable_runtime = None
@@ -169,7 +169,7 @@ async def lifespan(application: FastAPI):
             )
         except Exception as exc:
             logger.warning("Evaluation gateway startup degraded: {}", type(exc).__name__)
-    from xhs_food.composition.account_services import (
+    from food_agent.composition.account_services import (
         AccountServiceRegistry,
         RemoteAccountServiceFacade,
     )
@@ -190,7 +190,7 @@ async def lifespan(application: FastAPI):
             "agent_tool_catalog"
         )
     from api.search.state import configure_orchestrator_factory
-    from xhs_food.orchestrator import XHSFoodOrchestrator
+    from food_agent.orchestrator import XHSFoodOrchestrator
 
     research_workflow = await composition_root.resolve_logical("research_agent")
     application.state.research_agent = research_workflow

@@ -14,13 +14,13 @@ from typing import Any
 import pytest
 
 from api.search import state as state_mod
-from xhs_food.events import bus as bus_mod
-from xhs_food.events.types import SearchEvent, SearchEventType
-from xhs_food.services import postgres_storage as postgres_mod
-from xhs_food.services import redis_memory as redis_memory_mod
-from xhs_food.services.postgres_storage import ChatHistoryRecord, PostgresStorage
-from xhs_food.services.redis_memory import RedisMemory
-from xhs_food.services.session_manager import SessionManager
+from food_agent.events import bus as bus_mod
+from food_agent.events.types import SearchEvent, SearchEventType
+from food_agent.services import postgres_storage as postgres_mod
+from food_agent.services import redis_memory as redis_memory_mod
+from food_agent.services.postgres_storage import ChatHistoryRecord, PostgresStorage
+from food_agent.services.redis_memory import RedisMemory
+from food_agent.services.session_manager import SessionManager
 
 
 @dataclass
@@ -453,8 +453,8 @@ async def test_application_lifespan_continues_with_legacy_degraded_dependencies(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from api import main as main_mod
-    from xhs_food import services as services_mod
-    from xhs_food.services import user_storage as user_storage_mod
+    from food_agent import services as services_mod
+    from food_agent.services import user_storage as user_storage_mod
 
     calls: list[str] = []
 

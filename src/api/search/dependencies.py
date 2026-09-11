@@ -6,7 +6,7 @@ from typing import cast
 
 from fastapi import Request
 
-from xhs_food.contracts import ReliableResearchTaskPort, ResearchTaskPort
+from food_agent.contracts import ReliableResearchTaskPort, ResearchTaskPort
 
 
 def get_research_task(request: Request) -> ResearchTaskPort:

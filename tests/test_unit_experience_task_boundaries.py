@@ -14,8 +14,8 @@ from fastapi.testclient import TestClient
 from api.schemas import UnifiedSearchRequest
 from api.search import routes
 from api.search.dependencies import get_research_task
-from xhs_food.composition import build_composition_root
-from xhs_food.contracts import (
+from food_agent.composition import build_composition_root
+from food_agent.contracts import (
     ContextMessage,
     ExplicitRefreshUseCase,
     RecommendationSnapshot,
@@ -25,8 +25,8 @@ from xhs_food.contracts import (
     ResearchTaskNotFoundError,
     ResearchTaskPort,
 )
-from xhs_food.orchestrator import XHSFoodOrchestrator
-from xhs_food.schemas import ConversationContext
+from food_agent.orchestrator import XHSFoodOrchestrator
+from food_agent.schemas import ConversationContext
 
 ROOT = Path(__file__).parents[1]
 
@@ -280,12 +280,12 @@ def test_search_routes_do_not_import_legacy_task_state_or_orchestrator_implement
             "api.search.tasks",
             ".state",
             ".tasks",
-            "xhs_food.composition.legacy_research_task",
-            "xhs_food.orchestrator",
-            "xhs_food.orchestrator.core",
+            "food_agent.composition.legacy_research_task",
+            "food_agent.orchestrator",
+            "food_agent.orchestrator.core",
         }
     )
-    assert "xhs_food.contracts" in imported
+    assert "food_agent.contracts" in imported
 
 
 async def test_refine_maps_only_the_contract_not_found_error_to_404() -> None:

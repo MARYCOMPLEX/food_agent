@@ -12,7 +12,7 @@ from typing import Any
 
 import pytest
 
-from xhs_food.contracts import (
+from food_agent.contracts import (
     AnalyzeCommentBatch,
     ResearchActionResult,
     ResearchEvent,
@@ -22,7 +22,7 @@ from xhs_food.contracts import (
     XhsNoteLead,
     reduce_research_event,
 )
-from xhs_food.research.resource_limits import (
+from food_agent.research.resource_limits import (
     CircuitBreaker,
     CircuitState,
     ResourcePool,
@@ -30,7 +30,7 @@ from xhs_food.research.resource_limits import (
     RetryableResourceError,
     RuntimeBudget,
 )
-from xhs_food.research.runtime import ResearchRuntime, ResearchRuntimeConfig
+from food_agent.research.runtime import ResearchRuntime, ResearchRuntimeConfig
 
 
 @pytest.mark.unit

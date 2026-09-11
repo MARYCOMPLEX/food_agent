@@ -3,15 +3,15 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from xhs_food.contracts import PlatformChannel
-from xhs_food.contracts.account_service import (
+from food_agent.contracts import PlatformChannel
+from food_agent.contracts.account_service import (
     MCP_PROTOCOL_VERSION,
     AccountServiceConfig,
     McpToolDescriptor,
     RemoteErrorCategory,
     RemoteSideEffect,
 )
-from xhs_food.gateways.account_service import McpAccountServiceClient, RemoteAccountServiceError
+from food_agent.gateways.account_service import McpAccountServiceClient, RemoteAccountServiceError
 
 
 def _config() -> AccountServiceConfig:

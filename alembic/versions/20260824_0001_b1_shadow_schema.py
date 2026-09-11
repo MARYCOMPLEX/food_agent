@@ -6,7 +6,7 @@ from sqlalchemy import MetaData
 from sqlalchemy.schema import CreateIndex, CreateTable, DropIndex
 
 from alembic import op
-from xhs_food.foundation.evidence_schema import B1_SHADOW_TABLES
+from food_agent.foundation.evidence_schema import B1_SHADOW_TABLES
 
 revision = "20260824_0001_b1_shadow"
 down_revision = None

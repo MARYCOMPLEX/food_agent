@@ -9,21 +9,21 @@ from typing import Any
 
 import pytest
 
-import xhs_food.composition.domain_packs as domain_pack_composition
-from xhs_food.composition import build_composition_root
-from xhs_food.composition.adapters.food_output import LegacyFoodOutputAdapter
-from xhs_food.composition.domain_packs import (
+import food_agent.composition.domain_packs as domain_pack_composition
+from food_agent.composition import build_composition_root
+from food_agent.composition.adapters.food_output import LegacyFoodOutputAdapter
+from food_agent.composition.domain_packs import (
     DomainPackActivationError,
     DomainPackRegistry,
     discover_allowlisted_domain_packs,
 )
-from xhs_food.contracts import DomainRegistrationFailureCode
-from xhs_food.domain_packs.food import (
+from food_agent.contracts import DomainRegistrationFailureCode
+from food_agent.domain_packs.food import (
     FoodPack,
     create_food_pack,
     load_food_contract_resources,
 )
-from xhs_food.gateways import (
+from food_agent.gateways import (
     ProviderResult,
     SchemaToolGateway,
     ToolRegistration,

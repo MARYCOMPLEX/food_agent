@@ -11,9 +11,9 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
-from xhs_food.foundation.evidence_schema import SHADOW_METADATA
-from xhs_food.foundation.legacy_schema import LEGACY_METADATA
-from xhs_food.foundation.memory_schema import MEMORY_METADATA
+from food_agent.foundation.evidence_schema import SHADOW_METADATA
+from food_agent.foundation.legacy_schema import LEGACY_METADATA
+from food_agent.foundation.memory_schema import MEMORY_METADATA
 
 config = context.config
 if config.config_file_name is not None:

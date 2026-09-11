@@ -7,13 +7,13 @@ from datetime import UTC, datetime
 
 import pytest
 
-from xhs_food.contracts import (
+from food_agent.contracts import (
     ContractError,
     ErrorCategory,
     ErrorScope,
     TaskEvent,
 )
-from xhs_food.experience import EventMappingError, StableEventMapper
+from food_agent.experience import EventMappingError, StableEventMapper
 
 NOW = datetime(2026, 8, 20, tzinfo=UTC)
 

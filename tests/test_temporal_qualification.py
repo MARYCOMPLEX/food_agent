@@ -33,7 +33,7 @@ from temporalio.exceptions import ApplicationError, CancelledError
 from temporalio.testing import WorkflowEnvironment
 from temporalio.worker import Replayer, Worker
 
-from xhs_food.contracts import (
+from food_agent.contracts import (
     RequestIdentity,
     RequestPolicy,
     ResearchOperation,
@@ -41,7 +41,7 @@ from xhs_food.contracts import (
     WorkflowRun,
     WorkflowStart,
 )
-from xhs_food.orchestrator import (
+from food_agent.orchestrator import (
     InMemoryReliableTaskAuthority,
     InMemoryReliableTaskEventPublisher,
     ReliableResearchActivities,
@@ -49,7 +49,7 @@ from xhs_food.orchestrator import (
     TemporalResearchWorkflow,
     build_workflow_start,
 )
-from xhs_food.orchestrator.coordinator import ResearchCoordinator
+from food_agent.orchestrator.coordinator import ResearchCoordinator
 
 QUEUE = "research"
 
@@ -274,7 +274,7 @@ async def test_temporal_workflow_history_is_deterministic_and_replayable(tempora
 
 @pytest.mark.live
 async def test_temporal_adapter_duplicate_start_reuses_existing_workflow(temporal_env: Any) -> None:
-    from xhs_food.foundation import TemporalTaskQueues, TemporalWorkflowAdapter
+    from food_agent.foundation import TemporalTaskQueues, TemporalWorkflowAdapter
 
     command = WorkflowStart(
         workflow_id="b0-duplicate-admission-1",

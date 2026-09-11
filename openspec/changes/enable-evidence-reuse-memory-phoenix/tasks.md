@@ -2,7 +2,7 @@
 
 - [x] 1.1 Record the current branch, configuration, schema revision, test baseline, and the clean diff of `define-modular-architecture`; do not edit that change.
 - [x] 1.2 Add immutable configuration views and validation for B2 read mode, bounded OTel/Phoenix queue, batch, timeout, retry, sampling, and shutdown settings while preserving all existing defaults.
-- [x] 1.3 Define project-owned observation and evaluation ports plus versioned redacted observation/evaluation payloads in `src/xhs_food/contracts`; keep vendor SDK imports out of contracts and domain modules.
+- [x] 1.3 Define project-owned observation and evaluation ports plus versioned redacted observation/evaluation payloads in `src/food_agent/contracts`; keep vendor SDK imports out of contracts and domain modules.
 - [x] 1.4 Add a composition binding plan for B1, B2, B3, and observability adapters with explicit off/shadow/canary modes and fail-closed invalid configuration handling.
 - [x] 1.5 Add schema-state probing and additive migration fixtures for clean, N-1, current, and divergent PostgreSQL installations; stop safely on divergent state.
 - [x] 1.6 Create versioned qualification manifests and deterministic fixture datasets for B1, B2, B3, and observability, including public/private redaction cases.
@@ -48,7 +48,7 @@
 
 ## 5. Phoenix OSS observation backend and evaluation plane
 
-- [x] 5.1 Implement the observation-port adapter in `xhs_food.foundation` over the existing OpenTelemetry API/SDK and add the pinned OTLP/HTTP exporter dependency without leaking exporter types.
+- [x] 5.1 Implement the observation-port adapter in `food_agent.foundation` over the existing OpenTelemetry API/SDK and add the pinned OTLP/HTTP exporter dependency without leaking exporter types.
 - [x] 5.2 Implement versioned redaction before span creation and a recursive sink scrubber for automatic spans immediately before export, covering headers, URLs, exception events, resources, bodies, and bounded correlation fields.
 - [x] 5.3 Add bounded batch processing, queue saturation/drop policy, timeout/retry limits, malformed-record isolation, and one-deadline graceful shutdown flush.
 - [x] 5.4 Add Prometheus health/volume/drop metrics and redacted diagnostics for exporter state; keep existing `/metrics` behavior and business health independent of Phoenix.

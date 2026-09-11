@@ -12,7 +12,7 @@ from typing import Any
 
 import pytest
 
-from xhs_food.services.user_storage.search_results import SearchResultsMixin
+from food_agent.services.user_storage.search_results import SearchResultsMixin
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "database"
 SESSION_ID = "10000000-0000-0000-0000-000000000001"

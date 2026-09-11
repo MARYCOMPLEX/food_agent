@@ -20,7 +20,7 @@ DOCUMENTS_WITH_LOCAL_LINKS = (
     GUIDE,
     ROOT / "docs" / "account-services.md",
     ROOT / "src" / "api" / "README.md",
-    ROOT / "src" / "xhs_food" / "services" / "README.md",
+    ROOT / "src" / "food_agent" / "services" / "README.md",
 )
 HTTP_METHODS = frozenset({"get", "put", "post", "delete", "options", "head", "patch"})
 INVENTORY_ROW = re.compile(r"^\| `([A-Z]+)` \| `([^`]+)` \|", re.MULTILINE)

@@ -5,14 +5,14 @@ from typing import Any
 
 import pytest
 
-from xhs_food.composition.account_services import (
+from food_agent.composition.account_services import (
     AccountServiceRegistry,
     AccountServiceRegistryError,
     RemoteAccountServiceFacade,
     build_account_service_registry,
 )
-from xhs_food.contracts import PlatformChannel
-from xhs_food.contracts.account_service import (
+from food_agent.contracts import PlatformChannel
+from food_agent.contracts.account_service import (
     AccountServiceConfig,
     AccountServiceDescriptor,
     McpToolDescriptor,
@@ -202,8 +202,8 @@ def test_registry_parses_configuration_and_rejects_embedded_service_credentials(
 async def test_registry_keeps_http_healthy_when_mcp_discovery_is_down() -> None:
     class FailingMcp(_FakeMcp):
         async def list_tools(self) -> tuple[McpToolDescriptor, ...]:
-            from xhs_food.contracts.account_service import RemoteErrorCategory
-            from xhs_food.gateways.account_service import RemoteAccountServiceError
+            from food_agent.contracts.account_service import RemoteErrorCategory
+            from food_agent.gateways.account_service import RemoteAccountServiceError
 
             raise RemoteAccountServiceError(
                 RemoteErrorCategory.DEPENDENCY_UNAVAILABLE,

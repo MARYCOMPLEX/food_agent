@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from xhs_food.contracts import PersonalizationPolicy, UserIsolationKey
-from xhs_food.personalization import PersonalizationCapabilityResolver
+from food_agent.contracts import PersonalizationPolicy, UserIsolationKey
+from food_agent.personalization import PersonalizationCapabilityResolver
 
 
 def _policy(

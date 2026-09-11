@@ -5,9 +5,9 @@ import json
 import httpx
 import pytest
 
-from xhs_food.contracts import PlatformChannel
-from xhs_food.contracts.account_service import AccountServiceConfig, RemoteErrorCategory
-from xhs_food.gateways.account_service import HttpAccountServiceClient, RemoteAccountServiceError
+from food_agent.contracts import PlatformChannel
+from food_agent.contracts.account_service import AccountServiceConfig, RemoteErrorCategory
+from food_agent.gateways.account_service import HttpAccountServiceClient, RemoteAccountServiceError
 
 
 def _config() -> AccountServiceConfig:

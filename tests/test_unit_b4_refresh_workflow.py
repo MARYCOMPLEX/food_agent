@@ -8,16 +8,16 @@ from typing import Any
 
 import pytest
 
-from xhs_food.composition import build_refresh_worker
-from xhs_food.contracts import (
+from food_agent.composition import build_refresh_worker
+from food_agent.contracts import (
     BundleRefreshResult,
     RefreshDeltaScope,
     RefreshJob,
     RefreshPriorityReason,
     TemporalExecutionPolicy,
 )
-from xhs_food.foundation import TemporalTaskQueues, TemporalWorkerQuota
-from xhs_food.orchestrator import (
+from food_agent.foundation import TemporalTaskQueues, TemporalWorkerQuota
+from food_agent.orchestrator import (
     REFRESH_TASK_QUEUE,
     REFRESH_WORKFLOW_TYPE,
     RefreshActivities,
@@ -97,7 +97,7 @@ def test_refresh_composition_worker_registers_refresh_workflow_only(
         captured.update(kwargs)
         return object()
 
-    monkeypatch.setattr("xhs_food.foundation.build_temporal_refresh_worker", fake_worker)
+    monkeypatch.setattr("food_agent.foundation.build_temporal_refresh_worker", fake_worker)
     queues = TemporalTaskQueues(
         refresh_quota=TemporalWorkerQuota("refresh", 2, 2, 50, enabled=True)
     )

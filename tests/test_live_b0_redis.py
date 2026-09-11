@@ -12,8 +12,8 @@ from typing import Any, cast
 import pytest
 from redis import asyncio as aioredis
 
-from xhs_food.contracts import EventEnvelope
-from xhs_food.foundation import RedisEventBusAdapter, RedisHotStateContract, RedisReplayExpiredError
+from food_agent.contracts import EventEnvelope
+from food_agent.foundation import RedisEventBusAdapter, RedisHotStateContract, RedisReplayExpiredError
 
 
 @pytest.mark.live

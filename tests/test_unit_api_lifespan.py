@@ -180,11 +180,11 @@ def _patch_standard_lifespan_dependencies(
     bus: object,
     events: list[object],
 ) -> None:
-    import xhs_food.composition as composition
-    import xhs_food.events.bus as event_bus_module
-    import xhs_food.foundation as foundation
-    import xhs_food.services as services_module
-    import xhs_food.services.user_storage as storage_module
+    import food_agent.composition as composition
+    import food_agent.events.bus as event_bus_module
+    import food_agent.foundation as foundation
+    import food_agent.services as services_module
+    import food_agent.services.user_storage as storage_module
 
     def build_root(**kwargs: Any) -> _ObservabilityRoot:
         assert kwargs["target_settings"] is target_settings
@@ -216,10 +216,10 @@ async def test_reliable_lifespan_binds_target_runtime_without_legacy_event_bus(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import api.main as api_main
-    import xhs_food.composition as composition
-    import xhs_food.events.bus as event_bus_module
-    import xhs_food.services as services_module
-    import xhs_food.services.user_storage as storage_module
+    import food_agent.composition as composition
+    import food_agent.events.bus as event_bus_module
+    import food_agent.services as services_module
+    import food_agent.services.user_storage as storage_module
 
     calls: list[str] = []
     runtime = _Runtime(calls)
@@ -286,7 +286,7 @@ async def test_lifespan_starts_async_observation_and_flushes_before_business_clo
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import api.main as api_main
-    from xhs_food.foundation.config import TargetSettings
+    from food_agent.foundation.config import TargetSettings
 
     events: list[object] = []
     observation = _ObservationPort(events)
@@ -333,7 +333,7 @@ async def test_lifespan_observability_start_and_flush_failures_do_not_block_shut
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import api.main as api_main
-    from xhs_food.foundation.config import TargetSettings
+    from food_agent.foundation.config import TargetSettings
 
     events: list[object] = []
     observation = _ObservationPort(events, start_error=True, flush_delay=0.2)
@@ -377,7 +377,7 @@ async def test_lifespan_exporter_failures_are_logged_and_business_shutdown_conti
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import api.main as api_main
-    from xhs_food.foundation.config import TargetSettings
+    from food_agent.foundation.config import TargetSettings
 
     events: list[object] = []
     observation = _ObservationPort(events, flush_error=True)

@@ -7,16 +7,16 @@ from typing import Any
 
 from loguru import logger
 
-from xhs_food.contracts import (
+from food_agent.contracts import (
     AgentToolExecutionContext,
     ContextMessage,
     ResearchContextSnapshot,
     StableResultMapperPort,
 )
-from xhs_food.events import get_emitter
-from xhs_food.experience.results import StableResultMapper
-from xhs_food.services import get_session_manager, get_user_storage_service
-from xhs_food.services.user_storage import generate_restaurant_hash
+from food_agent.events import get_emitter
+from food_agent.experience.results import StableResultMapper
+from food_agent.services import get_session_manager, get_user_storage_service
+from food_agent.services.user_storage import generate_restaurant_hash
 
 from .state import get_orchestrator, load_state, update_state
 

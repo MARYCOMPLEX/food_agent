@@ -61,7 +61,7 @@ def _dockerfile_instructions(text: str) -> list[str]:
 def test_settings_names_defaults_and_model_config_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from xhs_food.config import Settings
+    from food_agent.config import Settings
 
     expected = _contract()["settings"]
     _clear_settings_env(monkeypatch, expected["env_names"])
@@ -80,7 +80,7 @@ def test_settings_precedence_is_init_then_environment_then_dotenv_then_default(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    from xhs_food.config import Settings
+    from food_agent.config import Settings
 
     expected = _contract()["settings"]
     _clear_settings_env(monkeypatch, expected["env_names"])
@@ -104,7 +104,7 @@ def test_settings_precedence_is_init_then_environment_then_dotenv_then_default(
 def test_env_example_names_and_known_parser_conflicts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from xhs_food.config import Settings
+    from food_agent.config import Settings
 
     contract = _contract()
     expected = contract["env_example"]
@@ -133,8 +133,8 @@ def test_documented_llm_providers_use_the_same_openai_compatible_adapter(
     monkeypatch: pytest.MonkeyPatch,
     provider_index: int,
 ) -> None:
-    from xhs_food.services import llm_service
-    from xhs_food.config import Settings
+    from food_agent.services import llm_service
+    from food_agent.config import Settings
 
     expected = _contract()["llm"]
     provider = expected["providers"][provider_index]
@@ -161,8 +161,8 @@ def test_documented_llm_providers_use_the_same_openai_compatible_adapter(
 
 
 def test_llm_model_constructor_argument_has_priority(monkeypatch: pytest.MonkeyPatch) -> None:
-    from xhs_food.config import Settings
-    from xhs_food.services import llm_service
+    from food_agent.config import Settings
+    from food_agent.services import llm_service
 
     LLMService = llm_service.LLMService
 

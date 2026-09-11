@@ -6,8 +6,8 @@ import asyncio
 import json
 from typing import Any
 
-from xhs_food.agents.analyzer import AnalyzerAgent
-from xhs_food.research.resource_limits import BudgetExceededError, ResourceCallTimeoutError
+from food_agent.agents.analyzer import AnalyzerAgent
+from food_agent.research.resource_limits import BudgetExceededError, ResourceCallTimeoutError
 
 
 class _Message:

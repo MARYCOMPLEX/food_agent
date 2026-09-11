@@ -15,15 +15,15 @@ from alembic.migration import MigrationContext
 from alembic.operations import Operations
 from sqlalchemy.dialects.postgresql import dialect as postgresql_dialect
 
-from xhs_food.composition.adapters import SQLAlchemyEvidenceShadowRepository
-from xhs_food.contracts import CanonicalSourceBatch
-from xhs_food.domain_packs.food.pack import FoodPack
-from xhs_food.evidence import (
+from food_agent.composition.adapters import SQLAlchemyEvidenceShadowRepository
+from food_agent.contracts import CanonicalSourceBatch
+from food_agent.domain_packs.food.pack import FoodPack
+from food_agent.evidence import (
     CanonicalQueryNormalizer,
     EvidenceShadowPolicy,
     build_shadow_record,
 )
-from xhs_food.foundation import SQLAlchemyUnitOfWork
+from food_agent.foundation import SQLAlchemyUnitOfWork
 
 ROOT = Path(__file__).parents[1]
 CANONICAL_FIXTURE = ROOT / "tests" / "fixtures" / "authority" / "canonical_query_v1.json"

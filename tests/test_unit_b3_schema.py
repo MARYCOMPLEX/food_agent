@@ -14,12 +14,12 @@ from alembic.migration import MigrationContext
 from alembic.operations import Operations
 from sqlalchemy.dialects import postgresql
 
-from xhs_food.composition.adapters import (
+from food_agent.composition.adapters import (
     MemoryAuthorityWriter,
     MemoryOutboxProjector,
     SQLAlchemyMemoryRepository,
 )
-from xhs_food.contracts import (
+from food_agent.contracts import (
     MemoryAuthorityWrite,
     MemoryConversationTurn,
     MemoryEvent,

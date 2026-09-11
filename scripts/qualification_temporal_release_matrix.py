@@ -76,7 +76,7 @@ class _OperatorQualificationWorkflow:
 
 
 def _queues():
-    from xhs_food.foundation import TemporalTaskQueues, TemporalWorkerQuota
+    from food_agent.foundation import TemporalTaskQueues, TemporalWorkerQuota
 
     return TemporalTaskQueues(
         research_quota=TemporalWorkerQuota("research", 2, 2, 100, enabled=True),
@@ -152,8 +152,8 @@ async def _cleanup_previous_probe_runs(client: Client) -> None:
 
 
 async def _operator_recovery(client: Client, queues) -> None:
-    from xhs_food.contracts import WorkflowRetryRequest, WorkflowStart
-    from xhs_food.foundation import TemporalWorkflowAdapter
+    from food_agent.contracts import WorkflowRetryRequest, WorkflowStart
+    from food_agent.foundation import TemporalWorkflowAdapter
 
     workflow_id = f"release-operator-{uuid4().hex}"
     async with Worker(

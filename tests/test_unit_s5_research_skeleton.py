@@ -9,7 +9,7 @@ import pytest
 from pydantic import ValidationError
 from pydantic_ai.models.test import TestModel
 
-from xhs_food.contracts import (
+from food_agent.contracts import (
     AgentDependencies,
     AgentOutput,
     AgentRunRequest,
@@ -32,7 +32,7 @@ from xhs_food.contracts import (
     TaskStatus,
     ToolResult,
 )
-from xhs_food.orchestrator.agent_runtime import (
+from food_agent.orchestrator.agent_runtime import (
     AgentBudgetExceededError,
     AgentOutputValidationError,
     AgentProviderError,
@@ -42,9 +42,9 @@ from xhs_food.orchestrator.agent_runtime import (
     PydanticAIAgentRuntime,
     ScriptedAgentRuntime,
 )
-from xhs_food.orchestrator.coordinator import ResearchCoordinator
-from xhs_food.orchestrator.projections import InMemoryTaskProgressProjectionStore
-from xhs_food.orchestrator.review import (
+from food_agent.orchestrator.coordinator import ResearchCoordinator
+from food_agent.orchestrator.projections import InMemoryTaskProgressProjectionStore
+from food_agent.orchestrator.review import (
     EvidenceReviewDecision,
     EvidenceReviewRequest,
     EvidenceReviewShell,
@@ -53,7 +53,7 @@ from xhs_food.orchestrator.review import (
     StoppingConditionShell,
     StoppingContext,
 )
-from xhs_food.orchestrator.scheduler import ScheduleResult, StepScheduler
+from food_agent.orchestrator.scheduler import ScheduleResult, StepScheduler
 
 NOW = datetime(2026, 8, 21, tzinfo=UTC)
 
@@ -363,7 +363,7 @@ async def test_coordinator_projection_counts_completed_steps_from_resumed_plan()
 @pytest.mark.unit
 async def test_projection_store_is_query_only_and_monotonic() -> None:
     store = InMemoryTaskProgressProjectionStore()
-    from xhs_food.contracts import TaskProgressProjection
+    from food_agent.contracts import TaskProgressProjection
 
     projection = TaskProgressProjection(
         task_id="task-1",

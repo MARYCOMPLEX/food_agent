@@ -8,14 +8,14 @@ from pathlib import Path
 
 import pytest
 
-from xhs_food.contracts import (
+from food_agent.contracts import (
     BGE_M3_PROFILE_V1,
     QueryFamilyMatch,
     QueryMatchLayer,
     QueryReuseRequest,
 )
-from xhs_food.domain_packs.food.pack import FoodPack
-from xhs_food.evidence import CanonicalQueryNormalizer, QueryFamilyReuseService
+from food_agent.domain_packs.food.pack import FoodPack
+from food_agent.evidence import CanonicalQueryNormalizer, QueryFamilyReuseService
 
 FIXTURE = Path(__file__).parent / "fixtures" / "authority" / "canonical_query_v1.json"
 

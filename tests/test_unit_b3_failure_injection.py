@@ -9,13 +9,13 @@ from typing import Any
 
 import pytest
 
-from xhs_food.composition.adapters import (
+from food_agent.composition.adapters import (
     MemoryAuthorityWriter,
     MemoryOutboxProjector,
     MemoryOutboxReplayer,
     SQLAlchemyMemoryRepository,
 )
-from xhs_food.contracts import (
+from food_agent.contracts import (
     MemoryAuthorityWrite,
     MemoryEvent,
     MemoryOutboxEvent,

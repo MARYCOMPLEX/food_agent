@@ -11,10 +11,10 @@ from typing import Any
 
 import pytest
 
-from xhs_food import __all__ as root_exports
-from xhs_food.contracts import ShopProfile
-from xhs_food.schemas import FoodSearchIntent, RestaurantRecommendation, XHSFoodResponse
-from xhs_food.services.user_storage.models import Restaurant, generate_restaurant_hash
+from food_agent import __all__ as root_exports
+from food_agent.contracts import ShopProfile
+from food_agent.schemas import FoodSearchIntent, RestaurantRecommendation, XHSFoodResponse
+from food_agent.services.user_storage.models import Restaurant, generate_restaurant_hash
 
 
 def test_public_exports_are_current_and_do_not_advertise_retired_routes() -> None:
@@ -43,7 +43,7 @@ def test_schema_keys_are_explicit_at_the_transport_boundary() -> None:
 
 def test_dianping_profile_identity_is_provider_based_and_phone_independent() -> None:
     profile = ShopProfile(provider_refs={"dianping": "dp-1"}, name="老店", phone="028-1")
-    from xhs_food.research.repository import profile_to_storage
+    from food_agent.research.repository import profile_to_storage
 
     first = profile_to_storage(profile)
     changed = profile_to_storage(profile.model_copy(update={"phone": "028-2"}))

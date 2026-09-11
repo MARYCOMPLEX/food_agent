@@ -12,7 +12,7 @@ import pytest
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
 
-from xhs_food.foundation import (
+from food_agent.foundation import (
     CURRENT_SCHEMA_REVISION,
     DEFAULT_CURRENT_SCHEMA_SIGNATURE,
     DEFAULT_N_MINUS_1_SCHEMA_SIGNATURE,

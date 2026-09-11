@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from xhs_food.composition.adapters import MemoryOutboxProjector
-from xhs_food.contracts import (
+from food_agent.composition.adapters import MemoryOutboxProjector
+from food_agent.contracts import (
     MemoryOutboxEvent,
     PersonalizationCanaryMode,
     PersonalizationCanarySettings,
@@ -15,7 +15,7 @@ from xhs_food.contracts import (
     PublicCandidate,
     UserIsolationKey,
 )
-from xhs_food.personalization import PersonalizationCanary, PersonalizedReranker
+from food_agent.personalization import PersonalizationCanary, PersonalizedReranker
 
 RUNBOOK = (
     Path(__file__).parents[1]

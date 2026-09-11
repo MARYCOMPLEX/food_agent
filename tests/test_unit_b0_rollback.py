@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import pytest
 
-from xhs_food.composition import build_composition_root
-from xhs_food.research.adaptive.food_workflow import AdaptiveFoodResearchWorkflow
+from food_agent.composition import build_composition_root
+from food_agent.research.adaptive.food_workflow import AdaptiveFoodResearchWorkflow
 
 
 @pytest.mark.unit
@@ -34,7 +34,7 @@ async def test_composition_root_exposes_named_research_boundaries_only() -> None
 def test_removed_search_route_modules_are_absent() -> None:
     from pathlib import Path
 
-    source_root = Path(__file__).parents[1] / "src" / "xhs_food"
+    source_root = Path(__file__).parents[1] / "src" / "food_agent"
     assert not (source_root / "orchestrator" / "follow_up.py").exists()
     assert not (source_root / "orchestrator" / "search_executor.py").exists()
     assert not (source_root / "services" / "amap_api.py").exists()

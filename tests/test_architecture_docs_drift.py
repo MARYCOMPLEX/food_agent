@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from xhs_food.composition.domain_packs import DomainPackRegistry
-from xhs_food.domain_packs import (
+from food_agent.composition.domain_packs import DomainPackRegistry
+from food_agent.domain_packs import (
     create_food_pack,
     create_travel_pack,
     load_food_contract_resources,

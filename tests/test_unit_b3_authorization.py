@@ -6,13 +6,13 @@ from datetime import UTC, datetime
 
 import pytest
 
-from xhs_food.contracts import (
+from food_agent.contracts import (
     AnonymousClaimReceipt,
     AnonymousClaimRequest,
     AnonymousIsolationKey,
     UserIsolationKey,
 )
-from xhs_food.personalization import AnonymousMemoryClaimService, MemoryScopeAuthorizer
+from food_agent.personalization import AnonymousMemoryClaimService, MemoryScopeAuthorizer
 
 
 def _anonymous_scope() -> AnonymousIsolationKey:

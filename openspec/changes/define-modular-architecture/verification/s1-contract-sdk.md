@@ -106,7 +106,7 @@ the implemented registries remains the explicit release task `14.16`.
 ## Tooling Gates
 
 - Ruff on every Python file added or modified by S1: passed.
-- Pyright on `src/xhs_food/contracts` and `src/xhs_food/composition`:
+- Pyright on `src/food_agent/contracts` and `src/food_agent/composition`:
   `0 errors, 0 warnings, 0 informations`.
 - Frontend ESLint: passed.
 - Frontend TypeScript and Vite production build: passed; 2,264 modules

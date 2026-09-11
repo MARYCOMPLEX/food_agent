@@ -8,17 +8,17 @@ from typing import Any
 
 import pytest
 
-from xhs_food.composition import ModularAdapterOverrides, build_composition_root
-from xhs_food.contracts import CanonicalQuery, CanonicalSourceBatch, CollectRequest, SourceLocator
-from xhs_food.evidence import (
+from food_agent.composition import ModularAdapterOverrides, build_composition_root
+from food_agent.contracts import CanonicalQuery, CanonicalSourceBatch, CollectRequest, SourceLocator
+from food_agent.evidence import (
     EvidenceShadowGate,
     EvidenceShadowPolicy,
     EvidenceShadowSettings,
     ShadowWriteRecord,
     build_shadow_connector_factory,
 )
-from xhs_food.foundation import TargetSettings
-from xhs_food.gateways import SourceGateway
+from food_agent.foundation import TargetSettings
+from food_agent.gateways import SourceGateway
 
 NOW = datetime(2026, 8, 24, tzinfo=UTC)
 

@@ -6,9 +6,9 @@ from typing import Any
 
 import pytest
 
-from xhs_food.composition import build_reliable_research_worker
-from xhs_food.foundation import TemporalTaskQueues, build_temporal_worker
-from xhs_food.orchestrator import ReliableTaskConfig
+from food_agent.composition import build_reliable_research_worker
+from food_agent.foundation import TemporalTaskQueues, build_temporal_worker
+from food_agent.orchestrator import ReliableTaskConfig
 
 
 class _WorkerFixture:
@@ -67,11 +67,11 @@ def test_reliable_research_worker_registers_workflow_activities_and_plugin(
         return object()
 
     monkeypatch.setattr(
-        "xhs_food.foundation.build_temporal_worker",
+        "food_agent.foundation.build_temporal_worker",
         fake_worker,
     )
     monkeypatch.setattr(
-        "xhs_food.orchestrator.reliable_task.pydantic_ai_worker_plugin",
+        "food_agent.orchestrator.reliable_task.pydantic_ai_worker_plugin",
         lambda: _Plugin(),
     )
 

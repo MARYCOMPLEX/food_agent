@@ -44,13 +44,13 @@
     "publicExports": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["xhs_food", "xhs_food.schemas", "xhs_food.agents", "xhs_food.services", "xhs_food.events"],
+      "required": ["food_agent", "food_agent.schemas", "food_agent.agents", "food_agent.services", "food_agent.events"],
       "properties": {
-        "xhs_food": {"$ref": "#/$defs/publicExportArray"},
-        "xhs_food.schemas": {"$ref": "#/$defs/publicExportArray"},
-        "xhs_food.agents": {"$ref": "#/$defs/publicExportArray"},
-        "xhs_food.services": {"$ref": "#/$defs/publicExportArray"},
-        "xhs_food.events": {"$ref": "#/$defs/publicExportArray"}
+        "food_agent": {"$ref": "#/$defs/publicExportArray"},
+        "food_agent.schemas": {"$ref": "#/$defs/publicExportArray"},
+        "food_agent.agents": {"$ref": "#/$defs/publicExportArray"},
+        "food_agent.services": {"$ref": "#/$defs/publicExportArray"},
+        "food_agent.events": {"$ref": "#/$defs/publicExportArray"}
       }
     }
   },

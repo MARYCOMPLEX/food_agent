@@ -111,7 +111,7 @@ The first instance must pass the binding check before draining the remaining
 B0 instances:
 
 ```powershell
-uv run --frozen python -c "import asyncio; from xhs_food.composition import build_legacy_composition_root; r=build_legacy_composition_root(); print(r.logical_bindings['modular_core']); print(r.logical_bindings.get('reliable_task_lifecycle')); asyncio.run(r.close())"
+uv run --frozen python -c "import asyncio; from food_agent.composition import build_legacy_composition_root; r=build_legacy_composition_root(); print(r.logical_bindings['modular_core']); print(r.logical_bindings.get('reliable_task_lifecycle')); asyncio.run(r.close())"
 ```
 
 The output must show `legacy/v1`/`LegacyResearchTaskFacade` and a disabled

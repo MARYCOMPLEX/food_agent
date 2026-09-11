@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import pytest
 
-from xhs_food.composition import (
+from food_agent.composition import (
     ModularAdapterOverrides,
     build_composition_root,
     build_modular_binding_plan,
 )
-from xhs_food.composition.adapters import build_owner_config
-from xhs_food.config import Settings
-from xhs_food.foundation import TargetSettings
+from food_agent.composition.adapters import build_owner_config
+from food_agent.config import Settings
+from food_agent.foundation import TargetSettings
 
 
 class _PortFixture:

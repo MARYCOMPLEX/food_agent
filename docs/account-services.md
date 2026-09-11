@@ -137,8 +137,8 @@ login resources remain the operational and durable authority.
 The deterministic fixture is intended for contract tests and local wiring only:
 
 ```python
-from xhs_food.account_services.fixture import create_fixture_app
-from xhs_food.contracts import PlatformChannel
+from food_agent.account_services.fixture import create_fixture_app
+from food_agent.contracts import PlatformChannel
 
 app = create_fixture_app(
     service_id="xhs-fixture",

@@ -11,7 +11,7 @@ Two layers:
   see consistent state.
 
 Long-term, completed-search data still lives in PostgreSQL
-(:mod:`xhs_food.services.user_storage`).
+(:mod:`food_agent.services.user_storage`).
 """
 
 from __future__ import annotations
@@ -25,8 +25,8 @@ from typing import Any, Protocol
 from cachetools import TTLCache
 from loguru import logger
 
-from xhs_food import XHSFoodOrchestrator
-from xhs_food.config import settings
+from food_agent import XHSFoodOrchestrator
+from food_agent.config import settings
 
 # ---------------------------------------------------------------------------
 # Orchestrator LRU

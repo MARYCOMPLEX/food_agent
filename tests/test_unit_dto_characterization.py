@@ -5,11 +5,11 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 
-from xhs_food.domain_packs.food.intent import FoodSearchIntent
-from xhs_food.research.repository import profile_to_storage
-from xhs_food.schemas import RestaurantRecommendation, XHSFoodResponse
-from xhs_food.services.user_storage.models import Restaurant, generate_restaurant_hash
-from xhs_food.services.user_storage.search_results import SearchResultsMixin
+from food_agent.domain_packs.food.intent import FoodSearchIntent
+from food_agent.research.repository import profile_to_storage
+from food_agent.schemas import RestaurantRecommendation, XHSFoodResponse
+from food_agent.services.user_storage.models import Restaurant, generate_restaurant_hash
+from food_agent.services.user_storage.search_results import SearchResultsMixin
 
 
 def test_food_intent_round_trips_and_has_stable_empty_defaults() -> None:
@@ -47,7 +47,7 @@ def test_recommendation_wire_shape_has_evidence_and_shop_profile() -> None:
 
 
 def test_shop_profile_storage_projection_keeps_structured_provider_fields() -> None:
-    from xhs_food.contracts import ShopProfile
+    from food_agent.contracts import ShopProfile
 
     profile = ShopProfile(
         provider_refs={"dianping": "dp-1"},

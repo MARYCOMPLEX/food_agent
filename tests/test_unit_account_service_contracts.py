@@ -5,8 +5,8 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from pydantic import ValidationError
 
-from xhs_food.contracts import PlatformChannel
-from xhs_food.contracts.account_service import (
+from food_agent.contracts import PlatformChannel
+from food_agent.contracts.account_service import (
     ACCOUNT_SERVICE_CONTRACT_VERSION,
     AccountServiceConfig,
     AccountServiceDescriptor,

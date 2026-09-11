@@ -7,8 +7,8 @@ from typing import Any
 
 import pytest
 
-from xhs_food.composition import build_media_worker, build_refresh_worker
-from xhs_food.contracts import (
+from food_agent.composition import build_media_worker, build_refresh_worker
+from food_agent.contracts import (
     FailedWorkflow,
     TemporalExecutionPolicy,
     WorkflowOperatorPort,
@@ -17,7 +17,7 @@ from xhs_food.contracts import (
     WorkflowStart,
     WorkflowTerminateRequest,
 )
-from xhs_food.foundation import (
+from food_agent.foundation import (
     TemporalTaskQueues,
     TemporalWorkerQuota,
     TemporalWorkflowAdapter,
@@ -60,7 +60,7 @@ def test_task_queues_keep_workloads_isolated_and_ordered() -> None:
 
 @pytest.mark.unit
 def test_research_policy_reuses_shared_temporal_execution_contract() -> None:
-    from xhs_food.orchestrator import ReliableTaskConfig
+    from food_agent.orchestrator import ReliableTaskConfig
 
     policy = ReliableTaskConfig(retry_maximum_attempts=5)
     assert isinstance(policy, TemporalExecutionPolicy)

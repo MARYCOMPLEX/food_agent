@@ -6,13 +6,13 @@ from pathlib import Path
 
 import pytest
 
-from xhs_food.contracts import (
+from food_agent.contracts import (
     BGE_M3_PROFILE_V1,
     QueryReuseReadMode,
     QueryReuseReadSettings,
     QueryReuseRequest,
 )
-from xhs_food.evidence import QueryFamilyReuseService, QueryReuseReadService
+from food_agent.evidence import QueryFamilyReuseService, QueryReuseReadService
 
 RUNBOOK = (
     Path(__file__).parents[1]

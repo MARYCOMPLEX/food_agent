@@ -55,7 +55,7 @@ $env:MODULAR_RESEARCH_CORE_VERSION = "legacy/v1"
 Verify the selected binding and disabled execution flags:
 
 ```powershell
-uv run --frozen python -c "import asyncio; from xhs_food.composition import build_legacy_composition_root; r=build_legacy_composition_root(); print(r.logical_bindings['modular_core']); asyncio.run(r.close())"
+uv run --frozen python -c "import asyncio; from food_agent.composition import build_legacy_composition_root; r=build_legacy_composition_root(); print(r.logical_bindings['modular_core']); asyncio.run(r.close())"
 ```
 
 The logical binding must resolve to `LegacyResearchTaskFacade`. Restore the

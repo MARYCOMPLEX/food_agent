@@ -9,11 +9,11 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert
 
-from xhs_food.composition.adapters import (
+from food_agent.composition.adapters import (
     SQLAlchemyEmbeddingShadowRepository,
     SQLAlchemyQueryFamilyRepository,
 )
-from xhs_food.contracts import (
+from food_agent.contracts import (
     BGE_M3_PROFILE_V1,
     FreshnessInput,
     QueryFamilyMatch,
@@ -21,8 +21,8 @@ from xhs_food.contracts import (
     RefreshSingleFlightKey,
     stable_refresh_workflow_id,
 )
-from xhs_food.foundation.database import SQLAlchemyDatabase
-from xhs_food.foundation.evidence_schema import (
+from food_agent.foundation.database import SQLAlchemyDatabase
+from food_agent.foundation.evidence_schema import (
     canonical_queries,
     embedding_profiles,
     evidence_bundles,

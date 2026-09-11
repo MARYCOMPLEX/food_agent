@@ -6,9 +6,9 @@ from typing import Any
 
 import pytest
 
-from xhs_food.agents.analyzer import AnalyzeResult
-from xhs_food.agents.intent_parser import IntentParseResult
-from xhs_food.contracts import (
+from food_agent.agents.analyzer import AnalyzeResult
+from food_agent.agents.intent_parser import IntentParseResult
+from food_agent.contracts import (
     AgentToolExecutionContext,
     CommentEvidence,
     CommentIdentity,
@@ -17,12 +17,12 @@ from xhs_food.contracts import (
     PlatformChannel,
     XhsNoteLead,
 )
-from xhs_food.domain_packs.food.intent import FoodSearchIntent
-from xhs_food.research import workflow as workflow_module
-from xhs_food.research.evidence import evidence_ref
-from xhs_food.research.sources import LeadCollectionResult
-from xhs_food.research.workflow import CommentFirstResearchWorkflow
-from xhs_food.schemas import ConversationContext, RestaurantRecommendation
+from food_agent.domain_packs.food.intent import FoodSearchIntent
+from food_agent.research import workflow as workflow_module
+from food_agent.research.evidence import evidence_ref
+from food_agent.research.sources import LeadCollectionResult
+from food_agent.research.workflow import CommentFirstResearchWorkflow
+from food_agent.schemas import ConversationContext, RestaurantRecommendation
 
 
 def _comment(note_id: str, comment_id: str, text: str) -> CommentEvidence:

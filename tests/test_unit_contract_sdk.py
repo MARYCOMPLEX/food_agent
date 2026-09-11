@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from xhs_food.contracts import (
+from food_agent.contracts import (
     ActivityPort,
     CachePort,
     CanonicalQuery,
@@ -310,15 +310,15 @@ def test_contract_import_does_not_load_legacy_or_infrastructure_modules() -> Non
     script = """
 import json
 import sys
-import xhs_food.contracts
+import food_agent.contracts
 
 forbidden = {
     'fastapi',
     'asyncpg',
     'redis',
-    'xhs_food.orchestrator',
-    'xhs_food.schemas',
-    'xhs_food.services',
+    'food_agent.orchestrator',
+    'food_agent.schemas',
+    'food_agent.services',
 }
 print(json.dumps(sorted(forbidden.intersection(sys.modules))))
 """
@@ -334,16 +334,16 @@ print(json.dumps(sorted(forbidden.intersection(sys.modules))))
 
 
 def test_legacy_root_exports_remain_the_original_objects() -> None:
-    import xhs_food
-    from xhs_food.orchestrator import XHSFoodOrchestrator
-    from xhs_food.schemas import FoodSearchIntent
+    import food_agent
+    from food_agent.orchestrator import XHSFoodOrchestrator
+    from food_agent.schemas import FoodSearchIntent
 
-    assert xhs_food.XHSFoodOrchestrator is XHSFoodOrchestrator
-    assert xhs_food.FoodSearchIntent is FoodSearchIntent
+    assert food_agent.XHSFoodOrchestrator is XHSFoodOrchestrator
+    assert food_agent.FoodSearchIntent is FoodSearchIntent
 
 
 def test_contract_package_has_no_framework_sdk_database_or_domain_imports() -> None:
-    contracts_dir = Path(__file__).parents[1] / "src/xhs_food/contracts"
+    contracts_dir = Path(__file__).parents[1] / "src/food_agent/contracts"
     forbidden_roots = {
         "api",
         "asyncpg",
@@ -356,10 +356,10 @@ def test_contract_package_has_no_framework_sdk_database_or_domain_imports() -> N
         "temporalio",
     }
     forbidden_xhs_modules = {
-        "xhs_food.agents",
-        "xhs_food.orchestrator",
-        "xhs_food.schemas",
-        "xhs_food.services",
+        "food_agent.agents",
+        "food_agent.orchestrator",
+        "food_agent.schemas",
+        "food_agent.services",
     }
 
     violations: list[str] = []

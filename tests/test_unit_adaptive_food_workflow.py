@@ -7,20 +7,20 @@ from typing import Any
 
 import pytest
 
-from xhs_food.contracts import (
+from food_agent.contracts import (
     AgentToolExecutionContext,
     ObservationKind,
     PlatformChannel,
     SourceCall,
 )
-from xhs_food.domain_packs.food.adaptive_pack import ObservationEnvelope
-from xhs_food.research.adaptive.food_workflow import (
+from food_agent.domain_packs.food.adaptive_pack import ObservationEnvelope
+from food_agent.research.adaptive.food_workflow import (
     AdaptiveFoodResearchWorkflow,
     ManagedMcpToolPort,
     _items_from_data,
 )
-from xhs_food.research.mcp import ManagedMcpToolSession
-from xhs_food.schemas import ConversationContext
+from food_agent.research.mcp import ManagedMcpToolSession
+from food_agent.schemas import ConversationContext
 
 
 class _FakeSession(ManagedMcpToolSession):

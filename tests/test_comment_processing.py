@@ -16,13 +16,13 @@ try:
 except ImportError:
     pytest = None
 
-from xhs_food.services.preprocessing import (
+from food_agent.services.preprocessing import (
     extract_likes_from_text,
     calculate_interaction_score,
     preprocess_comments,
     ProcessedComment,
 )
-from xhs_food.services.scoring import (
+from food_agent.services.scoring import (
     calculate_comment_score,
     calculate_scores,
     get_content_coefficient,

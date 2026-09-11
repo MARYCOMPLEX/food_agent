@@ -8,10 +8,10 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from xhs_food.composition import build_modular_binding_plan
-from xhs_food.composition.adapters import build_owner_config
-from xhs_food.config import Settings
-from xhs_food.foundation import (
+from food_agent.composition import build_modular_binding_plan
+from food_agent.composition.adapters import build_owner_config
+from food_agent.config import Settings
+from food_agent.foundation import (
     ObservabilityConfigView,
     QueryReuseReadConfigView,
     TargetSettings,
@@ -157,7 +157,7 @@ def test_contract_and_domain_modules_do_not_import_vendor_observability_clients(
     forbidden_roots = {"httpx", "opentelemetry", "phoenix"}
     violations: list[str] = []
     for package in ("contracts", "evidence", "personalization", "domain_packs"):
-        package_root = ROOT / "src" / "xhs_food" / package
+        package_root = ROOT / "src" / "food_agent" / package
         if not package_root.exists():
             continue
         for path in sorted(package_root.rglob("*.py")):

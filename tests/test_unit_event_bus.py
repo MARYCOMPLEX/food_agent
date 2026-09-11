@@ -1,4 +1,4 @@
-"""Unit tests for :class:`xhs_food.events.bus.InMemoryEventBus`."""
+"""Unit tests for :class:`food_agent.events.bus.InMemoryEventBus`."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ from typing import List, Tuple
 
 import pytest
 
-from xhs_food.events.bus import STREAM_START, InMemoryEventBus
-from xhs_food.events.types import SearchEvent, SearchEventType
+from food_agent.events.bus import STREAM_START, InMemoryEventBus
+from food_agent.events.types import SearchEvent, SearchEventType
 
 
 # ---------------------------------------------------------------------------
@@ -192,7 +192,7 @@ async def test_heartbeat_emitted_when_idle(
     event_bus: InMemoryEventBus, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # Arrange — force a fast heartbeat
-    from xhs_food.events import bus as bus_module
+    from food_agent.events import bus as bus_module
 
     monkeypatch.setattr(bus_module.settings, "sse_heartbeat_seconds", 0.1, raising=False)
 

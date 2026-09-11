@@ -10,7 +10,7 @@ Run from the repository root:
 
 ```powershell
 .\.venv-win\Scripts\pytest.exe -q tests/test_unit_account_service_contracts.py tests/test_unit_account_service_http.py tests/test_unit_account_service_mcp.py tests/test_unit_account_service_registry.py tests/test_unit_account_service_fixture.py
-.\.venv-win\Scripts\ruff.exe check src/xhs_food/account_services src/xhs_food/contracts/account_service.py src/xhs_food/gateways/account_service.py src/xhs_food/composition/account_services.py src/api/platform.py src/api/main.py
+.\.venv-win\Scripts\ruff.exe check src/food_agent/account_services src/food_agent/contracts/account_service.py src/food_agent/gateways/account_service.py src/food_agent/composition/account_services.py src/api/platform.py src/api/main.py
 openspec validate platform-account-service-mcp --strict
 ```
 

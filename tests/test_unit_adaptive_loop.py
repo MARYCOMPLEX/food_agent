@@ -9,14 +9,14 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from xhs_food.contracts import ModelResponse, SourceCall
-from xhs_food.contracts.adaptive_investigation import (
+from food_agent.contracts import ModelResponse, SourceCall
+from food_agent.contracts.adaptive_investigation import (
     CritiqueDecision as CanonicalCritiqueDecision,
 )
-from xhs_food.contracts.adaptive_investigation import (
+from food_agent.contracts.adaptive_investigation import (
     PlanProposal,
 )
-from xhs_food.research.adaptive import (
+from food_agent.research.adaptive import (
     ActionScheduler,
     ActionStatus,
     AdaptiveCritic,
@@ -28,8 +28,8 @@ from xhs_food.research.adaptive import (
     parse_critic_decision,
     parse_planner_decision,
 )
-from xhs_food.research.adaptive.critic import CRITIC_OUTPUT_SCHEMA
-from xhs_food.research.adaptive.planner import (
+from food_agent.research.adaptive.critic import CRITIC_OUTPUT_SCHEMA
+from food_agent.research.adaptive.planner import (
     PLANNER_OUTPUT_SCHEMA,
     build_model_context,
     parse_model_response,
@@ -576,8 +576,8 @@ async def test_model_roles_receive_safe_rolling_state_and_pinned_capability_sche
 
 
 def test_food_policy_is_available_on_the_initial_model_context() -> None:
-    from xhs_food.domain_packs.food.adaptive_pack import FoodAdaptivePack
-    from xhs_food.research.adaptive.food_workflow import _enrich_goal
+    from food_agent.domain_packs.food.adaptive_pack import FoodAdaptivePack
+    from food_agent.research.adaptive.food_workflow import _enrich_goal
 
     enriched = _enrich_goal("找成都火锅", None, pack=FoodAdaptivePack())
 

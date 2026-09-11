@@ -1,0 +1,58 @@
+"""XHS Food Agent Module - 小红书美食智能检索代理 (独立版).
+
+该模块提供:
+- XHSFoodOrchestrator: 主编排器
+- IntentParserAgent: 用户意图解析
+- AnalyzerAgent: 内容分析（网红店判断）
+
+Food search receives its only source tool from the managed account-service MCP
+catalog at the application Composition Root.
+"""
+
+# pyright: reportUnsupportedDunderAll=false
+
+from __future__ import annotations
+
+from importlib import import_module
+from typing import Any
+
+__all__ = [
+    "XHSFoodOrchestrator",
+    "XHSFoodState",
+    "FoodSearchIntent",
+    "XHSFoodResponse",
+    "RestaurantRecommendation",
+    "CommentWeight",
+    "CrossValidationResult",
+    "RecommendationLevel",
+    "WanghongScore",
+    "ConversationContext",
+]
+
+_EXPORT_MODULES = {
+    "XHSFoodOrchestrator": "food_agent.orchestrator",
+    "XHSFoodState": "food_agent.state",
+    "FoodSearchIntent": "food_agent.schemas",
+    "XHSFoodResponse": "food_agent.schemas",
+    "RestaurantRecommendation": "food_agent.schemas",
+    "CommentWeight": "food_agent.schemas",
+    "CrossValidationResult": "food_agent.schemas",
+    "RecommendationLevel": "food_agent.schemas",
+    "WanghongScore": "food_agent.schemas",
+    "ConversationContext": "food_agent.schemas",
+}
+
+
+def __getattr__(name: str) -> Any:
+    """Load legacy public exports only when a caller requests one."""
+
+    module_name = _EXPORT_MODULES.get(name)
+    if module_name is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    value = getattr(import_module(module_name), name)
+    globals()[name] = value
+    return value
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | set(__all__))

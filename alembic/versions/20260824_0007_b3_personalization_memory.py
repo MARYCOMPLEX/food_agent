@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from alembic import op
-from xhs_food.foundation.memory_schema import B3_MEMORY_INDEXES, B3_MEMORY_TABLES
+from food_agent.foundation.memory_schema import B3_MEMORY_INDEXES, B3_MEMORY_TABLES
 
 revision = "20260824_0007_b3_personalization_memory"
 down_revision = "20260824_0006_b0_reliable_task"

@@ -47,7 +47,7 @@ def test_llm_service_init():
     print("=" * 60)
 
     try:
-        from xhs_food.services import LLMService
+        from food_agent.services import LLMService
 
         service = LLMService()
         print(f"  [OK] LLMService created")
@@ -68,7 +68,7 @@ async def test_llm_connection():
     print("=" * 60)
 
     try:
-        from xhs_food.services import LLMService
+        from food_agent.services import LLMService
         from langchain_core.messages import HumanMessage, SystemMessage
 
         service = LLMService()
@@ -96,7 +96,7 @@ async def test_intent_parser():
     print("=" * 60)
 
     try:
-        from xhs_food.agents import IntentParserAgent
+        from food_agent.agents import IntentParserAgent
 
         parser = IntentParserAgent()
         test_query = "chengdu local hotpot"
@@ -123,8 +123,8 @@ def test_orchestrator_init():
     print("=" * 60)
 
     try:
-        from xhs_food import XHSFoodOrchestrator
-        from xhs_food.composition import UnavailableManagedSearchTool
+        from food_agent import XHSFoodOrchestrator
+        from food_agent.composition import UnavailableManagedSearchTool
 
         orchestrator = XHSFoodOrchestrator(search_tool=UnavailableManagedSearchTool())
         print(f"  [OK] Orchestrator created")

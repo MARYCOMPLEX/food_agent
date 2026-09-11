@@ -46,7 +46,7 @@ algorithm and preserves deterministic reruns.
 ### Schema-state authority
 
 Use the exact default revision and signature values exported by
-`xhs_food.foundation.schema_authority`. The clean fixture has no version table,
+`food_agent.foundation.schema_authority`. The clean fixture has no version table,
 the N-1 and current fixtures contain their respective exact revisions and
 columns, and the divergent fixture uses an unknown revision. The fixtures are
 read-only inputs; Alembic remains the only schema writer.

@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from xhs_food.contracts import (
+from food_agent.contracts import (
     ContextAssemblyRequest,
     ContextBudget,
     EvidenceBundleManifest,
@@ -20,7 +20,7 @@ from xhs_food.contracts import (
     VersionedMemorySummary,
     VisibilityScope,
 )
-from xhs_food.personalization import ContextAssembler
+from food_agent.personalization import ContextAssembler
 
 ROOT = Path(__file__).parents[1]
 MEMORY_FIXTURE = ROOT / "tests" / "fixtures" / "authority" / "memory_privacy_v1.json"

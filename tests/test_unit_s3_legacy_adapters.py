@@ -11,7 +11,7 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from pydantic import SecretStr
 
-from xhs_food.composition.adapters import (
+from food_agent.composition.adapters import (
     DisabledPublicEvidenceRepository,
     LegacyEventBusAdapter,
     LegacyFavoritesRepositoryAdapter,
@@ -24,7 +24,7 @@ from xhs_food.composition.adapters import (
     LegacyUserRepositoryAdapter,
     ProviderModelGateway,
 )
-from xhs_food.contracts import (
+from food_agent.contracts import (
     EventBusPort,
     EventEnvelope,
     FavoritesRepositoryPort,
@@ -40,10 +40,10 @@ from xhs_food.contracts import (
     StateStorePort,
     UserRepositoryPort,
 )
-from xhs_food.events.types import SearchEvent, SearchEventType
-from xhs_food.foundation import ModelConfigView, TargetAdapterDisabled
-from xhs_food.services.llm_service import LLMService
-from xhs_food.services.user_storage.repository import RepositoryMixin
+from food_agent.events.types import SearchEvent, SearchEventType
+from food_agent.foundation import ModelConfigView, TargetAdapterDisabled
+from food_agent.services.llm_service import LLMService
+from food_agent.services.user_storage.repository import RepositoryMixin
 
 
 class FakeLLMService:

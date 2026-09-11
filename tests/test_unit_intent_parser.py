@@ -1,10 +1,10 @@
-"""Unit tests for :class:`xhs_food.agents.intent_parser.IntentParserAgent`."""
+"""Unit tests for :class:`food_agent.agents.intent_parser.IntentParserAgent`."""
 
 from __future__ import annotations
 
 import pytest
 
-from xhs_food.agents.intent_parser import IntentParseResult, IntentParserAgent
+from food_agent.agents.intent_parser import IntentParseResult, IntentParserAgent
 
 
 # ---------------------------------------------------------------------------

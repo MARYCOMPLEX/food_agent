@@ -10,13 +10,13 @@ from typing import Any
 import pytest
 from temporalio.exceptions import ApplicationError
 
-from xhs_food.composition.adapters import (
+from food_agent.composition.adapters import (
     PostgresReliableTaskAuthority,
     PostgresReliableTaskStore,
     ReliableTaskEventBusPublisher,
 )
-from xhs_food.composition.adapters.reliable_task_authority import _projection_is_older
-from xhs_food.contracts import (
+from food_agent.composition.adapters.reliable_task_authority import _projection_is_older
+from food_agent.contracts import (
     ContractError,
     RequestIdentity,
     RequestPolicy,
@@ -27,7 +27,7 @@ from xhs_food.contracts import (
     TaskStatus,
     WorkflowRun,
 )
-from xhs_food.orchestrator import (
+from food_agent.orchestrator import (
     InMemoryReliableTaskAuthority,
     InMemoryReliableTaskEventPublisher,
     ReliableResearchActivities,
@@ -36,8 +36,8 @@ from xhs_food.orchestrator import (
     build_workflow_start,
     stable_research_task_id,
 )
-from xhs_food.orchestrator.coordinator import ResearchCoordinator
-from xhs_food.orchestrator.projections import InMemoryTaskProgressProjectionStore
+from food_agent.orchestrator.coordinator import ResearchCoordinator
+from food_agent.orchestrator.projections import InMemoryTaskProgressProjectionStore
 
 
 class _LegacyPort:

@@ -9,7 +9,7 @@ from typing import Optional
 from fastapi import Header, Depends
 from loguru import logger
 
-from xhs_food.services.user_storage import (
+from food_agent.services.user_storage import (
     UserStorageService,
     get_user_storage_service,
     User,

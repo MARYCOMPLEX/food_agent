@@ -23,7 +23,7 @@ from api.schemas import (
     SearchStatusResponse,
     UnifiedSearchRequest,
 )
-from xhs_food.contracts import (
+from food_agent.contracts import (
     AgentToolExecutionContext,
     ContractError,
     ErrorCategory,
@@ -40,8 +40,8 @@ from xhs_food.contracts import (
     TaskProgressProjection,
     TaskProgressProjectionSessionLookupPort,
 )
-from xhs_food.events.bus import STREAM_START, get_event_bus
-from xhs_food.experience import EventMappingError, ReliableEventMapper
+from food_agent.events.bus import STREAM_START, get_event_bus
+from food_agent.experience import EventMappingError, ReliableEventMapper
 
 from .dependencies import get_research_task
 

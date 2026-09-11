@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from xhs_food.contracts import (
+from food_agent.contracts import (
     B2CanaryApproval,
     B2CanaryDecision,
     B2ErrorClass,

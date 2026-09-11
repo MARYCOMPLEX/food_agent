@@ -12,8 +12,8 @@ import pytest
 from sqlalchemy.dialects.postgresql import dialect as postgresql_dialect
 from sqlalchemy.schema import CreateTable
 
-from xhs_food.composition.adapters import SQLAlchemyCandidateBundleRepository
-from xhs_food.contracts import (
+from food_agent.composition.adapters import SQLAlchemyCandidateBundleRepository
+from food_agent.contracts import (
     BGE_M3_PROFILE_V1,
     BundleState,
     CanonicalQuery,
@@ -25,8 +25,8 @@ from xhs_food.contracts import (
     SourceLocator,
     validate_embedding_vector,
 )
-from xhs_food.domain_packs.food.pack import FoodPack
-from xhs_food.evidence import (
+from food_agent.domain_packs.food.pack import FoodPack
+from food_agent.evidence import (
     CanonicalQueryNormalizer,
     CanonicalSourceBatchNormalizer,
     EvidenceShadowPolicy,
@@ -34,8 +34,8 @@ from xhs_food.evidence import (
     ShadowWriteRecord,
     UnclassifiedConstraintError,
 )
-from xhs_food.evidence.telemetry import B1ShadowTelemetry
-from xhs_food.foundation import SQLAlchemyUnitOfWork
+from food_agent.evidence.telemetry import B1ShadowTelemetry
+from food_agent.foundation import SQLAlchemyUnitOfWork
 
 ROOT = Path(__file__).parents[1]
 MIGRATION = ROOT / "alembic" / "versions" / "20260824_0001_b1_shadow_schema.py"
@@ -192,7 +192,7 @@ def test_profile_dimension_mismatch_and_unclassified_constraint_fail_closed() ->
     with pytest.raises(ValueError, match="dimension mismatch"):
         validate_embedding_vector(BGE_M3_PROFILE_V1, (0.0,))
     with pytest.raises(ValueError, match="pinned"):
-        from xhs_food.contracts import initial_backfill_cursor
+        from food_agent.contracts import initial_backfill_cursor
 
         initial_backfill_cursor(
             EmbeddingProfile(

@@ -15,14 +15,14 @@ from redis.exceptions import TimeoutError as RedisTimeoutError
 from sqlalchemy.exc import IntegrityError
 from temporalio.service import RPCError, RPCStatusCode
 
-from xhs_food.contracts import (
+from food_agent.contracts import (
     ErrorCategory,
     ErrorScope,
     EventEnvelope,
     ObjectRef,
     WorkflowStart,
 )
-from xhs_food.foundation import (
+from food_agent.foundation import (
     Boto3ObjectStore,
     FoundationAdapterError,
     RedisEventBusAdapter,

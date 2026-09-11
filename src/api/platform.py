@@ -11,7 +11,7 @@ from fastapi.routing import APIRoute
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 from api.deps import get_current_user_id
-from xhs_food.contracts.account_service import (
+from food_agent.contracts.account_service import (
     AccountServiceControlPlaneError,
     PlatformChannel,
     validate_remote_payload,

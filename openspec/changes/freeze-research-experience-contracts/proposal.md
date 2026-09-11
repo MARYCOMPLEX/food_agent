@@ -44,8 +44,8 @@ separate change will wire the new projection into the active stream.
 
 ## Impact
 
-- Adds framework-neutral Python contracts under `src/xhs_food/contracts` and a
-  projection reducer under `src/xhs_food/experience`.
+- Adds framework-neutral Python contracts under `src/food_agent/contracts` and a
+  projection reducer under `src/food_agent/experience`.
 - Adds shared frontend TypeScript types and runtime parsing helpers without
   changing Vue components or the current route in this change.
 - Adds OpenSpec authority documentation, JSON examples, and unit contract gates.

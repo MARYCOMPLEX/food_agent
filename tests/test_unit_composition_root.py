@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from xhs_food.composition import (
+from food_agent.composition import (
     AdapterBinding,
     BindingRegistry,
     CompositionRoot,
@@ -16,9 +16,9 @@ from xhs_food.composition import (
     build_composition_root,
     build_reliable_runtime_bindings,
 )
-from xhs_food.config import Settings
-from xhs_food.contracts import TaskProgressProjection, TaskStatus
-from xhs_food.foundation import TargetSettings
+from food_agent.config import Settings
+from food_agent.contracts import TaskProgressProjection, TaskStatus
+from food_agent.foundation import TargetSettings
 
 
 class _Closable:
@@ -418,10 +418,10 @@ async def test_reliable_root_exposes_explicit_projection_and_event_bus_bindings(
 
 
 async def test_composition_root_registers_adaptive_research_graph() -> None:
-    from xhs_food.composition.domain_packs import RegisteredDomainPack
-    from xhs_food.domain_packs.food import FoodPack
-    from xhs_food.orchestrator.coordinator import ResearchCoordinator
-    from xhs_food.research.adaptive.food_workflow import AdaptiveFoodResearchWorkflow
+    from food_agent.composition.domain_packs import RegisteredDomainPack
+    from food_agent.domain_packs.food import FoodPack
+    from food_agent.orchestrator.coordinator import ResearchCoordinator
+    from food_agent.research.adaptive.food_workflow import AdaptiveFoodResearchWorkflow
 
     root = build_composition_root()
     try:

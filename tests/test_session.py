@@ -16,7 +16,7 @@ def test_chat_message():
     print("1. Test ChatMessage")
     print("=" * 60)
     
-    from xhs_food.services.redis_memory import ChatMessage
+    from food_agent.services.redis_memory import ChatMessage
     
     msg = ChatMessage(
         role="user",
@@ -40,7 +40,7 @@ def test_redis_memory_fallback():
     print("2. Test RedisMemory (in-memory fallback)")
     print("=" * 60)
     
-    from xhs_food.services.redis_memory import RedisMemory
+    from food_agent.services.redis_memory import RedisMemory
     
     memory = RedisMemory(redis_url=None)
     session_id = "test-session-123"
@@ -76,7 +76,7 @@ async def test_session_manager():
     print("3. Test SessionManager")
     print("=" * 60)
     
-    from xhs_food.services.session_manager import SessionManager
+    from food_agent.services.session_manager import SessionManager
     
     manager = SessionManager()
     await manager.initialize()

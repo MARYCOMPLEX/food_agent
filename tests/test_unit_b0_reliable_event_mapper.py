@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from xhs_food.contracts import (
+from food_agent.contracts import (
     ContractError,
     ContractPayload,
     ErrorCategory,
@@ -17,7 +17,7 @@ from xhs_food.contracts import (
     TaskProgressProjection,
     TaskStatus,
 )
-from xhs_food.experience import EventMappingError, ReliableEventMapper
+from food_agent.experience import EventMappingError, ReliableEventMapper
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = (

@@ -6,12 +6,12 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from xhs_food.contracts import (
+from food_agent.contracts import (
     RefreshPriorityPolicy,
     RefreshPriorityReason,
     RefreshPrioritySignals,
 )
-from xhs_food.evidence import ContinuousRefreshCoordinator
+from food_agent.evidence import ContinuousRefreshCoordinator
 
 NOW = datetime(2026, 8, 24, tzinfo=UTC)
 

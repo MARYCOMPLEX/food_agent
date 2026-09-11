@@ -12,7 +12,7 @@ from typing import Any
 
 import pytest
 
-from xhs_food.contracts import (
+from food_agent.contracts import (
     JSON_SCHEMA_DIALECT,
     AllowedToolContract,
     ErrorCategory,
@@ -21,7 +21,7 @@ from xhs_food.contracts import (
     ToolCall,
     canonical_schema_digest,
 )
-from xhs_food.gateways import ProviderResult, SchemaToolGateway, ToolRegistration
+from food_agent.gateways import ProviderResult, SchemaToolGateway, ToolRegistration
 
 pytestmark = pytest.mark.unit
 

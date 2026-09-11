@@ -6,14 +6,14 @@ from pathlib import Path
 
 import pytest
 
-from xhs_food.contracts import CanonicalQuery, CanonicalSourceBatch, CollectRequest, SourceLocator
-from xhs_food.evidence import (
+from food_agent.contracts import CanonicalQuery, CanonicalSourceBatch, CollectRequest, SourceLocator
+from food_agent.evidence import (
     EvidenceShadowGate,
     EvidenceShadowPolicy,
     EvidenceShadowSettings,
     ShadowSourceConnector,
 )
-from xhs_food.foundation import EvidenceShadowConfigView, TargetSettings
+from food_agent.foundation import EvidenceShadowConfigView, TargetSettings
 
 RUNBOOK = (
     Path(__file__).parents[1]

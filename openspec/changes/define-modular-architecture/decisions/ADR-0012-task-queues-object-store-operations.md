@@ -87,9 +87,9 @@ that needs object cleanup uses the Media cleanup procedure.
 
 - [`ADR-0002`](./ADR-0002-infrastructure-baseline.md) records the accepted
   Temporal, S3-compatible, boto3, MinIO, Redis, and PostgreSQL baseline.
-- [`TemporalTaskQueues`](../../../../src/xhs_food/foundation/temporal.py) enforces
+- [`TemporalTaskQueues`](../../../../src/food_agent/foundation/temporal.py) enforces
   distinct queue names.
-- [`Boto3ObjectStore`](../../../../src/xhs_food/foundation/object_store.py)
+- [`Boto3ObjectStore`](../../../../src/food_agent/foundation/object_store.py)
   provides the production and MinIO endpoint adapter.
 - [`b2-query-family-rollback.md`](../runbooks/b2-query-family-rollback.md)
   demonstrates conditional pointer recovery without deletion.

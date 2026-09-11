@@ -11,9 +11,9 @@ from typing import Any
 
 import pytest
 
-from xhs_food.contracts import PlatformChannel, SourceCall
-from xhs_food.domain_packs.food.intent import FoodSearchIntent
-from xhs_food.research.sources import AdaptiveQueryPlanner, XhsCommentLeadCollector
+from food_agent.contracts import PlatformChannel, SourceCall
+from food_agent.domain_packs.food.intent import FoodSearchIntent
+from food_agent.research.sources import AdaptiveQueryPlanner, XhsCommentLeadCollector
 
 
 def test_query_planner_is_small_and_controversy_aware() -> None:

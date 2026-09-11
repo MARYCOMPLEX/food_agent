@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from xhs_food.contracts import (
+from food_agent.contracts import (
     RefreshSingleFlightKey,
     RequestIdentity,
     ResearchOperation,
     stable_refresh_claim_key,
     stable_refresh_workflow_id,
 )
-from xhs_food.evidence import ExplicitRefreshRequestMapper
+from food_agent.evidence import ExplicitRefreshRequestMapper
 
 ROOT = Path(__file__).resolve().parents[1]
 DECISIONS = ROOT / "openspec" / "changes" / "define-modular-architecture" / "decisions"

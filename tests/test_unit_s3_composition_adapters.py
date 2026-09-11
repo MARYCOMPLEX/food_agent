@@ -7,10 +7,10 @@ from dataclasses import FrozenInstanceError
 import pytest
 from pydantic import ValidationError
 
-from xhs_food.composition import DisabledBindingError, build_composition_root
-from xhs_food.composition.adapters import build_owner_config
-from xhs_food.config import Settings
-from xhs_food.foundation import Boto3ObjectStore, TargetSettings
+from food_agent.composition import DisabledBindingError, build_composition_root
+from food_agent.composition.adapters import build_owner_config
+from food_agent.config import Settings
+from food_agent.foundation import Boto3ObjectStore, TargetSettings
 
 
 @pytest.mark.unit

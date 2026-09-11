@@ -11,7 +11,7 @@ from uuid import NAMESPACE_URL, uuid5
 import pytest
 from fastapi.testclient import TestClient
 
-from xhs_food.services.user_storage import Favorite, SearchHistory, User
+from food_agent.services.user_storage import Favorite, SearchHistory, User
 
 ANONYMOUS_ID = "00000000-0000-0000-0000-000000000000"
 EXPLICIT_USER_ID = "11111111-1111-1111-1111-111111111111"
@@ -441,7 +441,7 @@ class _Pool:
 
 @pytest.mark.asyncio
 async def test_repository_favorite_delete_filter_and_revive_are_soft_delete_contract() -> None:
-    from xhs_food.services.user_storage import UserStorageService
+    from food_agent.services.user_storage import UserStorageService
 
     storage = UserStorageService()
     connection = _Connection()
@@ -465,7 +465,7 @@ async def test_repository_favorite_delete_filter_and_revive_are_soft_delete_cont
 
 @pytest.mark.asyncio
 async def test_repository_history_delete_is_currently_physical_not_soft() -> None:
-    from xhs_food.services.user_storage import UserStorageService
+    from food_agent.services.user_storage import UserStorageService
 
     storage = UserStorageService()
     connection = _Connection()

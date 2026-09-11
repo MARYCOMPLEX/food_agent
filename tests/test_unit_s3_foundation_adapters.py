@@ -8,8 +8,8 @@ from typing import Any
 
 import pytest
 
-from xhs_food.contracts import ActivityCall, ActivityPort, EventEnvelope, WorkflowStart
-from xhs_food.foundation import (
+from food_agent.contracts import ActivityCall, ActivityPort, EventEnvelope, WorkflowStart
+from food_agent.foundation import (
     FoundationAdapterError,
     ObservabilityBootstrap,
     RedisEventBusAdapter,
@@ -350,16 +350,16 @@ def test_observability_redacts_attributes_and_instruments_once(
             calls.append(("sqlalchemy", engine))
 
     monkeypatch.setattr(
-        "xhs_food.foundation.observability.FastAPIInstrumentor", FastAPIInstrumentorFake
+        "food_agent.foundation.observability.FastAPIInstrumentor", FastAPIInstrumentorFake
     )
     monkeypatch.setattr(
-        "xhs_food.foundation.observability.HTTPXClientInstrumentor", HTTPXInstrumentorFake
+        "food_agent.foundation.observability.HTTPXClientInstrumentor", HTTPXInstrumentorFake
     )
     monkeypatch.setattr(
-        "xhs_food.foundation.observability.RedisInstrumentor", RedisInstrumentorFake
+        "food_agent.foundation.observability.RedisInstrumentor", RedisInstrumentorFake
     )
     monkeypatch.setattr(
-        "xhs_food.foundation.observability.SQLAlchemyInstrumentor", SQLAlchemyInstrumentorFake
+        "food_agent.foundation.observability.SQLAlchemyInstrumentor", SQLAlchemyInstrumentorFake
     )
 
     bootstrap = ObservabilityBootstrap(enabled=True)

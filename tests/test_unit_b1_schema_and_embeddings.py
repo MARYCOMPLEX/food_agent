@@ -13,8 +13,8 @@ from alembic.migration import MigrationContext
 from alembic.operations import Operations
 from sqlalchemy.dialects.postgresql import dialect as postgresql_dialect
 
-from xhs_food.composition.adapters import SQLAlchemyCanonicalQueryShadowRepository
-from xhs_food.contracts import (
+from food_agent.composition.adapters import SQLAlchemyCanonicalQueryShadowRepository
+from food_agent.contracts import (
     BGE_M3_PROFILE_V1,
     BackfillRow,
     CanonicalQueryResult,
@@ -24,9 +24,9 @@ from xhs_food.contracts import (
     initial_backfill_cursor,
     validate_embedding_vector,
 )
-from xhs_food.domain_packs.food.pack import FoodPack
-from xhs_food.evidence import CanonicalQueryNormalizer
-from xhs_food.foundation.evidence_schema import B1_SHADOW_TABLES
+from food_agent.domain_packs.food.pack import FoodPack
+from food_agent.evidence import CanonicalQueryNormalizer
+from food_agent.foundation.evidence_schema import B1_SHADOW_TABLES
 
 ROOT = Path(__file__).parents[1]
 FIXTURES = Path(__file__).parent / "fixtures" / "authority"

@@ -7,14 +7,14 @@ from typing import Any
 
 import pytest
 
-from xhs_food.contracts import SourceCall
-from xhs_food.domain_packs.food.intent import FoodSearchIntent
-from xhs_food.research.resource_limits import (
+from food_agent.contracts import SourceCall
+from food_agent.domain_packs.food.intent import FoodSearchIntent
+from food_agent.research.resource_limits import (
     BudgetExceededError,
     ResourceCallTimeoutError,
     ResourceCircuitOpenError,
 )
-from xhs_food.research.sources import DianpingShopEnricher, XhsCommentLeadCollector
+from food_agent.research.sources import DianpingShopEnricher, XhsCommentLeadCollector
 
 
 def _intent() -> FoodSearchIntent:

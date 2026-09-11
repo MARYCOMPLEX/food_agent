@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from xhs_food.contracts import (
+from food_agent.contracts import (
     RefreshClaim,
     RequestIdentity,
     RequestPolicy,
@@ -18,7 +18,7 @@ from xhs_food.contracts import (
     stable_refresh_claim_key,
     stable_refresh_workflow_id,
 )
-from xhs_food.evidence import ExplicitRefreshRequestMapper, ExplicitRefreshService
+from food_agent.evidence import ExplicitRefreshRequestMapper, ExplicitRefreshService
 
 
 def _request(*, force: bool = False, authorization: tuple[str, ...] = ()) -> ResearchRequest:
@@ -110,7 +110,7 @@ class _Publisher:
 
 
 def _claim(request: ResearchRequest, *, acquired: bool) -> RefreshClaim:
-    from xhs_food.contracts import RefreshSingleFlightKey
+    from food_agent.contracts import RefreshSingleFlightKey
 
     key = RefreshSingleFlightKey(
         family_id=request.query_family_id or "",

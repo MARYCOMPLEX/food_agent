@@ -6,8 +6,8 @@ from typing import Any
 
 import pytest
 
-from xhs_food.contracts import CommentEvidence, XhsNoteLead
-from xhs_food.research.evidence import EvidenceLedger
+from food_agent.contracts import CommentEvidence, XhsNoteLead
+from food_agent.research.evidence import EvidenceLedger
 
 
 class _Lifecycle:

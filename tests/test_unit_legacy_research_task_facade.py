@@ -8,14 +8,14 @@ from typing import Any
 
 import pytest
 
-from xhs_food.contracts import (
+from food_agent.contracts import (
     AgentToolExecutionContext,
     PlatformChannel,
     RecommendationSnapshot,
     ResearchContextSnapshot,
 )
-from xhs_food.schemas import MustTryItem, RestaurantRecommendation, ShopStats
-from xhs_food.services.user_storage import generate_restaurant_hash
+from food_agent.schemas import MustTryItem, RestaurantRecommendation, ShopStats
+from food_agent.services.user_storage import generate_restaurant_hash
 
 
 class _AdmissionEmitter:
@@ -73,8 +73,8 @@ class _SpawnerCapture:
 async def test_start_new_spawns_the_legacy_runner_exactly_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from xhs_food.composition import research_task
-    from xhs_food.composition.research_task import ResearchTaskFacade
+    from food_agent.composition import research_task
+    from food_agent.composition.research_task import ResearchTaskFacade
 
     state_updates: list[tuple[str, dict[str, Any]]] = []
     user_messages: list[tuple[str, str]] = []
@@ -141,8 +141,8 @@ async def test_start_new_spawns_the_legacy_runner_exactly_once(
 async def test_refine_spawns_the_legacy_runner_exactly_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from xhs_food.composition import research_task
-    from xhs_food.composition.research_task import ResearchTaskFacade
+    from food_agent.composition import research_task
+    from food_agent.composition.research_task import ResearchTaskFacade
 
     state = {"status": "completed", "turn_id": 4}
     emitter = _AdmissionEmitter()
@@ -392,8 +392,8 @@ async def test_persistence_failure_is_swallowed_after_completed_state(
 async def test_recover_status_and_results_delegate_without_changing_payloads(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from xhs_food.composition import research_task
-    from xhs_food.composition.research_task import ResearchTaskFacade
+    from food_agent.composition import research_task
+    from food_agent.composition.research_task import ResearchTaskFacade
 
     mapper_calls: list[tuple[str, dict[str, Any]]] = []
     recovery_calls: list[tuple[str, object]] = []
@@ -640,9 +640,9 @@ async def test_persist_results_preserves_an_existing_falsey_legacy_id(
 def test_default_runner_receives_the_facade_result_mapper(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from xhs_food.composition import research_task
-    from xhs_food.composition.research_task import ResearchTaskFacade
-    from xhs_food.experience import StableResultMapper
+    from food_agent.composition import research_task
+    from food_agent.composition.research_task import ResearchTaskFacade
+    from food_agent.experience import StableResultMapper
 
     mapper = StableResultMapper()
     received: list[object] = []

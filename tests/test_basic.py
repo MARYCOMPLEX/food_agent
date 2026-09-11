@@ -8,15 +8,15 @@ sys.path.insert(0, "src")
 
 
 def test_imports() -> None:
-    from xhs_food import XHSFoodOrchestrator, XHSFoodResponse, XHSFoodState
-    from xhs_food.agents import AnalyzerAgent, IntentParserAgent
-    from xhs_food.composition import build_composition_root
-    from xhs_food.research import (
+    from food_agent import XHSFoodOrchestrator, XHSFoodResponse, XHSFoodState
+    from food_agent.agents import AnalyzerAgent, IntentParserAgent
+    from food_agent.composition import build_composition_root
+    from food_agent.research import (
         CommentFirstResearchWorkflow,
         DianpingShopEnricher,
         XhsCommentLeadCollector,
     )
-    from xhs_food.services import LLMService
+    from food_agent.services import LLMService
 
     assert all(
         item is not None
@@ -36,8 +36,8 @@ def test_imports() -> None:
 
 
 def test_schema_creation() -> None:
-    from xhs_food.domain_packs.food.intent import FoodSearchIntent
-    from xhs_food.schemas import ConversationContext, RestaurantRecommendation
+    from food_agent.domain_packs.food.intent import FoodSearchIntent
+    from food_agent.schemas import ConversationContext, RestaurantRecommendation
 
     intent = FoodSearchIntent(
         location="成都",
@@ -60,8 +60,8 @@ def test_schema_creation() -> None:
 
 
 def test_orchestrator_creation() -> None:
-    from xhs_food import XHSFoodOrchestrator
-    from xhs_food.research import CommentFirstResearchWorkflow
+    from food_agent import XHSFoodOrchestrator
+    from food_agent.research import CommentFirstResearchWorkflow
 
     orchestrator = XHSFoodOrchestrator(workflow=CommentFirstResearchWorkflow())
 

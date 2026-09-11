@@ -13,7 +13,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from xhs_food.contracts import (
+from food_agent.contracts import (
     B2CanaryApproval,
     B2QualificationObservation,
     B2QualificationReport,

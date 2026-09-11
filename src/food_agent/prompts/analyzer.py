@@ -1,0 +1,17 @@
+"""Compatibility facade for Food analysis prompts."""
+
+from food_agent.domain_packs.food.prompts.analyzer import (
+    ANALYZER_INSTRUCTION_ZH,
+    ANALYZER_SYSTEM_PROMPT_ZH,
+    ANALYZER_USER_PROMPT_TEMPLATE,
+    COMMENT_ANALYSIS_SYSTEM_PROMPT,
+    COMMENT_ANALYSIS_USER_PROMPT,
+)
+
+__all__ = [
+    "ANALYZER_INSTRUCTION_ZH",
+    "ANALYZER_SYSTEM_PROMPT_ZH",
+    "ANALYZER_USER_PROMPT_TEMPLATE",
+    "COMMENT_ANALYSIS_SYSTEM_PROMPT",
+    "COMMENT_ANALYSIS_USER_PROMPT",
+]

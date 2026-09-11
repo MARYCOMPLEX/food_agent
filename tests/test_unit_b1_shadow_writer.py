@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from xhs_food.contracts import (
+from food_agent.contracts import (
     CanonicalQuery,
     CanonicalSourceBatch,
     CollectRequest,
@@ -16,8 +16,8 @@ from xhs_food.contracts import (
     PublicConstraint,
     SourceLocator,
 )
-from xhs_food.domain_packs.food.pack import FoodPack
-from xhs_food.evidence import (
+from food_agent.domain_packs.food.pack import FoodPack
+from food_agent.evidence import (
     CanonicalQueryNormalizer,
     EvidenceShadowGate,
     EvidenceShadowPolicy,
@@ -26,8 +26,8 @@ from xhs_food.evidence import (
     ShadowWriteRecord,
     build_shadow_record,
 )
-from xhs_food.evidence.telemetry import B1ShadowTelemetry
-from xhs_food.foundation import (
+from food_agent.evidence.telemetry import B1ShadowTelemetry
+from food_agent.foundation import (
     EvidenceShadowTelemetry,
     correlation_attributes,
     prometheus_labels,

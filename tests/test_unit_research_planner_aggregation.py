@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from xhs_food.contracts import CommentInsight, CommentSentiment, InsightClaim, ResearchState
-from xhs_food.domain_packs.food.intent import FoodSearchIntent
-from xhs_food.research import EntityControversyAggregator, ResearchPlanner
+from food_agent.contracts import CommentInsight, CommentSentiment, InsightClaim, ResearchState
+from food_agent.domain_packs.food.intent import FoodSearchIntent
+from food_agent.research import EntityControversyAggregator, ResearchPlanner
 
 
 def _insight(comment_id: str, sentiment: CommentSentiment, *, correction: bool = False) -> CommentInsight:

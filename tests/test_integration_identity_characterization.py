@@ -13,7 +13,7 @@ from uuid import NAMESPACE_URL, uuid5
 import pytest
 from fastapi.testclient import TestClient
 
-from xhs_food.services.user_storage import User
+from food_agent.services.user_storage import User
 
 ROOT = Path(__file__).resolve().parents[1]
 ANONYMOUS_ID = "00000000-0000-0000-0000-000000000000"

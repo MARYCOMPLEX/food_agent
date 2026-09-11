@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from xhs_food.contracts import (
+from food_agent.contracts import (
     BGE_M3_PROFILE_V1,
     BundleReadState,
     CurrentBundleRef,
@@ -22,7 +22,7 @@ from xhs_food.contracts import (
     decide_bundle_read,
     validate_candidate_bundle,
 )
-from xhs_food.evidence import BundleLifecycleService
+from food_agent.evidence import BundleLifecycleService
 
 FIXTURE = Path(__file__).parent / "fixtures" / "authority" / "evidence_bundle_v1.json"
 

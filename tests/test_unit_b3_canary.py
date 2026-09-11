@@ -6,16 +6,16 @@ import pytest
 from prometheus_client import generate_latest
 from pydantic import ValidationError
 
-from xhs_food.composition import build_composition_root
-from xhs_food.contracts import (
+from food_agent.composition import build_composition_root
+from food_agent.contracts import (
     PersonalizationCanaryMode,
     PersonalizationCanarySettings,
     PersonalizationPolicy,
     PublicCandidate,
     UserIsolationKey,
 )
-from xhs_food.foundation import PersonalizationCanaryTelemetry
-from xhs_food.personalization import PersonalizationCanary, PersonalizedReranker
+from food_agent.foundation import PersonalizationCanaryTelemetry
+from food_agent.personalization import PersonalizationCanary, PersonalizedReranker
 
 
 def _policy() -> PersonalizationPolicy:

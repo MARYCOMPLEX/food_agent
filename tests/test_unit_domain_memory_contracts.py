@@ -11,7 +11,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from xhs_food.contracts import (
+from food_agent.contracts import (
     DOMAIN_PACK_ENTRY_POINT_GROUP,
     AnonymousIsolationKey,
     DomainContractPin,

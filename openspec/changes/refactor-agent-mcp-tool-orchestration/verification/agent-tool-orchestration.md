@@ -29,7 +29,7 @@ The two warnings are existing `PytestReturnNotNoneWarning` results in
 ## Existing Unrelated Baseline Failures
 
 - One architecture-baseline failure for the pre-existing
-  `xhs_food.services.llm_service -> xhs_food.config.settings` import.
+  `food_agent.services.llm_service -> food_agent.config.settings` import.
 - Three documented-provider characterization cases and one constructor-model
   precedence case affected by the branch's local `.env` settings and existing
   extra LLM adapter parameters.

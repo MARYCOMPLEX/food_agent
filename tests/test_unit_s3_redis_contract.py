@@ -9,10 +9,10 @@ from typing import Any
 import pytest
 from redis import exceptions as redis_errors
 
-from xhs_food.contracts import ErrorCategory, ErrorScope, EventEnvelope
-from xhs_food.events import bus as event_bus_module
-from xhs_food.events.bus import EventBusDependencyError
-from xhs_food.foundation import (
+from food_agent.contracts import ErrorCategory, ErrorScope, EventEnvelope
+from food_agent.events import bus as event_bus_module
+from food_agent.events.bus import EventBusDependencyError
+from food_agent.foundation import (
     FoundationAdapterError,
     RateLimitDecision,
     RedisEventBusAdapter,

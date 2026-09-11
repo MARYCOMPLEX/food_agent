@@ -8,7 +8,7 @@ from enum import StrEnum
 import pytest
 from pydantic import Field
 
-from xhs_food.contracts import (
+from food_agent.contracts import (
     CompatibilityIssueCode,
     ModelMessage,
     ToolCall,
@@ -16,7 +16,7 @@ from xhs_food.contracts import (
     compare_contract_schemas,
     round_trip_contract,
 )
-from xhs_food.contracts.base import SchemaVersion, VersionedContract
+from food_agent.contracts.base import SchemaVersion, VersionedContract
 
 
 class StatusV1(StrEnum):

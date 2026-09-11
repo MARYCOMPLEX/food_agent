@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from xhs_food.evidence import ShadowDiffApproval, compare_shadow_legacy
+from food_agent.evidence import ShadowDiffApproval, compare_shadow_legacy
 
 FIXTURE = Path(__file__).parent / "fixtures" / "authority" / "evidence_shadow_approval_v1.json"
 

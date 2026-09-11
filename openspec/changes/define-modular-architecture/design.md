@@ -53,12 +53,12 @@
 | 浏览器搜索状态与 SSE 状态机 | `frontend/src/stores/searchStore.ts` | 体验与任务 | 映射稳定任务事件；不得写死 `xhs_search`、评论和 POI 等平台步骤。当前 step ID、重放参数和 payload 字段与后端不一致。 |
 | FastAPI 生命周期、中间件和路由装配 | `src/api/main.py`、`src/api/deps.py` | 体验与任务 + Composition Root | FastAPI 只做传输、身份、DTO 和用例调用；具体实例装配移至组合根。 |
 | 搜索入口、状态、后台任务和恢复 | `src/api/search/routes.py`、`state.py`、`tasks.py` | 体验与任务 / ResearchTaskService | 先由兼容 facade 包住现有实现；不得保留对 `orchestrator._context` 的私有访问。 |
-| SSE 类型、总线和 emitter | `src/xhs_food/events/*` | 体验与任务的 Stable Event Mapper + Foundation EventBus adapter | 稳定事件模式与总线实现分离；事件 ID、重放和终态必须保持已批准合同。 |
-| 主编排与追问 | `src/xhs_food/orchestrator/core.py`、`follow_up.py` | Research Orchestrator | 抽取 ResearchCoordinator、计划、预算、停止条件与业务进度投影；领域提示词和 Food 决策移出。 |
-| 四阶段搜索、采集、合并、过滤和排序 | `src/xhs_food/orchestrator/search_executor.py` | Research Orchestrator + Evidence Intelligence + Knowledge & Decision + Food Pack | 先 characterization，再按职责逐段委派；不能一次性重写。 |
-| 意图解析 | `src/xhs_food/agents/intent_parser.py`、相关 prompts | Research Orchestrator 的 Canonical Query 输入 + Food Pack | 通用语义归一与 Food 字段定义分离；保持当前 `FoodSearchIntent` facade。 |
-| MCP 工具注册与结果信封 | `src/xhs_food/protocols/mcp.py`、`di/factories.py` | Tool Gateway / Composition Root | 保留 `MCPToolProvider`、`ToolResult` 和现有注册名的兼容适配器；核心不直接解析具体工具内部数据。 |
-| XHS provider、service 和 API | `src/xhs_food/providers/xhs_providers.py`、`spider/**` | Evidence Intelligence 的 XHS SourceConnector + Foundation 平台适配器 | 平台字段在 Connector 内终止；失败必须与“真实空结果”区分。 |
+| SSE 类型、总线和 emitter | `src/food_agent/events/*` | 体验与任务的 Stable Event Mapper + Foundation EventBus adapter | 稳定事件模式与总线实现分离；事件 ID、重放和终态必须保持已批准合同。 |
+| 主编排与追问 | `src/food_agent/orchestrator/core.py`、`follow_up.py` | Research Orchestrator | 抽取 ResearchCoordinator、计划、预算、停止条件与业务进度投影；领域提示词和 Food 决策移出。 |
+| 四阶段搜索、采集、合并、过滤和排序 | `src/food_agent/orchestrator/search_executor.py` | Research Orchestrator + Evidence Intelligence + Knowledge & Decision + Food Pack | 先 characterization，再按职责逐段委派；不能一次性重写。 |
+| 意图解析 | `src/food_agent/agents/intent_parser.py`、相关 prompts | Research Orchestrator 的 Canonical Query 输入 + Food Pack | 通用语义归一与 Food 字段定义分离；保持当前 `FoodSearchIntent` facade。 |
+| MCP 工具注册与结果信封 | `src/food_agent/protocols/mcp.py`、`di/factories.py` | Tool Gateway / Composition Root | 保留 `MCPToolProvider`、`ToolResult` 和现有注册名的兼容适配器；核心不直接解析具体工具内部数据。 |
+| XHS provider、service 和 API | `src/food_agent/providers/xhs_providers.py`、`spider/**` | Evidence Intelligence 的 XHS SourceConnector + Foundation 平台适配器 | 平台字段在 Connector 内终止；失败必须与“真实空结果”区分。 |
 | 评论预处理、分析和评分 | `agents/analyzer.py`、`services/preprocessing.py`、`services/scoring.py` | Knowledge & Decision + Food Pack | 通用 Evidence/Feature 管线与 Food 有效性、网红识别和评分策略分离。 |
 | POI 搜索与补充 | `agents/poi_enricher.py`、`poi_search.py`、`spider/apis/amap_api.py` | Evidence Intelligence 的 Place Connector + Food Pack tool/feature | 通过 Source/Tool Gateway；禁止访问 `UserStorage._pool` 等内部实现。 |
 | 会话上下文 | `schemas/ConversationContext`、`SessionManager` | Personalization 的 Session Memory + Research Orchestrator 业务进度投影 | 当前公开方法和多轮语义由 facade 保持；公共证据不得包含会话结果对象。 |
@@ -389,7 +389,7 @@ Domain Pack implementation与 Foundation adapter 是核心端口的平级插件�
 | C-AUTH-01 | 用户识别 | `X-User-Id > X-Device-Id > anonymous`；浏览器持久化 `deviceId` | header 优先级、匿名隔离和迁移测试 |
 | C-RESULT-01 | Food 请求和结果 DTO | `FoodSearchIntent.to_dict/from_dict`、`RestaurantRecommendation.to_dict`、`XHSFoodResponse.to_dict`、`EnrichedRestaurant.to_dict`；`mustTry/blackList` 与其他 snake_case 混合；live `search_results` writer 保存 recommendation mixed view + `id`，不同于构造的 `Restaurant.to_dict` camel-case fixture | 序列化 golden、writer-path side-effect、空值、Unicode、两类旧记录回读 |
 | C-RANK-01 | 当前 Food 行为 | 四阶段关键词、快速模式停止、note 去重、店名合并、网红过滤、`confidence/source count` 排序、追问语义 | 冻结来源和 LLM fixture 的 characterization |
-| C-PY-01 | Python 包与公开导出 | legacy current 为 Python `>=3.10`；目标 runtime 为 `>=3.12,<3.13`。wheel 包含 `xhs_food` 与 `api`；顶层及 `schemas/services/agents/events/protocols/di.__all__` | import smoke + signature snapshot；S0 只冻结旧声明，不把 3.10/3.11 延续为目标支持义务 |
+| C-PY-01 | Python 包与公开导出 | legacy current 为 Python `>=3.10`；目标 runtime 为 `>=3.12,<3.13`。wheel 包含 `food_agent` 与 `api`；顶层及 `schemas/services/agents/events/protocols/di.__all__` | import smoke + signature snapshot；S0 只冻结旧声明，不把 3.10/3.11 延续为目标支持义务 |
 | C-PY-02 | Orchestrator public API | `XHSFoodOrchestrator.search/process/search_stream/context/reset_context` 及测试覆盖的构造注入点 | compatibility facade contract suite |
 | C-TOOL-01 | MCP Tool Gateway | `MCPToolProvider.name/execute/health_check`、`ToolResult` envelope、注册名 `xhs_search/xhs_note/xhs_batch` 和 `data["notes"]` | provider consumer-driven contracts |
 | C-STATE-01 | 搜索状态 | `id/status/query/turn_id/summary/filtered_count/error/restaurants/timestamps`，Redis key `task:{sid}:state` | Memory/Redis 双实现等价测试 |

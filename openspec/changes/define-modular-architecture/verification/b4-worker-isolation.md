@@ -23,7 +23,7 @@ disabled until later B4 tasks register their workflows and activities.
 uv run --frozen pytest -q tests/test_unit_b4_worker_contracts.py
 uv run --frozen pytest -q tests/test_unit_b0_worker_binding.py tests/test_unit_b0_reliable_task.py
 uv run --frozen pytest -q tests/test_unit_architecture_boundaries.py
-uv run --frozen ruff check src/xhs_food tests/test_unit_b4_worker_contracts.py
+uv run --frozen ruff check src/food_agent tests/test_unit_b4_worker_contracts.py
 ```
 
 The unit and architecture gates assert queue isolation, default-off

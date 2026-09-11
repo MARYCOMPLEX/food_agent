@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from xhs_food.contracts import (
+from food_agent.contracts import (
     BGE_M3_PROFILE_V1,
     EmbeddingProfile,
     FreshnessInput,
@@ -21,7 +21,7 @@ from xhs_food.contracts import (
     stable_refresh_claim_key,
     stable_refresh_workflow_id,
 )
-from xhs_food.evidence import (
+from food_agent.evidence import (
     InMemoryQueryFamilyRepository,
     QueryFamilyReuseService,
     RefreshSingleFlightService,
@@ -205,7 +205,7 @@ def test_freshness_gate_has_new_fresh_and_incremental_states() -> None:
     )
     stale = fresh.model_copy(update={"family_id": "family.stale", "verified_at": now - timedelta(hours=2)})
 
-    from xhs_food.contracts import decide_freshness
+    from food_agent.contracts import decide_freshness
 
     assert decide_freshness(missing, policy, now=now).state is FreshnessState.NEW
     assert decide_freshness(missing, policy, now=now).reason is FreshnessReason.NO_BUNDLE

@@ -255,7 +255,7 @@ flowchart LR
 
 ## 4. 极简 FastAPI 参考实现模板
 
-如果你使用 Python FastAPI 开发外部 MCP 服务，可直接参考如下极简骨架（完整生产级实现可参考仓库内置的 [src/xhs_food/account_services/fixture.py](file:///g:/food-agent/src/xhs_food/account_services/fixture.py)）：
+如果你使用 Python FastAPI 开发外部 MCP 服务，可直接参考如下极简骨架（完整生产级实现可参考仓库内置的 [src/food_agent/account_services/fixture.py](file:///g:/food-agent/src/food_agent/account_services/fixture.py)）：
 
 ```python
 from datetime import datetime, timedelta, timezone

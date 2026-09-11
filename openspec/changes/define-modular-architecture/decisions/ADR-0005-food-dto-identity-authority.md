@@ -64,9 +64,9 @@ formula.
 ### Python Public Surface
 
 The ordered `__all__` values captured under `publicExports` in the normative fixture are
-the `food-dto/v1` public import contract for `xhs_food`, `xhs_food.schemas`,
-`xhs_food.agents`, `xhs_food.services`, `xhs_food.events`, `xhs_food.protocols`, and
-`xhs_food.di`. Moving implementations behind facades must preserve these import paths
+the `food-dto/v1` public import contract for `food_agent`, `food_agent.schemas`,
+`food_agent.agents`, `food_agent.services`, `food_agent.events`, `food_agent.protocols`, and
+`food_agent.di`. Moving implementations behind facades must preserve these import paths
 and object names. Additions require review; removal, rename, reordered snapshot, or
 semantic reassignment requires a compatibility version and migration note.
 

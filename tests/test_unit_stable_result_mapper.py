@@ -7,8 +7,8 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, cast
 
-from xhs_food.contracts import RecommendationSnapshot, ResearchResultSnapshot
-from xhs_food.experience import StableResultMapper
+from food_agent.contracts import RecommendationSnapshot, ResearchResultSnapshot
+from food_agent.experience import StableResultMapper
 
 AUTHORITY = Path(__file__).parent / "fixtures" / "authority" / "food_dto_v1.json"
 

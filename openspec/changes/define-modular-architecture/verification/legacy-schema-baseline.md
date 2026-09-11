@@ -9,7 +9,7 @@ pgvector/pg_trgm`, Alembic `1.19.1`).
 
 `20260825_0008_legacy_schema` is chained after
 `20260824_0007_b3_personalization_memory`. The checked-in Core metadata in
-`src/xhs_food/foundation/legacy_schema.py` is imported by `alembic/env.py` and
+`src/food_agent/foundation/legacy_schema.py` is imported by `alembic/env.py` and
 is shared by the revision. Importing metadata never creates or alters a table.
 
 The revision adopts six legacy application tables:

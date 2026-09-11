@@ -79,11 +79,11 @@ API/experience -> application use cases -> domain capabilities/contracts
                  -> Foundation (PG, Redis, Temporal, OTel)
 ```
 
-- `xhs_food.evidence` owns canonicalization, shadow projection, Query Family
+- `food_agent.evidence` owns canonicalization, shadow projection, Query Family
   matching, freshness decisions, and Bundle lifecycle decisions.
-- `xhs_food.personalization` owns memory resolution, context assembly, and
+- `food_agent.personalization` owns memory resolution, context assembly, and
   private reranking; it can read public Evidence but cannot write it.
-- `xhs_food.contracts` owns versioned payloads and ports, with no vendor SDK
+- `food_agent.contracts` owns versioned payloads and ports, with no vendor SDK
   imports.
 - `composition.adapters` implements business-facing SQL and compatibility
   ports. OTel mechanics live in `foundation` (where the dependency policy

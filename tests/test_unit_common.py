@@ -1,10 +1,10 @@
-"""Unit tests for :mod:`xhs_food.common` helpers."""
+"""Unit tests for :mod:`food_agent.common` helpers."""
 
 from __future__ import annotations
 
 import pytest
 
-from xhs_food.common import (
+from food_agent.common import (
     expand_category_keywords,
     extract_city_from_location,
     extract_json,
@@ -198,7 +198,7 @@ class TestExtractCityFromLocation:
         # When multiple known cities appear, the iteration order of
         # KNOWN_CITIES determines precedence — verify behavior is stable
         # (first match in the tuple order).
-        from xhs_food.common.location import KNOWN_CITIES
+        from food_agent.common.location import KNOWN_CITIES
 
         # Arrange — pick two cities from KNOWN_CITIES and combine
         first = KNOWN_CITIES[0]

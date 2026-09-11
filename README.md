@@ -191,8 +191,8 @@ flowchart LR
 
 账号状态和平台 SDK 由独立上游服务拥有：`xhs-account-service` 负责
 `xhs_pc`/`xhs_creator`，`dianping-account-service` 负责 `dianping`。主应用通过
-`src/xhs_food/contracts/account_service.py` 和
-`src/xhs_food/gateways/account_service.py` 的 HTTP/MCP 适配层调用它们，不导入
+`src/food_agent/contracts/account_service.py` 和
+`src/food_agent/gateways/account_service.py` 的 HTTP/MCP 适配层调用它们，不导入
 上游 Python 包，也不保存 Cookie、浏览器 profile、二维码字节或 signer 状态。
 在 `MODULAR_ACCOUNT_SERVICES_FILE` 或 `MODULAR_ACCOUNT_SERVICES_JSON` 中写入
 两个服务的 URL、频道和能力白名单后，Composition Root 会在启动时刷新能力并按频道
@@ -345,7 +345,7 @@ xhs_food_agent/
 │   │   ├── favorites.py          # 收藏功能
 │   │   └── README.md             # 📖 模块文档
 │   │
-│   └── 📁 xhs_food/              # 核心 Agent 模块
+│   └── 📁 food_agent/              # 核心 Agent 模块
 │       ├── orchestrator/          # Agent facade and transport projection
 │       ├── schemas/               # API and conversation models
 │       │
@@ -382,7 +382,7 @@ Agent 平台工具的唯一实现路径如下：
 ```
 src/
 ├── api/platform.py                         # 远端账号/登录/readiness REST
-└── xhs_food/
+└── food_agent/
     ├── contracts/account_service.py        # 远端 HTTP/MCP 合同
     ├── contracts/tool_catalog.py           # Agent 工具 catalog/executor 端口
     ├── composition/account_services.py     # 服务注册与频道路由
@@ -397,8 +397,8 @@ src/
 
 | 文档 | 说明 |
 |------|------|
-| [agents/README.md](src/xhs_food/agents/README.md) | Agent 模块架构与扩展 |
-| [services/README.md](src/xhs_food/services/README.md) | 服务层配置与使用 |
+| [agents/README.md](src/food_agent/agents/README.md) | Agent 模块架构与扩展 |
+| [services/README.md](src/food_agent/services/README.md) | 服务层配置与使用 |
 | [后端 API 指南](docs/backend-api.md) | 完整路由、响应、SSE、身份、错误和配置合同 |
 | [OpenAPI YAML](contracts/openapi.yaml) | 从 FastAPI 运行时确定性生成的机器合同 |
 | [api/README.md](src/api/README.md) | FastAPI 传输层归属和维护方法 |

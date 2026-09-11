@@ -7,14 +7,14 @@ from fastapi.testclient import TestClient
 
 from api.deps import get_current_user_id
 from api.platform import router
-from xhs_food.account_services.fixture import create_fixture_app
-from xhs_food.contracts import PlatformChannel
-from xhs_food.contracts.account_service import (
+from food_agent.account_services.fixture import create_fixture_app
+from food_agent.contracts import PlatformChannel
+from food_agent.contracts.account_service import (
     AccountServiceConfig,
     McpToolCallResult,
     McpToolDescriptor,
 )
-from xhs_food.gateways.account_service import HttpAccountServiceClient, McpAccountServiceClient
+from food_agent.gateways.account_service import HttpAccountServiceClient, McpAccountServiceClient
 
 
 @pytest.mark.asyncio

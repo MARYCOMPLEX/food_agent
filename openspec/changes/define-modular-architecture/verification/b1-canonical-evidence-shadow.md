@@ -60,10 +60,10 @@ uv run --frozen pytest -q tests/test_unit_b1_embedding_shadow.py
 uv run --frozen pytest -q -m "not live" -ra --durations=0
 # 780 passed, 13 deselected, 2 warnings (51.45s)
 
-uv run --frozen ruff check src/xhs_food/contracts src/xhs_food/evidence src/xhs_food/foundation/evidence_schema.py src/xhs_food/composition/adapters/evidence_shadow_repository.py tests/test_unit_b1_schema_and_embeddings.py alembic
+uv run --frozen ruff check src/food_agent/contracts src/food_agent/evidence src/food_agent/foundation/evidence_schema.py src/food_agent/composition/adapters/evidence_shadow_repository.py tests/test_unit_b1_schema_and_embeddings.py alembic
 # passed
 
-uv run --frozen pyright src/xhs_food/contracts/embedding.py src/xhs_food/composition/adapters/evidence_shadow_repository.py src/xhs_food/foundation/evidence_schema.py
+uv run --frozen pyright src/food_agent/contracts/embedding.py src/food_agent/composition/adapters/evidence_shadow_repository.py src/food_agent/foundation/evidence_schema.py
 # 0 errors
 
 uv run alembic upgrade --sql 20260824_0001_b1_shadow

@@ -12,14 +12,14 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from xhs_food.composition.adapters import SQLAlchemyEmbeddingShadowRepository
-from xhs_food.contracts import BGE_M3_PROFILE_V1
-from xhs_food.evidence import (
+from food_agent.composition.adapters import SQLAlchemyEmbeddingShadowRepository
+from food_agent.contracts import BGE_M3_PROFILE_V1
+from food_agent.evidence import (
     EmbeddingBackfillInput,
     EmbeddingCompareStatus,
     EmbeddingShadowService,
 )
-from xhs_food.foundation import SQLAlchemyUnitOfWork
+from food_agent.foundation import SQLAlchemyUnitOfWork
 
 
 class _Producer:

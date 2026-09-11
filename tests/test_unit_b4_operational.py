@@ -11,9 +11,9 @@ from botocore.exceptions import ClientError
 from test_unit_b4_media_pipeline import _fetch_request
 from test_unit_object_store_adapter import byte_chunks
 
-from xhs_food.contracts import ObjectStorePolicy, OrphanCleanupRequest
-from xhs_food.foundation import Boto3ObjectStore, RefreshMediaTelemetry, TargetSettings
-from xhs_food.orchestrator import (
+from food_agent.contracts import ObjectStorePolicy, OrphanCleanupRequest
+from food_agent.foundation import Boto3ObjectStore, RefreshMediaTelemetry, TargetSettings
+from food_agent.orchestrator import (
     MEDIA_FETCH_ACTIVITY,
     MEDIA_TASK_QUEUE,
     MEDIA_WORKFLOW_TYPE,

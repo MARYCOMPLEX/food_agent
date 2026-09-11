@@ -12,8 +12,8 @@ import pytest
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
 
-from xhs_food.contracts import BGE_M3_PROFILE_V1, QueryReuseRequest, validate_embedding_vector
-from xhs_food.evidence import QueryFamilyReuseService
+from food_agent.contracts import BGE_M3_PROFILE_V1, QueryReuseRequest, validate_embedding_vector
+from food_agent.evidence import QueryFamilyReuseService
 
 FIXTURE = Path(__file__).parent / "fixtures" / "authority" / "bge_m3_profile_v1.json"
 MIGRATION = Path(__file__).parents[1] / "alembic" / "versions" / "20260824_0005_b2_derivations.py"

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from xhs_food.services.postgres_storage import PostgresStorage
-from xhs_food.services.user_storage import UserStorageService
+from food_agent.services.postgres_storage import PostgresStorage
+from food_agent.services.user_storage import UserStorageService
 
 pytestmark = pytest.mark.unit
 
