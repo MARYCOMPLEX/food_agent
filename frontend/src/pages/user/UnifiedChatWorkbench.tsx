@@ -119,6 +119,7 @@ export function UnifiedChatWorkbench() {
 
   // Text Composer
   const [inputText, setInputText] = useState<string>('')
+  const [isInputFocused, setIsInputFocused] = useState<boolean>(false)
   const [isComposing, setIsComposing] = useState<boolean>(false)
   const textareaRef = useRef<any>(null)
   const chatBottomRef = useRef<HTMLDivElement | null>(null)
@@ -374,15 +375,18 @@ export function UnifiedChatWorkbench() {
       {/* 1. Left Sider: Ant Design Sider with Menu & Session History */}
       <Layout.Sider
         width={270}
+        collapsedWidth={0}
         theme="light"
         collapsible
         collapsed={!sidebarOpen}
         trigger={null}
         style={{
-          borderRight: '1px solid #f0f0f0',
+          borderRight: sidebarOpen ? '1px solid #f0f0f0' : 'none',
           display: 'flex',
           flexDirection: 'column',
           height: '100vh',
+          overflow: 'hidden',
+          transition: 'all 0.2s ease',
         }}
       >
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -885,31 +889,45 @@ export function UnifiedChatWorkbench() {
         </Layout.Content>
 
         {/* 3. Composer Input Bar */}
-        <div style={{ padding: '12px 24px 20px', background: '#fff', borderTop: '1px solid #f5f5f5' }}>
-          <div style={{ maxWidth: 840, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {attachedContext && (
-              <Tag
-                closable
-                color="processing"
-                onClose={() => setAttachedContext(null)}
-                style={{ width: 'fit-content' }}
-              >
-                针对：{attachedContext.title}
-              </Tag>
-            )}
-
-            <Card
-              size="small"
+        <div style={{ padding: '14px 24px 22px', background: '#fff', borderTop: '1px solid #f5f5f5' }}>
+          <div style={{ maxWidth: 840, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div
+              onClick={() => textareaRef.current?.focus()}
               style={{
-                borderRadius: 12,
-                boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
-                borderColor: '#d9d9d9',
+                background: '#fff',
+                border: isInputFocused ? '1px solid #1677ff' : '1px solid #d9d9d9',
+                boxShadow: isInputFocused
+                  ? '0 0 0 3px rgba(22, 119, 255, 0.12), 0 4px 20px rgba(0, 0, 0, 0.08)'
+                  : '0 2px 10px rgba(0, 0, 0, 0.04)',
+                borderRadius: 16,
+                padding: '14px 18px 12px',
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                cursor: 'text',
               }}
-              styles={{ body: { padding: '8px 12px' } }}
             >
+              {attachedContext && (
+                <div style={{ marginBottom: 10 }}>
+                  <Tag
+                    closable
+                    color="processing"
+                    onClose={(e) => {
+                      e.stopPropagation()
+                      setAttachedContext(null)
+                    }}
+                    style={{
+                      borderRadius: 12,
+                      padding: '2px 10px',
+                      fontSize: 12,
+                    }}
+                  >
+                    针对商户: {attachedContext.title}
+                  </Tag>
+                </div>
+              )}
+
               <Input.TextArea
                 ref={textareaRef}
-                autoSize={{ minRows: 2, maxRows: 6 }}
+                autoSize={{ minRows: 3, maxRows: 8 }}
                 placeholder={
                   attachedContext
                     ? `向 Food Agent 追问关于“${attachedContext.title}”的具体评价或排队避坑...`
@@ -917,19 +935,36 @@ export function UnifiedChatWorkbench() {
                 }
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
+                onFocus={() => setIsInputFocused(true)}
+                onBlur={() => setIsInputFocused(false)}
                 onCompositionStart={() => setIsComposing(true)}
                 onCompositionEnd={() => setIsComposing(false)}
                 onKeyDown={handleKeyDown}
                 variant="borderless"
                 disabled={isRunning}
-                style={{ resize: 'none', padding: 0 }}
+                style={{
+                  resize: 'none',
+                  padding: 0,
+                  fontSize: 15,
+                  lineHeight: 1.6,
+                  boxShadow: 'none',
+                  outline: 'none',
+                }}
               />
 
-              <Flex justify="space-between" align="center" style={{ marginTop: 8 }}>
-                <Space size={6}>
-                  <Tag color="green" icon={<GlobalOutlined />}>
+              <Flex justify="space-between" align="center" style={{ marginTop: 12, paddingTop: 8, borderTop: '1px solid #f8f8f8' }}>
+                <Space size={8} align="center">
+                  <Tag
+                    color="green"
+                    variant="filled"
+                    icon={<GlobalOutlined />}
+                    style={{ borderRadius: 10, margin: 0, fontSize: 11, padding: '2px 8px' }}
+                  >
                     小红书 + 大众点评已连接
                   </Tag>
+                  <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+                    Shift + Enter 换行
+                  </Typography.Text>
                 </Space>
 
                 {isRunning ? (
@@ -938,21 +973,39 @@ export function UnifiedChatWorkbench() {
                     danger
                     shape="circle"
                     icon={<StopOutlined />}
-                    onClick={stop}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      stop()
+                    }}
                     title="停止生成"
+                    style={{ width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                   />
                 ) : (
                   <Button
                     type="primary"
                     shape="circle"
-                    icon={<ArrowUpOutlined />}
+                    icon={<ArrowUpOutlined style={{ fontSize: 16 }} />}
                     disabled={!inputText.trim()}
-                    onClick={() => handleSendMessage()}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleSendMessage()
+                    }}
                     title="发送"
+                    style={{
+                      width: 34,
+                      height: 34,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: inputText.trim() ? '#1677ff' : '#f0f0f0',
+                      borderColor: inputText.trim() ? '#1677ff' : '#d9d9d9',
+                      color: inputText.trim() ? '#fff' : '#bfbfbf',
+                      transition: 'all 0.2s ease',
+                    }}
                   />
                 )}
               </Flex>
-            </Card>
+            </div>
 
             <Typography.Text type="secondary" style={{ fontSize: 11, textAlign: 'center' }}>
               Food Agent 可能会提供不准确的商户信息，请核对重要餐饮与排队信息。
