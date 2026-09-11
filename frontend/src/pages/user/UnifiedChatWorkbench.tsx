@@ -91,6 +91,36 @@ export function UnifiedChatWorkbench() {
     return null
   }, [currentSessionId])
 
+  // History sessions list
+  const [historyList, setHistoryList] = useState<any[]>(() => {
+    const saved = storage.get<any[]>('anyfast_search_history', [])
+    if (saved.length === 0) {
+      const defaultHistory = [
+        {
+          session_id: 'session_demo_cd_hotpot',
+          query: '成都玉林，本地人常去的老火锅，人均100，排队别太久，不要太甜太咸',
+          created_at: new Date().toISOString(),
+        },
+        {
+          session_id: 'session_demo_gz_tea',
+          query: '广州越秀或荔湾区正宗早茶，两人人均80，虾饺要扎实',
+          created_at: new Date(Date.now() - 86400000).toISOString(),
+        },
+      ]
+      storage.set('anyfast_search_history', defaultHistory)
+      return defaultHistory
+    }
+    return saved
+  })
+
+  // Whether current session is a brand-new, unstarted draft session
+  const isNewSession = useMemo(() => {
+    const found = historyList.find((h) => h.session_id === currentSessionId)
+    if (found) return false
+    if (defaultSnapshot) return false
+    return true
+  }, [historyList, currentSessionId, defaultSnapshot])
+
   // Research session hook
   const {
     state,
@@ -98,7 +128,10 @@ export function UnifiedChatWorkbench() {
     stop,
     appendEvent,
     initializeSnapshot,
-  } = useResearchSessionReact(currentSessionId, { snapshot: defaultSnapshot, autoStart: true })
+  } = useResearchSessionReact(currentSessionId, {
+    snapshot: defaultSnapshot,
+    autoStart: !isNewSession,
+  })
 
   // UI States
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(true)
@@ -138,28 +171,6 @@ export function UnifiedChatWorkbench() {
   // Platform Accounts & QR Modal
   const [accounts, setAccounts] = useState(platformAccountsApi.getLocalAccounts())
   const [loginModalPlatform, setLoginModalPlatform] = useState<'xhs_pc' | 'dianping' | null>(null)
-
-  // History sessions list
-  const [historyList, setHistoryList] = useState<any[]>(() => {
-    const saved = storage.get<any[]>('anyfast_search_history', [])
-    if (saved.length === 0) {
-      const defaultHistory = [
-        {
-          session_id: 'session_demo_cd_hotpot',
-          query: '成都玉林，本地人常去的老火锅，人均100，排队别太久，不要太甜太咸',
-          created_at: new Date().toISOString(),
-        },
-        {
-          session_id: 'session_demo_gz_tea',
-          query: '广州越秀或荔湾区正宗早茶，两人人均80，虾饺要扎实',
-          created_at: new Date(Date.now() - 86400000).toISOString(),
-        },
-      ]
-      storage.set('anyfast_search_history', defaultHistory)
-      return defaultHistory
-    }
-    return saved
-  })
 
   // Synchronize route
   useEffect(() => {
@@ -599,20 +610,127 @@ export function UnifiedChatWorkbench() {
           }}
         >
           <div style={{ maxWidth: 840, width: '100%', margin: '0 auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {/* User Message Bubble */}
-            <Flex justify="flex-end">
-              <Card
-                size="small"
+            {isNewSession ? (
+              <div
                 style={{
-                  maxWidth: '85%',
-                  backgroundColor: '#f5f5f5',
-                  borderRadius: 16,
-                  borderColor: '#e8e8e8',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flex: 1,
+                  padding: '36px 16px 20px',
+                  maxWidth: 720,
+                  margin: '0 auto',
+                  width: '100%',
                 }}
               >
-                <Typography.Text style={{ fontSize: 14 }}>{currentQuery}</Typography.Text>
-              </Card>
-            </Flex>
+                <div
+                  style={{
+                    width: 52,
+                    height: 52,
+                    borderRadius: '50%',
+                    background: '#e6f4ff',
+                    color: '#1677ff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 26,
+                    marginBottom: 16,
+                  }}
+                >
+                  <RobotOutlined />
+                </div>
+
+                <Typography.Title level={3} style={{ marginBottom: 8, fontWeight: 600, textAlign: 'center' }}>
+                  今天想找什么美食？
+                </Typography.Title>
+                <Typography.Text
+                  type="secondary"
+                  style={{ fontSize: 14, textAlign: 'center', marginBottom: 32, maxWidth: 540, lineHeight: 1.6 }}
+                >
+                  输入你的就餐偏好、城市或就餐场景。Agent 将全网调取小红书与大众点评真实评论，深度识别本地人口碑，过滤网红流量陷阱。
+                </Typography.Text>
+
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                    gap: 12,
+                    width: '100%',
+                  }}
+                >
+                  {[
+                    {
+                      icon: '🍲',
+                      title: '成都玉林老火锅',
+                      desc: '本地人常去的口碑老店，人均100左右，排队别太久',
+                      prompt: '成都玉林，本地人常去的老火锅，人均100，排队别太久，不要太甜太咸',
+                    },
+                    {
+                      icon: '☕',
+                      title: '广州西关正宗早茶',
+                      desc: '两人人均80以内，虾饺烧卖扎实的老字号',
+                      prompt: '广州越秀或荔湾区正宗早茶，两人人均80，虾饺要扎实',
+                    },
+                    {
+                      icon: '🥩',
+                      title: '上海静安商务宴请',
+                      desc: '适合商务洽谈的本帮菜，包厢安静不踩雷',
+                      prompt: '上海静安寺附近，适合商务宴请的本帮菜餐厅，环境安静不踩雷',
+                    },
+                    {
+                      icon: '🍢',
+                      title: '西安回民街地道小吃',
+                      desc: '避开主街游客陷阱，寻找本地人认可的老店',
+                      prompt: '西安大皮院附近的本地回民街小吃，避开主街游客店，寻找本地人认可的老店',
+                    },
+                  ].map((card, idx) => (
+                    <Card
+                      key={idx}
+                      hoverable
+                      size="small"
+                      onClick={() => handleSendMessage(card.prompt)}
+                      style={{
+                        borderRadius: 12,
+                        cursor: 'pointer',
+                        borderColor: '#f0f0f0',
+                        transition: 'all 0.2s ease',
+                      }}
+                      styles={{
+                        body: { padding: '12px 14px' },
+                      }}
+                    >
+                      <Space align="start" size={10}>
+                        <span style={{ fontSize: 22 }}>{card.icon}</span>
+                        <div>
+                          <Typography.Text strong style={{ fontSize: 13, display: 'block', marginBottom: 2 }}>
+                            {card.title}
+                          </Typography.Text>
+                          <Typography.Text type="secondary" style={{ fontSize: 12, lineHeight: 1.4 }}>
+                            {card.desc}
+                          </Typography.Text>
+                        </div>
+                      </Space>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* User Message Bubble */}
+                <Flex justify="flex-end">
+                  <Card
+                    size="small"
+                    style={{
+                      maxWidth: '85%',
+                      backgroundColor: '#f5f5f5',
+                      borderRadius: 16,
+                      borderColor: '#e8e8e8',
+                    }}
+                  >
+                    <Typography.Text style={{ fontSize: 14 }}>{currentQuery}</Typography.Text>
+                  </Card>
+                </Flex>
 
             {/* Assistant Answer Box */}
             <Flex align="flex-start" gap={12}>
@@ -885,6 +1003,8 @@ export function UnifiedChatWorkbench() {
             </Flex>
 
             <div ref={chatBottomRef} style={{ height: 16 }} />
+              </>
+            )}
           </div>
         </Layout.Content>
 
