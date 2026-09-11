@@ -443,53 +443,86 @@ export function UnifiedChatWorkbench() {
             <Typography.Text type="secondary" style={{ fontSize: 11, padding: '6px 8px', display: 'block' }}>
               历史对话
             </Typography.Text>
-            <List
-              dataSource={historyList}
-              renderItem={(item) => {
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              {historyList.map((item) => {
                 const isSelected = item.session_id === currentSessionId
                 return (
-                  <List.Item
+                  <div
                     key={item.session_id}
                     onClick={() => handleSelectSession(item.session_id)}
                     style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
                       padding: '8px 10px',
-                      borderRadius: 6,
-                      marginBottom: 3,
+                      borderRadius: 8,
                       cursor: 'pointer',
                       background: isSelected ? '#e6f4ff' : 'transparent',
-                      border: 'none',
-                      transition: 'background 0.2s',
+                      transition: 'all 0.15s ease',
                     }}
-                    actions={[
-                      <Button
-                        key="del"
-                        type="text"
-                        danger
-                        size="small"
-                        icon={<DeleteOutlined />}
-                        onClick={(e) => handleDeleteSession(item.session_id, e)}
-                        title="删除会话"
-                      />,
-                    ]}
+                    onMouseEnter={(e) => {
+                      if (!isSelected) e.currentTarget.style.background = '#f5f5f5'
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isSelected) e.currentTarget.style.background = 'transparent'
+                    }}
                   >
-                    <Space size={8} style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
-                      <MessageOutlined style={{ color: isSelected ? '#1677ff' : '#8c8c8c' }} />
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        flex: 1,
+                        minWidth: 0,
+                        marginRight: 6,
+                      }}
+                    >
+                      <MessageOutlined
+                        style={{
+                          color: isSelected ? '#1677ff' : '#8c8c8c',
+                          fontSize: 13,
+                          flexShrink: 0,
+                        }}
+                      />
                       <Typography.Text
-                        ellipsis
+                        ellipsis={{ tooltip: item.query }}
                         style={{
                           fontSize: 12,
                           color: isSelected ? '#1677ff' : '#262626',
                           fontWeight: isSelected ? 500 : 400,
-                          maxWidth: 160,
+                          width: '100%',
+                          lineHeight: 1.4,
                         }}
                       >
                         {item.query}
                       </Typography.Text>
-                    </Space>
-                  </List.Item>
+                    </div>
+
+                    <Button
+                      type="text"
+                      danger
+                      size="small"
+                      icon={<DeleteOutlined style={{ fontSize: 12 }} />}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDeleteSession(item.session_id, e)
+                      }}
+                      title="删除会话"
+                      style={{
+                        flexShrink: 0,
+                        width: 24,
+                        height: 24,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: isSelected ? '#ff4d4f' : '#bfbfbf',
+                        padding: 0,
+                      }}
+                    />
+                  </div>
                 )
-              }}
-            />
+              })}
+            </div>
           </div>
 
           {/* Sider Footer */}
