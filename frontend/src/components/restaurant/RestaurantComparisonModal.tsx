@@ -84,7 +84,7 @@ export function RestaurantComparisonModal({
         acc[shop.id] = shop.pros && shop.pros.length > 0 ? (
           <Space direction="vertical" size={4}>
             {shop.pros.map((p, i) => (
-              <span key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+              <span key={`pro_${i}`} style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
                 <CheckCircleOutlined style={{ color: '#52c41a', marginTop: 3 }} />
                 <span>{p}</span>
               </span>
@@ -103,7 +103,7 @@ export function RestaurantComparisonModal({
         acc[shop.id] = shop.cons && shop.cons.length > 0 ? (
           <Space direction="vertical" size={4}>
             {shop.cons.map((c, i) => (
-              <span key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+              <span key={`con_${i}`} style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
                 <WarningOutlined style={{ color: '#faad14', marginTop: 3 }} />
                 <span style={{ color: '#d48806' }}>{c}</span>
               </span>

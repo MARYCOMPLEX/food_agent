@@ -61,6 +61,11 @@ import { useToast } from '../../context/ToastContext'
 import { storage } from '../../shared/utils/storage'
 import { startSearch } from '../../api/searchApi'
 import { platformAccountsApi } from '../../features/platform-accounts/api/platformAccountsApi'
+import {
+  DEMO_CD_HOTPOT_PROJECTION,
+  DEMO_GZ_TEA_PROJECTION,
+  createDynamicProjection,
+} from '../../features/research-session/domain/demoProjections'
 import type {
   ResearchProfileViewV1,
   ResearchRecommendationViewV1,
@@ -79,13 +84,21 @@ export function UnifiedChatWorkbench() {
     routeSessionId || 'session_demo_cd_hotpot',
   )
 
+  // Default snapshot for demo / local offline workbench
+  const defaultSnapshot = useMemo(() => {
+    if (currentSessionId === 'session_demo_cd_hotpot') return DEMO_CD_HOTPOT_PROJECTION
+    if (currentSessionId === 'session_demo_gz_tea') return DEMO_GZ_TEA_PROJECTION
+    return null
+  }, [currentSessionId])
+
   // Research session hook
   const {
     state,
     projection,
     stop,
     appendEvent,
-  } = useResearchSessionReact(currentSessionId, { autoStart: true })
+    initializeSnapshot,
+  } = useResearchSessionReact(currentSessionId, { snapshot: defaultSnapshot, autoStart: true })
 
   // UI States
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(true)
@@ -274,22 +287,10 @@ export function UnifiedChatWorkbench() {
       await startSearch(fullPrompt, currentSessionId)
       showToast('已提交需求，Agent 正在搜集评论证据...', 'info')
     } catch {
-      // Local fallback event
-      appendEvent({
-        schemaVersion: 'research-event/v1',
-        eventId: `ev_${Date.now()}`,
-        sessionId: currentSessionId,
-        taskId: projection?.taskId || 'task_1',
-        turnId: (projection?.turnId || 1) + 1,
-        sequence: (projection?.lastSequence || 0) + 1,
-        occurredAt: new Date().toISOString(),
-        kind: 'run_progress',
-        mutation: 'patch',
-        payload: {
-          summary: `已收到针对“${attachedContext ? attachedContext.title : '全局'}”的追问：“${text}”，正在补充核对评论证据...`,
-        },
-      })
-      showToast('已收到追问，正在更新研判结论...', 'info')
+      // Local fallback event / dynamic mock for full interactive testing
+      const dynamicProj = createDynamicProjection(text, currentSessionId)
+      initializeSnapshot(dynamicProj)
+      showToast('调研完成！已生成推荐方案与证据链', 'success')
     }
   }
 
@@ -397,7 +398,7 @@ export function UnifiedChatWorkbench() {
               <Typography.Text strong style={{ fontSize: 14 }}>
                 Food Agent
               </Typography.Text>
-              <Tag color="blue" bordered={false} style={{ fontSize: 11 }}>
+              <Tag color="blue" variant="filled" style={{ fontSize: 11 }}>
                 4o
               </Tag>
             </Space>
@@ -734,12 +735,12 @@ export function UnifiedChatWorkbench() {
                               {/* Highlights & Warnings */}
                               <Space wrap size={[4, 4]}>
                                 {rec.highlights?.map((h, i) => (
-                                  <Tag key={i} color="success">
+                                  <Tag key={`high_${i}`} color="success">
                                     {h}
                                   </Tag>
                                 ))}
                                 {rec.warnings?.map((w, i) => (
-                                  <Tag key={i} color="warning">
+                                  <Tag key={`warn_${i}`} color="warning">
                                     避雷: {w}
                                   </Tag>
                                 ))}
@@ -904,7 +905,7 @@ export function UnifiedChatWorkbench() {
                 boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
                 borderColor: '#d9d9d9',
               }}
-              bodyStyle={{ padding: '8px 12px' }}
+              styles={{ body: { padding: '8px 12px' } }}
             >
               <Input.TextArea
                 ref={textareaRef}
@@ -919,7 +920,7 @@ export function UnifiedChatWorkbench() {
                 onCompositionStart={() => setIsComposing(true)}
                 onCompositionEnd={() => setIsComposing(false)}
                 onKeyDown={handleKeyDown}
-                bordered={false}
+                variant="borderless"
                 disabled={isRunning}
                 style={{ resize: 'none', padding: 0 }}
               />
@@ -964,7 +965,7 @@ export function UnifiedChatWorkbench() {
       <Drawer
         title="调研检查器"
         placement="right"
-        width={480}
+        size={480}
         onClose={() => setRightPanelOpen(false)}
         open={rightPanelOpen}
       >

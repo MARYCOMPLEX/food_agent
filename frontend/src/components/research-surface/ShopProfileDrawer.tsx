@@ -148,7 +148,7 @@ export function ShopProfileDrawer({
             </Typography.Text>
             <Space wrap>
               {recommendation.highlights.map((h, i) => (
-                <Tag key={i} color="blue">
+                <Tag key={`high_${i}`} color="blue">
                   {h}
                 </Tag>
               ))}
@@ -163,7 +163,7 @@ export function ShopProfileDrawer({
             </Typography.Text>
             <Space wrap>
               {recommendation.warnings.map((w, i) => (
-                <Tag key={i} color="volcano">
+                <Tag key={`warn_${i}`} color="volcano">
                   避雷: {w}
                 </Tag>
               ))}

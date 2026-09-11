@@ -155,7 +155,7 @@ importers:
         version: 2.27.3(@typescript-eslint/utils@8.59.4(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3))(@vue/compiler-sfc@3.5.34)(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3)(vitest@1.6.1(@types/node@20.19.41))
       '@axe-core/playwright':
         specifier: ^4.9.0
-        version: 4.11.3(playwright-core@1.60.0)
+        version: 4.11.3(playwright-core@1.63.0)
       '@intlify/unplugin-vue-i18n':
         specifier: ^4.0.0
         version: 4.0.0(rollup@4.60.4)(vue-i18n@9.14.5(vue@3.5.34(typescript@5.9.3)))
@@ -195,6 +195,9 @@ importers:
       openapi-typescript:
         specifier: ^6.7.5
         version: 6.7.6
+      playwright-core:
+        specifier: ^1.63.0
+        version: 1.63.0
       rollup-plugin-visualizer:
         specifier: ^5.12.0
         version: 5.14.0(rollup@4.60.4)
@@ -4959,6 +4962,11 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
+  playwright-core@1.63.0:
+    resolution: {integrity: sha512-rYCsBF/M5HjUch52bbtVONEFjv6Xu8sm8h72dNlR5bzIE1fvC/bxgspzkjSfU+MweEMmPM8KJebG6nnyxo5mCg==}
+    engines: {node: '>=20'}
+    hasBin: true
+
   playwright@1.60.0:
     resolution: {integrity: sha512-hheHdokM8cdqCb0lcE3s+zT4t4W+vvjpGxsZlDnikarzx8tSzMebh3UiFtgqwFwnTnjYQcsyMF8ei2mCO/tpeA==}
     engines: {node: '>=18'}
@@ -6279,10 +6287,10 @@ snapshots:
       '@types/react': 19.3.0
       react: 19.2.8
 
-  '@axe-core/playwright@4.11.3(playwright-core@1.60.0)':
+  '@axe-core/playwright@4.11.3(playwright-core@1.63.0)':
     dependencies:
       axe-core: 4.11.4
-      playwright-core: 1.60.0
+      playwright-core: 1.63.0
 
   '@babel/code-frame@7.29.0':
     dependencies:
@@ -11258,6 +11266,8 @@ snapshots:
       pathe: 2.0.3
 
   playwright-core@1.60.0: {}
+
+  playwright-core@1.63.0: {}
 
   playwright@1.60.0:
     dependencies:
