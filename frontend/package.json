@@ -13,6 +13,8 @@
     "i18n:check": "echo 'Run i18n check script here'"
   },
   "dependencies": {
+    "@ant-design/icons": "^6.3.4",
+    "@ant-design/x": "^2.9.0",
     "@assistant-ui/react": "^0.15.18",
     "@floating-ui/vue": "^1.0",
     "@formkit/auto-animate": "^0.8",
@@ -24,6 +26,7 @@
     "@vueuse/core": "^10.9",
     "@vueuse/head": "^2.0",
     "@vueuse/motion": "^2.1",
+    "antd": "^6.6.3",
     "cytoscape": "^3.28",
     "cytoscape-cxtmenu": "^3.5",
     "cytoscape-dagre": "^2.5",

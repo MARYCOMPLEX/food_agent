@@ -1,37 +1,61 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
-  Sparkles,
-  ArrowUp,
-  StopCircle,
-  Plus,
-  Bookmark,
-  Layers,
-  Server,
-  X,
-  ChevronRight,
-  ChevronDown,
-  ChevronUp,
-  MessageSquare,
-  AlertTriangle,
-  CheckCircle2,
-  MapPin,
-  Clock,
-  ExternalLink,
-  Trash2,
-  ArrowRight,
-  PanelRightClose,
-  PanelRightOpen,
-  PanelLeftClose,
-  PanelLeft,
-  RefreshCw,
+  Layout,
+  Button,
+  Input,
+  Card,
   Tag,
-  SquarePen,
-} from 'lucide-react'
+  Badge,
+  Avatar,
+  Space,
+  Typography,
+  Collapse,
+  Timeline,
+  Drawer,
+  Tabs,
+  Select,
+  Tooltip,
+  Alert,
+  List,
+  Flex,
+  Divider,
+} from 'antd'
+import {
+  PlusOutlined,
+  SendOutlined,
+  ArrowUpOutlined,
+  StopOutlined,
+  LoadingOutlined,
+  DeleteOutlined,
+  MessageOutlined,
+  ClockCircleOutlined,
+  CheckCircleOutlined,
+  ExclamationCircleOutlined,
+  EnvironmentOutlined,
+  ShopOutlined,
+  StarOutlined,
+  StarFilled,
+  DiffOutlined,
+  CopyOutlined,
+  LikeOutlined,
+  DislikeOutlined,
+  ReloadOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
+  ControlOutlined,
+  AuditOutlined,
+  GlobalOutlined,
+  ArrowRightOutlined,
+  FileTextOutlined,
+  RobotOutlined,
+  CheckOutlined,
+} from '@ant-design/icons'
 import { useResearchSessionReact } from '../../features/research-session/domain/useResearchSessionReact'
 import { EvidenceTimeline } from '../../components/research-surface/EvidenceTimeline'
 import { ControversyPanel } from '../../components/research-surface/ControversyPanel'
 import { RestaurantComparisonModal } from '../../components/restaurant/RestaurantComparisonModal'
+import { ShopProfileDrawer } from '../../components/research-surface/ShopProfileDrawer'
 import { QrLoginModal } from '../../components/auth/QrLoginModal'
 import { useToast } from '../../context/ToastContext'
 import { storage } from '../../shared/utils/storage'
@@ -59,7 +83,6 @@ export function UnifiedChatWorkbench() {
   const {
     state,
     projection,
-    start,
     stop,
     appendEvent,
   } = useResearchSessionReact(currentSessionId, { autoStart: true })
@@ -70,9 +93,10 @@ export function UnifiedChatWorkbench() {
   const [rightPanelTab, setRightPanelTab] = useState<RightPanelTab>('evidence')
   const [selectedProfile, setSelectedProfile] = useState<ResearchProfileViewV1 | null>(null)
   const [selectedRec, setSelectedRec] = useState<ResearchRecommendationViewV1 | null>(null)
+  const [isProfileDrawerOpen, setIsProfileDrawerOpen] = useState<boolean>(false)
 
-  // Plan accordion
-  const [planExpanded, setPlanExpanded] = useState<boolean>(false)
+  // Model Selection
+  const [selectedModel, setSelectedModel] = useState<string>('food-agent-4o')
 
   // Follow-up context
   const [attachedContext, setAttachedContext] = useState<{
@@ -83,8 +107,12 @@ export function UnifiedChatWorkbench() {
   // Text Composer
   const [inputText, setInputText] = useState<string>('')
   const [isComposing, setIsComposing] = useState<boolean>(false)
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const textareaRef = useRef<any>(null)
   const chatBottomRef = useRef<HTMLDivElement | null>(null)
+
+  // Feedback state
+  const [hasCopied, setHasCopied] = useState<boolean>(false)
+  const [feedbackRating, setFeedbackRating] = useState<'up' | 'down' | null>(null)
 
   // Comparison & Favorites
   const [compareList, setCompareList] = useState<Restaurant[]>([])
@@ -131,14 +159,6 @@ export function UnifiedChatWorkbench() {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [projection?.summary, projection?.recommendations?.length])
 
-  // Auto expand textarea
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto'
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 180)}px`
-    }
-  }, [inputText])
-
   // Is investigation running
   const isRunning = state.syncState === 'synced' && projection?.status === 'running'
 
@@ -171,6 +191,7 @@ export function UnifiedChatWorkbench() {
     setRightPanelOpen(false)
     setAttachedContext(null)
     setInputText('')
+    setFeedbackRating(null)
     navigate(`/chat/${newId}`)
   }
 
@@ -178,6 +199,7 @@ export function UnifiedChatWorkbench() {
   const handleSelectSession = (sid: string) => {
     setCurrentSessionId(sid)
     setRightPanelOpen(false)
+    setFeedbackRating(null)
     navigate(`/chat/${sid}`)
   }
 
@@ -190,6 +212,38 @@ export function UnifiedChatWorkbench() {
     if (currentSessionId === sid && next.length > 0 && next[0]) {
       handleSelectSession(next[0].session_id)
     }
+  }
+
+  // Copy response
+  const handleCopyResponse = async () => {
+    const textToCopy = `${currentQuery}\n\n${projection?.summary || ''}`
+    try {
+      await navigator.clipboard.writeText(textToCopy)
+      setHasCopied(true)
+      showToast('已复制回答内容至剪贴板', 'success')
+      setTimeout(() => setHasCopied(false), 2000)
+    } catch {
+      showToast('复制失败，请手动选择文本', 'warning')
+    }
+  }
+
+  // Regenerate / Retry response
+  const handleRegenerate = () => {
+    showToast('正在重新综合研判评论与档案...', 'info')
+    appendEvent({
+      schemaVersion: 'research-event/v1',
+      eventId: `ev_${Date.now()}`,
+      sessionId: currentSessionId,
+      taskId: projection?.taskId || 'task_1',
+      turnId: (projection?.turnId || 1) + 1,
+      sequence: (projection?.lastSequence || 0) + 1,
+      occurredAt: new Date().toISOString(),
+      kind: 'run_progress',
+      mutation: 'patch',
+      payload: {
+        summary: '已重新调取小红书与大众点评多源证据，正在二次核验口碑交叉点...',
+      },
+    })
   }
 
   // Send message
@@ -248,11 +302,25 @@ export function UnifiedChatWorkbench() {
   }
 
   // Open Inspector
-  const openInspector = (tab: RightPanelTab, profile?: ResearchProfileViewV1 | null, rec?: ResearchRecommendationViewV1 | null) => {
+  const openInspector = (
+    tab: RightPanelTab,
+    profile?: ResearchProfileViewV1 | null,
+    rec?: ResearchRecommendationViewV1 | null,
+  ) => {
     setRightPanelTab(tab)
     if (profile !== undefined) setSelectedProfile(profile)
     if (rec !== undefined) setSelectedRec(rec)
     setRightPanelOpen(true)
+  }
+
+  // Open standalone profile drawer
+  const openStandaloneProfile = (
+    profile: ResearchProfileViewV1 | null,
+    rec: ResearchRecommendationViewV1 | null,
+  ) => {
+    setSelectedProfile(profile)
+    setSelectedRec(rec)
+    setIsProfileDrawerOpen(true)
   }
 
   // Toggle favorite
@@ -301,589 +369,676 @@ export function UnifiedChatWorkbench() {
   const plan = projection?.plan || []
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-white text-zinc-900 font-sans">
-      {/* 1. Left Sidebar (Authentic ChatGPT style) */}
-      <aside
-        className={`${
-          sidebarOpen ? 'w-64 sm:w-72' : 'w-0 -ml-72'
-        } flex flex-col bg-[#f9f9f9] border-r border-zinc-200/80 transition-all duration-200 z-30 flex-shrink-0 select-none overflow-hidden`}
+    <Layout style={{ height: '100vh', width: '100vw', overflow: 'hidden' }}>
+      {/* 1. Left Sider: Ant Design Sider with Menu & Session History */}
+      <Layout.Sider
+        width={270}
+        theme="light"
+        collapsible
+        collapsed={!sidebarOpen}
+        trigger={null}
+        style={{
+          borderRight: '1px solid #f0f0f0',
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100vh',
+        }}
       >
-        {/* Sidebar Header */}
-        <div className="p-3.5 flex items-center justify-between border-b border-zinc-200/60">
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-[#10a37f] text-white flex items-center justify-center font-bold shadow-2xs">
-              <Sparkles className="w-4 h-4" />
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="font-semibold text-sm text-zinc-900 tracking-tight">Food Agent</span>
-              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-zinc-200/70 text-zinc-600 font-medium">
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+          {/* Sider Header */}
+          <div style={{ padding: '16px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f5f5f5' }}>
+            <Space align="center" size={8}>
+              <Avatar
+                shape="square"
+                size="small"
+                icon={<RobotOutlined />}
+                style={{ backgroundColor: '#1677ff' }}
+              />
+              <Typography.Text strong style={{ fontSize: 14 }}>
+                Food Agent
+              </Typography.Text>
+              <Tag color="blue" bordered={false} style={{ fontSize: 11 }}>
                 4o
-              </span>
-            </div>
-          </div>
-          <button
-            onClick={() => setSidebarOpen(false)}
-            className="p-1 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-200/60 transition-colors"
-            title="收起侧栏"
-          >
-            <PanelLeftClose className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* New Chat Button */}
-        <div className="p-3">
-          <button
-            onClick={handleStartNewChat}
-            className="w-full flex items-center justify-between py-2 px-3 rounded-xl bg-white hover:bg-zinc-100 border border-zinc-200/80 text-zinc-800 text-xs font-medium transition-all shadow-2xs group"
-          >
-            <span className="flex items-center gap-2">
-              <Plus className="w-3.5 h-3.5 text-zinc-600" />
-              <span>新建美食调研</span>
-            </span>
-            <SquarePen className="w-3.5 h-3.5 text-zinc-400 group-hover:text-zinc-700 transition-colors" />
-          </button>
-        </div>
-
-        {/* Sessions History List */}
-        <div className="flex-1 overflow-y-auto px-2 space-y-0.5 text-xs">
-          <div className="px-3 py-1.5 text-[10px] font-medium text-zinc-400 uppercase tracking-wider">
-            历史对话
-          </div>
-          {historyList.map((item) => {
-            const isSelected = item.session_id === currentSessionId
-            return (
-              <div
-                key={item.session_id}
-                onClick={() => handleSelectSession(item.session_id)}
-                className={`group flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer transition-colors ${
-                  isSelected
-                    ? 'bg-zinc-200/80 text-zinc-900 font-medium'
-                    : 'text-zinc-600 hover:bg-zinc-200/50 hover:text-zinc-900'
-                }`}
-              >
-                <div className="flex items-center gap-2 min-w-0 flex-1">
-                  <MessageSquare className={`w-3.5 h-3.5 flex-shrink-0 ${isSelected ? 'text-[#10a37f]' : 'text-zinc-400'}`} />
-                  <span className="truncate text-xs">{item.query}</span>
-                </div>
-                <button
-                  onClick={(e) => handleDeleteSession(item.session_id, e)}
-                  className="opacity-0 group-hover:opacity-100 p-1 text-zinc-400 hover:text-red-500 rounded transition-opacity"
-                  title="删除此会话"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            )
-          })}
-        </div>
-
-        {/* Sidebar Footer */}
-        <div className="p-3 border-t border-zinc-200/80 space-y-2 text-xs">
-          {/* Account Connectivity Status */}
-          <div className="bg-white p-2.5 rounded-xl border border-zinc-200/80 space-y-1.5 shadow-2xs">
-            <div className="flex items-center justify-between text-[11px] text-zinc-500 font-medium">
-              <span>探店数据源</span>
-              <span className="text-[10px] font-mono text-zinc-400">STATUS</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setLoginModalPlatform('xhs_pc')}
-                className="flex-1 py-1 px-2 rounded-lg bg-zinc-50 hover:bg-zinc-100 border border-zinc-200/70 text-[11px] font-medium flex items-center justify-center gap-1.5 transition-colors"
-              >
-                <span className={`w-1.5 h-1.5 rounded-full ${xhsDegraded ? 'bg-amber-500' : 'bg-[#10a37f]'}`} />
-                <span>小红书</span>
-              </button>
-              <button
-                onClick={() => setLoginModalPlatform('dianping')}
-                className="flex-1 py-1 px-2 rounded-lg bg-zinc-50 hover:bg-zinc-100 border border-zinc-200/70 text-[11px] font-medium flex items-center justify-center gap-1.5 transition-colors"
-              >
-                <span className={`w-1.5 h-1.5 rounded-full ${dpDegraded ? 'bg-amber-500' : 'bg-[#10a37f]'}`} />
-                <span>大众点评</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Link to Ops console */}
-          <button
-            onClick={() => navigate('/ops')}
-            className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200/60 transition-colors"
-          >
-            <span className="flex items-center gap-2">
-              <Server className="w-3.5 h-3.5 text-zinc-500" />
-              <span className="text-xs font-medium">运维管控中台</span>
-            </span>
-            <ExternalLink className="w-3 h-3 text-zinc-400" />
-          </button>
-        </div>
-      </aside>
-
-      {/* 2. Main Chat Conversation Body */}
-      <main className="flex-1 flex flex-col h-full min-w-0 bg-white relative">
-        {/* Chat Top Header */}
-        <header className="h-14 border-b border-zinc-100 px-4 sm:px-6 flex items-center justify-between bg-white/95 backdrop-blur-md z-10 flex-shrink-0">
-          <div className="flex items-center gap-3 min-w-0">
-            {!sidebarOpen && (
-              <button
-                onClick={() => setSidebarOpen(true)}
-                className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition-colors"
-                title="展开边栏"
-              >
-                <PanelLeft className="w-4 h-4" />
-              </button>
-            )}
-
-            {/* Model Pill */}
-            <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl hover:bg-zinc-100 cursor-pointer transition-colors">
-              <span className="font-semibold text-zinc-900 text-sm">Food Agent 4o</span>
-              <ChevronDown className="w-3.5 h-3.5 text-zinc-400" />
-            </div>
-          </div>
-
-          {/* Header Actions */}
-          <div className="flex items-center gap-2">
-            {compareList.length > 0 && (
-              <button
-                onClick={() => setIsCompareModalOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs font-medium transition-colors"
-              >
-                <Layers className="w-3.5 h-3.5 text-zinc-600" />
-                <span>对比 ({compareList.length})</span>
-              </button>
-            )}
-
-            {/* Toggle Right Inspector Button */}
-            <button
-              onClick={() => setRightPanelOpen(!rightPanelOpen)}
-              className={`p-2 rounded-xl text-xs flex items-center gap-1.5 transition-colors ${
-                rightPanelOpen
-                  ? 'bg-zinc-900 text-white shadow-2xs'
-                  : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
-              }`}
-              title={rightPanelOpen ? '收起检查器' : '展开评论与档案检查器'}
-            >
-              {rightPanelOpen ? <PanelRightClose className="w-4 h-4" /> : <PanelRightOpen className="w-4 h-4" />}
-              <span className="hidden sm:inline">检查器</span>
-              {evidenceItems.length > 0 && (
-                <span className={`text-[10px] px-1.5 rounded-full font-mono ${rightPanelOpen ? 'bg-zinc-800 text-white' : 'bg-white text-zinc-700'}`}>
-                  {evidenceItems.length}
-                </span>
-              )}
-            </button>
-          </div>
-        </header>
-
-        {/* Messages Stream Scroll Area */}
-        <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 space-y-6">
-          {/* User Message Bubble */}
-          <div className="max-w-3xl mx-auto flex justify-end">
-            <div className="max-w-[85%] bg-[#f4f4f4] text-zinc-900 px-5 py-3.5 rounded-[24px] text-sm leading-relaxed shadow-2xs">
-              {currentQuery}
-            </div>
-          </div>
-
-          {/* Assistant Response Container */}
-          <div className="max-w-3xl mx-auto flex items-start gap-3.5">
-            {/* Assistant Avatar */}
-            <div className="w-7 h-7 rounded-full bg-[#10a37f] text-white flex items-center justify-center flex-shrink-0 shadow-2xs mt-0.5">
-              <Sparkles className="w-3.5 h-3.5" />
-            </div>
-
-            <div className="flex-1 space-y-4 min-w-0">
-              {/* 1. Thought Process (OpenAI o1 / o3-mini style) */}
-              {plan.length > 0 && (
-                <div>
-                  <button
-                    onClick={() => setPlanExpanded(!planExpanded)}
-                    className="inline-flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-800 font-medium py-1 transition-colors group"
-                  >
-                    <span>思考与检索步骤 ({plan.length} 步)</span>
-                    <ChevronDown
-                      className={`w-3.5 h-3.5 text-zinc-400 group-hover:text-zinc-700 transition-transform duration-200 ${
-                        planExpanded ? 'rotate-180' : ''
-                      }`}
-                    />
-                  </button>
-
-                  {planExpanded && (
-                    <div className="mt-2 mb-3 pl-3.5 border-l-2 border-zinc-200 space-y-2 text-xs text-zinc-500 animate-in fade-in duration-150">
-                      {plan.map((s, idx) => (
-                        <div key={idx} className="flex items-start gap-2">
-                          {s.status === 'succeeded' ? (
-                            <CheckCircle2 className="w-3.5 h-3.5 text-[#10a37f] mt-0.5 flex-shrink-0" />
-                          ) : s.status === 'running' ? (
-                            <RefreshCw className="w-3.5 h-3.5 text-zinc-700 animate-spin mt-0.5 flex-shrink-0" />
-                          ) : (
-                            <Clock className="w-3.5 h-3.5 text-zinc-300 mt-0.5 flex-shrink-0" />
-                          )}
-                          <div>
-                            <span className="font-medium text-zinc-700">{s.label}</span>
-                            {s.detail && <div className="text-[11px] text-zinc-400 mt-0.5">{s.detail}</div>}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* 2. Agent Synthesis Summary */}
-              {projection?.summary ? (
-                <div className="text-sm leading-relaxed text-zinc-900 font-normal">
-                  <p className="whitespace-pre-line">{projection.summary}</p>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 text-xs text-zinc-400 py-2">
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-zinc-600" />
-                  <span>正在检索分析小红书与大众点评真实评论...</span>
-                </div>
-              )}
-
-              {/* 3. Embedded Recommendation Cards */}
-              {recommendations.length > 0 && (
-                <div className="space-y-3 pt-2">
-                  <div className="text-xs text-zinc-400 font-medium uppercase tracking-wider">
-                    精选建议候选 ({recommendations.length})
-                  </div>
-
-                  <div className="space-y-3">
-                    {recommendations.map((rec, idx) => {
-                      const matchedProfile = profiles.find(
-                        (p) => p.name === rec.title || p.profileId === rec.profileRef,
-                      )
-                      const isFavorite = favorites.includes(rec.recommendationId)
-
-                      return (
-                        <div
-                          key={rec.recommendationId}
-                          className="bg-white rounded-2xl border border-zinc-200 p-4.5 shadow-2xs hover:border-zinc-300 hover:shadow-xs transition-all space-y-3"
-                        >
-                          {/* Card Header: Rank, Title, Price, Bookmark */}
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex items-start gap-3">
-                              <div className="w-6 h-6 rounded-full bg-zinc-100 text-zinc-800 font-mono font-semibold text-xs flex items-center justify-center flex-shrink-0 mt-0.5">
-                                {rec.rank || idx + 1}
-                              </div>
-
-                              <div>
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <h4
-                                    onClick={() => openInspector('profile', matchedProfile || null, rec)}
-                                    className="font-semibold text-zinc-900 text-base hover:text-[#10a37f] transition-colors cursor-pointer"
-                                  >
-                                    {rec.title}
-                                  </h4>
-                                  {matchedProfile?.averagePrice && (
-                                    <span className="font-mono text-xs text-zinc-500">
-                                      ¥{matchedProfile.averagePrice}/人
-                                    </span>
-                                  )}
-                                </div>
-                                {matchedProfile?.address && (
-                                  <div className="flex items-center gap-1 text-xs text-zinc-400 mt-0.5">
-                                    <MapPin className="w-3 h-3 text-zinc-400" />
-                                    <span className="truncate max-w-xs">{matchedProfile.address}</span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-
-                            <button
-                              onClick={() => handleToggleFavorite(rec.recommendationId, rec.title)}
-                              className={`p-1.5 rounded-lg text-xs transition-colors ${
-                                isFavorite
-                                  ? 'text-amber-500'
-                                  : 'text-zinc-400 hover:text-zinc-700'
-                              }`}
-                              title={isFavorite ? '已收藏' : '收藏'}
-                            >
-                              <Bookmark className={`w-4 h-4 ${isFavorite ? 'fill-current' : ''}`} />
-                            </button>
-                          </div>
-
-                          {/* Highlights & Warnings Pills */}
-                          <div className="flex flex-wrap gap-1.5 text-xs">
-                            {rec.highlights?.map((h, i) => (
-                              <span
-                                key={i}
-                                className="px-2.5 py-0.5 rounded-full bg-zinc-100 text-zinc-700 text-xs font-medium border border-zinc-200/50"
-                              >
-                                {h}
-                              </span>
-                            ))}
-                            {rec.warnings?.map((w, i) => (
-                              <span
-                                key={i}
-                                className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 text-xs font-medium border border-amber-200/60"
-                              >
-                                避雷: {w}
-                              </span>
-                            ))}
-                          </div>
-
-                          {/* One-liner summary */}
-                          {rec.summary && (
-                            <div className="text-xs text-zinc-600 leading-relaxed">
-                              {rec.summary}
-                            </div>
-                          )}
-
-                          {/* Footer Action Buttons (OpenAI Pill Buttons) */}
-                          <div className="pt-2 border-t border-zinc-100 flex items-center justify-between gap-2 text-xs flex-wrap">
-                            <div className="flex items-center gap-1.5">
-                              <button
-                                onClick={() => openInspector('evidence', matchedProfile || null, rec)}
-                                className="px-3 py-1.5 rounded-full border border-zinc-200 hover:bg-zinc-50 text-zinc-700 font-medium transition-colors text-xs"
-                              >
-                                查阅真实评论 ({rec.evidenceRefs?.length || 0})
-                              </button>
-
-                              <button
-                                onClick={() => openInspector('profile', matchedProfile || null, rec)}
-                                className="px-3 py-1.5 rounded-full border border-zinc-200 hover:bg-zinc-50 text-zinc-700 font-medium transition-colors text-xs hidden sm:inline"
-                              >
-                                店铺档案
-                              </button>
-
-                              <button
-                                onClick={() => handleAddToCompare(rec, matchedProfile)}
-                                className="px-3 py-1.5 rounded-full border border-zinc-200 hover:bg-zinc-50 text-zinc-700 font-medium transition-colors text-xs hidden sm:inline"
-                              >
-                                加入对比
-                              </button>
-                            </div>
-
-                            <button
-                              onClick={() => {
-                                setAttachedContext({ type: 'shop', title: rec.title })
-                                textareaRef.current?.focus()
-                              }}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-zinc-900 hover:bg-zinc-800 text-white font-medium transition-colors shadow-2xs text-xs"
-                            >
-                              <span>就此店追问</span>
-                              <ArrowRight className="w-3 h-3" />
-                            </button>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* 4. Controversies Callout Banner */}
-              {controversies.length > 0 && (
-                <div
-                  onClick={() => openInspector('controversies')}
-                  className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200/80 text-xs text-amber-900 flex items-center justify-between cursor-pointer hover:bg-amber-100/50 transition-colors"
-                >
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
-                    <span className="font-medium">
-                      发现 {controversies.length} 项评论分歧争议（如排队耗时、服务体验）
-                    </span>
-                  </div>
-                  <span className="text-amber-800 font-medium flex items-center gap-1">
-                    <span>查看争议对抗详情</span>
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </span>
-                </div>
-              )}
-
-              {/* 5. Follow-up Quick Chips */}
-              <div className="pt-2">
-                <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                  <span className="text-zinc-400 text-[11px] mr-1">建议追问：</span>
-                  {suggestions.map((sug, i) => (
-                    <button
-                      key={i}
-                      onClick={() => handleSendMessage(sug)}
-                      className="px-3 py-1.5 rounded-full border border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-700 font-medium transition-all shadow-2xs"
-                    >
-                      {sug}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div ref={chatBottomRef} />
-        </div>
-
-        {/* 3. Floating ChatGPT Composer at Bottom */}
-        <div className="sticky bottom-0 bg-gradient-to-t from-white via-white/95 to-transparent pt-4 pb-3 px-4 z-20">
-          <div className="max-w-3xl mx-auto space-y-2">
-            {/* Input Box Container */}
-            <div className="bg-[#f4f4f4] focus-within:bg-white focus-within:ring-1 focus-within:ring-zinc-300 focus-within:shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-transparent focus-within:border-zinc-200 rounded-[26px] p-3 pl-4 transition-all space-y-2">
-              {/* Attached context chip */}
-              {attachedContext && (
-                <div className="inline-flex items-center gap-1.5 bg-white border border-zinc-200 px-2.5 py-1 rounded-full text-xs text-zinc-800 shadow-2xs">
-                  <Tag className="w-3 h-3 text-[#10a37f]" />
-                  <span className="font-medium">针对：{attachedContext.title}</span>
-                  <button onClick={() => setAttachedContext(null)} className="ml-1 text-zinc-400 hover:text-zinc-700">
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-              )}
-
-              {/* Textarea */}
-              <div className="flex items-end gap-2">
-                <textarea
-                  ref={textareaRef}
-                  rows={1}
-                  placeholder={
-                    attachedContext
-                      ? `向 Food Agent 追问关于“${attachedContext.title}”的具体评价或排队避坑...`
-                      : '向 Food Agent 提问，例如：“静安寺200元内正宗本帮菜”、“第一家排队严重吗”...'
-                  }
-                  value={inputText}
-                  onChange={(e) => setInputText(e.target.value)}
-                  onCompositionStart={() => setIsComposing(true)}
-                  onCompositionEnd={() => setIsComposing(false)}
-                  onKeyDown={handleKeyDown}
-                  disabled={isRunning}
-                  className="flex-1 bg-transparent resize-none p-1 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none max-h-44 leading-relaxed"
-                />
-
-                {isRunning ? (
-                  <button
-                    onClick={stop}
-                    className="w-8 h-8 rounded-full bg-zinc-900 text-white flex items-center justify-center hover:bg-zinc-800 transition-colors flex-shrink-0"
-                    title="停止生成"
-                  >
-                    <StopCircle className="w-4 h-4" />
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => handleSendMessage()}
-                    disabled={!inputText.trim()}
-                    className="w-8 h-8 rounded-full bg-zinc-900 text-white flex items-center justify-center disabled:bg-zinc-200 disabled:text-zinc-400 hover:bg-zinc-800 transition-all flex-shrink-0"
-                    title="发送"
-                  >
-                    <ArrowUp className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Bottom Disclaimer */}
-            <div className="text-[11px] text-zinc-400 text-center">
-              Food Agent 可能会提供不准确的商户信息，请核对重要餐饮与排队信息。
-            </div>
-          </div>
-        </div>
-      </main>
-
-      {/* 4. Right Inspector Slide-over (OpenAI Canvas style) */}
-      <aside
-        className={`${
-          rightPanelOpen ? 'w-full md:w-[440px]' : 'w-0 hidden md:flex md:w-0'
-        } border-l border-zinc-200 bg-white flex flex-col h-full z-20 transition-all duration-200 overflow-hidden flex-shrink-0 shadow-lg md:shadow-none`}
-      >
-        {/* Inspector Header & Segmented Tabs */}
-        <div className="p-3 border-b border-zinc-100 flex items-center justify-between">
-          <div className="flex items-center gap-1 bg-zinc-100 p-1 rounded-xl text-xs">
-            <button
-              onClick={() => setRightPanelTab('evidence')}
-              className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${
-                rightPanelTab === 'evidence'
-                  ? 'bg-white text-zinc-900 shadow-2xs'
-                  : 'text-zinc-500 hover:text-zinc-900'
-              }`}
-            >
-              评论证据 ({evidenceItems.length})
-            </button>
-            <button
-              onClick={() => setRightPanelTab('controversies')}
-              className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${
-                rightPanelTab === 'controversies'
-                  ? 'bg-white text-zinc-900 shadow-2xs'
-                  : 'text-zinc-500 hover:text-zinc-900'
-              }`}
-            >
-              争议焦点 ({controversies.length})
-            </button>
-            <button
-              onClick={() => setRightPanelTab('profile')}
-              className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${
-                rightPanelTab === 'profile'
-                  ? 'bg-white text-zinc-900 shadow-2xs'
-                  : 'text-zinc-500 hover:text-zinc-900'
-              }`}
-            >
-              店铺档案
-            </button>
-          </div>
-
-          <button
-            onClick={() => setRightPanelOpen(false)}
-            className="p-1 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 transition-colors"
-            title="关闭检查器"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Inspector Tab Content */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {rightPanelTab === 'evidence' && (
-            <EvidenceTimeline
-              evidenceItems={evidenceItems}
-              recommendations={recommendations}
+              </Tag>
+            </Space>
+            <Button
+              type="text"
+              size="small"
+              icon={<MenuFoldOutlined />}
+              onClick={() => setSidebarOpen(false)}
+              title="收起侧边栏"
             />
-          )}
+          </div>
 
-          {rightPanelTab === 'controversies' && (
-            <ControversyPanel
-              controversies={controversies}
-              evidenceItems={evidenceItems}
-              onVerifyControversy={(c) => {
-                setAttachedContext({ type: 'controversy', title: c.topic })
-                textareaRef.current?.focus()
+          {/* New Search Button */}
+          <div style={{ padding: '12px 14px 8px' }}>
+            <Button
+              type="primary"
+              block
+              icon={<PlusOutlined />}
+              onClick={handleStartNewChat}
+            >
+              新建美食调研
+            </Button>
+          </div>
+
+          {/* Session History List */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '4px 10px' }}>
+            <Typography.Text type="secondary" style={{ fontSize: 11, padding: '6px 8px', display: 'block' }}>
+              历史对话
+            </Typography.Text>
+            <List
+              dataSource={historyList}
+              renderItem={(item) => {
+                const isSelected = item.session_id === currentSessionId
+                return (
+                  <List.Item
+                    key={item.session_id}
+                    onClick={() => handleSelectSession(item.session_id)}
+                    style={{
+                      padding: '8px 10px',
+                      borderRadius: 6,
+                      marginBottom: 3,
+                      cursor: 'pointer',
+                      background: isSelected ? '#e6f4ff' : 'transparent',
+                      border: 'none',
+                      transition: 'background 0.2s',
+                    }}
+                    actions={[
+                      <Button
+                        key="del"
+                        type="text"
+                        danger
+                        size="small"
+                        icon={<DeleteOutlined />}
+                        onClick={(e) => handleDeleteSession(item.session_id, e)}
+                        title="删除会话"
+                      />,
+                    ]}
+                  >
+                    <Space size={8} style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+                      <MessageOutlined style={{ color: isSelected ? '#1677ff' : '#8c8c8c' }} />
+                      <Typography.Text
+                        ellipsis
+                        style={{
+                          fontSize: 12,
+                          color: isSelected ? '#1677ff' : '#262626',
+                          fontWeight: isSelected ? 500 : 400,
+                          maxWidth: 160,
+                        }}
+                      >
+                        {item.query}
+                      </Typography.Text>
+                    </Space>
+                  </List.Item>
+                )
               }}
             />
-          )}
+          </div>
 
-          {rightPanelTab === 'profile' && (
-            <div className="space-y-4">
-              <div className="text-xs font-medium text-zinc-400 uppercase tracking-wider">
-                大众点评店铺事实档案
+          {/* Sider Footer */}
+          <div style={{ padding: 12, borderTop: '1px solid #f0f0f0' }}>
+            <Card size="small" style={{ marginBottom: 8, background: '#fafafa' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                <Typography.Text strong style={{ fontSize: 11 }}>探店数据源</Typography.Text>
+                <Tag color="success" style={{ margin: 0, fontSize: 10 }}>LIVE</Tag>
               </div>
-              {(() => {
-                const p = selectedProfile || (profiles.length > 0 ? profiles[0] : null)
-                if (!p) {
-                  return (
-                    <div className="p-8 text-center text-xs text-zinc-400">
-                      请在推荐列表中点击某家店铺以查看其大众点评结构化档案
-                    </div>
-                  )
-                }
-                return (
-                  <div className="bg-zinc-50/80 p-4.5 rounded-2xl border border-zinc-200 space-y-3 text-xs">
-                    <div className="font-semibold text-zinc-900 text-base">{p.name || '精选门店'}</div>
-                    {p.address && (
-                      <div className="flex items-start gap-2 text-zinc-700">
-                        <MapPin className="w-3.5 h-3.5 text-zinc-400 mt-0.5 flex-shrink-0" />
-                        <span>{p.address}</span>
-                      </div>
-                    )}
-                    {p.openingHours && (
-                      <div className="flex items-start gap-2 text-zinc-700">
-                        <Clock className="w-3.5 h-3.5 text-zinc-400 mt-0.5 flex-shrink-0" />
-                        <span>营业时间：{p.openingHours}</span>
-                      </div>
-                    )}
-                    <div className="pt-2 border-t border-zinc-200 flex items-center justify-between text-zinc-600">
-                      <span>人均消费：{p.averagePrice ? `￥${p.averagePrice}` : '暂无'}</span>
-                      <span>点评评分：{p.rating ? `${p.rating} 分` : '暂无'}</span>
+              <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                <Button
+                  size="small"
+                  block
+                  onClick={() => setLoginModalPlatform('xhs_pc')}
+                  style={{ textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+                >
+                  <Space size={6}>
+                    <Badge status={xhsDegraded ? 'warning' : 'success'} />
+                    <span style={{ fontSize: 11 }}>小红书</span>
+                  </Space>
+                  <Typography.Text type="secondary" style={{ fontSize: 10 }}>扫码登录</Typography.Text>
+                </Button>
+                <Button
+                  size="small"
+                  block
+                  onClick={() => setLoginModalPlatform('dianping')}
+                  style={{ textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+                >
+                  <Space size={6}>
+                    <Badge status={dpDegraded ? 'warning' : 'success'} />
+                    <span style={{ fontSize: 11 }}>大众点评</span>
+                  </Space>
+                  <Typography.Text type="secondary" style={{ fontSize: 10 }}>扫码登录</Typography.Text>
+                </Button>
+              </Space>
+            </Card>
+
+            <Button
+              block
+              icon={<ControlOutlined />}
+              onClick={() => navigate('/ops')}
+              style={{ fontSize: 12 }}
+            >
+              运维管控平台
+            </Button>
+          </div>
+        </div>
+      </Layout.Sider>
+
+      {/* 2. Main Layout Area */}
+      <Layout style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#fff' }}>
+        {/* Ant Design Header */}
+        <Layout.Header
+          style={{
+            background: '#fff',
+            borderBottom: '1px solid #f0f0f0',
+            height: 52,
+            padding: '0 20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            lineHeight: '52px',
+          }}
+        >
+          <Space align="center" size={12}>
+            {!sidebarOpen && (
+              <Button
+                type="text"
+                icon={<MenuUnfoldOutlined />}
+                onClick={() => setSidebarOpen(true)}
+                title="展开侧边栏"
+              />
+            )}
+
+            <Select
+              value={selectedModel}
+              onChange={setSelectedModel}
+              style={{ width: 220 }}
+              options={[
+                { value: 'food-agent-4o', label: 'Food Agent 4o (默认推荐)' },
+                { value: 'food-agent-o3-mini', label: 'Food Agent o3-mini (深度推理)' },
+                { value: 'food-agent-4o-mini', label: 'Food Agent 4o-mini (极速轻量)' },
+              ]}
+            />
+          </Space>
+
+          <Space size={8}>
+            {compareList.length > 0 && (
+              <Badge count={compareList.length}>
+                <Button
+                  icon={<DiffOutlined />}
+                  onClick={() => setIsCompareModalOpen(true)}
+                >
+                  对比矩阵
+                </Button>
+              </Badge>
+            )}
+
+            <Button
+              type={rightPanelOpen ? 'primary' : 'default'}
+              icon={<AuditOutlined />}
+              onClick={() => setRightPanelOpen(!rightPanelOpen)}
+            >
+              调研检查器
+              {evidenceItems.length > 0 && ` (${evidenceItems.length})`}
+            </Button>
+          </Space>
+        </Layout.Header>
+
+        {/* Chat Messages Content */}
+        <Layout.Content
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            padding: '24px 24px 0',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          <div style={{ maxWidth: 840, width: '100%', margin: '0 auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {/* User Message Bubble */}
+            <Flex justify="flex-end">
+              <Card
+                size="small"
+                style={{
+                  maxWidth: '85%',
+                  backgroundColor: '#f5f5f5',
+                  borderRadius: 16,
+                  borderColor: '#e8e8e8',
+                }}
+              >
+                <Typography.Text style={{ fontSize: 14 }}>{currentQuery}</Typography.Text>
+              </Card>
+            </Flex>
+
+            {/* Assistant Answer Box */}
+            <Flex align="flex-start" gap={12}>
+              <Avatar
+                icon={<RobotOutlined />}
+                style={{ backgroundColor: '#1677ff', flexShrink: 0, marginTop: 2 }}
+              />
+
+              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {/* 1. Thought Accordion (Ant Design Collapse) */}
+                {plan.length > 0 && (
+                  <Collapse
+                    ghost
+                    size="small"
+                    items={[
+                      {
+                        key: '1',
+                        label: (
+                          <Space>
+                            {isRunning ? (
+                              <LoadingOutlined style={{ color: '#1677ff' }} />
+                            ) : (
+                              <ClockCircleOutlined style={{ color: '#52c41a' }} />
+                            )}
+                            <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+                              {isRunning ? '正在分阶段搜集分析...' : `思考与调查步骤 (${plan.length} 步)`}
+                            </Typography.Text>
+                          </Space>
+                        ),
+                        children: (
+                          <Timeline
+                            style={{ marginTop: 8 }}
+                            items={plan.map((s) => ({
+                              color: s.status === 'succeeded' ? 'green' : s.status === 'running' ? 'blue' : 'gray',
+                              dot: s.status === 'running' ? <LoadingOutlined /> : undefined,
+                              children: (
+                                <div>
+                                  <Typography.Text strong style={{ fontSize: 12 }}>{s.label}</Typography.Text>
+                                  {s.detail && (
+                                    <div>
+                                      <Typography.Text type="secondary" style={{ fontSize: 11 }}>{s.detail}</Typography.Text>
+                                    </div>
+                                  )}
+                                </div>
+                              ),
+                            }))}
+                          />
+                        ),
+                      },
+                    ]}
+                  />
+                )}
+
+                {/* 2. Synthesis Summary */}
+                {projection?.summary ? (
+                  <Typography.Paragraph style={{ fontSize: 14, lineHeight: 1.8, marginBottom: 0, whiteSpace: 'pre-line' }}>
+                    {projection.summary}
+                  </Typography.Paragraph>
+                ) : (
+                  <Space style={{ padding: '12px 0' }}>
+                    <LoadingOutlined style={{ color: '#1677ff' }} />
+                    <Typography.Text type="secondary">
+                      正在全网检索小红书与大众点评真实评论数据...
+                    </Typography.Text>
+                  </Space>
+                )}
+
+                {/* 3. Embedded Recommendation Cards */}
+                {recommendations.length > 0 && (
+                  <div>
+                    <Typography.Text strong style={{ fontSize: 13, color: '#8c8c8c', display: 'block', marginBottom: 10 }}>
+                      精选候选餐厅 ({recommendations.length})
+                    </Typography.Text>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      {recommendations.map((rec, idx) => {
+                        const matchedProfile = profiles.find(
+                          (p) => p.name === rec.title || p.profileId === rec.profileRef,
+                        )
+                        const isFavorite = favorites.includes(rec.recommendationId)
+
+                        return (
+                          <Card
+                            key={rec.recommendationId}
+                            size="small"
+                            hoverable
+                            style={{ borderRadius: 10, borderColor: '#e8e8e8' }}
+                            title={
+                              <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
+                                <Space>
+                                  <Avatar size={20} style={{ backgroundColor: '#1677ff', fontSize: 11 }}>
+                                    {rec.rank || idx + 1}
+                                  </Avatar>
+                                  <Typography.Text
+                                    strong
+                                    style={{ fontSize: 15, cursor: 'pointer' }}
+                                    onClick={() => openStandaloneProfile(matchedProfile || null, rec)}
+                                  >
+                                    {rec.title}
+                                  </Typography.Text>
+                                  {matchedProfile?.averagePrice && (
+                                    <Tag color="blue">￥{matchedProfile.averagePrice}/人</Tag>
+                                  )}
+                                </Space>
+
+                                <Button
+                                  type="text"
+                                  size="small"
+                                  icon={isFavorite ? <StarFilled style={{ color: '#faad14' }} /> : <StarOutlined />}
+                                  onClick={() => handleToggleFavorite(rec.recommendationId, rec.title)}
+                                  title={isFavorite ? '已收藏' : '收藏'}
+                                />
+                              </Space>
+                            }
+                          >
+                            <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                              {matchedProfile?.address && (
+                                <Space size={4} style={{ fontSize: 12, color: '#8c8c8c' }}>
+                                  <EnvironmentOutlined />
+                                  <span>{matchedProfile.address}</span>
+                                </Space>
+                              )}
+
+                              {/* Highlights & Warnings */}
+                              <Space wrap size={[4, 4]}>
+                                {rec.highlights?.map((h, i) => (
+                                  <Tag key={i} color="success">
+                                    {h}
+                                  </Tag>
+                                ))}
+                                {rec.warnings?.map((w, i) => (
+                                  <Tag key={i} color="warning">
+                                    避雷: {w}
+                                  </Tag>
+                                ))}
+                              </Space>
+
+                              {rec.summary && (
+                                <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 4 }}>
+                                  {rec.summary}
+                                </Typography.Paragraph>
+                              )}
+
+                              <Divider style={{ margin: '8px 0' }} />
+
+                              {/* Card Action Row */}
+                              <Flex justify="space-between" align="center" wrap="wrap" gap={8}>
+                                <Space size={6}>
+                                  <Button
+                                    size="small"
+                                    icon={<FileTextOutlined />}
+                                    onClick={() => openInspector('evidence', matchedProfile || null, rec)}
+                                  >
+                                    真实评论 ({rec.evidenceRefs?.length || 0})
+                                  </Button>
+                                  <Button
+                                    size="small"
+                                    icon={<ShopOutlined />}
+                                    onClick={() => openStandaloneProfile(matchedProfile || null, rec)}
+                                  >
+                                    店铺档案
+                                  </Button>
+                                  <Button
+                                    size="small"
+                                    icon={<DiffOutlined />}
+                                    onClick={() => handleAddToCompare(rec, matchedProfile)}
+                                  >
+                                    加入对比
+                                  </Button>
+                                </Space>
+
+                                <Button
+                                  type="primary"
+                                  size="small"
+                                  icon={<ArrowRightOutlined />}
+                                  onClick={() => {
+                                    setAttachedContext({ type: 'shop', title: rec.title })
+                                    textareaRef.current?.focus()
+                                  }}
+                                >
+                                  就此店追问
+                                </Button>
+                              </Flex>
+                            </Space>
+                          </Card>
+                        )
+                      })}
                     </div>
                   </div>
-                )
-              })()}
-            </div>
-          )}
+                )}
+
+                {/* 4. Controversy Alert */}
+                {controversies.length > 0 && (
+                  <Alert
+                    message={`发现 ${controversies.length} 项评论分歧争议焦点（如排队耗时、服务体验）`}
+                    type="warning"
+                    showIcon
+                    action={
+                      <Button
+                        size="small"
+                        type="primary"
+                        ghost
+                        onClick={() => openInspector('controversies')}
+                      >
+                        查阅争议
+                      </Button>
+                    }
+                  />
+                )}
+
+                {/* 5. Assistant Action Row */}
+                <Space size={8}>
+                  <Tooltip title="复制回答">
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={hasCopied ? <CheckOutlined style={{ color: '#52c41a' }} /> : <CopyOutlined />}
+                      onClick={handleCopyResponse}
+                    />
+                  </Tooltip>
+                  <Tooltip title="正面好评">
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<LikeOutlined style={{ color: feedbackRating === 'up' ? '#1677ff' : undefined }} />}
+                      onClick={() => {
+                        setFeedbackRating(feedbackRating === 'up' ? null : 'up')
+                        showToast('感谢你的反馈', 'success')
+                      }}
+                    />
+                  </Tooltip>
+                  <Tooltip title="体验欠佳">
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<DislikeOutlined style={{ color: feedbackRating === 'down' ? '#faad14' : undefined }} />}
+                      onClick={() => {
+                        setFeedbackRating(feedbackRating === 'down' ? null : 'down')
+                        showToast('已记录反馈，持续优化模型', 'info')
+                      }}
+                    />
+                  </Tooltip>
+                  <Tooltip title="重新生成">
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<ReloadOutlined />}
+                      onClick={handleRegenerate}
+                    />
+                  </Tooltip>
+                </Space>
+
+                {/* 6. Quick Suggestions */}
+                <Space wrap size={6} style={{ paddingTop: 4 }}>
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    建议追问：
+                  </Typography.Text>
+                  {suggestions.map((sug, i) => (
+                    <Button
+                      key={i}
+                      shape="round"
+                      size="small"
+                      onClick={() => handleSendMessage(sug)}
+                    >
+                      {sug}
+                    </Button>
+                  ))}
+                </Space>
+              </div>
+            </Flex>
+
+            <div ref={chatBottomRef} style={{ height: 16 }} />
+          </div>
+        </Layout.Content>
+
+        {/* 3. Composer Input Bar */}
+        <div style={{ padding: '12px 24px 20px', background: '#fff', borderTop: '1px solid #f5f5f5' }}>
+          <div style={{ maxWidth: 840, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {attachedContext && (
+              <Tag
+                closable
+                color="processing"
+                onClose={() => setAttachedContext(null)}
+                style={{ width: 'fit-content' }}
+              >
+                针对：{attachedContext.title}
+              </Tag>
+            )}
+
+            <Card
+              size="small"
+              style={{
+                borderRadius: 12,
+                boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
+                borderColor: '#d9d9d9',
+              }}
+              bodyStyle={{ padding: '8px 12px' }}
+            >
+              <Input.TextArea
+                ref={textareaRef}
+                autoSize={{ minRows: 2, maxRows: 6 }}
+                placeholder={
+                  attachedContext
+                    ? `向 Food Agent 追问关于“${attachedContext.title}”的具体评价或排队避坑...`
+                    : '向 Food Agent 提问，例如：“静安寺200元内正宗本帮菜”、“第一家排队严重吗”...'
+                }
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                onCompositionStart={() => setIsComposing(true)}
+                onCompositionEnd={() => setIsComposing(false)}
+                onKeyDown={handleKeyDown}
+                bordered={false}
+                disabled={isRunning}
+                style={{ resize: 'none', padding: 0 }}
+              />
+
+              <Flex justify="space-between" align="center" style={{ marginTop: 8 }}>
+                <Space size={6}>
+                  <Tag color="green" icon={<GlobalOutlined />}>
+                    小红书 + 大众点评已连接
+                  </Tag>
+                </Space>
+
+                {isRunning ? (
+                  <Button
+                    type="primary"
+                    danger
+                    shape="circle"
+                    icon={<StopOutlined />}
+                    onClick={stop}
+                    title="停止生成"
+                  />
+                ) : (
+                  <Button
+                    type="primary"
+                    shape="circle"
+                    icon={<ArrowUpOutlined />}
+                    disabled={!inputText.trim()}
+                    onClick={() => handleSendMessage()}
+                    title="发送"
+                  />
+                )}
+              </Flex>
+            </Card>
+
+            <Typography.Text type="secondary" style={{ fontSize: 11, textAlign: 'center' }}>
+              Food Agent 可能会提供不准确的商户信息，请核对重要餐饮与排队信息。
+            </Typography.Text>
+          </div>
         </div>
-      </aside>
+      </Layout>
+
+      {/* 4. Right Inspector Drawer (Ant Design Drawer) */}
+      <Drawer
+        title="调研检查器"
+        placement="right"
+        width={480}
+        onClose={() => setRightPanelOpen(false)}
+        open={rightPanelOpen}
+      >
+        <Tabs
+          activeKey={rightPanelTab}
+          onChange={(key) => setRightPanelTab(key as RightPanelTab)}
+          items={[
+            {
+              key: 'evidence',
+              label: `评论证据 (${evidenceItems.length})`,
+              children: (
+                <EvidenceTimeline
+                  evidenceItems={evidenceItems}
+                  recommendations={recommendations}
+                />
+              ),
+            },
+            {
+              key: 'controversies',
+              label: `争议焦点 (${controversies.length})`,
+              children: (
+                <ControversyPanel
+                  controversies={controversies}
+                  evidenceItems={evidenceItems}
+                  onVerifyControversy={(c) => {
+                    setAttachedContext({ type: 'controversy', title: c.topic })
+                    textareaRef.current?.focus()
+                  }}
+                />
+              ),
+            },
+            {
+              key: 'profile',
+              label: '店铺档案',
+              children: (
+                <div>
+                  {(() => {
+                    const p = selectedProfile || (profiles.length > 0 ? profiles[0] : null)
+                    if (!p) {
+                      return (
+                        <div style={{ textAlign: 'center', padding: '32px 0', color: '#8c8c8c' }}>
+                          请在推荐列表中点击某家店铺以查看其大众点评事实档案
+                        </div>
+                      )
+                    }
+                    return (
+                      <Card title={p.name || '精选门店'} size="small">
+                        <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                          <div>地址：{p.address || '暂无详细街道'}</div>
+                          <div>营业时间：{p.openingHours || '暂未收录'}</div>
+                          <div>人均消费：{p.averagePrice ? `￥${p.averagePrice}` : '暂无'}</div>
+                          <div>综合评分：{p.rating ? `${p.rating} 分` : '暂无'}</div>
+                        </Space>
+                      </Card>
+                    )
+                  })()}
+                </div>
+              ),
+            },
+          ]}
+        />
+      </Drawer>
+
+      {/* Standalone Profile Drawer */}
+      <ShopProfileDrawer
+        isOpen={isProfileDrawerOpen}
+        profile={selectedProfile}
+        recommendation={selectedRec}
+        onClose={() => setIsProfileDrawerOpen(false)}
+        onFollowUp={(shop) => {
+          setAttachedContext({ type: 'shop', title: shop })
+          textareaRef.current?.focus()
+        }}
+      />
 
       {/* Comparison Modal */}
       <RestaurantComparisonModal
@@ -909,7 +1064,6 @@ export function UnifiedChatWorkbench() {
           }}
         />
       )}
-    </div>
+    </Layout>
   )
 }
-

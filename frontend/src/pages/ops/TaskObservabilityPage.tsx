@@ -1,15 +1,15 @@
 import React, { useState } from 'react'
+import { Card, Table, Input, Tag, Button, Modal, Timeline, Space, Typography } from 'antd'
 import {
-  Activity,
-  Search,
-  CheckCircle2,
-  AlertTriangle,
-  RefreshCw,
-  RotateCcw,
-  StopCircle,
-  ChevronRight,
-  X,
-} from 'lucide-react'
+  HistoryOutlined,
+  SearchOutlined,
+  CheckCircleOutlined,
+  WarningOutlined,
+  LoadingOutlined,
+  RedoOutlined,
+  StopOutlined,
+  EyeOutlined,
+} from '@ant-design/icons'
 import { useToast } from '../../context/ToastContext'
 
 interface ObservabilityTaskItem {
@@ -108,184 +108,183 @@ export function TaskObservabilityPage() {
     showToast(`已终止任务: ${task.taskId}`, 'warning')
   }
 
+  const columns = [
+    {
+      title: 'Task ID / 创建时间',
+      key: 'taskId',
+      render: (_: any, record: ObservabilityTaskItem) => (
+        <Space direction="vertical" size={1}>
+          <Typography.Text code strong style={{ fontSize: 13 }}>
+            {record.taskId}
+          </Typography.Text>
+          <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+            {record.createdAt}
+          </Typography.Text>
+        </Space>
+      ),
+    },
+    {
+      title: '需求 Query 摘要',
+      key: 'query',
+      render: (_: any, record: ObservabilityTaskItem) => (
+        <Space direction="vertical" size={1} style={{ maxWidth: 280 }}>
+          <Typography.Text ellipsis style={{ fontSize: 13 }}>
+            {record.query}
+          </Typography.Text>
+          <Typography.Text type="secondary" code style={{ fontSize: 10 }}>
+            {record.sessionId}
+          </Typography.Text>
+        </Space>
+      ),
+    },
+    {
+      title: '执行状态',
+      dataIndex: 'status',
+      key: 'status',
+      render: (status: string) => {
+        if (status === 'succeeded') {
+          return <Tag icon={<CheckCircleOutlined />} color="success">SUCCEEDED</Tag>
+        }
+        if (status === 'running') {
+          return <Tag icon={<LoadingOutlined />} color="processing">RUNNING</Tag>
+        }
+        if (status === 'partial') {
+          return <Tag icon={<WarningOutlined />} color="warning">PARTIAL</Tag>
+        }
+        return <Tag color="error">FAILED</Tag>
+      },
+    },
+    {
+      title: '耗时',
+      dataIndex: 'durationMs',
+      key: 'durationMs',
+      render: (ms: number) => <Typography.Text code>{ms}ms</Typography.Text>,
+    },
+    {
+      title: '产出指标',
+      key: 'outputs',
+      render: (_: any, record: ObservabilityTaskItem) => (
+        <Space direction="vertical" size={2}>
+          <span style={{ fontSize: 12 }}>
+            {record.evidenceCount} 证据 / {record.profileCount} 档案
+          </span>
+          {record.gapCount > 0 && <Tag color="warning">{record.gapCount} 个缺口</Tag>}
+        </Space>
+      ),
+    },
+    {
+      title: '操作',
+      key: 'actions',
+      render: (_: any, record: ObservabilityTaskItem) => (
+        <Button
+          size="small"
+          icon={<EyeOutlined />}
+          onClick={() => setSelectedTask(record)}
+        >
+          查看时间线
+        </Button>
+      ),
+    },
+  ]
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-zinc-200/80">
+    <Space direction="vertical" size="large" style={{ width: '100%' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h1 className="text-xl font-semibold text-zinc-900 tracking-tight flex items-center gap-2">
-            <Activity className="w-5 h-5 text-[#10a37f]" />
-            <span>任务执行观测台</span>
-          </h1>
-          <p className="text-xs text-zinc-500 mt-1">
+          <Typography.Title level={4} style={{ margin: 0 }}>
+            <HistoryOutlined style={{ color: '#1677ff', marginRight: 8 }} />
+            任务执行观测台
+          </Typography.Title>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             全量调查任务链路流转、Temporal 状态、耗时与错误排查
-          </p>
+          </Typography.Text>
         </div>
 
-        {/* Search */}
-        <div className="relative">
-          <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="搜索 Task ID 或 Query..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 pr-3 py-1.5 bg-white border border-zinc-200 rounded-full text-xs text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-400 shadow-2xs w-60"
-          />
-        </div>
+        <Input
+          placeholder="搜索 Task ID 或 Query..."
+          prefix={<SearchOutlined />}
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          style={{ width: 260 }}
+          allowClear
+        />
       </div>
 
-      {/* Task Table */}
-      <div className="bg-white border border-zinc-200/80 rounded-2xl overflow-x-auto shadow-2xs">
-        <table className="w-full text-left text-xs text-zinc-700">
-          <thead className="bg-zinc-50/70 border-b border-zinc-200/80 text-zinc-500 uppercase text-[11px] font-mono">
-            <tr>
-              <th className="p-3.5">Task ID / 时间</th>
-              <th className="p-3.5">需求摘要</th>
-              <th className="p-3.5">状态</th>
-              <th className="p-3.5">耗时</th>
-              <th className="p-3.5">产出指标</th>
-              <th className="p-3.5 text-right">操作</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-zinc-100 font-mono">
-            {filteredTasks.map((task) => {
-              let statusBadge = {
-                text: 'SUCCEEDED',
-                class: 'bg-emerald-50 text-[#10a37f] border-emerald-200/60',
-                icon: CheckCircle2,
-              }
-              if (task.status === 'running') {
-                statusBadge = {
-                  text: 'RUNNING',
-                  class: 'bg-amber-50 text-amber-700 border-amber-200/60',
-                  icon: RefreshCw,
-                }
-              } else if (task.status === 'partial') {
-                statusBadge = {
-                  text: 'PARTIAL',
-                  class: 'bg-zinc-100 text-zinc-700 border-zinc-200',
-                  icon: AlertTriangle,
-                }
-              }
-
-              const StatusIcon = statusBadge.icon
-
-              return (
-                <tr key={task.taskId} className="hover:bg-zinc-50/60 transition-colors">
-                  <td className="p-3.5">
-                    <div className="font-semibold text-zinc-900 text-xs">{task.taskId}</div>
-                    <div className="text-[10px] text-zinc-400 mt-0.5">{task.createdAt}</div>
-                  </td>
-
-                  <td className="p-3.5 max-w-xs font-sans">
-                    <div className="truncate text-zinc-800">{task.query}</div>
-                    <div className="text-[10px] text-zinc-400 font-mono mt-0.5">{task.sessionId}</div>
-                  </td>
-
-                  <td className="p-3.5">
-                    <span
-                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-medium border ${statusBadge.class}`}
-                    >
-                      <StatusIcon className={`w-3 h-3 ${task.status === 'running' ? 'animate-spin' : ''}`} />
-                      <span>{statusBadge.text}</span>
-                    </span>
-                  </td>
-
-                  <td className="p-3.5 text-zinc-500">{task.durationMs}ms</td>
-
-                  <td className="p-3.5 text-zinc-500">
-                    <div>
-                      {task.evidenceCount} 证据 / {task.profileCount} 档案
-                    </div>
-                    {task.gapCount > 0 && <div className="text-amber-600 text-[10px]">{task.gapCount} 个缺口</div>}
-                  </td>
-
-                  <td className="p-3.5 text-right font-sans">
-                    <button
-                      onClick={() => setSelectedTask(task)}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full border border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-700 text-xs font-medium transition-colors shadow-2xs"
-                    >
-                      <span>时间线</span>
-                      <ChevronRight className="w-3 h-3 text-zinc-400" />
-                    </button>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+      <Card>
+        <Table
+          dataSource={filteredTasks}
+          columns={columns}
+          rowKey="taskId"
+          pagination={{ pageSize: 10 }}
+          size="middle"
+        />
+      </Card>
 
       {/* Task Detail Modal */}
-      {selectedTask && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-white border border-zinc-200 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-xl">
-            <div className="flex items-center justify-between border-b border-zinc-100 pb-3">
-              <div>
-                <h3 className="font-semibold text-zinc-900 text-sm font-mono">{selectedTask.taskId}</h3>
-                <p className="text-xs text-zinc-500 font-sans mt-0.5">{selectedTask.query}</p>
-              </div>
-              <button
-                onClick={() => setSelectedTask(null)}
-                className="text-zinc-400 hover:text-zinc-700 p-1 rounded-md transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+      <Modal
+        open={!!selectedTask}
+        onCancel={() => setSelectedTask(null)}
+        title={
+          selectedTask && (
+            <Space>
+              <HistoryOutlined style={{ color: '#1677ff' }} />
+              <span>任务执行生命周期：{selectedTask.taskId}</span>
+            </Space>
+          )
+        }
+        footer={[
+          <Button key="retry" icon={<RedoOutlined />} onClick={() => selectedTask && handleRetryTask(selectedTask)}>
+            重新触发
+          </Button>,
+          selectedTask?.status === 'running' && (
+            <Button key="cancel" danger icon={<StopOutlined />} onClick={() => handleCancelTask(selectedTask)}>
+              终止任务
+            </Button>
+          ),
+          <Button key="close" type="primary" onClick={() => setSelectedTask(null)}>
+            关闭
+          </Button>,
+        ]}
+        width={600}
+      >
+        {selectedTask && (
+          <Space direction="vertical" size="middle" style={{ width: '100%', marginTop: 12 }}>
+            <Card size="small" style={{ background: '#fafafa' }}>
+              <Typography.Paragraph ellipsis={{ rows: 2 }} style={{ marginBottom: 0 }}>
+                <strong>需求 Query：</strong>{selectedTask.query}
+              </Typography.Paragraph>
+            </Card>
 
-            {/* Timeline */}
-            <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
-              <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wider font-mono">
-                动作执行生命周期
-              </div>
-              <div className="space-y-3 border-l-2 border-zinc-200 ml-2 pl-3">
-                {selectedTask.timeline.map((step, idx) => (
-                  <div key={idx} className="space-y-0.5 text-xs font-mono">
-                    <div className="flex items-center gap-2">
-                      <span className="text-zinc-400 text-[11px]">{step.time}</span>
-                      <span className="text-zinc-900 font-medium">{step.action}</span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-zinc-100 text-zinc-600 border border-zinc-200/60">
+            <Typography.Text strong style={{ fontSize: 13 }}>
+              动作执行生命周期时间线
+            </Typography.Text>
+
+            <Timeline
+              style={{ marginTop: 8 }}
+              items={selectedTask.timeline.map((step) => ({
+                color: step.status === 'done' ? 'green' : step.status === 'running' ? 'blue' : 'gray',
+                dot: step.status === 'running' ? <LoadingOutlined /> : undefined,
+                children: (
+                  <Space direction="vertical" size={2}>
+                    <Space size={8}>
+                      <Typography.Text code style={{ fontSize: 11 }}>{step.time}</Typography.Text>
+                      <Typography.Text strong>{step.action}</Typography.Text>
+                      <Tag color={step.status === 'done' ? 'success' : 'processing'}>
                         {step.status}
-                      </span>
-                    </div>
-                    {step.detail && <div className="text-zinc-500 text-[11px] font-sans">{step.detail}</div>}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="pt-3 border-t border-zinc-100 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => handleRetryTask(selectedTask)}
-                  className="px-3 py-1.5 rounded-full border border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-700 text-xs font-medium flex items-center gap-1.5 transition-colors shadow-2xs"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>重新触发</span>
-                </button>
-                {selectedTask.status === 'running' && (
-                  <button
-                    onClick={() => handleCancelTask(selectedTask)}
-                    className="px-3 py-1.5 rounded-full border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-medium flex items-center gap-1.5 transition-colors"
-                  >
-                    <StopCircle className="w-3.5 h-3.5" />
-                    <span>终止任务</span>
-                  </button>
-                )}
-              </div>
-
-              <button
-                onClick={() => setSelectedTask(null)}
-                className="px-4 py-1.5 rounded-full bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-medium transition-colors shadow-2xs"
-              >
-                关闭
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+                      </Tag>
+                    </Space>
+                    {step.detail && (
+                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                        {step.detail}
+                      </Typography.Text>
+                    )}
+                  </Space>
+                ),
+              }))}
+            />
+          </Space>
+        )}
+      </Modal>
+    </Space>
   )
 }

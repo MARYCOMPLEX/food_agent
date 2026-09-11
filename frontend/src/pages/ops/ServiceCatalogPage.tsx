@@ -1,12 +1,13 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Card, Table, Tag, Button, Space, Typography } from 'antd'
 import {
-  Server,
-  CheckCircle2,
-  AlertTriangle,
-  ArrowRight,
-  RefreshCw,
-} from 'lucide-react'
+  CloudServerOutlined,
+  ReloadOutlined,
+  ArrowRightOutlined,
+  CheckCircleOutlined,
+  WarningOutlined,
+} from '@ant-design/icons'
 import { useToast } from '../../context/ToastContext'
 
 interface ServiceRecord {
@@ -75,86 +76,120 @@ export function ServiceCatalogPage() {
     }, 900)
   }
 
+  const columns = [
+    {
+      title: '服务名称 / ID',
+      key: 'name',
+      render: (_: any, record: ServiceRecord) => (
+        <Space direction="vertical" size={2}>
+          <Typography.Text
+            strong
+            style={{ color: '#1677ff', cursor: 'pointer' }}
+            onClick={() => navigate(`/ops/services/${record.serviceId}`)}
+          >
+            {record.name}
+          </Typography.Text>
+          <Typography.Text type="secondary" code style={{ fontSize: 11 }}>
+            {record.serviceId}
+          </Typography.Text>
+        </Space>
+      ),
+    },
+    {
+      title: '协议类型',
+      dataIndex: 'protocol',
+      key: 'protocol',
+      render: (val: string) => <Tag color="geekblue">{val.toUpperCase()}</Tag>,
+    },
+    {
+      title: '工具目录放行',
+      key: 'tools',
+      render: (_: any, record: ServiceRecord) => (
+        <Space>
+          <span>{record.allowedTools} / {record.discoveredTools}</span>
+          {record.allowedTools === record.discoveredTools ? (
+            <Tag color="success">全量放行</Tag>
+          ) : (
+            <Tag color="warning">部分放行</Tag>
+          )}
+        </Space>
+      ),
+    },
+    {
+      title: '可用账号',
+      dataIndex: 'accountCount',
+      key: 'accountCount',
+      render: (val: number) => `${val} 个`,
+    },
+    {
+      title: 'P95 延迟',
+      dataIndex: 'p95Latency',
+      key: 'p95Latency',
+      render: (val: number) => <Typography.Text code>{val}ms</Typography.Text>,
+    },
+    {
+      title: '健康状态',
+      dataIndex: 'status',
+      key: 'status',
+      render: (status: string) =>
+        status === 'ready' ? (
+          <Tag icon={<CheckCircleOutlined />} color="success">
+            READY
+          </Tag>
+        ) : (
+          <Tag icon={<WarningOutlined />} color="warning">
+            DEGRADED
+          </Tag>
+        ),
+    },
+    {
+      title: '操作',
+      key: 'actions',
+      render: (_: any, record: ServiceRecord) => (
+        <Space size={8}>
+          <Button
+            size="small"
+            icon={<ReloadOutlined spin={testingId === record.serviceId} />}
+            disabled={testingId === record.serviceId}
+            onClick={(e) => handleTestConnection(record.serviceId, e)}
+          >
+            {testingId === record.serviceId ? '探测中...' : '测试连通性'}
+          </Button>
+
+          <Button
+            type="primary"
+            size="small"
+            icon={<ArrowRightOutlined />}
+            onClick={() => navigate(`/ops/services/${record.serviceId}`)}
+          >
+            工具详情
+          </Button>
+        </Space>
+      ),
+    },
+  ]
+
   return (
-    <div className="space-y-6">
-      {/* Top Header - OpenAI Platform Style */}
-      <div className="flex items-center justify-between pb-4 border-b border-zinc-200/80">
-        <div>
-          <h1 className="text-xl font-semibold text-zinc-900 tracking-tight flex items-center gap-2">
-            <Server className="w-5 h-5 text-[#10a37f]" />
-            <span>服务与 MCP 工具目录</span>
-          </h1>
-          <p className="text-xs text-zinc-500 mt-1">
-            配置与观测上游数据源服务、MCP 工具暴露清单及管理层放行规则
-          </p>
-        </div>
+    <Space direction="vertical" size="large" style={{ width: '100%' }}>
+      <div>
+        <Typography.Title level={4} style={{ margin: 0 }}>
+          <CloudServerOutlined style={{ color: '#1677ff', marginRight: 8 }} />
+          服务与 MCP 工具目录
+        </Typography.Title>
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          配置与观测上游数据源服务、MCP 工具暴露清单及管理层放行规则
+        </Typography.Text>
       </div>
 
-      {/* Services List */}
-      <div className="grid grid-cols-1 gap-4">
-        {services.map((svc) => {
-          const isReady = svc.status === 'ready'
-          const isTesting = testingId === svc.serviceId
-
-          return (
-            <div
-              key={svc.serviceId}
-              onClick={() => navigate(`/ops/services/${svc.serviceId}`)}
-              className="bg-white border border-zinc-200/80 p-5 rounded-2xl shadow-2xs hover:border-zinc-300 transition-all cursor-pointer group flex flex-col md:flex-row md:items-center justify-between gap-4"
-            >
-              <div className="space-y-2">
-                <div className="flex items-center gap-2.5 flex-wrap">
-                  <h3 className="font-semibold text-zinc-900 text-sm group-hover:text-[#10a37f] transition-colors">
-                    {svc.name}
-                  </h3>
-                  <span className="px-2 py-0.5 rounded-md bg-zinc-100 text-zinc-600 font-mono text-[11px]">
-                    {svc.serviceId}
-                  </span>
-                  <span
-                    className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-mono font-medium border ${
-                      isReady
-                        ? 'bg-emerald-50 text-[#10a37f] border-emerald-200/60'
-                        : 'bg-amber-50 text-amber-700 border-amber-200/60'
-                    }`}
-                  >
-                    {isReady ? <CheckCircle2 className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
-                    <span>{isReady ? 'OPERATIONAL' : 'DEGRADED'}</span>
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-4 text-xs text-zinc-500 font-mono flex-wrap">
-                  <span>协议: {svc.protocol.toUpperCase()}</span>
-                  <span>·</span>
-                  <span>
-                    工具目录: {svc.allowedTools} / {svc.discoveredTools} 放行
-                  </span>
-                  <span>·</span>
-                  <span>可用账号: {svc.accountCount} 个</span>
-                  <span>·</span>
-                  <span>P95 延迟: {svc.p95Latency}ms</span>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex items-center gap-2 flex-shrink-0 self-end md:self-center">
-                <button
-                  disabled={isTesting}
-                  onClick={(e) => handleTestConnection(svc.serviceId, e)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-700 text-xs font-medium transition-colors shadow-2xs"
-                >
-                  <RefreshCw className={`w-3 h-3 ${isTesting ? 'animate-spin text-zinc-800' : 'text-zinc-500'}`} />
-                  <span>{isTesting ? '探测中...' : '测试连通性'}</span>
-                </button>
-
-                <div className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-zinc-900 group-hover:bg-zinc-800 text-white text-xs font-medium transition-colors shadow-2xs">
-                  <span>工具详情</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </div>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </div>
+      <Card>
+        <Table
+          dataSource={services}
+          columns={columns}
+          rowKey="serviceId"
+          pagination={false}
+          size="middle"
+        />
+      </Card>
+    </Space>
   )
 }

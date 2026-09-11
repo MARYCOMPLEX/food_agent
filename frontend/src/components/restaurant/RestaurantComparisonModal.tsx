@@ -1,5 +1,12 @@
 import React from 'react'
-import { X, AlertTriangle, Sparkles } from 'lucide-react'
+import { Modal, Table, Tag, Button, Space, Typography } from 'antd'
+import {
+  DiffOutlined,
+  DeleteOutlined,
+  SendOutlined,
+  CheckCircleOutlined,
+  WarningOutlined,
+} from '@ant-design/icons'
 import type { Restaurant } from '../../shared/contracts'
 
 interface RestaurantComparisonModalProps {
@@ -19,184 +26,156 @@ export function RestaurantComparisonModal({
 }: RestaurantComparisonModalProps) {
   if (!isOpen || restaurants.length === 0) return null
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-in fade-in">
-      <div className="relative w-full max-w-5xl max-h-[90vh] bg-white rounded-2xl shadow-2xl border border-zinc-200 flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-zinc-100 text-zinc-800 flex items-center justify-center">
-              <Sparkles className="w-4 h-4 text-[#10a37f]" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-zinc-900 text-base">候选餐厅多维横向对比</h3>
-              <p className="text-xs text-zinc-500">基于真实评论证据、排队耗时与店铺档案</p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-lg text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 transition-colors"
-            aria-label="关闭"
+  // Table Columns
+  const columns = [
+    {
+      title: '对比维度',
+      dataIndex: 'dimension',
+      key: 'dimension',
+      width: 140,
+      render: (text: string) => <Typography.Text strong>{text}</Typography.Text>,
+    },
+    ...restaurants.map((shop) => ({
+      title: (
+        <Space direction="vertical" size={2} style={{ width: '100%' }}>
+          <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+            <Typography.Text strong style={{ fontSize: 15 }}>{shop.name}</Typography.Text>
+            {onRemoveRestaurant && (
+              <Button
+                type="text"
+                danger
+                size="small"
+                icon={<DeleteOutlined />}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onRemoveRestaurant(shop.id)
+                }}
+                title="移除"
+              />
+            )}
+          </Space>
+          {shop.price && <Tag color="blue">人均 ￥{shop.price}</Tag>}
+        </Space>
+      ),
+      dataIndex: shop.id,
+      key: shop.id,
+      render: (content: React.ReactNode) => content,
+    })),
+  ]
+
+  // Table Rows (Dimensions)
+  const dataSource = [
+    {
+      key: 'oneLiner',
+      dimension: '核心口碑评价',
+      ...restaurants.reduce((acc, shop) => {
+        acc[shop.id] = (
+          <Typography.Paragraph ellipsis={{ rows: 3 }} style={{ marginBottom: 0 }}>
+            {shop.oneLiner || '暂无总结'}
+          </Typography.Paragraph>
+        )
+        return acc
+      }, {} as Record<string, any>),
+    },
+    {
+      key: 'pros',
+      dimension: '推荐招牌 / 亮点',
+      ...restaurants.reduce((acc, shop) => {
+        acc[shop.id] = shop.pros && shop.pros.length > 0 ? (
+          <Space direction="vertical" size={4}>
+            {shop.pros.map((p, i) => (
+              <span key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                <CheckCircleOutlined style={{ color: '#52c41a', marginTop: 3 }} />
+                <span>{p}</span>
+              </span>
+            ))}
+          </Space>
+        ) : (
+          <span style={{ color: '#8c8c8c' }}>无突出亮点</span>
+        )
+        return acc
+      }, {} as Record<string, any>),
+    },
+    {
+      key: 'cons',
+      dimension: '避坑预警 / 劣势',
+      ...restaurants.reduce((acc, shop) => {
+        acc[shop.id] = shop.cons && shop.cons.length > 0 ? (
+          <Space direction="vertical" size={4}>
+            {shop.cons.map((c, i) => (
+              <span key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                <WarningOutlined style={{ color: '#faad14', marginTop: 3 }} />
+                <span style={{ color: '#d48806' }}>{c}</span>
+              </span>
+            ))}
+          </Space>
+        ) : (
+          <Tag color="success">暂无严重避雷反映</Tag>
+        )
+        return acc
+      }, {} as Record<string, any>),
+    },
+    {
+      key: 'address',
+      dimension: '位置与营业时间',
+      ...restaurants.reduce((acc, shop) => {
+        acc[shop.id] = (
+          <Space direction="vertical" size={2} style={{ fontSize: 12 }}>
+            <div>地址：{shop.address || '请查看大众点评档案'}</div>
+            {shop.hours && <div>时间：{shop.hours}</div>}
+          </Space>
+        )
+        return acc
+      }, {} as Record<string, any>),
+    },
+    {
+      key: 'actions',
+      dimension: '操作',
+      ...restaurants.reduce((acc, shop) => {
+        acc[shop.id] = (
+          <Button
+            type="primary"
+            size="small"
+            icon={<SendOutlined />}
+            onClick={() => {
+              onSelectForFollowUp?.(shop)
+              onClose()
+            }}
           >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+            就此店追问
+          </Button>
+        )
+        return acc
+      }, {} as Record<string, any>),
+    },
+  ]
 
-        {/* Table Content */}
-        <div className="overflow-x-auto overflow-y-auto flex-1 p-6">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr>
-                <th className="w-36 p-3 text-left font-medium text-zinc-400 border-b border-zinc-200 text-xs uppercase tracking-wider">
-                  对比维度
-                </th>
-                {restaurants.map((shop) => (
-                  <th key={shop.id} className="p-3 text-left border-b border-zinc-200 min-w-[220px]">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="font-semibold text-zinc-900 text-base">{shop.name}</div>
-                        <div className="text-xs font-mono text-[#10a37f] mt-0.5">
-                          {shop.price ? `人均 ￥${shop.price}` : '人均未知'}
-                        </div>
-                      </div>
-                      {onRemoveRestaurant && (
-                        <button
-                          onClick={() => onRemoveRestaurant(shop.id)}
-                          className="text-zinc-300 hover:text-zinc-600 p-1 rounded-md transition-colors"
-                          title="从对比中移除"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-100">
-              {/* 核心结论 */}
-              <tr className="hover:bg-zinc-50/60 transition-colors">
-                <td className="p-3 font-medium text-zinc-500 bg-zinc-50/40 text-xs">核心评价结论</td>
-                {restaurants.map((shop) => (
-                  <td key={shop.id} className="p-3 text-zinc-700 leading-relaxed text-xs">
-                    {shop.oneLiner || '正在整理该店口碑结论'}
-                  </td>
-                ))}
-              </tr>
-
-              {/* 口味与特色 */}
-              <tr className="hover:bg-zinc-50/60 transition-colors">
-                <td className="p-3 font-medium text-zinc-500 bg-zinc-50/40 text-xs">口味亮点</td>
-                {restaurants.map((shop) => (
-                  <td key={shop.id} className="p-3 text-xs">
-                    {shop.pros && shop.pros.length > 0 ? (
-                      <ul className="space-y-1">
-                        {shop.pros.map((p, i) => (
-                          <li key={i} className="text-zinc-800 flex items-start gap-1.5">
-                            <span className="text-[#10a37f] font-bold">✓</span>
-                            <span>{p}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <span className="text-zinc-400">未知</span>
-                    )}
-                  </td>
-                ))}
-              </tr>
-
-              {/* 主要争议与风险 */}
-              <tr className="hover:bg-zinc-50/60 transition-colors">
-                <td className="p-3 font-medium text-zinc-500 bg-zinc-50/40 text-xs">避雷与争议点</td>
-                {restaurants.map((shop) => (
-                  <td key={shop.id} className="p-3 text-xs">
-                    {shop.cons && shop.cons.length > 0 ? (
-                      <ul className="space-y-1">
-                        {shop.cons.map((c, i) => (
-                          <li key={i} className="text-amber-900 flex items-start gap-1.5">
-                            <AlertTriangle className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
-                            <span>{c}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : shop.warning ? (
-                      <div className="text-amber-900 flex items-start gap-1.5">
-                        <AlertTriangle className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
-                        <span>{shop.warning}</span>
-                      </div>
-                    ) : (
-                      <span className="text-zinc-400">暂无强争议</span>
-                    )}
-                  </td>
-                ))}
-              </tr>
-
-              {/* 排队与耗时 */}
-              <tr className="hover:bg-zinc-50/60 transition-colors">
-                <td className="p-3 font-medium text-zinc-500 bg-zinc-50/40 text-xs">排队与耗时</td>
-                {restaurants.map((shop) => (
-                  <td key={shop.id} className="p-3 text-xs text-zinc-700">
-                    {shop.stats?.wait || '待评论进一步核实'}
-                  </td>
-                ))}
-              </tr>
-
-              {/* 必点推荐 */}
-              <tr className="hover:bg-zinc-50/60 transition-colors">
-                <td className="p-3 font-medium text-zinc-500 bg-zinc-50/40 text-xs">高频招牌菜</td>
-                {restaurants.map((shop) => (
-                  <td key={shop.id} className="p-3 text-xs">
-                    {shop.mustTry && shop.mustTry.length > 0 ? (
-                      <div className="flex flex-wrap gap-1.5">
-                        {shop.mustTry.map((item, idx) => (
-                          <span
-                            key={idx}
-                            className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-zinc-100 text-zinc-800 text-[11px] border border-zinc-200/50"
-                          >
-                            {item.name}
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-zinc-400">未知</span>
-                    )}
-                  </td>
-                ))}
-              </tr>
-
-              {/* 到店地址与资料 */}
-              <tr className="hover:bg-zinc-50/60 transition-colors">
-                <td className="p-3 font-medium text-zinc-500 bg-zinc-50/40 text-xs">地址与营业时间</td>
-                {restaurants.map((shop) => (
-                  <td key={shop.id} className="p-3 text-xs text-zinc-600">
-                    <div>{shop.address || '地址待点评补充'}</div>
-                    <div className="text-zinc-400 mt-0.5">{shop.hours || '营业时间待核实'}</div>
-                  </td>
-                ))}
-              </tr>
-
-              {/* 操作栏 */}
-              <tr>
-                <td className="p-3 bg-zinc-50/40"></td>
-                {restaurants.map((shop) => (
-                  <td key={shop.id} className="p-3">
-                    <button
-                      onClick={() => {
-                        onSelectForFollowUp?.(shop)
-                        onClose()
-                      }}
-                      className="w-full py-2 px-4 rounded-full bg-zinc-900 text-white text-xs font-medium hover:bg-zinc-800 transition-colors shadow-xs"
-                    >
-                      对此店追问
-                    </button>
-                  </td>
-                ))}
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
+  return (
+    <Modal
+      open={isOpen}
+      onCancel={onClose}
+      title={
+        <Space>
+          <DiffOutlined style={{ color: '#1677ff' }} />
+          <span>候选餐厅多维横向对比 ({restaurants.length} 家)</span>
+        </Space>
+      }
+      footer={[
+        <Button key="close" onClick={onClose}>
+          关闭
+        </Button>,
+      ]}
+      width={980}
+      centered
+    >
+      <Table
+        dataSource={dataSource}
+        columns={columns}
+        pagination={false}
+        bordered
+        size="middle"
+        style={{ marginTop: 16 }}
+      />
+    </Modal>
   )
 }
-

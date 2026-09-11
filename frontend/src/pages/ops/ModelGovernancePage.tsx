@@ -1,11 +1,12 @@
 import React, { useState } from 'react'
+import { Card, Form, Select, Input, InputNumber, Switch, Button, Timeline, Tag, Alert, Space, Typography, Row, Col } from 'antd'
 import {
-  Cpu,
-  Shield,
-  Lock,
-  Key,
-  Save,
-} from 'lucide-react'
+  SettingOutlined,
+  SaveOutlined,
+  SafetyCertificateOutlined,
+  KeyOutlined,
+  CheckCircleOutlined,
+} from '@ant-design/icons'
 import { useToast } from '../../context/ToastContext'
 
 interface ModelProviderConfig {
@@ -84,145 +85,129 @@ export function ModelGovernancePage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between pb-4 border-b border-zinc-200/80">
+    <Space direction="vertical" size="large" style={{ width: '100%' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h1 className="text-xl font-semibold text-zinc-900 tracking-tight flex items-center gap-2">
-            <Cpu className="w-5 h-5 text-[#10a37f]" />
-            <span>模型与调查策略治理</span>
-          </h1>
-          <p className="text-xs text-zinc-500 mt-1">
+          <Typography.Title level={4} style={{ margin: 0 }}>
+            <SettingOutlined style={{ color: '#1677ff', marginRight: 8 }} />
+            模型与调查策略治理
+          </Typography.Title>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             配置模型目录、角色推理强度 (Reasoning Effort)、参数放行规则与 API Key 掩码安全保护
-          </p>
+          </Typography.Text>
         </div>
 
-        <button
+        <Button
+          type="primary"
+          icon={<SaveOutlined />}
           onClick={handleSave}
-          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-medium shadow-2xs transition-colors"
         >
-          <Save className="w-3.5 h-3.5" />
-          <span>保存并发布策略</span>
-        </button>
+          保存并发布策略
+        </Button>
       </div>
 
-      {/* Security Protection Callout */}
-      <div className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200/80 text-xs text-zinc-700 flex items-start gap-3">
-        <Lock className="w-4 h-4 text-[#10a37f] flex-shrink-0 mt-0.5" />
-        <div className="space-y-1">
-          <div className="font-semibold text-zinc-900">模型 Key 加密与参数防漂移规范</div>
-          <div className="text-zinc-500 leading-relaxed text-[11px]">
-            API Key 保存后单向掩码化存储，永远不可再次逆向查阅明文。模型 temperature 与 reasoning effort 受后端 Hard Limit 约束，客户端不得绕过安全策略。
-          </div>
-        </div>
-      </div>
+      <Alert
+        message="模型 Key 加密与参数防漂移规范"
+        description="API Key 保存后单向掩码化存储，永远不可再次逆向查阅明文。模型 temperature 与 reasoning effort 受后端 Hard Limit 约束，客户端不得绕过安全策略。"
+        type="info"
+        showIcon
+        icon={<SafetyCertificateOutlined />}
+      />
 
-      {/* Model Configurations Grid */}
-      <div className="space-y-4">
+      {/* Model Configurations Cards */}
+      <Space direction="vertical" size="middle" style={{ width: '100%' }}>
         {configs.map((cfg) => (
-          <div
+          <Card
             key={cfg.id}
-            className="bg-white border border-zinc-200/80 p-5 rounded-2xl space-y-4 shadow-2xs"
+            title={
+              <Space>
+                <Typography.Text strong>{cfg.providerName}</Typography.Text>
+                <Tag color="blue">{cfg.modelName}</Tag>
+                <Tag color="success">ACTIVE</Tag>
+              </Space>
+            }
+            extra={
+              <Space>
+                <span style={{ fontSize: 12, color: '#595959' }}>用户端可选</span>
+                <Switch
+                  checked={cfg.isUserSelectable}
+                  onChange={(checked) => {
+                    setConfigs(
+                      configs.map((c) => (c.id === cfg.id ? { ...c, isUserSelectable: checked } : c)),
+                    )
+                  }}
+                />
+              </Space>
+            }
           >
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-zinc-100">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-semibold text-zinc-900 text-sm">{cfg.providerName}</span>
-                  <span className="font-mono text-zinc-700 text-xs px-2 py-0.5 rounded-md bg-zinc-100 border border-zinc-200/80">
-                    {cfg.modelName}
-                  </span>
-                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-[#10a37f] border border-emerald-200/60 text-[10px] font-mono font-medium">
-                    {cfg.status.toUpperCase()}
-                  </span>
-                </div>
-                <div className="text-xs text-zinc-500">承担角色：{roleLabelMap[cfg.role]}</div>
-              </div>
+            <div style={{ marginBottom: 16 }}>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                承担角色能力：<strong>{roleLabelMap[cfg.role]}</strong>
+              </Typography.Text>
+            </div>
 
-              <div className="flex items-center gap-2">
-                <label className="flex items-center gap-2 text-xs text-zinc-700 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={cfg.isUserSelectable}
-                    onChange={(e) => {
+            <Row gutter={[16, 16]}>
+              <Col span={24} sm={8}>
+                <Form.Item label="Reasoning Effort (推理深度)" style={{ marginBottom: 0 }}>
+                  <Select
+                    value={cfg.reasoningEffort}
+                    onChange={(val) => {
                       setConfigs(
-                        configs.map((c) => (c.id === cfg.id ? { ...c, isUserSelectable: e.target.checked } : c)),
+                        configs.map((c) => (c.id === cfg.id ? { ...c, reasoningEffort: val } : c)),
                       )
                     }}
-                    className="rounded border-zinc-300 text-[#10a37f] focus:ring-[#10a37f]"
+                    options={[
+                      { value: 'low', label: 'low (快速筛选)' },
+                      { value: 'medium', label: 'medium (常规均衡)' },
+                      { value: 'high', label: 'high (深度交叉核验)' },
+                    ]}
                   />
-                  <span>用户端可选</span>
-                </label>
-              </div>
-            </div>
+                </Form.Item>
+              </Col>
 
-            {/* Parameter Fields */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs font-mono">
-              {/* Reasoning Effort */}
-              <div className="space-y-1.5 font-sans">
-                <label className="text-zinc-500 text-[11px]">Reasoning Effort (推理深度)</label>
-                <select
-                  value={cfg.reasoningEffort}
-                  onChange={(e) => {
-                    setConfigs(
-                      configs.map((c) => (c.id === cfg.id ? { ...c, reasoningEffort: e.target.value as any } : c)),
-                    )
-                  }}
-                  className="w-full p-2 rounded-xl bg-zinc-50 border border-zinc-200 text-zinc-800 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-zinc-400"
+              <Col span={24} sm={8}>
+                <Form.Item label="Max Tokens 限制" style={{ marginBottom: 0 }}>
+                  <InputNumber
+                    value={cfg.maxTokens}
+                    onChange={(val) => {
+                      if (val) {
+                        setConfigs(
+                          configs.map((c) => (c.id === cfg.id ? { ...c, maxTokens: val } : c)),
+                        )
+                      }
+                    }}
+                    style={{ width: '100%' }}
+                  />
+                </Form.Item>
+              </Col>
+
+              <Col span={24} sm={8}>
+                <Form.Item
+                  label={
+                    <Space>
+                      <KeyOutlined style={{ color: '#1677ff' }} />
+                      <span>凭据状态 (只读掩码)</span>
+                    </Space>
+                  }
+                  style={{ marginBottom: 0 }}
                 >
-                  <option value="low">low (快速筛选)</option>
-                  <option value="medium">medium (常规均衡)</option>
-                  <option value="high">high (深度交叉核验)</option>
-                </select>
-              </div>
-
-              {/* Max Tokens */}
-              <div className="space-y-1.5 font-sans">
-                <label className="text-zinc-500 text-[11px]">Max Tokens 限制</label>
-                <input
-                  type="number"
-                  value={cfg.maxTokens}
-                  onChange={(e) => {
-                    setConfigs(
-                      configs.map((c) => (c.id === cfg.id ? { ...c, maxTokens: Number(e.target.value) } : c)),
-                    )
-                  }}
-                  className="w-full p-2 rounded-xl bg-zinc-50 border border-zinc-200 text-zinc-800 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-zinc-400"
-                />
-              </div>
-
-              {/* Masked API Key */}
-              <div className="space-y-1.5 font-sans">
-                <label className="text-zinc-500 text-[11px] flex items-center gap-1">
-                  <Key className="w-3 h-3 text-zinc-400" />
-                  <span>凭据状态 (只读掩码)</span>
-                </label>
-                <input
-                  type="text"
-                  disabled
-                  value={cfg.maskedApiKey}
-                  className="w-full p-2 rounded-xl bg-zinc-100 border border-zinc-200 text-zinc-400 text-xs font-mono cursor-not-allowed select-none"
-                />
-              </div>
-            </div>
-          </div>
+                  <Input disabled value={cfg.maskedApiKey} />
+                </Form.Item>
+              </Col>
+            </Row>
+          </Card>
         ))}
-      </div>
+      </Space>
 
-      {/* Audit Log */}
-      <div className="bg-white border border-zinc-200/80 p-5 rounded-2xl space-y-3 shadow-2xs">
-        <h3 className="font-semibold text-sm text-zinc-900 flex items-center gap-2">
-          <Shield className="w-4 h-4 text-[#10a37f]" />
-          <span>策略版本审计与回滚日志</span>
-        </h3>
-
-        <div className="space-y-2">
-          {auditLog.map((log, idx) => (
-            <div key={idx} className="p-2.5 rounded-xl bg-zinc-50 border border-zinc-100 text-xs font-mono text-zinc-600">
-              {log}
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
+      {/* Audit Log Card */}
+      <Card title="策略版本审计与回滚日志">
+        <Timeline
+          items={auditLog.map((log) => ({
+            color: 'blue',
+            children: <Typography.Text code style={{ fontSize: 12 }}>{log}</Typography.Text>,
+          }))}
+        />
+      </Card>
+    </Space>
   )
 }

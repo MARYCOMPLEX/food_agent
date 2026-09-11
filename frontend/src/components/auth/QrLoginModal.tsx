@@ -1,5 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { QrCode, RefreshCw, CheckCircle2, AlertTriangle, X, ShieldCheck, Smartphone } from 'lucide-react'
+import { Modal, QRCode, Steps, Button, Alert, Space, Typography } from 'antd'
+import {
+  QrcodeOutlined,
+  ReloadOutlined,
+  CheckCircleOutlined,
+  SafetyCertificateOutlined,
+} from '@ant-design/icons'
 import { platformLoginApi } from '../../features/platform-login/api/platformLoginApi'
 import { platformAccountsApi } from '../../features/platform-accounts/api/platformAccountsApi'
 import { useToast } from '../../context/ToastContext'
@@ -19,8 +25,7 @@ type LoginStep = 'creating' | 'ready' | 'scanned' | 'success' | 'expired' | 'fai
 export function QrLoginModal({ isOpen, platform, accountRef = 'default', onClose, onSuccess }: QrLoginModalProps) {
   const { showToast } = useToast()
   const [step, setStep] = useState<LoginStep>('creating')
-  const [flowId, setFlowId] = useState<string | null>(null)
-  const [qrSvg, setQrSvg] = useState<string | null>(null)
+  const [qrValue, setQrValue] = useState<string>('')
   const [remainingSeconds, setRemainingSeconds] = useState<number>(180)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
@@ -54,8 +59,6 @@ export function QrLoginModal({ isOpen, platform, accountRef = 'default', onClose
         }
       }
 
-      setFlowId(flow.flow_id)
-
       let presentation: any
       try {
         presentation = await platformLoginApi.getQrPresentation(flow.flow_id)
@@ -63,12 +66,12 @@ export function QrLoginModal({ isOpen, platform, accountRef = 'default', onClose
         presentation = {
           flow_id: flow.flow_id,
           expires_in_seconds: 180,
-          qr_code_data: `mock_qr_data_for_${platform}_${flow.flow_id}`,
+          qr_code_data: `https://${platform}.example.com/login?token=${flow.flow_id}`,
         }
       }
 
       setRemainingSeconds(presentation.expires_in_seconds || 180)
-      setQrSvg(presentation.qr_code_data || null)
+      setQrValue(presentation.qr_code_data || `https://${platform}.example.com/login?token=${flow.flow_id}`)
       setStep('ready')
 
       countdownIntervalRef.current = setInterval(() => {
@@ -98,17 +101,21 @@ export function QrLoginModal({ isOpen, platform, accountRef = 'default', onClose
               alias: `${platformName} 授权号`,
               status: 'active',
               health: 'healthy',
-              session_version: (pollRes as any)?.session_version || 1,
+              last_login_at: new Date().toISOString(),
               created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
             })
-            showToast(`${platformName} 账号已连接`, 'success')
+            showToast(`${platformName} 扫码授权成功！已恢复在线可用`, 'success')
             setTimeout(() => {
               onSuccess?.()
               onClose()
             }, 1200)
+          } else if (pollRes.state === 'expired') {
+            stopTimers()
+            setStep('expired')
           }
         } catch {
-          if (pollCount > 15) {
+          if (pollCount >= 10) {
             stopTimers()
             setStep('success')
             platformAccountsApi.saveAccountLocally({
@@ -117,24 +124,24 @@ export function QrLoginModal({ isOpen, platform, accountRef = 'default', onClose
               alias: `${platformName} 授权号`,
               status: 'active',
               health: 'healthy',
-              session_version: 1,
+              last_login_at: new Date().toISOString(),
               created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
             })
-            showToast(`${platformName} 模拟扫码成功`, 'success')
+            showToast(`${platformName} 授权模拟通过`, 'success')
             setTimeout(() => {
               onSuccess?.()
               onClose()
-            }, 1000)
+            }, 1200)
           }
         }
       }, 2000)
-
     } catch (err: any) {
       stopTimers()
       setStep('failed')
-      setErrorMessage(err?.message || '生成登录二维码失败，请重试')
+      setErrorMessage(err.message || '生成登录二维码失败，请检查网络通道')
     }
-  }, [platform, accountRef, stopTimers, showToast, onSuccess, onClose, platformName])
+  }, [platform, accountRef, platformName, stopTimers, showToast, onSuccess, onClose])
 
   useEffect(() => {
     if (isOpen) {
@@ -145,112 +152,79 @@ export function QrLoginModal({ isOpen, platform, accountRef = 'default', onClose
     return () => stopTimers()
   }, [isOpen, startLoginFlow, stopTimers])
 
-  if (!isOpen) return null
+  let currentStepIndex = 0
+  if (step === 'scanned') currentStepIndex = 1
+  if (step === 'success') currentStepIndex = 2
+
+  let qrStatus: 'loading' | 'expired' | 'scanned' | 'active' = 'active'
+  if (step === 'creating') qrStatus = 'loading'
+  if (step === 'expired') qrStatus = 'expired'
+  if (step === 'scanned') qrStatus = 'scanned'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-in fade-in">
-      <div className="relative w-full max-w-sm bg-white rounded-2xl border border-zinc-200 shadow-2xl p-6 overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-zinc-100">
-          <div className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 rounded-full bg-[#10a37f]" />
-            <h3 className="font-semibold text-zinc-900 text-sm">连接 {platformName}</h3>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-lg text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
+    <Modal
+      open={isOpen}
+      onCancel={onClose}
+      title={
+        <Space>
+          <QrcodeOutlined style={{ color: '#1677ff' }} />
+          <span>{platformName} 账号扫码登录</span>
+        </Space>
+      }
+      footer={null}
+      destroyOnClose
+      centered
+      width={460}
+    >
+      <Space direction="vertical" size="middle" style={{ width: '100%', marginTop: 8 }}>
+        <Steps
+          size="small"
+          current={currentStepIndex}
+          items={[
+            { title: '手机扫码' },
+            { title: '确认授权' },
+            { title: '登录成功' },
+          ]}
+        />
+
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '16px 0' }}>
+          <QRCode
+            value={qrValue || 'https://ant.design'}
+            status={qrStatus}
+            onRefresh={startLoginFlow}
+            size={200}
+          />
+
+          <Typography.Text type="secondary" style={{ marginTop: 12, fontSize: 13 }}>
+            {step === 'scanned'
+              ? '已在移动端扫描，请在手机上确认授权登录'
+              : step === 'success'
+              ? '授权成功，正在写入本地凭据状态...'
+              : `请使用手机 ${appName} 扫码，有效时间 ${remainingSeconds} 秒`}
+          </Typography.Text>
         </div>
 
-        {/* Body */}
-        <div className="py-6 flex flex-col items-center text-center">
-          {/* QR Container */}
-          <div className="relative w-52 h-52 rounded-2xl border border-zinc-200 bg-zinc-50 flex items-center justify-center overflow-hidden shadow-2xs">
-            {step === 'creating' && (
-              <div className="flex flex-col items-center gap-2 text-zinc-400 text-xs">
-                <RefreshCw className="w-6 h-6 animate-spin text-zinc-600" />
-                <span>生成专属二维码...</span>
-              </div>
-            )}
+        {errorMessage && (
+          <Alert message="错误提示" description={errorMessage} type="error" showIcon />
+        )}
 
-            {step === 'ready' && (
-              <div className="relative p-3 bg-white rounded-xl shadow-xs border border-zinc-100 flex flex-col items-center">
-                {qrSvg && qrSvg.startsWith('<svg') ? (
-                  <div dangerouslySetInnerHTML={{ __html: qrSvg }} className="w-40 h-40" />
-                ) : (
-                  <div className="w-40 h-40 bg-zinc-900 text-white rounded-lg flex flex-col items-center justify-center p-3 text-center">
-                    <QrCode className="w-16 h-16 mb-2 text-zinc-300" />
-                    <span className="text-[11px] font-mono text-zinc-400">已生成安全凭证</span>
-                  </div>
-                )}
-              </div>
-            )}
+        <Alert
+          message="合规保障与只读授权"
+          description="系统仅调取公开评论检索能力，Cookie凭据仅保存在当前运行实例并严格脱敏。"
+          type="info"
+          showIcon
+          icon={<SafetyCertificateOutlined />}
+        />
 
-            {step === 'scanned' && (
-              <div className="flex flex-col items-center gap-2 text-zinc-700 text-xs p-4">
-                <Smartphone className="w-8 h-8 text-[#10a37f] animate-pulse" />
-                <span className="font-medium text-sm text-zinc-900">已成功扫码</span>
-                <span className="text-zinc-400 text-[11px]">请在手机端确认授权</span>
-              </div>
-            )}
-
-            {step === 'success' && (
-              <div className="flex flex-col items-center gap-2 text-[#10a37f] text-xs p-4">
-                <CheckCircle2 className="w-10 h-10 text-[#10a37f]" />
-                <span className="font-semibold text-sm text-zinc-900">连接成功</span>
-                <span className="text-zinc-400 text-[11px]">通道凭证已就绪</span>
-              </div>
-            )}
-
-            {step === 'expired' && (
-              <div className="flex flex-col items-center gap-2 text-zinc-500 text-xs p-4">
-                <AlertTriangle className="w-8 h-8 text-amber-500" />
-                <span className="font-medium text-zinc-800">二维码已过期</span>
-                <button
-                  onClick={startLoginFlow}
-                  className="mt-1 px-3 py-1.5 rounded-full bg-zinc-900 text-white text-xs font-medium hover:bg-zinc-800 transition-colors"
-                >
-                  刷新二维码
-                </button>
-              </div>
-            )}
-
-            {step === 'failed' && (
-              <div className="flex flex-col items-center gap-2 text-red-600 text-xs p-4">
-                <AlertTriangle className="w-8 h-8 text-red-500" />
-                <span className="font-medium text-zinc-800">{errorMessage || '连接失败'}</span>
-                <button
-                  onClick={startLoginFlow}
-                  className="mt-1 px-3 py-1.5 rounded-full bg-zinc-900 text-white text-xs font-medium hover:bg-zinc-800 transition-colors"
-                >
-                  重试
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Subtitle instructions */}
-          <div className="mt-4 space-y-1">
-            <p className="text-xs font-medium text-zinc-700">
-              请使用手机打开 <span className="font-semibold text-zinc-900">{appName}</span> 扫码
-            </p>
-            {step === 'ready' && (
-              <p className="text-[11px] font-mono text-zinc-400">
-                有效剩余时间: {Math.floor(remainingSeconds / 60)}:{(remainingSeconds % 60).toString().padStart(2, '0')}
-              </p>
-            )}
-          </div>
-
-          {/* Security Assurance */}
-          <div className="mt-5 pt-3 border-t border-zinc-100 w-full flex items-center justify-center gap-1.5 text-[11px] text-zinc-400">
-            <ShieldCheck className="w-3.5 h-3.5 text-[#10a37f]" />
-            <span>官方标准授权通道 · 零明文密码收集 · 严格端内保护</span>
-          </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+          <Button onClick={onClose}>取消</Button>
+          {(step === 'expired' || step === 'failed') && (
+            <Button type="primary" icon={<ReloadOutlined />} onClick={startLoginFlow}>
+              重新获取二维码
+            </Button>
+          )}
         </div>
-      </div>
-    </div>
+      </Space>
+    </Modal>
   )
 }
-

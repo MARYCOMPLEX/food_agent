@@ -1,9 +1,12 @@
 import React, { useState } from 'react'
+import { Card, Row, Col, Statistic, Table, Input, Tag, Space, Typography } from 'antd'
 import {
-  Database,
-  Search,
-  ShieldCheck,
-} from 'lucide-react'
+  DatabaseOutlined,
+  SearchOutlined,
+  CheckCircleOutlined,
+  SafetyCertificateOutlined,
+  ClockCircleOutlined,
+} from '@ant-design/icons'
 
 interface EvidenceBundleRecord {
   bundleId: string
@@ -62,103 +65,152 @@ export function EvidenceObservabilityPage() {
       b.familyId.toLowerCase().includes(searchQuery.toLowerCase()),
   )
 
+  const columns = [
+    {
+      title: 'Bundle ID / 版本',
+      key: 'bundleId',
+      render: (_: any, record: EvidenceBundleRecord) => (
+        <Space direction="vertical" size={1}>
+          <Typography.Text code strong style={{ fontSize: 13 }}>
+            {record.bundleId}
+          </Typography.Text>
+          <Tag color="blue" style={{ fontSize: 10, margin: 0 }}>
+            v{record.version}
+          </Tag>
+        </Space>
+      ),
+    },
+    {
+      title: '查询家族 (Family ID)',
+      dataIndex: 'familyId',
+      key: 'familyId',
+      render: (val: string) => <span style={{ fontSize: 13 }}>{val}</span>,
+    },
+    {
+      title: '条目容量与来源',
+      key: 'items',
+      render: (_: any, record: EvidenceBundleRecord) => (
+        <Space direction="vertical" size={2}>
+          <Typography.Text strong>{record.itemCount} 条评论</Typography.Text>
+          <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+            小红书: {record.sourcesBreakdown.xhs_pc} / 点评: {record.sourcesBreakdown.dianping}
+          </Typography.Text>
+        </Space>
+      ),
+    },
+    {
+      title: '时效窗口',
+      dataIndex: 'freshnessHours',
+      key: 'freshnessHours',
+      render: (hours: number) => (
+        <Space>
+          <ClockCircleOutlined style={{ color: '#8c8c8c' }} />
+          <span>{hours}h 前更新</span>
+        </Space>
+      ),
+    },
+    {
+      title: '去重准确率',
+      dataIndex: 'dedupRate',
+      key: 'dedupRate',
+      render: (rate: string) => (
+        <Typography.Text strong style={{ color: '#52c41a' }}>
+          {rate}
+        </Typography.Text>
+      ),
+    },
+    {
+      title: '脱敏合规质检',
+      dataIndex: 'maskingCheck',
+      key: 'maskingCheck',
+      render: (check: string) => (
+        <Tag icon={<CheckCircleOutlined />} color="success">
+          {check.toUpperCase()}
+        </Tag>
+      ),
+    },
+    {
+      title: '生成时间',
+      dataIndex: 'createdAt',
+      key: 'createdAt',
+      render: (val: string) => <Typography.Text type="secondary" style={{ fontSize: 11 }}>{val}</Typography.Text>,
+    },
+  ]
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-zinc-200/80">
+    <Space direction="vertical" size="large" style={{ width: '100%' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h1 className="text-xl font-semibold text-zinc-900 tracking-tight flex items-center gap-2">
-            <Database className="w-5 h-5 text-[#10a37f]" />
-            <span>证据数据质量与 Bundle 观测</span>
-          </h1>
-          <p className="text-xs text-zinc-500 mt-1">
+          <Typography.Title level={4} style={{ margin: 0 }}>
+            <DatabaseOutlined style={{ color: '#1677ff', marginRight: 8 }} />
+            证据数据质量与 Bundle 观测
+          </Typography.Title>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             监控 Evidence Bundle 版本游标、去重比率、隐私脱敏合规性与时效窗口
-          </p>
+          </Typography.Text>
         </div>
 
-        <div className="relative">
-          <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="搜索 Bundle ID 或 Family..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 pr-3 py-1.5 bg-white border border-zinc-200 rounded-full text-xs text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-400 shadow-2xs w-60"
-          />
-        </div>
+        <Input
+          placeholder="搜索 Bundle ID 或 Family..."
+          prefix={<SearchOutlined />}
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          style={{ width: 260 }}
+          allowClear
+        />
       </div>
 
-      {/* Overview Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-        <div className="bg-white border border-zinc-200/80 p-5 rounded-2xl shadow-2xs">
-          <div className="text-zinc-500 text-xs">活动 Evidence Bundles</div>
-          <div className="text-2xl font-semibold text-zinc-900 font-mono mt-1">3 组</div>
-          <div className="text-[11px] text-[#10a37f] font-medium mt-1">全量版本指针同步正常</div>
-        </div>
+      <Row gutter={[16, 16]}>
+        <Col span={24} sm={8}>
+          <Card>
+            <Statistic
+              title="活动 Evidence Bundles"
+              value={3}
+              suffix="组"
+              prefix={<DatabaseOutlined style={{ color: '#1677ff' }} />}
+            />
+            <Typography.Text type="success" style={{ fontSize: 11, display: 'block', marginTop: 4 }}>
+              全量版本指针同步正常
+            </Typography.Text>
+          </Card>
+        </Col>
+        <Col span={24} sm={8}>
+          <Card>
+            <Statistic
+              title="评论自动去重准确度"
+              value={98.1}
+              suffix="%"
+              prefix={<CheckCircleOutlined style={{ color: '#52c41a' }} />}
+            />
+            <Typography.Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 4 }}>
+              多笔记重复评论实体归并
+            </Typography.Text>
+          </Card>
+        </Col>
+        <Col span={24} sm={8}>
+          <Card>
+            <Statistic
+              title="隐私脱敏与敏感词过滤"
+              value={100}
+              suffix="%"
+              prefix={<SafetyCertificateOutlined style={{ color: '#52c41a' }} />}
+            />
+            <Typography.Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 4 }}>
+              手机号/敏感词已严格掩码
+            </Typography.Text>
+          </Card>
+        </Col>
+      </Row>
 
-        <div className="bg-white border border-zinc-200/80 p-5 rounded-2xl shadow-2xs">
-          <div className="text-zinc-500 text-xs">评论自动去重准确度</div>
-          <div className="text-2xl font-semibold text-zinc-900 font-mono mt-1">98.1%</div>
-          <div className="text-[11px] text-zinc-400 mt-1">多笔记重复评论实体合并</div>
-        </div>
-
-        <div className="bg-white border border-zinc-200/80 p-5 rounded-2xl shadow-2xs">
-          <div className="text-zinc-500 text-xs">隐私脱敏与敏感词过滤</div>
-          <div className="text-2xl font-semibold text-[#10a37f] font-mono mt-1">100% 合规</div>
-          <div className="text-[11px] text-zinc-400 mt-1">电话/敏感字段严格掩码</div>
-        </div>
-      </div>
-
-      {/* Bundle Table */}
-      <div className="bg-white border border-zinc-200/80 rounded-2xl overflow-x-auto shadow-2xs">
-        <table className="w-full text-left text-xs text-zinc-700">
-          <thead className="bg-zinc-50/70 border-b border-zinc-200/80 text-zinc-500 uppercase text-[11px] font-mono">
-            <tr>
-              <th className="p-3.5">Bundle ID / 版本</th>
-              <th className="p-3.5">查询家族 (Family ID)</th>
-              <th className="p-3.5">条目容量</th>
-              <th className="p-3.5">时效窗口</th>
-              <th className="p-3.5">去重率</th>
-              <th className="p-3.5">脱敏质检</th>
-              <th className="p-3.5 text-right">生成时间</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-zinc-100 font-mono">
-            {filteredBundles.map((b) => (
-              <tr key={b.bundleId} className="hover:bg-zinc-50/60 transition-colors">
-                <td className="p-3.5">
-                  <div className="font-semibold text-zinc-900 text-xs">{b.bundleId}</div>
-                  <div className="text-[10px] text-zinc-500">v{b.version}</div>
-                </td>
-
-                <td className="p-3.5 text-zinc-800 font-sans">{b.familyId}</td>
-
-                <td className="p-3.5">
-                  <div>{b.itemCount} 条评论</div>
-                  <div className="text-[10px] text-zinc-400">
-                    小红书: {b.sourcesBreakdown.xhs_pc} / 点评: {b.sourcesBreakdown.dianping}
-                  </div>
-                </td>
-
-                <td className="p-3.5 text-zinc-500">
-                  <span className="text-zinc-700">{b.freshnessHours}h 前</span>
-                </td>
-
-                <td className="p-3.5 text-zinc-900 font-semibold">{b.dedupRate}</td>
-
-                <td className="p-3.5">
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-[#10a37f] border border-emerald-200/60 text-[10px] font-medium">
-                    <ShieldCheck className="w-3 h-3" />
-                    <span>PASSED</span>
-                  </span>
-                </td>
-
-                <td className="p-3.5 text-right text-zinc-400 text-[11px]">{b.createdAt}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+      <Card>
+        <Table
+          dataSource={filteredBundles}
+          columns={columns}
+          rowKey="bundleId"
+          pagination={false}
+          size="middle"
+        />
+      </Card>
+    </Space>
   )
 }

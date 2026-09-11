@@ -1,10 +1,13 @@
 import React, { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { Card, Table, Tag, Switch, Button, Space, Typography } from 'antd'
 import {
-  ArrowLeft,
-  Play,
-  Layers,
-} from 'lucide-react'
+  ArrowLeftOutlined,
+  PlayCircleOutlined,
+  ApiOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+} from '@ant-design/icons'
 import { useToast } from '../../context/ToastContext'
 
 interface ToolItem {
@@ -90,99 +93,118 @@ export function ServiceDetailPage() {
     }, 1000)
   }
 
-  return (
-    <div className="space-y-6">
-      {/* Top Header */}
-      <div className="flex items-center gap-3 pb-4 border-b border-zinc-200/80">
-        <button
-          onClick={() => navigate('/ops/services')}
-          className="p-2 rounded-full border border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-700 transition-colors shadow-2xs"
-          title="返回服务目录"
-        >
-          <ArrowLeft className="w-4 h-4" />
-        </button>
-        <div>
-          <h1 className="text-xl font-semibold text-zinc-900 tracking-tight flex items-center gap-2">
-            <span>服务详情：</span>
-            <span className="font-mono text-base font-normal text-zinc-600 bg-zinc-100 px-2 py-0.5 rounded-md border border-zinc-200">
-              {serviceId}
-            </span>
-          </h1>
-          <p className="text-xs text-zinc-500 mt-1">
-            标准能力映射、工具 Schema 检查及放行策略管理
-          </p>
-        </div>
-      </div>
-
-      {/* Tools List */}
-      <div className="bg-white border border-zinc-200/80 rounded-2xl overflow-hidden shadow-2xs">
-        <div className="p-4 border-b border-zinc-100 flex items-center justify-between bg-zinc-50/50">
-          <div className="flex items-center gap-2">
-            <Layers className="w-4 h-4 text-[#10a37f]" />
-            <h3 className="font-medium text-zinc-900 text-sm">暴露的 MCP 工具列表 ({tools.length})</h3>
-          </div>
-          <span className="text-xs text-zinc-400 font-mono">仅放行工具允许被 Agent 内部编排</span>
-        </div>
-
-        <div className="divide-y divide-zinc-100">
-          {tools.map((t) => (
-            <div key={t.toolName} className="p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-zinc-50/50 transition-colors">
-              <div className="space-y-2 flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-semibold text-zinc-900 text-sm font-mono">{t.toolName}</span>
-                  <span className="px-2 py-0.5 rounded-md bg-zinc-100 text-zinc-600 text-[11px] font-mono border border-zinc-200/60">
-                    标准映射: {t.standardCapability}
-                  </span>
-                  <span
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-medium uppercase border ${
-                      t.isReadOnly
-                        ? 'bg-blue-50 text-blue-700 border-blue-200/60'
-                        : 'bg-rose-50 text-rose-700 border-rose-200/60'
-                    }`}
-                  >
-                    {t.isReadOnly ? 'READ ONLY' : 'SIDE EFFECT'}
-                  </span>
-                </div>
-
-                <p className="text-xs text-zinc-600 leading-relaxed">{t.description}</p>
-
-                {/* Schema Fields */}
-                <div className="flex items-center gap-2 flex-wrap text-[11px] font-mono text-zinc-500">
-                  <span>入参 Schema:</span>
-                  {t.schemaFields.map((f, idx) => (
-                    <span key={idx} className="bg-zinc-100/80 px-2 py-0.5 rounded-md border border-zinc-200/80 text-zinc-700">
-                      {f}
-                    </span>
-                  ))}
-                  <span className="text-zinc-400 ml-2">调用成功率: {t.callSuccessRate}</span>
-                </div>
-              </div>
-
-              {/* Toggle & Test Action */}
-              <div className="flex items-center gap-3 flex-shrink-0 self-end md:self-center">
-                <label className="flex items-center gap-2 text-xs text-zinc-700 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={t.isAllowed}
-                    onChange={() => toggleToolAllowed(t.toolName)}
-                    className="rounded border-zinc-300 text-[#10a37f] focus:ring-[#10a37f]"
-                  />
-                  <span>放行调用</span>
-                </label>
-
-                <button
-                  disabled={!t.isAllowed}
-                  onClick={() => handleTestInvoke(t.toolName)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-700 text-xs font-medium transition-colors disabled:opacity-40 shadow-2xs"
-                >
-                  <Play className="w-3 h-3 text-[#10a37f]" />
-                  <span>沙箱测试</span>
-                </button>
-              </div>
-            </div>
+  const columns = [
+    {
+      title: '工具名称 / 标准映射',
+      key: 'toolName',
+      render: (_: any, record: ToolItem) => (
+        <Space direction="vertical" size={2}>
+          <Typography.Text code strong style={{ fontSize: 13 }}>
+            {record.toolName}
+          </Typography.Text>
+          <Tag color="cyan" style={{ margin: 0, fontSize: 11 }}>
+            {record.standardCapability}
+          </Tag>
+        </Space>
+      ),
+    },
+    {
+      title: '描述',
+      dataIndex: 'description',
+      key: 'description',
+      render: (val: string) => <span style={{ fontSize: 13 }}>{val}</span>,
+    },
+    {
+      title: '读写属性',
+      dataIndex: 'isReadOnly',
+      key: 'isReadOnly',
+      render: (isRead: boolean) =>
+        isRead ? (
+          <Tag color="blue">READ ONLY</Tag>
+        ) : (
+          <Tag color="error">SIDE EFFECT</Tag>
+        ),
+    },
+    {
+      title: '调用入参 Schema',
+      dataIndex: 'schemaFields',
+      key: 'schemaFields',
+      render: (fields: string[]) => (
+        <Space wrap size={[4, 4]}>
+          {fields.map((f, i) => (
+            <Typography.Text code key={i} style={{ fontSize: 11 }}>
+              {f}
+            </Typography.Text>
           ))}
+        </Space>
+      ),
+    },
+    {
+      title: '成功率',
+      dataIndex: 'callSuccessRate',
+      key: 'callSuccessRate',
+      render: (val: string) => <Typography.Text strong>{val}</Typography.Text>,
+    },
+    {
+      title: '编排放行',
+      key: 'isAllowed',
+      render: (_: any, record: ToolItem) => (
+        <Switch
+          checked={record.isAllowed}
+          checkedChildren="放行"
+          unCheckedChildren="拦截"
+          onChange={() => toggleToolAllowed(record.toolName)}
+        />
+      ),
+    },
+    {
+      title: '沙箱调用',
+      key: 'action',
+      render: (_: any, record: ToolItem) => (
+        <Button
+          size="small"
+          icon={<PlayCircleOutlined />}
+          disabled={!record.isAllowed}
+          onClick={() => handleTestInvoke(record.toolName)}
+        >
+          测试调用
+        </Button>
+      ),
+    },
+  ]
+
+  return (
+    <Space direction="vertical" size="large" style={{ width: '100%' }}>
+      <Space align="center" size={12}>
+        <Button
+          icon={<ArrowLeftOutlined />}
+          onClick={() => navigate('/ops/services')}
+        >
+          返回服务目录
+        </Button>
+        <div>
+          <Typography.Title level={4} style={{ margin: 0 }}>
+            <ApiOutlined style={{ color: '#1677ff', marginRight: 8 }} />
+            服务详情：{serviceId}
+          </Typography.Title>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            标准能力映射、工具 Schema 检查及放行策略管理
+          </Typography.Text>
         </div>
-      </div>
-    </div>
+      </Space>
+
+      <Card
+        title={<span>暴露的 MCP 工具清单 ({tools.length})</span>}
+        extra={<Typography.Text type="secondary">仅放行工具允许被 Agent 内部规划编排</Typography.Text>}
+      >
+        <Table
+          dataSource={tools}
+          columns={columns}
+          rowKey="toolName"
+          pagination={false}
+          size="middle"
+        />
+      </Card>
+    </Space>
   )
 }
