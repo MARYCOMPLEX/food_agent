@@ -13,17 +13,17 @@ const ToastContext = createContext<ToastContextValue | null>(null)
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [messageApi, contextHolder] = message.useMessage()
 
-  const showToast = (msg: string, type: ToastType = 'info', duration = 3) => {
+  const showToast = React.useCallback((msg: string, type: ToastType = 'info', duration = 3) => {
     messageApi.open({
       type,
       content: msg,
       duration,
     })
-  }
+  }, [messageApi])
 
-  const removeToast = (_id: string) => {
+  const removeToast = React.useCallback((_id: string) => {
     messageApi.destroy()
-  }
+  }, [messageApi])
 
   return (
     <ToastContext.Provider value={{ showToast, removeToast }}>
