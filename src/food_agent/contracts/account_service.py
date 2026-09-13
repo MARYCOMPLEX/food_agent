@@ -11,16 +11,49 @@ from urllib.parse import urlsplit
 
 from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, field_validator
 
+from pydantic_core import core_schema
+
 ACCOUNT_SERVICE_CONTRACT_VERSION = "account-service/v1"
 MCP_PROTOCOL_VERSION = "2025-06-18"
 
 
-class PlatformChannel(StrEnum):
-    """Remote account-service channels with isolated account namespaces."""
+class PlatformChannel(str):
+    """Remote account-service channels with isolated account namespaces.
 
-    DIANPING = "dianping"
-    XHS_PC = "xhs_pc"
-    XHS_CREATOR = "xhs_creator"
+    Supports built-in platforms (dianping, xhs_pc, xhs_creator) as well as
+    any dynamic custom platform (e.g. meituan, amap, douyin, eleme).
+    """
+
+    _instances: dict[str, PlatformChannel] = {}
+
+    def __new__(cls, value: str | PlatformChannel) -> PlatformChannel:
+        val_str = str(getattr(value, "value", value))
+        if val_str not in cls._instances:
+            cls._instances[val_str] = super().__new__(cls, val_str)
+        return cls._instances[val_str]
+
+    DIANPING: PlatformChannel
+    XHS_PC: PlatformChannel
+    XHS_CREATOR: PlatformChannel
+
+    @property
+    def value(self) -> str:
+        return str(self)
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls, source_type: Any, handler: Any
+    ) -> core_schema.CoreSchema:
+        return core_schema.no_info_after_validator_function(
+            cls,
+            core_schema.str_schema(),
+        )
+
+
+PlatformChannel.DIANPING = PlatformChannel("dianping")
+PlatformChannel.XHS_PC = PlatformChannel("xhs_pc")
+PlatformChannel.XHS_CREATOR = PlatformChannel("xhs_creator")
+
 
 
 class AccountServiceProtocol(StrEnum):

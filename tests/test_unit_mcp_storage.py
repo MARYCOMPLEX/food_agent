@@ -144,3 +144,34 @@ async def test_ops_mcp_api_endpoints(tmp_db_path: str):
 
         res = await client.get("/v1/platform/ops/mcp-services")
         assert len(res.json()["data"]) == 0
+
+
+@pytest.mark.asyncio
+async def test_custom_platform_channel_support(tmp_db_path: str):
+    """Verify that arbitrary new/custom platforms (e.g. meituan, douyin, amap) are supported."""
+    storage = MCPServiceStorage(tmp_db_path)
+    await storage.initialize()
+
+    # Save service with custom platforms
+    custom_record = {
+        "service_id": "meituan-service",
+        "name": "美团外卖与商户服务",
+        "base_url": "http://127.0.0.1:8105",
+        "protocol": "http+mcp",
+        "channels": ["meituan", "amap"],
+        "capabilities": ["poi.search", "deals.get"],
+        "timeout_seconds": 20.0,
+        "enabled": True,
+    }
+    saved = await storage.save_service(custom_record)
+    assert saved["channels"] == ["meituan", "amap"]
+
+    config = storage.to_account_service_config(saved)
+    assert config.channels[0] == PlatformChannel("meituan")
+    assert config.channels[1] == PlatformChannel("amap")
+
+    registry = AccountServiceRegistry(())
+    health = await registry.register_service(config, probe=False)
+    assert health.service_id == "meituan-service"
+    assert registry.enabled is True
+

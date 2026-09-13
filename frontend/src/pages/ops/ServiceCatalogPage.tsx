@@ -648,17 +648,20 @@ export function ServiceCatalogPage() {
           <Form.Item
             name="channels"
             label="适配平台渠道 (Channels)"
-            rules={[{ required: true, message: '请至少选择一个渠道' }]}
-            extra="该数据源支持为哪些平台提供数据（如点评选 dianping）"
+            rules={[{ required: true, message: '请至少选择或输入一个平台渠道' }]}
+            extra="数据源归属的平台标识。支持内置预设，也支持直接回车输入任意全新自定义平台（如 meituan、amap、douyin 等）"
           >
             <Select
               mode="tags"
               options={[
                 { label: 'dianping (大众点评)', value: 'dianping' },
-                { label: 'xhs_pc (小红书 PC 端)', value: 'xhs_pc' },
+                { label: 'xhs_pc (小红书 PC端)', value: 'xhs_pc' },
                 { label: 'xhs_creator (小红书创作者端)', value: 'xhs_creator' },
+                { label: 'meituan (美团/外卖)', value: 'meituan' },
+                { label: 'amap (高德地图/POI)', value: 'amap' },
+                { label: 'douyin (抖音美食/探店)', value: 'douyin' },
               ]}
-              placeholder="选择或输入渠道标识"
+              placeholder="选择预设渠道，或直接键盘输入全新平台名按回车"
             />
           </Form.Item>
 
