@@ -53,46 +53,13 @@ interface ServiceRecord {
   lastRefreshed: string
 }
 
-const DEFAULT_SERVICES: ServiceRecord[] = [
-  {
-    serviceId: 'service_xhs_comment_collector',
-    name: '小红书评论与笔记深度采集适配器',
-    baseUrl: 'http://127.0.0.1:8102',
-    platform: 'xhs_pc',
-    protocol: 'http+mcp',
-    channels: ['xhs_pc'],
-    enabled: true,
-    discoveredTools: 6,
-    allowedTools: 6,
-    accountCount: 2,
-    status: 'ready',
-    p95Latency: 380,
-    lastRefreshed: '2026-09-11 01:10:00',
-  },
-  {
-    serviceId: 'service_dianping_poi_enricher',
-    name: '大众点评店铺与菜品事实补充服务',
-    baseUrl: 'http://127.0.0.1:8103',
-    platform: 'dianping',
-    protocol: 'http+mcp',
-    channels: ['dianping'],
-    enabled: true,
-    discoveredTools: 5,
-    allowedTools: 4,
-    accountCount: 2,
-    status: 'degraded',
-    p95Latency: 640,
-    lastRefreshed: '2026-09-11 01:05:00',
-  },
-]
-
 export function ServiceCatalogPage() {
   const navigate = useNavigate()
   const { showToast } = useToast()
   const [testingId, setTestingId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [isGuideModalOpen, setIsGuideModalOpen] = useState(false)
-  const [services, setServices] = useState<ServiceRecord[]>(DEFAULT_SERVICES)
+  const [services, setServices] = useState<ServiceRecord[]>([])
 
   // Add / Edit Modal state
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -185,9 +152,8 @@ export function ServiceCatalogPage() {
       }
 
       if (!silent) showToast('已连接本地服务目录（暂无注册服务）', 'info')
-      setServices([])
     } catch {
-      if (!silent) showToast('未检测到后端服务，展示内置默认目录', 'info')
+      setServices([])
     } finally {
       setLoading(false)
     }

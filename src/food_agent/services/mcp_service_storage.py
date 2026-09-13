@@ -66,13 +66,9 @@ class MCPServiceStorage:
             conn.commit()
 
     async def initialize(self, seed_json: Optional[str] = None) -> None:
-        """Initialize the storage schema and optionally seed from JSON if empty."""
+        """Initialize the storage schema. Starts completely clean with no mock data."""
         await asyncio.to_thread(self._init_sync)
         self._initialized = True
-
-        existing = await self.list_services()
-        if not existing and seed_json:
-            await self._seed_from_json(seed_json)
 
     async def _seed_from_json(self, raw_json: str) -> None:
         try:

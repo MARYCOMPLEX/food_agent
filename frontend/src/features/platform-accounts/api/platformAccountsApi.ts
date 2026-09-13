@@ -24,29 +24,7 @@ export const platformAccountsApi = {
     const data = storage.get<PlatformAccount[] | null>(ACCOUNTS_STORAGE_KEY, null)
     if (data && Array.isArray(data))
       return data
-
-    const defaultList: PlatformAccount[] = [
-      {
-        platform: 'xhs_pc',
-        account_ref: 'xhs_collector_01',
-        alias: '小红书默认探索采集号',
-        status: 'active',
-        health: 'healthy',
-        session_version: 1,
-        created_at: new Date().toISOString(),
-      },
-      {
-        platform: 'dianping',
-        account_ref: 'dp_crawler_main',
-        alias: '大众点评主流口碑采集源',
-        status: 'active',
-        health: 'healthy',
-        session_version: 1,
-        created_at: new Date().toISOString(),
-      },
-    ]
-    storage.set(ACCOUNTS_STORAGE_KEY, defaultList)
-    return defaultList
+    return []
   },
 
   saveAccountLocally: (acc: PlatformAccount) => {

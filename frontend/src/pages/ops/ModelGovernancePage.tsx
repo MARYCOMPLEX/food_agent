@@ -67,9 +67,7 @@ export function ModelGovernancePage() {
   const [form] = Form.useForm()
 
   // Audit Logs
-  const [auditLog, setAuditLog] = useState<string[]>([
-    '系统初始化：已从 .env 自动迁移默认大模型配置至 SQLite 运行时数据库',
-  ])
+  const [auditLog, setAuditLog] = useState<string[]>([])
 
   const fetchModels = async () => {
     setLoading(true)
@@ -458,16 +456,22 @@ export function ModelGovernancePage() {
 
       {/* Audit Log Card */}
       <Card title="配置热重载与策略变更审计日志">
-        <Timeline
-          items={auditLog.map((log) => ({
-            color: 'blue',
-            children: (
-              <Typography.Text code style={{ fontSize: 12 }}>
-                {log}
-              </Typography.Text>
-            ),
-          }))}
-        />
+        {auditLog.length === 0 ? (
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            暂无模型配置变更记录
+          </Typography.Text>
+        ) : (
+          <Timeline
+            items={auditLog.map((log) => ({
+              color: 'blue',
+              children: (
+                <Typography.Text code style={{ fontSize: 12 }}>
+                  {log}
+                </Typography.Text>
+              ),
+            }))}
+          />
+        )}
       </Card>
 
       {/* Create / Edit Modal */}

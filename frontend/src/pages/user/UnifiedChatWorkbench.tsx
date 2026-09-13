@@ -80,38 +80,21 @@ export function UnifiedChatWorkbench() {
   const navigate = useNavigate()
   const { showToast } = useToast()
 
-  // Current session ID
-  const [currentSessionId, setCurrentSessionId] = useState<string>(
-    routeSessionId || 'session_demo_cd_hotpot',
-  )
+  // Current session ID (clean new session by default)
+  const [currentSessionId, setCurrentSessionId] = useState<string>(() => {
+    return routeSessionId || `session_${Date.now()}`
+  })
 
-  // Default snapshot for demo / local offline workbench
+  // Default snapshot (only used if explicitly navigating to a demo URL)
   const defaultSnapshot = useMemo(() => {
-    if (currentSessionId === 'session_demo_cd_hotpot') return DEMO_CD_HOTPOT_PROJECTION
-    if (currentSessionId === 'session_demo_gz_tea') return DEMO_GZ_TEA_PROJECTION
+    if (routeSessionId === 'session_demo_cd_hotpot') return DEMO_CD_HOTPOT_PROJECTION
+    if (routeSessionId === 'session_demo_gz_tea') return DEMO_GZ_TEA_PROJECTION
     return null
-  }, [currentSessionId])
+  }, [routeSessionId])
 
-  // History sessions list
+  // History sessions list (starts empty, only stores real user queries)
   const [historyList, setHistoryList] = useState<any[]>(() => {
-    const saved = storage.get<any[]>('food_agent_search_history', [])
-    if (saved.length === 0) {
-      const defaultHistory = [
-        {
-          session_id: 'session_demo_cd_hotpot',
-          query: '成都玉林，本地人常去的老火锅，人均100，排队别太久，不要太甜太咸',
-          created_at: new Date().toISOString(),
-        },
-        {
-          session_id: 'session_demo_gz_tea',
-          query: '广州越秀或荔湾区正宗早茶，两人人均80，虾饺要扎实',
-          created_at: new Date(Date.now() - 86400000).toISOString(),
-        },
-      ]
-      storage.set('food_agent_search_history', defaultHistory)
-      return defaultHistory
-    }
-    return saved
+    return storage.get<any[]>('food_agent_search_history', [])
   })
 
   // Whether current session is a brand-new, unstarted draft session
@@ -162,14 +145,15 @@ export function UnifiedChatWorkbench() {
           setModelOptions(list)
           const defaultOption = list.find((m: any) => m.is_default) || list[0]
           setSelectedModel(defaultOption.value)
+        } else {
+          setModelOptions([])
+          setSelectedModel('')
         }
       })
       .catch(() => {
         if (!isMounted) return
-        setModelOptions([
-          { value: 'gpt-5.6-sol', label: 'GPT-5.6 Sol (默认推荐)', is_default: true },
-        ])
-        setSelectedModel('gpt-5.6-sol')
+        setModelOptions([])
+        setSelectedModel('')
       })
     return () => {
       isMounted = false
@@ -197,7 +181,7 @@ export function UnifiedChatWorkbench() {
   const [compareList, setCompareList] = useState<Restaurant[]>([])
   const [isCompareModalOpen, setIsCompareModalOpen] = useState<boolean>(false)
   const [favorites, setFavorites] = useState<string[]>(() =>
-    storage.get<string[]>('food_agent_user_favorites', ['shop_fav_1']),
+    storage.get<string[]>('food_agent_user_favorites', []),
   )
 
   // Platform Accounts & QR Modal
@@ -476,7 +460,14 @@ export function UnifiedChatWorkbench() {
               历史对话
             </Typography.Text>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              {historyList.map((item) => {
+              {historyList.length === 0 ? (
+                <div style={{ padding: '24px 8px', textAlign: 'center' }}>
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    暂无历史对话
+                  </Typography.Text>
+                </div>
+              ) : (
+                historyList.map((item) => {
                 const isSelected = item.session_id === currentSessionId
                 return (
                   <div
@@ -553,7 +544,7 @@ export function UnifiedChatWorkbench() {
                     />
                   </div>
                 )
-              })}
+              }))}
             </div>
           </div>
 
@@ -630,7 +621,8 @@ export function UnifiedChatWorkbench() {
             )}
 
             <Select
-              value={selectedModel}
+              value={selectedModel || undefined}
+              placeholder="暂无大模型 (请在管理后台配置)"
               onChange={setSelectedModel}
               style={{ minWidth: 230, maxWidth: 300 }}
               options={modelOptions.map((m) => ({

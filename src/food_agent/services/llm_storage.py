@@ -78,44 +78,13 @@ class LLMConfigStorage:
             )
             conn.commit()
 
-    def _seed_from_environment_sync(self) -> None:
-        """Seed initial model configuration from .env settings synchronously."""
-        api_key = settings.openai_api_key or os.getenv("OPENAI_API_KEY", "")
-        if not api_key:
-            return
-
-        base_url = settings.openai_api_base or os.getenv("OPENAI_API_BASE", "https://api.gojia.cloud/v1/")
-        model_name = settings.default_llm_model or os.getenv("DEFAULT_LLM_MODEL", "gpt-5.6-sol")
-
-        provider = "GoJia Cloud" if "gojia" in base_url.lower() else "OpenAI"
-        display_name = f"{model_name} (默认推荐)"
-
-        seed_record = {
-            "model_id": "default_env_model",
-            "model_name": model_name,
-            "display_name": display_name,
-            "provider": provider,
-            "base_url": base_url,
-            "api_key": api_key,
-            "temperature": float(settings.llm_temperature or 0.2),
-            "max_tokens": int(settings.llm_max_tokens or 1024),
-            "reasoning_effort": settings.llm_reasoning_effort or "medium",
-            "is_default": True,
-            "is_user_selectable": True,
-        }
-        self._save_sync(seed_record)
-        logger.info(f"Seeded initial default LLM model '{model_name}' from environment configuration")
-
     def initialize_sync(self) -> None:
-        """Initialize table and auto-seed from environment if table is empty (synchronously)."""
+        """Initialize table schema (synchronously). Starts completely clean with no mock data."""
         self._init_sync()
         self._initialized = True
-        existing = self._list_sync(user_selectable_only=False, mask_key=False)
-        if not existing:
-            self._seed_from_environment_sync()
 
     async def initialize(self) -> None:
-        """Initialize table and auto-seed from environment if table is empty."""
+        """Initialize table schema."""
         await asyncio.to_thread(self.initialize_sync)
 
     def _row_to_dict(self, row: sqlite3.Row, mask_key: bool = True) -> dict[str, Any]:
@@ -129,12 +98,14 @@ class LLMConfigStorage:
 
     def _list_sync(self, user_selectable_only: bool, mask_key: bool) -> List[dict[str, Any]]:
         with self._get_connection() as conn:
-            def_check = conn.execute("SELECT COUNT(*) FROM llm_models WHERE is_default = 1").fetchone()
-            if def_check and def_check[0] == 0:
-                conn.execute(
-                    "UPDATE llm_models SET is_default = 1 WHERE model_id = (SELECT model_id FROM llm_models ORDER BY created_at ASC LIMIT 1)"
-                )
-                conn.commit()
+            count_check = conn.execute("SELECT COUNT(*) FROM llm_models").fetchone()
+            if count_check and count_check[0] > 0:
+                def_check = conn.execute("SELECT COUNT(*) FROM llm_models WHERE is_default = 1").fetchone()
+                if def_check and def_check[0] == 0:
+                    conn.execute(
+                        "UPDATE llm_models SET is_default = 1 WHERE model_id = (SELECT model_id FROM llm_models ORDER BY created_at ASC LIMIT 1)"
+                    )
+                    conn.commit()
 
             query = "SELECT * FROM llm_models"
             params: list[Any] = []

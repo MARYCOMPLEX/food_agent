@@ -6,6 +6,15 @@ import { evidenceObservabilityApi } from '../features/evidence-observability/api
 
 describe('feature APIs and Observability Contracts', () => {
   it('manages local and remote platform accounts', async () => {
+    platformAccountsApi.saveAccountLocally({
+      platform: 'xhs_pc',
+      account_ref: 'test_acc',
+      alias: '测试账号',
+      status: 'active',
+      health: 'healthy',
+      session_version: 1,
+      created_at: new Date().toISOString(),
+    })
     const accounts = platformAccountsApi.getLocalAccounts()
     expect(Array.isArray(accounts)).toBe(true)
     expect(accounts.length).toBeGreaterThan(0)

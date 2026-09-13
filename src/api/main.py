@@ -190,8 +190,7 @@ async def lifespan(application: FastAPI):
     # Initialize persistent storage for dynamic MCP services
     from food_agent.services.mcp_service_storage import MCPServiceStorage
     mcp_storage = MCPServiceStorage()
-    seed_json = getattr(target_settings, "account_services_json", None) or os.getenv("MODULAR_ACCOUNT_SERVICES_JSON")
-    await mcp_storage.initialize(seed_json=seed_json)
+    await mcp_storage.initialize()
     application.state.mcp_storage = mcp_storage
 
     # Merge database-persisted services into active registry
