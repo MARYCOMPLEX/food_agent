@@ -32,6 +32,7 @@ import {
   SafetyCertificateOutlined,
   KeyOutlined,
   ThunderboltOutlined,
+  InfoCircleOutlined,
 } from '@ant-design/icons'
 import { useToast } from '../../context/ToastContext'
 import { apiGet, apiPost, apiPut, apiDelete } from '../../api/client'
@@ -65,6 +66,13 @@ export function ModelGovernancePage() {
   const [modalTesting, setModalTesting] = useState<boolean>(false)
   const [modalTestResult, setModalTestResult] = useState<{ reachable: boolean; latency_ms: number; reply_preview?: string; error?: string } | null>(null)
   const [form] = Form.useForm()
+
+  // Real-time watch for Base URL concatenation preview
+  const watchedBaseUrl = Form.useWatch('base_url', form) || ''
+  const rawBaseUrl = (watchedBaseUrl || '').trim()
+  const hasChatCompletionsSuffix = /\/chat\/completions\/?$/i.test(rawBaseUrl)
+  const sanitizedBaseUrl = rawBaseUrl.replace(/\/chat\/completions\/?$/i, '').replace(/\/+$/, '')
+  const resolvedEndpoint = sanitizedBaseUrl ? `${sanitizedBaseUrl}/chat/completions` : ''
 
   // Audit Logs
   const [auditLog, setAuditLog] = useState<string[]>([])
@@ -203,11 +211,15 @@ export function ModelGovernancePage() {
   const handleModalSubmit = async () => {
     try {
       const values = await form.validateFields()
+      const rawUrl = (values.base_url || '').trim()
+      const cleanUrl = rawUrl.replace(/\/chat\/completions\/?$/i, '').replace(/\/+$/, '')
+      const normalizedBaseUrl = cleanUrl ? `${cleanUrl}/` : rawUrl
+
       const payload: any = {
         model_name: values.model_name.trim(),
         display_name: values.display_name.trim(),
         provider: values.provider.trim(),
-        base_url: values.base_url.trim(),
+        base_url: normalizedBaseUrl,
         temperature: Number(values.temperature ?? 0.2),
         max_tokens: Number(values.max_tokens ?? 1024),
         reasoning_effort: values.reasoning_effort || null,
@@ -273,11 +285,17 @@ export function ModelGovernancePage() {
       title: 'API 基础端点 (Base URL)',
       dataIndex: 'base_url',
       key: 'base_url',
-      render: (url: string) => (
-        <Typography.Text code style={{ fontSize: 11, maxWidth: 220, display: 'inline-block' }} ellipsis={{ tooltip: url }}>
-          {url}
-        </Typography.Text>
-      ),
+      render: (url: string) => {
+        const clean = (url || '').trim().replace(/\/chat\/completions\/?$/i, '').replace(/\/+$/, '')
+        const full = clean ? `${clean}/chat/completions` : url
+        return (
+          <Tooltip title={`底层实际请求完整端点: POST ${full}`}>
+            <Typography.Text code style={{ fontSize: 11, maxWidth: 220, display: 'inline-block' }} ellipsis>
+              {url}
+            </Typography.Text>
+          </Tooltip>
+        )
+      },
     },
     {
       title: 'API 密钥保护',
@@ -493,10 +511,13 @@ export function ModelGovernancePage() {
             onClick={async () => {
               try {
                 const values = await form.validateFields(['model_name', 'base_url'])
+                const rawUrl = (values.base_url || '').trim()
+                const cleanUrl = rawUrl.replace(/\/chat\/completions\/?$/i, '').replace(/\/+$/, '')
+                const normalizedUrl = cleanUrl ? `${cleanUrl}/` : rawUrl
                 handleTestConnection(
                   {
                     model_name: values.model_name,
-                    base_url: values.base_url,
+                    base_url: normalizedUrl,
                     model_id: editingModel?.model_id,
                     reasoning_effort: form.getFieldValue('reasoning_effort'),
                     ...((form.getFieldValue('api_key') ? { api_key: form.getFieldValue('api_key') } : {}) as any),
@@ -572,10 +593,90 @@ export function ModelGovernancePage() {
             name="base_url"
             label="API 基础端点 (Base URL)"
             rules={[{ required: true, message: '请输入 Base URL' }]}
-            extra="兼容 OpenAI API 的端点根路径，通常以 /v1/ 结尾"
+            extra="兼容 OpenAI API 的端点根路径，通常以 /v1/ 结尾（若误包含 /chat/completions 系统将自动校正）"
           >
             <Input placeholder="https://api.gojia.cloud/v1/" />
           </Form.Item>
+
+          {/* 实时请求端点拼接效果预览 */}
+          <div
+            style={{
+              marginTop: -10,
+              marginBottom: 16,
+              padding: '12px 14px',
+              backgroundColor: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderRadius: '8px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <Space size={6}>
+                <ApiOutlined style={{ color: '#0969da' }} />
+                <Typography.Text strong style={{ fontSize: '13px', color: '#1e293b' }}>
+                  实际请求完整端点预览 (Resolved Endpoint):
+                </Typography.Text>
+              </Space>
+              <Tag color="processing" style={{ margin: 0, fontSize: '11px' }}>
+                OpenAI Chat Completions 协议
+              </Tag>
+            </div>
+
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                background: '#ffffff',
+                border: '1px solid #cbd5e1',
+                borderRadius: '6px',
+                padding: '6px 12px',
+              }}
+            >
+              <Tag color="green" style={{ fontWeight: 'bold', margin: 0 }}>
+                POST
+              </Tag>
+              <Typography.Text
+                code
+                copyable={!!resolvedEndpoint}
+                style={{
+                  margin: 0,
+                  fontSize: '12px',
+                  color: resolvedEndpoint ? '#0f172a' : '#94a3b8',
+                  wordBreak: 'break-all',
+                  flex: 1,
+                  fontFamily: 'monospace',
+                }}
+              >
+                {resolvedEndpoint || 'https://<Base_URL>/chat/completions'}
+              </Typography.Text>
+            </div>
+
+            {hasChatCompletionsSuffix && (
+              <div
+                style={{
+                  marginTop: 8,
+                  padding: '6px 10px',
+                  background: '#fffbeb',
+                  border: '1px solid #fef3c7',
+                  borderRadius: '4px',
+                  fontSize: '12px',
+                  color: '#b45309',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <InfoCircleOutlined />
+                <span>
+                  检测到尾部包含 <code>/chat/completions</code>，系统已自动剔除冗余路径，保存时将规范化 Base URL，避免双重拼接 404。
+                </span>
+              </div>
+            )}
+
+            <div style={{ marginTop: 6, fontSize: '11px', color: '#64748b', lineHeight: 1.4 }}>
+              说明：底层通过 LangChain <code>ChatOpenAI</code> 客户端以标准 Chat 协议通信，所有模型对话请求均向上述 <code>POST .../chat/completions</code> 端点发送。
+            </div>
+          </div>
 
           <Form.Item
             name="api_key"

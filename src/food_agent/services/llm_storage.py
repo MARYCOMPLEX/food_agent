@@ -7,6 +7,7 @@ import asyncio
 from datetime import datetime, timezone
 import os
 from pathlib import Path
+import re
 import sqlite3
 from typing import Any, List, Optional
 
@@ -177,6 +178,10 @@ class LLMConfigStorage:
         display_name = str(record.get("display_name") or model_name).strip()
         provider = str(record.get("provider") or "OpenAI").strip()
         base_url = str(record["base_url"]).strip()
+        # Normalize base_url: strip trailing /chat/completions or /chat/completions/
+        base_url = re.sub(r"/chat/completions/?$", "", base_url, flags=re.IGNORECASE).rstrip("/")
+        if base_url:
+            base_url = base_url + "/"
         api_key = str(record.get("api_key") or "").strip()
         temperature = float(record.get("temperature", 0.2))
         max_tokens = int(record.get("max_tokens", 1024))

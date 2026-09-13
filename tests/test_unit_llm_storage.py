@@ -165,3 +165,35 @@ async def test_chat_and_ops_endpoints(tmp_path, monkeypatch):
         resp = await client.delete("/v1/platform/ops/llm-models/test_ops_model")
         assert resp.status_code == 200
         assert resp.json()["data"]["deleted"] is True
+
+
+@pytest.mark.asyncio
+async def test_base_url_normalization(tmp_path):
+    db_file = str(tmp_path / "test_norm_llm.db")
+    storage = LLMConfigStorage(db_file)
+    await storage.initialize()
+
+    # Model with trailing /chat/completions/
+    saved = await storage.save_model(
+        {
+            "model_id": "test_norm",
+            "model_name": "norm-chat",
+            "display_name": "Norm Chat",
+            "provider": "DeepSeek",
+            "base_url": "https://api.deepseek.com/v1/chat/completions/",
+            "api_key": "sk-test",
+        }
+    )
+    assert saved["base_url"] == "https://api.deepseek.com/v1/"
+
+    # Client kwargs sanitization
+    kwargs = LLMService._build_client_kwargs(
+        model="norm-chat",
+        api_key="sk-test",
+        base_url="https://api.deepseek.com/v1/chat/completions",
+        temperature=0.0,
+        max_tokens=100,
+        reasoning_effort=None,
+    )
+    assert kwargs["base_url"] == "https://api.deepseek.com/v1/"
+

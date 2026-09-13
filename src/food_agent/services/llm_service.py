@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from typing import Any, List, Optional
 
 from langchain_core.messages import BaseMessage, SystemMessage
@@ -120,10 +121,13 @@ class LLMService:
         reasoning_effort: Optional[str],
     ) -> dict[str, Any]:
         """Build provider kwargs without sending unsupported sampling options."""
+        cleaned_base_url = re.sub(r"/chat/completions/?$", "", str(base_url).strip(), flags=re.IGNORECASE).rstrip("/")
+        if cleaned_base_url:
+            cleaned_base_url = cleaned_base_url + "/"
         common: dict[str, Any] = {
             "model": model,
             "api_key": api_key,
-            "base_url": base_url,
+            "base_url": cleaned_base_url,
             "timeout": 60.0,
             "default_headers": {"User-Agent": "food-agent/1.0"},
         }
