@@ -160,6 +160,39 @@ export function UnifiedChatWorkbench() {
     }
   }, [])
 
+  // Registered MCP Data Sources (Dynamic from DB)
+  const [mcpServices, setMcpServices] = useState<Array<{
+    service_id: string
+    name: string
+    base_url: string
+    mcp_url: string
+    protocol: string
+    channels?: string[]
+    is_active: boolean
+    health_status?: string
+  }>>([])
+
+  useEffect(() => {
+    let isMounted = true
+    apiGet('/v1/platform/ops/mcp-services')
+      .then((res: any) => {
+        if (!isMounted) return
+        const list = res?.data || res || []
+        if (Array.isArray(list)) {
+          setMcpServices(list)
+        } else {
+          setMcpServices([])
+        }
+      })
+      .catch(() => {
+        if (!isMounted) return
+        setMcpServices([])
+      })
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
   // Follow-up context
   const [attachedContext, setAttachedContext] = useState<{
     type: 'shop' | 'controversy'
@@ -551,36 +584,84 @@ export function UnifiedChatWorkbench() {
           {/* Sider Footer */}
           <div style={{ padding: 12, borderTop: '1px solid #f0f0f0' }}>
             <Card size="small" style={{ marginBottom: 8, background: '#fafafa' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                <Typography.Text strong style={{ fontSize: 11 }}>探店数据源</Typography.Text>
-                <Tag color="success" style={{ margin: 0, fontSize: 10 }}>LIVE</Tag>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <Typography.Text strong style={{ fontSize: 11 }}>
+                  探店数据源 {mcpServices.length > 0 ? `(${mcpServices.length})` : ''}
+                </Typography.Text>
+                {mcpServices.length > 0 ? (
+                  <Tag
+                    color={mcpServices.some((s) => s.is_active) ? 'success' : 'warning'}
+                    style={{ margin: 0, fontSize: 10 }}
+                  >
+                    {mcpServices.some((s) => s.is_active) ? 'LIVE' : 'OFFLINE'}
+                  </Tag>
+                ) : (
+                  <Tag color="default" style={{ margin: 0, fontSize: 10 }}>未接入</Tag>
+                )}
               </div>
-              <Space direction="vertical" size={4} style={{ width: '100%' }}>
-                <Button
-                  size="small"
-                  block
-                  onClick={() => setLoginModalPlatform('xhs_pc')}
-                  style={{ textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
-                >
-                  <Space size={6}>
-                    <Badge status={xhsDegraded ? 'warning' : 'success'} />
-                    <span style={{ fontSize: 11 }}>小红书</span>
-                  </Space>
-                  <Typography.Text type="secondary" style={{ fontSize: 10 }}>扫码登录</Typography.Text>
-                </Button>
-                <Button
-                  size="small"
-                  block
-                  onClick={() => setLoginModalPlatform('dianping')}
-                  style={{ textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
-                >
-                  <Space size={6}>
-                    <Badge status={dpDegraded ? 'warning' : 'success'} />
-                    <span style={{ fontSize: 11 }}>大众点评</span>
-                  </Space>
-                  <Typography.Text type="secondary" style={{ fontSize: 10 }}>扫码登录</Typography.Text>
-                </Button>
-              </Space>
+
+              {mcpServices.length === 0 ? (
+                <div style={{ padding: '4px 0' }}>
+                  <Typography.Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 8, lineHeight: 1.4 }}>
+                    暂未接入任何 MCP 探店数据源，当前仅由大模型提供通用分析。
+                  </Typography.Text>
+                  <Button
+                    size="small"
+                    type="dashed"
+                    block
+                    icon={<PlusOutlined />}
+                    onClick={() => navigate('/ops/service-catalog')}
+                    style={{ fontSize: 11 }}
+                  >
+                    配置 MCP 数据源
+                  </Button>
+                </div>
+              ) : (
+                <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                  {mcpServices.map((svc) => {
+                    const hasXhs = svc.channels?.some((c) => c.includes('xhs'))
+                    const hasDp = svc.channels?.some((c) => c.includes('dianping'))
+                    const canLogin = hasXhs || hasDp
+
+                    return (
+                      <div
+                        key={svc.service_id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '4px 8px',
+                          background: '#fff',
+                          borderRadius: 4,
+                          border: '1px solid #f0f0f0',
+                          fontSize: 11,
+                        }}
+                      >
+                        <Space size={6} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 120 }}>
+                          <Badge status={svc.is_active ? 'success' : 'default'} />
+                          <Typography.Text ellipsis style={{ fontSize: 11 }} title={svc.name}>
+                            {svc.name}
+                          </Typography.Text>
+                        </Space>
+                        {canLogin ? (
+                          <Button
+                            type="link"
+                            size="small"
+                            onClick={() => setLoginModalPlatform(hasXhs ? 'xhs_pc' : 'dianping')}
+                            style={{ padding: 0, height: 'auto', fontSize: 10 }}
+                          >
+                            扫码授权
+                          </Button>
+                        ) : (
+                          <Tag color={svc.is_active ? 'blue' : 'default'} style={{ margin: 0, fontSize: 10 }}>
+                            {svc.protocol || 'MCP'}
+                          </Tag>
+                        )}
+                      </div>
+                    )
+                  })}
+                </Space>
+              )}
             </Card>
 
             <Button
@@ -713,7 +794,9 @@ export function UnifiedChatWorkbench() {
                   type="secondary"
                   style={{ fontSize: 14, textAlign: 'center', marginBottom: 32, maxWidth: 540, lineHeight: 1.6 }}
                 >
-                  输入你的就餐偏好、城市或就餐场景。Agent 将全网调取小红书与大众点评真实评论，深度识别本地人口碑，过滤网红流量陷阱。
+                  {mcpServices.length > 0
+                    ? `输入你的就餐偏好、城市或就餐场景。Agent 将调取已接入的 ${mcpServices.map((s) => s.name).join('、')} 真实探店数据，深度识别本地人口碑，过滤网红流量陷阱。`
+                    : '输入你的就餐偏好、城市或就餐场景。Agent 将基于大模型进行美食深度调查与口碑推演，过滤网红流量陷阱。'}
                 </Typography.Text>
 
                 <div
@@ -858,7 +941,9 @@ export function UnifiedChatWorkbench() {
                   <Space style={{ padding: '12px 0' }}>
                     <LoadingOutlined style={{ color: '#1677ff' }} />
                     <Typography.Text type="secondary">
-                      正在全网检索小红书与大众点评真实评论数据...
+                      {mcpServices.length > 0
+                        ? `正在调取已接入的 ${mcpServices.map((s) => s.name).join('、')} 真实探店数据...`
+                        : '正在调用大模型进行深度美食推演与口碑核实...'}
                     </Typography.Text>
                   </Space>
                 )}
@@ -1139,14 +1224,25 @@ export function UnifiedChatWorkbench() {
 
               <Flex justify="space-between" align="center" style={{ marginTop: 12, paddingTop: 8, borderTop: '1px solid #f8f8f8' }}>
                 <Space size={8} align="center">
-                  <Tag
-                    color="green"
-                    variant="filled"
-                    icon={<GlobalOutlined />}
-                    style={{ borderRadius: 10, margin: 0, fontSize: 11, padding: '2px 8px' }}
-                  >
-                    小红书 + 大众点评已连接
-                  </Tag>
+                  {mcpServices.length > 0 ? (
+                    <Tag
+                      color={mcpServices.some((s) => s.is_active) ? 'green' : 'warning'}
+                      variant="filled"
+                      icon={<GlobalOutlined />}
+                      style={{ borderRadius: 10, margin: 0, fontSize: 11, padding: '2px 8px' }}
+                    >
+                      {mcpServices.filter((s) => s.is_active).map((s) => s.name).join(' + ') || '数据源未激活'} 已连接
+                    </Tag>
+                  ) : (
+                    <Tag
+                      color="default"
+                      variant="filled"
+                      icon={<GlobalOutlined />}
+                      style={{ borderRadius: 10, margin: 0, fontSize: 11, padding: '2px 8px', color: '#8c8c8c' }}
+                    >
+                      未接入外部数据源 (仅通用大模型)
+                    </Tag>
+                  )}
                   <Typography.Text type="secondary" style={{ fontSize: 11 }}>
                     Shift + Enter 换行
                   </Typography.Text>

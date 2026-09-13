@@ -33,66 +33,7 @@ export function TaskObservabilityPage() {
   const [searchQuery, setSearchQuery] = useState<string>('')
   const [selectedTask, setSelectedTask] = useState<ObservabilityTaskItem | null>(null)
 
-  const [tasks] = useState<ObservabilityTaskItem[]>([
-    {
-      taskId: 'task_cd_hotpot_001',
-      sessionId: 'session_demo_cd_hotpot',
-      query: '周六晚在成都玉林，三个人想吃串串，人均 100 以内...',
-      type: 'research',
-      status: 'succeeded',
-      turnCount: 2,
-      durationMs: 4200,
-      retryCount: 0,
-      evidenceCount: 18,
-      profileCount: 4,
-      gapCount: 0,
-      createdAt: '2026-09-11 01:12:30',
-      timeline: [
-        { time: '01:12:30', action: 'intent_parsed', status: 'done', detail: '识别地点: 成都玉林, 预算: 100, 排除: 纯网红' },
-        { time: '01:12:31', action: 'comment_collection.search_notes', status: 'done', detail: '抓取 12 篇笔记元数据' },
-        { time: '01:12:32', action: 'comment_collection.fetch_comments', status: 'done', detail: '抓取 84 条评论并清洗' },
-        { time: '01:12:33', action: 'shop_profile_enrichment.search_poi', status: 'done', detail: '大众点评完成 4 家门店 POI 绑定' },
-        { time: '01:12:34', action: 'recommendation_synthesized', status: 'done', detail: '输出综合研判报告' },
-      ],
-    },
-    {
-      taskId: 'task_gz_morningtea_002',
-      sessionId: 'session_demo_gz_morningtea',
-      query: '广州越秀或荔湾区，两个人周末上午喝早茶，人均 80 左右...',
-      type: 'research',
-      status: 'partial',
-      turnCount: 1,
-      durationMs: 3800,
-      retryCount: 1,
-      evidenceCount: 12,
-      profileCount: 3,
-      gapCount: 1,
-      createdAt: '2026-09-11 01:05:10',
-      timeline: [
-        { time: '01:05:10', action: 'intent_parsed', status: 'done', detail: '识别地点: 广州越秀/荔湾, 预算: 80' },
-        { time: '01:05:11', action: 'comment_collection.fetch_comments', status: 'done', detail: '抓取 46 条小红书早茶真实口碑' },
-        { time: '01:05:12', action: 'shop_profile_enrichment.fetch_detail', status: 'partial', detail: '大众点评要求滑块验证，保留评论候选' },
-      ],
-    },
-    {
-      taskId: 'task_sh_dating_003',
-      sessionId: 'session_demo_sh_dating',
-      query: '上海静安寺附近，两人约会，人均 180 左右...',
-      type: 'research',
-      status: 'running',
-      turnCount: 1,
-      durationMs: 1200,
-      retryCount: 0,
-      evidenceCount: 6,
-      profileCount: 1,
-      gapCount: 0,
-      createdAt: '2026-09-11 01:28:40',
-      timeline: [
-        { time: '01:28:40', action: 'intent_parsed', status: 'done', detail: '识别地点: 上海静安寺' },
-        { time: '01:28:41', action: 'comment_collection.search_notes', status: 'running', detail: '正在搜索小酒馆/意面笔记' },
-      ],
-    },
-  ])
+  const [tasks] = useState<ObservabilityTaskItem[]>([])
 
   const filteredTasks = tasks.filter(
     (t) =>

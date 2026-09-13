@@ -23,41 +23,7 @@ interface EvidenceBundleRecord {
 export function EvidenceObservabilityPage() {
   const [searchQuery, setSearchQuery] = useState<string>('')
 
-  const [bundles] = useState<EvidenceBundleRecord[]>([
-    {
-      bundleId: 'bundle_cd_hotpot_v1',
-      familyId: 'family_cd_spicy_dining',
-      version: '1.2.0',
-      itemCount: 48,
-      freshnessHours: 3.5,
-      sourcesBreakdown: { xhs_pc: 36, dianping: 12 },
-      dedupRate: '98.4%',
-      maskingCheck: 'passed',
-      createdAt: '2026-09-11 00:45:00',
-    },
-    {
-      bundleId: 'bundle_gz_tea_v2',
-      familyId: 'family_gz_morning_tea',
-      version: '2.0.1',
-      itemCount: 62,
-      freshnessHours: 12.0,
-      sourcesBreakdown: { xhs_pc: 48, dianping: 14 },
-      dedupRate: '96.8%',
-      maskingCheck: 'passed',
-      createdAt: '2026-09-10 18:20:00',
-    },
-    {
-      bundleId: 'bundle_sh_bistro_v1',
-      familyId: 'family_sh_dating_scenes',
-      version: '1.0.0',
-      itemCount: 28,
-      freshnessHours: 1.2,
-      sourcesBreakdown: { xhs_pc: 22, dianping: 6 },
-      dedupRate: '99.1%',
-      maskingCheck: 'passed',
-      createdAt: '2026-09-11 01:00:00',
-    },
-  ])
+  const [bundles] = useState<EvidenceBundleRecord[]>([])
 
   const filteredBundles = bundles.filter(
     (b) =>
