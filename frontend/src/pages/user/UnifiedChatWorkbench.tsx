@@ -59,6 +59,7 @@ import { ShopProfileDrawer } from '../../components/research-surface/ShopProfile
 import { QrLoginModal } from '../../components/auth/QrLoginModal'
 import { useToast } from '../../context/ToastContext'
 import { storage } from '../../shared/utils/storage'
+import { apiGet } from '../../api/client'
 import { startSearch } from '../../api/searchApi'
 import { platformAccountsApi } from '../../features/platform-accounts/api/platformAccountsApi'
 import {
@@ -142,7 +143,38 @@ export function UnifiedChatWorkbench() {
   const [isProfileDrawerOpen, setIsProfileDrawerOpen] = useState<boolean>(false)
 
   // Model Selection
-  const [selectedModel, setSelectedModel] = useState<string>('food-agent-4o')
+  const [modelOptions, setModelOptions] = useState<Array<{
+    value: string
+    label: string
+    is_default: boolean
+    provider?: string
+    model_id?: string
+  }>>([])
+  const [selectedModel, setSelectedModel] = useState<string>('')
+
+  useEffect(() => {
+    let isMounted = true
+    apiGet('/v1/chat/models')
+      .then((res: any) => {
+        if (!isMounted) return
+        const list = res?.data || res || []
+        if (Array.isArray(list) && list.length > 0) {
+          setModelOptions(list)
+          const defaultOption = list.find((m: any) => m.is_default) || list[0]
+          setSelectedModel(defaultOption.value)
+        }
+      })
+      .catch(() => {
+        if (!isMounted) return
+        setModelOptions([
+          { value: 'gpt-5.6-sol', label: 'GPT-5.6 Sol (默认推荐)', is_default: true },
+        ])
+        setSelectedModel('gpt-5.6-sol')
+      })
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   // Follow-up context
   const [attachedContext, setAttachedContext] = useState<{
@@ -296,7 +328,7 @@ export function UnifiedChatWorkbench() {
     setAttachedContext(null)
 
     try {
-      await startSearch(fullPrompt, currentSessionId)
+      await startSearch(fullPrompt, currentSessionId, selectedModel || undefined)
       showToast('已提交需求，Agent 正在搜集评论证据...', 'info')
     } catch {
       // Local fallback event / dynamic mock for full interactive testing
@@ -414,7 +446,7 @@ export function UnifiedChatWorkbench() {
                 Food Agent
               </Typography.Text>
               <Tag color="blue" variant="filled" style={{ fontSize: 11 }}>
-                4o
+                {(selectedModel ? selectedModel.split(/[-_]/)[0] : 'AI')?.toUpperCase() || 'AI'}
               </Tag>
             </Space>
             <Button
@@ -600,12 +632,20 @@ export function UnifiedChatWorkbench() {
             <Select
               value={selectedModel}
               onChange={setSelectedModel}
-              style={{ width: 220 }}
-              options={[
-                { value: 'food-agent-4o', label: 'Food Agent 4o (默认推荐)' },
-                { value: 'food-agent-o3-mini', label: 'Food Agent o3-mini (深度推理)' },
-                { value: 'food-agent-4o-mini', label: 'Food Agent 4o-mini (极速轻量)' },
-              ]}
+              style={{ minWidth: 230, maxWidth: 300 }}
+              options={modelOptions.map((m) => ({
+                value: m.value,
+                label: (
+                  <Space size={6}>
+                    <span>{m.label}</span>
+                    {m.is_default && (
+                      <Tag color="blue" bordered={false} style={{ fontSize: 10, marginInlineEnd: 0 }}>
+                        默认
+                      </Tag>
+                    )}
+                  </Space>
+                ),
+              }))}
             />
           </Space>
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, Request
@@ -9,6 +10,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
+
+from food_agent.config import settings
 
 from api.deps import get_current_user_id
 from food_agent.contracts.account_service import (
@@ -835,6 +838,196 @@ async def probe_ops_mcp_service(request: Request, body: McpProbeRequest) -> Any:
     return _success(probe_res)
 
 
+# ==============================================================================
+# Dynamic LLM Model Governance & Public Selection Endpoints
+# ==============================================================================
+
+
+class LLMModelUpsertRequest(_StrictModel):
+    model_id: str | None = Field(default=None, max_length=64)
+    model_name: str = Field(min_length=1, max_length=128)
+    display_name: str = Field(min_length=1, max_length=128)
+    provider: str = Field(default="OpenAI", max_length=64)
+    base_url: str = Field(min_length=1, max_length=512)
+    api_key: str | None = Field(default=None, max_length=512)
+    temperature: float = Field(default=0.2, ge=0.0, le=2.0)
+    max_tokens: int = Field(default=1024, ge=1, le=128000)
+    reasoning_effort: str | None = Field(default=None, max_length=32)
+    is_default: bool = False
+    is_user_selectable: bool = True
+
+
+class LLMModelTestRequest(_StrictModel):
+    model_name: str = Field(min_length=1, max_length=128)
+    base_url: str = Field(min_length=1, max_length=512)
+    api_key: str | None = Field(default=None, max_length=512)
+    model_id: str | None = None
+    reasoning_effort: str | None = None
+
+
+chat_router = APIRouter(prefix="/v1/chat", tags=["chat"])
+
+
+async def _get_chat_models_list() -> list[dict[str, Any]]:
+    from food_agent.services.llm_storage import LLMConfigStorage
+
+    storage = LLMConfigStorage.get_instance()
+    await storage.initialize()
+    models = await storage.list_models(user_selectable_only=True, mask_key=True)
+    if not models:
+        models = await storage.list_models(user_selectable_only=False, mask_key=True)
+    result = []
+    for m in models:
+        result.append(
+            {
+                "value": m["model_name"],
+                "label": m["display_name"],
+                "is_default": bool(m["is_default"]),
+                "provider": m.get("provider", "OpenAI"),
+                "model_id": m["model_id"],
+            }
+        )
+    return result
+
+
+@chat_router.get("/models")
+async def list_chat_models() -> Any:
+    models = await _get_chat_models_list()
+    return _success(models)
+
+
+@router.get("/chat/models")
+async def list_chat_models_platform() -> Any:
+    models = await _get_chat_models_list()
+    return _success(models)
+
+
+@router.get("/ops/llm-models")
+async def list_ops_llm_models() -> Any:
+    from food_agent.services.llm_storage import LLMConfigStorage
+
+    storage = LLMConfigStorage.get_instance()
+    await storage.initialize()
+    models = await storage.list_models(user_selectable_only=False, mask_key=True)
+    return _success(models)
+
+
+@router.post("/ops/llm-models")
+async def create_ops_llm_model(body: LLMModelUpsertRequest) -> Any:
+    from food_agent.services.llm_storage import LLMConfigStorage
+
+    storage = LLMConfigStorage.get_instance()
+    await storage.initialize()
+    record = body.model_dump()
+    saved = await storage.save_model(record)
+    return _success(saved)
+
+
+@router.put("/ops/llm-models/{model_id}")
+async def update_ops_llm_model(model_id: str, body: LLMModelUpsertRequest) -> Any:
+    from food_agent.services.llm_storage import LLMConfigStorage
+
+    storage = LLMConfigStorage.get_instance()
+    await storage.initialize()
+    record = body.model_dump()
+    record["model_id"] = model_id
+    saved = await storage.save_model(record)
+    return _success(saved)
+
+
+@router.delete("/ops/llm-models/{model_id}")
+async def delete_ops_llm_model(model_id: str) -> Any:
+    from food_agent.services.llm_storage import LLMConfigStorage
+
+    storage = LLMConfigStorage.get_instance()
+    await storage.initialize()
+    deleted = await storage.delete_model(model_id)
+    if not deleted:
+        return JSONResponse(
+            status_code=404,
+            content={"success": False, "error": "NOT_FOUND", "message": f"Model {model_id} not found"},
+        )
+    return _success({"deleted": True, "model_id": model_id})
+
+
+@router.post("/ops/llm-models/{model_id}/set-default")
+async def set_default_ops_llm_model(model_id: str) -> Any:
+    from food_agent.services.llm_storage import LLMConfigStorage
+
+    storage = LLMConfigStorage.get_instance()
+    await storage.initialize()
+    updated = await storage.set_default_model(model_id)
+    if not updated:
+        return JSONResponse(
+            status_code=404,
+            content={"success": False, "error": "NOT_FOUND", "message": f"Model {model_id} not found"},
+        )
+    return _success(updated)
+
+
+@router.post("/ops/llm-models/test")
+async def test_ops_llm_model(body: LLMModelTestRequest) -> Any:
+    import time
+    from food_agent.services.llm_service import LLMService
+    from food_agent.services.llm_storage import LLMConfigStorage
+    from langchain_core.messages import HumanMessage
+    from langchain_openai import ChatOpenAI
+
+    api_key = body.api_key
+    storage = LLMConfigStorage.get_instance()
+    await storage.initialize()
+    if (not api_key or "••••" in api_key or "****" in api_key) and body.model_id:
+        existing = await storage.get_model(body.model_id, mask_key=False)
+        if existing:
+            api_key = existing.get("api_key")
+    if not api_key:
+        api_key = settings.openai_api_key or os.getenv("OPENAI_API_KEY", "")
+
+    if not api_key:
+        return _success(
+            {
+                "reachable": False,
+                "latency_ms": 0,
+                "error": "API Key is required to test connectivity",
+                "model_name": body.model_name,
+            }
+        )
+
+    client_kwargs = LLMService._build_client_kwargs(
+        model=body.model_name,
+        api_key=api_key,
+        base_url=body.base_url,
+        temperature=0.0,
+        max_tokens=16,
+        reasoning_effort=body.reasoning_effort or "low",
+    )
+    client_kwargs["timeout"] = 15.0
+    start = time.perf_counter()
+    try:
+        client = ChatOpenAI(**client_kwargs)
+        res = await client.ainvoke([HumanMessage(content="Ping")])
+        latency_ms = int((time.perf_counter() - start) * 1000)
+        reply_preview = str(res.content).strip()[:100]
+        return _success(
+            {
+                "reachable": True,
+                "latency_ms": latency_ms,
+                "reply_preview": reply_preview or "OK",
+                "model_name": body.model_name,
+            }
+        )
+    except Exception as exc:
+        latency_ms = int((time.perf_counter() - start) * 1000)
+        return _success(
+            {
+                "reachable": False,
+                "latency_ms": latency_ms,
+                "error": str(exc),
+                "model_name": body.model_name,
+            }
+        )
+
+
 __all__ = [
     "PlatformAccountCreateRequest",
     "PlatformCancelRequest",
@@ -843,6 +1036,9 @@ __all__ = [
     "McpServiceUpsertRequest",
     "McpProbeRequest",
     "McpToggleRequest",
+    "LLMModelUpsertRequest",
+    "LLMModelTestRequest",
     "router",
+    "chat_router",
 ]
 

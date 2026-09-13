@@ -201,6 +201,8 @@ async def unified_search(
             public_inputs: dict[str, Any] = {}
             if request.location is not None:
                 public_inputs["location"] = dict(request.location)
+            if request.model:
+                public_inputs["model"] = request.model
             reliable_request = ResearchRequest(
                 request_id=f"http:{session_id}",
                 operation=ResearchOperation.QUERY,

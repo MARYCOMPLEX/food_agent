@@ -93,7 +93,7 @@ limiter = Limiter(key_func=get_remote_address)
 from api.favorites import router as favorites_router  # noqa: E402
 from api.help import router as help_router  # noqa: E402
 from api.history import router as history_router  # noqa: E402
-from api.platform import router as platform_router  # noqa: E402
+from api.platform import chat_router, router as platform_router  # noqa: E402
 from api.search import router as search_router  # noqa: E402
 from api.user import router as user_router  # noqa: E402
 from food_agent.observability import (  # noqa: E402
@@ -340,6 +340,7 @@ app.add_middleware(
 )
 
 app.include_router(search_router)
+app.include_router(chat_router)
 app.include_router(favorites_router)
 app.include_router(user_router)
 app.include_router(help_router)

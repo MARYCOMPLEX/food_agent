@@ -39,6 +39,7 @@ class UnifiedSearchRequest(BaseModel):
 
     query: str | None = Field(None, description="搜索查询（新查询/追问时必填）")
     sessionId: str | None = Field(None, description="会话ID（复用现有会话时填写）")
+    model: str | None = Field(None, description="本次查询指定使用的大模型标识（model_id 或 model_name）")
     location: dict[str, float] | None = Field(None, description="位置坐标 {lat, lng}")
     platforms: list[str] = Field(
         default_factory=lambda: [

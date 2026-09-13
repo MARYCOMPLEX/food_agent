@@ -28,6 +28,14 @@ class LLMService:
         DEFAULT_LLM_MODEL: 模型名称
     """
 
+    _cached_instances: dict[tuple, ChatOpenAI] = {}
+
+    @classmethod
+    def clear_cache(cls) -> None:
+        """Clear cached LLM client instances upon configuration changes."""
+        cls._cached_instances.clear()
+        logger.info("LLMService client instance cache cleared")
+
     def __init__(
         self,
         model_name: Optional[str] = None,
@@ -35,6 +43,11 @@ class LLMService:
         max_tokens: Optional[int] = None,
         reasoning_effort: Optional[str] = None,
     ):
+        self._requested_model_name = model_name
+        self._explicit_temp = temperature is not None
+        self._explicit_tokens = max_tokens is not None
+        self._explicit_reasoning = reasoning_effort is not None
+
         self._model_name = model_name or settings.default_llm_model
         self._temperature = temperature if temperature is not None else settings.llm_temperature
         self._max_tokens = max_tokens if max_tokens is not None else settings.llm_max_tokens
@@ -46,50 +59,98 @@ class LLMService:
         self._llm: Optional[ChatOpenAI] = None
         
     def _get_llm(self) -> ChatOpenAI:
-        """懒加载 LLM 实例."""
-        if self._llm is None:
-            api_key = settings.openai_api_key or os.getenv("OPENAI_API_KEY")
-            if not api_key:
-                raise ValueError("OPENAI_API_KEY environment variable is required")
+        """懒加载 LLM 实例，优先从 LLMConfigStorage 获取动态配置."""
+        from food_agent.services.llm_storage import LLMConfigStorage
 
+        storage = LLMConfigStorage.get_instance()
+        record = None
+        if self._requested_model_name:
+            record = storage.get_model_sync(self._requested_model_name, mask_key=False)
+        if not record:
+            record = storage.get_default_model_sync(mask_key=False)
+
+        if record:
+            actual_model = record["model_name"]
+            self._model_name = actual_model
+            api_key = record.get("api_key") or settings.openai_api_key or os.getenv("OPENAI_API_KEY", "")
+            base_url = record.get("base_url") or settings.openai_api_base or os.getenv("OPENAI_API_BASE", "https://api.gojia.cloud/v1/")
+            temperature = self._temperature if self._explicit_temp else float(record.get("temperature", self._temperature))
+            max_tokens = self._max_tokens if self._explicit_tokens else int(record.get("max_tokens", self._max_tokens))
+            reasoning_effort = self._reasoning_effort if self._explicit_reasoning else record.get("reasoning_effort", self._reasoning_effort)
+        else:
+            actual_model = self._model_name or settings.default_llm_model or os.getenv("DEFAULT_LLM_MODEL", "gpt-5.6-sol")
+            self._model_name = actual_model
+            api_key = settings.openai_api_key or os.getenv("OPENAI_API_KEY")
             base_url = settings.openai_api_base or os.getenv(
                 "OPENAI_API_BASE", "https://api.gojia.cloud/v1/"
             )
+            temperature = self._temperature
+            max_tokens = self._max_tokens
+            reasoning_effort = self._reasoning_effort
 
-            self._llm = ChatOpenAI(**self._client_kwargs(api_key=api_key, base_url=base_url))
-            logger.info(f"LLM initialized: {self._model_name} @ {base_url}")
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY is required (configured in DB or environment)")
 
+        cache_key = (actual_model, base_url, api_key, temperature, max_tokens, reasoning_effort)
+        if cache_key in self._cached_instances:
+            self._llm = self._cached_instances[cache_key]
+            return self._llm
+
+        client_kwargs = self._build_client_kwargs(
+            model=actual_model,
+            api_key=api_key,
+            base_url=base_url,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            reasoning_effort=reasoning_effort,
+        )
+        self._llm = ChatOpenAI(**client_kwargs)
+        self._cached_instances[cache_key] = self._llm
+        logger.info(f"LLM initialized: {actual_model} @ {base_url}")
         return self._llm
 
-    def _client_kwargs(self, *, api_key: str, base_url: str) -> dict[str, Any]:
-        """Build provider kwargs without sending unsupported sampling options.
-
-        GPT-5/o-series endpoints reject ``temperature`` and use
-        ``max_completion_tokens``.  Older OpenAI-compatible providers still
-        expect the historical ``temperature``/``max_tokens`` pair, so retain
-        that exact wire shape for them.
-        """
-
+    @staticmethod
+    def _build_client_kwargs(
+        *,
+        model: str,
+        api_key: str,
+        base_url: str,
+        temperature: float,
+        max_tokens: int,
+        reasoning_effort: Optional[str],
+    ) -> dict[str, Any]:
+        """Build provider kwargs without sending unsupported sampling options."""
         common: dict[str, Any] = {
-            "model": self._model_name,
+            "model": model,
             "api_key": api_key,
             "base_url": base_url,
             "timeout": 60.0,
             "default_headers": {"User-Agent": "food-agent/1.0"},
         }
-        model = self._model_name.casefold()
-        if model.startswith(("gpt-5", "o1", "o3", "o4")):
-            common["max_completion_tokens"] = self._max_tokens
-            if self._reasoning_effort:
-                common["reasoning_effort"] = self._reasoning_effort
+        m = model.casefold()
+        if m.startswith(("gpt-5", "o1", "o3", "o4")):
+            common["max_completion_tokens"] = max_tokens
+            if reasoning_effort:
+                common["reasoning_effort"] = reasoning_effort
         else:
             common.update(
                 {
-                    "temperature": self._temperature,
-                    "max_tokens": self._max_tokens,
+                    "temperature": temperature,
+                    "max_tokens": max_tokens,
                 }
             )
         return common
+
+    def _client_kwargs(self, *, api_key: str, base_url: str) -> dict[str, Any]:
+        """Backward compatible client kwargs builder."""
+        return self._build_client_kwargs(
+            model=self._model_name,
+            api_key=api_key,
+            base_url=base_url,
+            temperature=self._temperature,
+            max_tokens=self._max_tokens,
+            reasoning_effort=self._reasoning_effort,
+        )
 
     @classmethod
     def _prepare_messages(cls, messages: List[BaseMessage]) -> List[BaseMessage]:
