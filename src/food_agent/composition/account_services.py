@@ -234,6 +234,133 @@ class AccountServiceRegistry:
                 )
             return dict(self._health)
 
+    async def register_service(
+        self, config: AccountServiceConfig, probe: bool = True
+    ) -> AccountServiceHealth:
+        """Dynamically add or update an account service config at runtime."""
+        async with self._refresh_lock:
+            if self._closed:
+                raise AccountServiceRegistryError("account service registry is closed")
+
+            other_configs = [c for c in self.configs if c.service_id != config.service_id]
+            test_configs = tuple([*other_configs, config])
+            self._validate_configs(test_configs)
+            self.configs = test_configs
+
+            old_http = self._http.pop(config.service_id, None)
+            if old_http and hasattr(old_http, "aclose"):
+                try:
+                    await old_http.aclose()
+                except Exception:
+                    pass
+            old_mcp = self._mcp.pop(config.service_id, None)
+            if old_mcp and hasattr(old_mcp, "aclose"):
+                try:
+                    await old_mcp.aclose()
+                except Exception:
+                    pass
+
+            await self._ensure_clients(config)
+            if probe:
+                try:
+                    descriptor = await self._refresh_one(config)
+                    self._descriptors[config.service_id] = descriptor
+                    health = AccountServiceHealth(
+                        service_id=config.service_id,
+                        state="ready",
+                        descriptor_version=descriptor.contract_version,
+                    )
+                except RemoteAccountServiceError as exc:
+                    self._descriptors.pop(config.service_id, None)
+                    self._tools.pop(config.service_id, None)
+                    health = AccountServiceHealth(
+                        service_id=config.service_id,
+                        state="dependency-unavailable",
+                        detail=exc.envelope.code.value,
+                        descriptor_version=config.descriptor_version,
+                    )
+            else:
+                health = AccountServiceHealth(
+                    service_id=config.service_id,
+                    state="disabled",
+                    detail="unprobed",
+                    descriptor_version=config.descriptor_version,
+                )
+            self._health[config.service_id] = health
+            return health
+
+    async def unregister_service(self, service_id: str) -> None:
+        """Dynamically remove an account service at runtime."""
+        async with self._refresh_lock:
+            self.configs = tuple(c for c in self.configs if c.service_id != service_id)
+            old_http = self._http.pop(service_id, None)
+            if old_http and hasattr(old_http, "aclose"):
+                try:
+                    await old_http.aclose()
+                except Exception:
+                    pass
+            old_mcp = self._mcp.pop(service_id, None)
+            if old_mcp and hasattr(old_mcp, "aclose"):
+                try:
+                    await old_mcp.aclose()
+                except Exception:
+                    pass
+            self._descriptors.pop(service_id, None)
+            self._tools.pop(service_id, None)
+            self._health.pop(service_id, None)
+            self._mcp_health.pop(service_id, None)
+
+    async def probe_candidate(
+        self, config: AccountServiceConfig
+    ) -> dict[str, Any]:
+        """Probe an endpoint without modifying registry state."""
+        http_client = self._http_factory(config)
+        mcp_client = self._mcp_factory(config)
+        discovered_tools = []
+        capabilities = []
+        state = "ready"
+        detail = None
+        start_t = asyncio.get_event_loop().time()
+        try:
+            if config.protocol in {AccountServiceProtocol.HTTP, AccountServiceProtocol.HTTP_MCP}:
+                desc = await http_client.capabilities()
+                capabilities = list(desc.capabilities)
+            if config.protocol in {AccountServiceProtocol.MCP, AccountServiceProtocol.HTTP_MCP}:
+                tools = await mcp_client.list_tools()
+                discovered_tools = [
+                    {
+                        "name": t.name,
+                        "description": t.description,
+                        "side_effect": getattr(t, "side_effect", "read_only"),
+                        "inputSchema": getattr(t, "input_schema", {}),
+                    }
+                    for t in tools
+                ]
+        except Exception as exc:
+            state = "dependency-unavailable"
+            detail = str(exc)
+        finally:
+            if hasattr(http_client, "aclose"):
+                try:
+                    await http_client.aclose()
+                except Exception:
+                    pass
+            if hasattr(mcp_client, "aclose"):
+                try:
+                    await mcp_client.aclose()
+                except Exception:
+                    pass
+        latency_ms = round((asyncio.get_event_loop().time() - start_t) * 1000, 1)
+        return {
+            "service_id": config.service_id,
+            "state": state,
+            "detail": detail,
+            "latency_ms": latency_ms,
+            "capabilities": capabilities,
+            "tools": discovered_tools,
+        }
+
+
     async def _refresh_one(self, config: AccountServiceConfig) -> AccountServiceDescriptor:
         descriptor: AccountServiceDescriptor
         if config.protocol is AccountServiceProtocol.MCP:

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import logging
+import os
 import sys
 import time
 from collections.abc import Awaitable
@@ -185,6 +186,32 @@ async def lifespan(application: FastAPI):
             await resolved_registry.refresh()
         except Exception:
             logger.warning("Remote account-service capability refresh failed")
+
+    # Initialize persistent storage for dynamic MCP services
+    from food_agent.services.mcp_service_storage import MCPServiceStorage
+    mcp_storage = MCPServiceStorage()
+    seed_json = getattr(target_settings, "account_services_json", None) or os.getenv("MODULAR_ACCOUNT_SERVICES_JSON")
+    await mcp_storage.initialize(seed_json=seed_json)
+    application.state.mcp_storage = mcp_storage
+
+    # Merge database-persisted services into active registry
+    stored_services = await mcp_storage.list_services(enabled_only=True)
+    if application.state.account_service_registry is None:
+        configs = tuple(mcp_storage.to_account_service_config(s) for s in stored_services)
+        application.state.account_service_registry = AccountServiceRegistry(configs)
+        if application.state.account_service_registry.enabled:
+            try:
+                await application.state.account_service_registry.refresh()
+            except Exception:
+                logger.warning("Dynamic account service refresh failed on startup")
+    else:
+        for s in stored_services:
+            try:
+                cfg = mcp_storage.to_account_service_config(s)
+                await application.state.account_service_registry.register_service(cfg, probe=True)
+            except Exception as exc:
+                logger.warning("Failed to register stored service {}: {}", s.get("service_id"), exc)
+
     if "agent_tool_catalog" in composition_root.logical_bindings:
         application.state.agent_tool_catalog = await composition_root.resolve_logical(
             "agent_tool_catalog"

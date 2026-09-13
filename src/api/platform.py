@@ -636,10 +636,213 @@ async def get_platform_login_status(
     return await _login_status(request, flow_id, principal_id)
 
 
+# ==============================================================================
+# Dynamic MCP Service Management & Hot-Reload Endpoints
+# ==============================================================================
+
+
+class McpServiceUpsertRequest(_StrictModel):
+    service_id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
+    name: str = Field(min_length=1, max_length=128)
+    base_url: str = Field(min_length=1, max_length=256)
+    mcp_url: str | None = Field(default=None, max_length=256)
+    protocol: str = Field(default="http+mcp")
+    channels: list[str] = Field(default_factory=lambda: ["dianping"])
+    capabilities: list[str] = Field(default_factory=list)
+    auth_ref: str | None = None
+    timeout_seconds: float = Field(default=30.0, gt=0.1, le=120.0)
+    enabled: bool = True
+
+
+class McpProbeRequest(_StrictModel):
+    service_id: str = Field(default="probe-check", min_length=1, max_length=64)
+    base_url: str = Field(min_length=1, max_length=256)
+    mcp_url: str | None = Field(default=None, max_length=256)
+    protocol: str = Field(default="http+mcp")
+    channels: list[str] = Field(default_factory=lambda: ["dianping"])
+    timeout_seconds: float = Field(default=10.0, gt=0.1, le=120.0)
+
+
+class McpToggleRequest(_StrictModel):
+    enabled: bool
+
+
+@router.get("/ops/mcp-services")
+async def list_ops_mcp_services(request: Request) -> Any:
+    storage = getattr(request.app.state, "mcp_storage", None)
+    if storage is None:
+        from food_agent.services.mcp_service_storage import MCPServiceStorage
+
+        storage = MCPServiceStorage()
+        await storage.initialize()
+        request.app.state.mcp_storage = storage
+
+    services = await storage.list_services()
+    registry = getattr(request.app.state, "account_service_registry", None)
+    readiness_map: dict[str, Any] = {}
+    tools_map: dict[str, list[str]] = {}
+    if registry:
+        readiness = registry.readiness()
+        for s in readiness.get("services", []):
+            readiness_map[s.get("service_id")] = s
+        for sid, tool_dict in getattr(registry, "_tools", {}).items():
+            tools_map[sid] = list(tool_dict.keys())
+
+    enriched = []
+    for s in services:
+        sid = s["service_id"]
+        live_info = readiness_map.get(sid, {})
+        tools = tools_map.get(sid, live_info.get("mcp_tools", []))
+        item = dict(s)
+        item["live_state"] = live_info.get("state", "ready" if s["enabled"] else "disabled")
+        item["live_detail"] = live_info.get("detail")
+        item["discovered_tools"] = tools
+        item["tools_count"] = len(tools)
+        enriched.append(item)
+
+    return _success(enriched)
+
+
+@router.post("/ops/mcp-services")
+async def create_ops_mcp_service(request: Request, body: McpServiceUpsertRequest) -> Any:
+    storage = getattr(request.app.state, "mcp_storage", None)
+    if storage is None:
+        from food_agent.services.mcp_service_storage import MCPServiceStorage
+
+        storage = MCPServiceStorage()
+        await storage.initialize()
+        request.app.state.mcp_storage = storage
+
+    record = body.model_dump()
+    saved = await storage.save_service(record)
+
+    registry = getattr(request.app.state, "account_service_registry", None)
+    probe_health = None
+    if registry is not None:
+        if body.enabled:
+            try:
+                cfg = storage.to_account_service_config(saved)
+                health = await registry.register_service(cfg, probe=True)
+                probe_health = health.model_dump(mode="json")
+            except Exception as exc:
+                probe_health = {"state": "degraded", "detail": str(exc)}
+        else:
+            await registry.unregister_service(body.service_id)
+
+    return _success({"service": saved, "health": probe_health})
+
+
+@router.put("/ops/mcp-services/{service_id}")
+async def update_ops_mcp_service(request: Request, service_id: str, body: McpServiceUpsertRequest) -> Any:
+    storage = getattr(request.app.state, "mcp_storage", None)
+    if storage is None:
+        from food_agent.services.mcp_service_storage import MCPServiceStorage
+
+        storage = MCPServiceStorage()
+        await storage.initialize()
+        request.app.state.mcp_storage = storage
+
+    record = body.model_dump()
+    record["service_id"] = service_id
+    saved = await storage.save_service(record)
+
+    registry = getattr(request.app.state, "account_service_registry", None)
+    probe_health = None
+    if registry is not None:
+        if body.enabled:
+            try:
+                cfg = storage.to_account_service_config(saved)
+                health = await registry.register_service(cfg, probe=True)
+                probe_health = health.model_dump(mode="json")
+            except Exception as exc:
+                probe_health = {"state": "degraded", "detail": str(exc)}
+        else:
+            await registry.unregister_service(service_id)
+
+    return _success({"service": saved, "health": probe_health})
+
+
+@router.delete("/ops/mcp-services/{service_id}")
+async def delete_ops_mcp_service(request: Request, service_id: str) -> Any:
+    storage = getattr(request.app.state, "mcp_storage", None)
+    if storage is not None:
+        await storage.delete_service(service_id)
+
+    registry = getattr(request.app.state, "account_service_registry", None)
+    if registry is not None:
+        await registry.unregister_service(service_id)
+
+    return _success({"deleted": True, "service_id": service_id})
+
+
+@router.post("/ops/mcp-services/{service_id}/toggle")
+async def toggle_ops_mcp_service(request: Request, service_id: str, body: McpToggleRequest) -> Any:
+    storage = getattr(request.app.state, "mcp_storage", None)
+    if storage is None:
+        from food_agent.services.mcp_service_storage import MCPServiceStorage
+
+        storage = MCPServiceStorage()
+        await storage.initialize()
+        request.app.state.mcp_storage = storage
+
+    updated = await storage.set_service_enabled(service_id, body.enabled)
+    if not updated:
+        return JSONResponse(status_code=404, content={"success": False, "error": "NOT_FOUND", "message": f"Service {service_id} not found"})
+
+    registry = getattr(request.app.state, "account_service_registry", None)
+    health_dict = None
+    if registry is not None:
+        if body.enabled:
+            try:
+                cfg = storage.to_account_service_config(updated)
+                health = await registry.register_service(cfg, probe=True)
+                health_dict = health.model_dump(mode="json")
+            except Exception as exc:
+                health_dict = {"state": "degraded", "detail": str(exc)}
+        else:
+            await registry.unregister_service(service_id)
+
+    return _success({"service": updated, "health": health_dict})
+
+
+@router.post("/ops/mcp-services/probe")
+async def probe_ops_mcp_service(request: Request, body: McpProbeRequest) -> Any:
+    storage = getattr(request.app.state, "mcp_storage", None)
+    if storage is None:
+        from food_agent.services.mcp_service_storage import MCPServiceStorage
+
+        storage = MCPServiceStorage()
+
+    cfg = storage.to_account_service_config(
+        {
+            "service_id": body.service_id,
+            "base_url": body.base_url,
+            "mcp_url": body.mcp_url,
+            "protocol": body.protocol,
+            "channels": body.channels,
+            "timeout_seconds": body.timeout_seconds,
+        }
+    )
+    registry = getattr(request.app.state, "account_service_registry", None)
+    if registry is not None:
+        probe_res = await registry.probe_candidate(cfg)
+    else:
+        from food_agent.composition.account_services import AccountServiceRegistry
+
+        temp_registry = AccountServiceRegistry(())
+        probe_res = await temp_registry.probe_candidate(cfg)
+
+    return _success(probe_res)
+
+
 __all__ = [
     "PlatformAccountCreateRequest",
     "PlatformCancelRequest",
     "PlatformLoginStartRequest",
     "PlatformReauthRequest",
+    "McpServiceUpsertRequest",
+    "McpProbeRequest",
+    "McpToggleRequest",
     "router",
 ]
+
