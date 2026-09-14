@@ -66,7 +66,6 @@ class ResearchTaskFacade:
 
         emitter = await get_emitter(session_id)
         emitter.reset()
-        emitter.init_steps(query)
 
         try:
             manager = await get_session_manager()
@@ -117,7 +116,6 @@ class ResearchTaskFacade:
 
         emitter = await get_emitter(session_id)
         emitter.reset()
-        emitter.init_steps(query)
 
         self._spawn_run(session_id, query, tool_context)
         return self._admission(session_id, ResearchOperation.REFINE, turn_id=turn_id)

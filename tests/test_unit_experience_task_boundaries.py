@@ -288,7 +288,7 @@ def test_search_routes_do_not_import_legacy_task_state_or_orchestrator_implement
     assert "food_agent.contracts" in imported
 
 
-async def test_refine_maps_only_the_contract_not_found_error_to_404() -> None:
+async def test_refine_falls_back_to_start_new_on_not_found_error() -> None:
     class _NotFound(_ResearchTaskSpy):
         async def refine(
             self,
@@ -310,10 +310,9 @@ async def test_refine_maps_only_the_contract_not_found_error_to_404() -> None:
             raise KeyError("adapter invariant")
 
     request = UnifiedSearchRequest(sessionId="missing", query="refine")
-    with pytest.raises(HTTPException) as exc_info:
-        await routes.unified_search(request, _NotFound())
-    assert exc_info.value.status_code == 404
-    assert exc_info.value.detail == "Session not found"
+    result = await routes.unified_search(request, _NotFound())
+    assert result["success"] is True
+    assert result["data"]["action"] == "new_search"
 
     with pytest.raises(KeyError, match="adapter invariant"):
         await routes.unified_search(request, _Broken())
