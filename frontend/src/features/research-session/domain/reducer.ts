@@ -275,7 +275,8 @@ function applyAction(projection: UserResearchProjectionV1, event: ResearchEventV
   const step: UnknownObject = {
     ...rawStep,
     stepId,
-    label: asString(rawStep.label) ?? asString(object.label) ?? asString(object.actionName) ?? stepId,
+    label: asString(rawStep.label) ?? asString(object.label) ?? (asString(object.actionName) && object.actionName !== stepId ? asString(object.actionName) : undefined) ?? asString(object.summary) ?? asString(object.detail) ?? stepId,
+    detail: asString(rawStep.detail) ?? asString(object.detail) ?? asString(object.summary),
     status: asString(rawStep.status) ?? asString(object.stepStatus) ?? statusByKind[event.kind] ?? 'running',
     ...(event.phase ? { phase: event.phase } : {}),
   }
@@ -362,7 +363,7 @@ function applyTerminal(projection: UserResearchProjectionV1, event: ResearchEven
     ...projection,
     status,
     phase: event.phase ?? projection.phase,
-    summary: message || projection.summary,
+    summary: projection.summary || message,
     termination: {
       status,
       reason,

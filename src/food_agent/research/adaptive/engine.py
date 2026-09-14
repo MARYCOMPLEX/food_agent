@@ -671,6 +671,8 @@ class InvestigationLoop:
             for item in state.observations
             if item.outcome in {ObservationOutcome.SUCCESS, ObservationOutcome.PARTIAL}
         }
+        known_question_ids = {item.question_id for item in state.questions}
+        known_hypothesis_ids = {item.hypothesis_id for item in state.hypotheses}
         actions = tuple(
             item.model_copy(
                 update={
@@ -679,7 +681,13 @@ class InvestigationLoop:
                         for dependency in item.depends_on
                         if dependency in current_ids
                         or dependency not in completed_ids
-                    )
+                    ),
+                    "question_ids": tuple(
+                        qid for qid in item.question_ids if qid in known_question_ids
+                    ),
+                    "hypothesis_ids": tuple(
+                        hid for hid in item.hypothesis_ids if hid in known_hypothesis_ids
+                    ),
                 }
             )
             for item in actions

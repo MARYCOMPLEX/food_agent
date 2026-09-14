@@ -328,8 +328,8 @@ export function UnifiedChatWorkbench() {
       ? `[针对: ${attachedContext.title}] ${text}`
       : text
 
-    // Record to history if new
-    if (!historyList.some((h) => h.session_id === currentSessionId)) {
+    // Record to history if existing valid session
+    if (currentSessionId && !historyList.some((h) => h.session_id === currentSessionId)) {
       const newHistoryItem = {
         session_id: currentSessionId,
         query: text,

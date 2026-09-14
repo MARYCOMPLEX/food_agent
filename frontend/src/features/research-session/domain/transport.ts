@@ -352,18 +352,23 @@ export function legacyToResearchEvents(
       .map((candidate, index) => legacyRecommendationPayload(candidate, index, status, normalized.eventName === 'notes_found'))
       .filter((payload): payload is Record<string, ResearchJsonValue> => payload !== null)
       .map(payload => legacyEvent(context, sequence++, 'recommendation_upserted', payload))
+    const summaryText = legacyString(data.summary)
+    if (summaryText) {
+      events.push(legacyEvent(context, sequence++, 'run_progress', { summary: summaryText }, 'running'))
+    }
     if (events.length) return events
     if (normalized.eventName === 'notes_found') {
       return [legacyEvent(context, sequence, 'action_completed', legacyActionPayload('notes_found', data), 'running')]
     }
     return [legacyEvent(context, sequence, 'run_progress', {
-      summary: legacyString(data.summary) ?? '',
+      summary: summaryText ?? '',
     }, 'running')]
   }
   if (normalized.semantic === 'error') {
     const rawError = legacyRecord(data.error)
+    const errorString = typeof data.error === 'string' ? data.error : undefined
     const code = legacyString(rawError.code) ?? legacyString(data.code) ?? 'legacy_error'
-    const messageText = legacyString(rawError.message) ?? legacyString(data.message) ?? 'Legacy search failed'
+    const messageText = legacyString(rawError.message) ?? errorString ?? legacyString(data.message) ?? 'Legacy search failed'
     return [
       legacyEvent(context, sequence++, 'gap_upserted', {
         gap: {
@@ -390,7 +395,7 @@ export function legacyToResearchEvents(
 }
 
 export class ResearchSseTransport {
-  private readonly options: Required<Pick<ResearchSseTransportOptions, 'sessionId' | 'apiBaseUrl' | 'sseVersion' | 'autoReconnect' | 'maxReconnectAttempts' | 'reconnectDelayMs'>> & ResearchSseTransportOptions
+  private readonly options: Required<Pick<ResearchSseTransportOptions, 'sessionId' | 'apiBaseUrl' | 'autoReconnect' | 'maxReconnectAttempts' | 'reconnectDelayMs'>> & ResearchSseTransportOptions
   private state: ResearchTransportState = 'idle'
   private cursor: string | null
   private controller: AbortController | null = null
@@ -405,7 +410,7 @@ export class ResearchSseTransport {
     this.options = {
       ...options,
       apiBaseUrl: options.apiBaseUrl ?? API_BASE_URL,
-      sseVersion: options.sseVersion ?? 'v1',
+      sseVersion: options.sseVersion,
       autoReconnect: options.autoReconnect ?? true,
       maxReconnectAttempts: options.maxReconnectAttempts ?? 5,
       reconnectDelayMs: options.reconnectDelayMs ?? 1_500,
@@ -444,8 +449,12 @@ export class ResearchSseTransport {
     this.setState(this.reconnectAttempts ? 'reconnecting' : 'connecting')
     this.controller = new AbortController()
     const base = this.options.apiBaseUrl.replace(/\/$/, '')
-    const params = new URLSearchParams({ sseVersion: this.options.sseVersion })
-    const url = `${base}/v1/search/stream/${encodeURIComponent(this.options.sessionId)}?${params.toString()}`
+    const params = new URLSearchParams()
+    if (this.options.sseVersion) {
+      params.set('sseVersion', this.options.sseVersion)
+    }
+    const queryString = params.toString()
+    const url = `${base}/v1/search/stream/${encodeURIComponent(this.options.sessionId)}${queryString ? `?${queryString}` : ''}`
     const headers = new Headers({
       ...getDefaultHeaders(),
       Accept: 'text/event-stream',

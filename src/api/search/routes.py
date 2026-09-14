@@ -16,6 +16,7 @@ from typing import Annotated, Any, cast
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Request
+from loguru import logger
 from sse_starlette.sse import EventSourceResponse
 
 from api.schemas import (
@@ -333,7 +334,14 @@ async def search_stream(
             },
         )
     if sse_version == "v1":
-        return await _reliable_sse_response(request, sessionId, last_event_id)
+        store = getattr(request.app.state, "reliable_projection_store", None)
+        bus = getattr(request.app.state, "reliable_event_bus", None)
+        if callable(getattr(store, "get_by_session_id", None)) and callable(getattr(bus, "subscribe", None)):
+            return await _reliable_sse_response(request, sessionId, last_event_id)
+        logger.info(
+            "reliable task bindings are not configured; falling back to compatibility stream for session: {}",
+            sessionId,
+        )
 
     reliable_enabled = bool(getattr(request.app.state, "reliable_task_lifecycle", False))
     try:
