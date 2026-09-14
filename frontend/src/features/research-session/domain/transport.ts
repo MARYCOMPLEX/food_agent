@@ -440,7 +440,7 @@ export class ResearchSseTransport {
   }
 
   private async open(): Promise<void> {
-    if (this.stopped) return
+    if (this.stopped || !this.options.sessionId) return
     this.setState(this.reconnectAttempts ? 'reconnecting' : 'connecting')
     this.controller = new AbortController()
     const base = this.options.apiBaseUrl.replace(/\/$/, '')

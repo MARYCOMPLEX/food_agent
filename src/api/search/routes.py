@@ -274,8 +274,19 @@ async def unified_search(
                 request.query,
                 tool_context=_tool_context(request, http_request),
             )
-        except ResearchTaskNotFoundError as exc:
-            raise HTTPException(404, "Session not found") from exc
+        except ResearchTaskNotFoundError:
+            admission = await tasks.start_new(
+                request.query,
+                tool_context=_tool_context(request, http_request),
+            )
+            return {
+                "success": True,
+                "data": {
+                    "sessionId": admission.session_id,
+                    "streamUrl": admission.stream_ref,
+                    "action": "new_search",
+                },
+            }
         return {
             "success": True,
             "data": {

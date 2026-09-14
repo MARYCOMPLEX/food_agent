@@ -65,7 +65,6 @@ import { platformAccountsApi } from '../../features/platform-accounts/api/platfo
 import {
   DEMO_CD_HOTPOT_PROJECTION,
   DEMO_GZ_TEA_PROJECTION,
-  createDynamicProjection,
 } from '../../features/research-session/domain/demoProjections'
 import type {
   ResearchProfileViewV1,
@@ -82,7 +81,7 @@ export function UnifiedChatWorkbench() {
 
   // Current session ID (clean new session by default)
   const [currentSessionId, setCurrentSessionId] = useState<string>(() => {
-    return routeSessionId || `session_${Date.now()}`
+    return routeSessionId || ''
   })
 
   // Default snapshot (only used if explicitly navigating to a demo URL)
@@ -99,6 +98,7 @@ export function UnifiedChatWorkbench() {
 
   // Whether current session is a brand-new, unstarted draft session
   const isNewSession = useMemo(() => {
+    if (!currentSessionId) return true
     const found = historyList.find((h) => h.session_id === currentSessionId)
     if (found) return false
     if (defaultSnapshot) return false
@@ -260,13 +260,12 @@ export function UnifiedChatWorkbench() {
 
   // Start new search
   const handleStartNewChat = () => {
-    const newId = `session_${Date.now()}`
-    setCurrentSessionId(newId)
+    setCurrentSessionId('')
     setRightPanelOpen(false)
     setAttachedContext(null)
     setInputText('')
     setFeedbackRating(null)
-    navigate(`/chat/${newId}`)
+    navigate('/chat')
   }
 
   // Switch session
@@ -345,13 +344,30 @@ export function UnifiedChatWorkbench() {
     setAttachedContext(null)
 
     try {
-      await startSearch(fullPrompt, currentSessionId, selectedModel || undefined)
-      showToast('已提交需求，Agent 正在搜集评论证据...', 'info')
-    } catch {
-      // Local fallback event / dynamic mock for full interactive testing
-      const dynamicProj = createDynamicProjection(text, currentSessionId)
-      initializeSnapshot(dynamicProj)
-      showToast('调研完成！已生成推荐方案与证据链', 'success')
+      showToast('已提交需求，Agent 正在分析...', 'info')
+      const targetSessionId = isNewSession ? undefined : currentSessionId
+      const res: any = await startSearch(fullPrompt, targetSessionId, selectedModel || undefined)
+      const data = res?.data || res
+      const newSid = data?.sessionId || res?.sessionId
+      if (newSid) {
+        // Record to history if new
+        if (!historyList.some((h) => h.session_id === newSid)) {
+          const newHistoryItem = {
+            session_id: newSid,
+            query: text,
+            created_at: new Date().toISOString(),
+          }
+          const nextHistory = [newHistoryItem, ...historyList]
+          setHistoryList(nextHistory)
+          storage.set('food_agent_search_history', nextHistory)
+        }
+        if (newSid !== currentSessionId) {
+          setCurrentSessionId(newSid)
+          navigate(`/chat/${newSid}`, { replace: true })
+        }
+      }
+    } catch (err: any) {
+      showToast('发起请求失败: ' + (err.message || '后端服务异常'), 'error')
     }
   }
 

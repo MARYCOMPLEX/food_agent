@@ -14,6 +14,7 @@ provider classes.
 
 from __future__ import annotations
 
+from datetime import date, datetime
 import hashlib
 import json
 import re
@@ -264,8 +265,10 @@ def _looks_like_provider_payload(value: Any, *, operation: str | None = None) ->
 
 
 def _json_compatible(value: Any) -> Any:
-    """Convert tuple/set containers used by compatibility callers to JSON lists."""
+    """Convert tuple/set containers and datetimes to standard JSON types."""
 
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
     if isinstance(value, Mapping):
         return {str(key): _json_compatible(item) for key, item in value.items()}
     if isinstance(value, (list, tuple, set, frozenset)):
@@ -1006,6 +1009,10 @@ class ObservationEnvelope(AdaptiveObservationEnvelope):
             payload["raw_payload"] = _json_compatible(raw_source)
         if payload.get("provider_response") is None and external_provider_shape:
             payload["provider_response"] = _json_compatible(provider_data)
+        elif payload.get("provider_response") is not None:
+            payload["provider_response"] = _json_compatible(payload["provider_response"])
+        if payload.get("raw_payload") is not None:
+            payload["raw_payload"] = _json_compatible(payload["raw_payload"])
 
         item_value = next(
             (
@@ -1129,6 +1136,7 @@ class ObservationEnvelope(AdaptiveObservationEnvelope):
             )
             if isinstance(value, str) and value
         )
+        payload = _json_compatible(payload)
         return cls.model_validate(payload)
 
     @classmethod
