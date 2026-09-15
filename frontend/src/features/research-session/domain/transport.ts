@@ -159,6 +159,7 @@ function legacySemantic(eventName: string): LegacySemanticKind {
     case 'step_error': return 'action'
     case 'restaurant': return 'recommendation'
     case 'notes_found': return 'result'
+    case 'chunk': return 'result'
     case 'result': return 'result'
     case 'error': return 'error'
     case 'done': return 'done'

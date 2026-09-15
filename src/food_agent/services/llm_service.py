@@ -6,7 +6,7 @@ import os
 import re
 from typing import Any, List, Optional
 
-from langchain_core.messages import BaseMessage, SystemMessage
+from langchain_core.messages import AIMessage, BaseMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 from loguru import logger
 
@@ -225,6 +225,32 @@ class LLMService:
             response = self._clean_response(response)
             self._record_token_usage(model, prepared_messages, response)
             return response
+
+    async def astream(
+        self,
+        messages: List[BaseMessage],
+        **kwargs,
+    ):
+        """流式调用 LLM 并逐 chunk 产出文本流 (流式生成)."""
+        llm = self._get_llm()
+        model = self._model_name
+        prepared_messages = self._prepare_messages(messages)
+        accumulated_chunks: list[str] = []
+        with llm_duration_seconds.labels(model=model).time():
+            try:
+                async for chunk in llm.astream(prepared_messages, **kwargs):
+                    text = chunk.content if hasattr(chunk, "content") else str(chunk)
+                    if text:
+                        accumulated_chunks.append(text)
+                        yield text
+            except Exception as e:
+                llm_calls_total.labels(model=model, outcome="error").inc()
+                logger.error(f"LLM streaming call failed: {e}")
+                raise
+            llm_calls_total.labels(model=model, outcome="ok").inc()
+            full_text = "".join(accumulated_chunks)
+            ai_msg = self._clean_response(AIMessage(content=full_text))
+            self._record_token_usage(model, prepared_messages, ai_msg)
 
     @staticmethod
     def _record_token_usage(

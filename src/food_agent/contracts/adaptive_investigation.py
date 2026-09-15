@@ -814,7 +814,9 @@ class ObservationEnvelope(_AdaptiveContract):
             }
             and self.raw_payload is None
         ):
-            raise ValueError("source/tool observation data requires raw_payload")
+            # Auto-populate raw_payload from data for tool/source observations
+            # that omit it, rather than rejecting the entire observation.
+            object.__setattr__(self, "raw_payload", self.data)
         if self.has_more and not self.next_cursor:
             raise ValueError("an observation with has_more requires next_cursor")
         if self.completeness is ObservationCompleteness.COMPLETE and self.has_more:

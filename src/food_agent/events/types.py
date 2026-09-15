@@ -28,6 +28,9 @@ class SearchEventType(str, Enum):
     # 店铺结果（流式）
     RESTAURANT = "restaurant"
 
+    # 流式文本增量
+    CHUNK = "chunk"
+
     # 最终状态
     RESULT = "result"
     ERROR = "error"

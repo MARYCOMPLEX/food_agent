@@ -233,10 +233,62 @@ class XHSFoodOrchestrator:
         user_input: str,
         emitter: SearchEventEmitter,
     ) -> XHSFoodResponse:
+        from food_agent.services.llm_service import LLMService
+        from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+
         emitter._step_projection.reset()
         emitter._completed = False
         await emitter.emit_progress("thinking", {"message": "正在为您组织回答..."})
-        food_response = await self._handle_conversational(user_input)
+
+        self._context.add_user_message(user_input)
+        self._context.turn_count += 1
+
+        llm = self._llm_service or LLMService()
+        messages = [SystemMessage(content=CHAT_SYSTEM_PROMPT)]
+
+        for msg in self._context.conversation_history[-7:-1]:
+            role = msg.get("role")
+            content = msg.get("content", "")
+            if role == "user":
+                messages.append(HumanMessage(content=content))
+            elif role == "assistant":
+                messages.append(AIMessage(content=content))
+
+        messages.append(HumanMessage(content=user_input))
+
+        chunks: list[str] = []
+        try:
+            if hasattr(llm, "astream"):
+                async for chunk in llm.astream(messages):
+                    chunks.append(chunk)
+                    await emitter.emit_chunk(chunk)
+                reply_text = "".join(chunks)
+            else:
+                response = await asyncio.wait_for(llm.call(messages), timeout=15.0)
+                reply_text = str(response.content) if hasattr(response, "content") else str(response)
+                await emitter.emit_chunk(reply_text)
+        except Exception as exc:
+            logger.warning("Conversational LLM streaming failed: %s, falling back to static call", exc)
+            try:
+                response = await asyncio.wait_for(llm.call(messages), timeout=15.0)
+                reply_text = str(response.content) if hasattr(response, "content") else str(response)
+                await emitter.emit_chunk(reply_text)
+            except Exception as inner_exc:
+                logger.warning("Conversational LLM fallback failed: %s", inner_exc)
+                fallback = (
+                    "您好！我是您的小红书美食智能助手 🍜。\n"
+                    "想找什么美食？告诉我在哪个城市、什么预算或口味偏好，我来为您深度探寻地道口碑好店！"
+                )
+                reply_text = fallback
+                await emitter.emit_chunk(fallback)
+
+        food_response = XHSFoodResponse(
+            status="ok",
+            summary=reply_text,
+            recommendations=[],
+            filtered_count=0,
+        )
+        self._record_response(food_response)
         await emitter.emit_result(summary=food_response.summary, total=0, filtered=0)
         await emitter.emit_done()
         return food_response
@@ -320,6 +372,11 @@ class XHSFoodOrchestrator:
             for recommendation in response.recommendations:
                 await emitter.emit_restaurant(recommendation.to_dict())
             await emitter.step_done("step6", response.summary)
+            if response.summary:
+                chunk_size = 12
+                for i in range(0, len(response.summary), chunk_size):
+                    await emitter.emit_chunk(response.summary[i : i + chunk_size])
+                    await asyncio.sleep(0.01)
             await emitter.emit_result(
                 response.summary,
                 len(response.recommendations),

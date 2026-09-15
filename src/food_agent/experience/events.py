@@ -119,6 +119,7 @@ _EVENT_DISPATCH: Final[Mapping[str, _PayloadMapper]] = MappingProxyType(
         "notes_found": _map_regular_event,
         "analysis_done": _map_regular_event,
         "restaurant": _map_regular_event,
+        "chunk": _map_regular_event,
         "result": _map_regular_event,
         "error": _map_regular_event,
         "done": _map_regular_event,

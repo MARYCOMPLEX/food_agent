@@ -1137,7 +1137,7 @@ def _canonical_observation(item: ActionObservation, investigation_id: str) -> Ob
             "source_call": _json_safe(raw_value.model_dump(mode="python")),
         }
     else:
-        raw_payload = _json_safe(raw_value)
+        raw_payload = _json_safe(raw_value) if raw_value is not None else _json_safe(result)
         source_metadata = {}
     next_cursor, provider_has_more, completeness_value, continuation = _continuation_metadata(
         result,

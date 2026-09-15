@@ -566,7 +566,13 @@ export function UnifiedChatWorkbench() {
       const currentTurn = prev[turnIndex]!
       const assistant = { ...currentTurn.assistantMessage }
 
-      if (eventName === 'step_start') {
+      if (eventName === 'chunk' || eventName === 'text_chunk') {
+        const text = typeof data === 'string' ? data : (data?.text || data?.chunk || data?.delta || data?.content || '')
+        if (text) {
+          assistant.summary = (assistant.summary || '') + text
+          assistant.statusMessage = undefined
+        }
+      } else if (eventName === 'step_start') {
         const stepId = data.step || `step_${Date.now()}`
         const stepMsg = data.message || '进行中...'
         const plan = [...(assistant.plan || []).filter((p) => p.id !== 'thinking')]
@@ -698,7 +704,9 @@ export function UnifiedChatWorkbench() {
         ...currentTurn,
         assistantMessage: assistant,
       }
-      storage.set(`food_agent_turns_${sessionId}`, nextTurns)
+      if (eventName !== 'chunk' && eventName !== 'text_chunk') {
+        storage.set(`food_agent_turns_${sessionId}`, nextTurns)
+      }
       return nextTurns
     })
   }
@@ -1527,6 +1535,20 @@ export function UnifiedChatWorkbench() {
                           {turnSummary ? (
                             <Typography.Paragraph style={{ fontSize: 14, lineHeight: 1.8, marginBottom: 0, whiteSpace: 'pre-line' }}>
                               {turnSummary}
+                              {turnRunning && (
+                                <span
+                                  style={{
+                                    display: 'inline-block',
+                                    width: 2.5,
+                                    height: 14,
+                                    backgroundColor: '#1677ff',
+                                    marginLeft: 4,
+                                    verticalAlign: '-1px',
+                                    borderRadius: 1,
+                                    animation: 'cursorBlink 0.8s infinite',
+                                  }}
+                                />
+                              )}
                             </Typography.Paragraph>
                           ) : turnRunning ? (
                             turnPlan.length === 0 ? (

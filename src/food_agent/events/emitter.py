@@ -151,6 +151,13 @@ class SearchEventEmitter:
             SearchEvent(type=SearchEventType.RESTAURANT, data={"restaurant": restaurant})
         )
 
+    async def emit_chunk(self, text: str) -> None:
+        """Emit a streaming text chunk."""
+        if text:
+            await self.emit(
+                SearchEvent(type=SearchEventType.CHUNK, data={"text": text})
+            )
+
     async def emit_result(self, summary: str, total: int, filtered: int = 0) -> None:
         await self.emit(
             SearchEvent(

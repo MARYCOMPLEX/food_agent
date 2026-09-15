@@ -148,7 +148,7 @@ export interface SearchResultsSnapshot {
 }
 
 export interface StreamEvent {
-  event: 'status' | 'progress' | 'result' | 'error' | 'done'
+  event: 'status' | 'progress' | 'result' | 'error' | 'done' | 'step_start' | 'step_done' | 'restaurant' | 'chunk' | string
   data: Record<string, any>
   id?: string
 }
