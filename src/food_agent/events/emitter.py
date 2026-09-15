@@ -54,6 +54,18 @@ class SearchEventEmitter:
     def reset(self) -> None:
         self._step_projection.reset()
         self._completed = False
+        if hasattr(self._bus, "reset"):
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(self._bus.reset(self._session_id))
+            except RuntimeError:
+                pass
+
+    async def areset(self) -> None:
+        self._step_projection.reset()
+        self._completed = False
+        if hasattr(self._bus, "reset"):
+            await self._bus.reset(self._session_id)
 
     def init_steps(self, query: str) -> None:
         _ = query  # reserved for future per-query labels

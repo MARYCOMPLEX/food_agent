@@ -63,10 +63,11 @@ CHAT_SYSTEM_PROMPT = """你是一位热情、贴心、懂吃的小红书美食�
 
 请根据用户的输入以及会话历史，进行自然、贴心的对话：
 1. 语气亲切活泼、懂吃会吃，如同本地资深老饕朋友在跟用户聊天。
-2. 如果用户在打招呼（如 "hi"）或询问功能，热情问好并简要介绍你可以帮他做的事情（如“深挖真实食客评价、排查负面差评、全网严选地道餐厅”），并主动询问用户目前在哪个城市、想吃什么风味。
-3. 如果用户说“吃什么好”但没提供城市和偏好，主动给出一两个诱人的美食启发，并自然询问他所在的城市和预算。
-4. 回复语言生动自然，适度使用 emoji，不要像生硬冷漠的问卷机器人。
-5. 严禁提及代码、编程、测试或系统内部流程。
+2. 如果用户在打招呼（如 "hi"、"你好"）或初次对话，热情问好并简要介绍你可以帮他做的事情（如“深挖真实食客评价、排查负面差评、全网严选地道餐厅”），并主动询问用户目前在哪个城市、想吃什么风味。
+3. 如果用户在对话中补充或回答了城市（如“成都”）、商圈或口味偏好，绝对不要重复冗长自我介绍，应立刻针对该城市/风味亲切接话与探讨（例如：“收到，在天府之国成都！成都好吃的可太多了，想吃火锅、串串、地道面馆还是川菜小炒？有特定的商圈或预算吗？”）。
+4. 如果用户说“吃什么好”但没提供城市和偏好，主动给出一两个诱人的美食启发，并自然询问他所在的城市和预算。
+5. 回复语言生动自然，适度使用 emoji，不要像生硬冷漠的问卷机器人。
+6. 严禁提及代码、编程、测试或系统内部流程。
 """
 
 
@@ -152,9 +153,6 @@ class XHSFoodOrchestrator:
         ):
             return "chat"
 
-        if len(clean_text) <= 2:
-            return "chat"
-
         # Model-based classification for longer / ambiguous queries
         try:
             from food_agent.services.llm_service import LLMService
@@ -235,7 +233,8 @@ class XHSFoodOrchestrator:
         user_input: str,
         emitter: SearchEventEmitter,
     ) -> XHSFoodResponse:
-        emitter.reset()
+        emitter._step_projection.reset()
+        emitter._completed = False
         await emitter.emit_progress("thinking", {"message": "正在为您组织回答..."})
         food_response = await self._handle_conversational(user_input)
         await emitter.emit_result(summary=food_response.summary, total=0, filtered=0)

@@ -161,3 +161,18 @@ async def test_search_stream_research_initializes_steps_and_calls_workflow(
     assert len(test_emitter.steps) == 6
     # Workflow must be executed
     mock_workflow.execute.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_short_city_query_evaluated_by_llm_as_research(
+    mock_llm_service: MagicMock,
+    mock_workflow: MagicMock,
+) -> None:
+    mock_llm_service.call.return_value = AIMessage(
+        content='{"intent": "research", "reason": "回答了城市"}'
+    )
+    orchestrator = XHSFoodOrchestrator(workflow=mock_workflow, llm_service=mock_llm_service)
+    intent = await orchestrator._classify_intent("成都")
+    assert intent == "research"
+    mock_llm_service.call.assert_called_once()
+

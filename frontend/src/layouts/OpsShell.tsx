@@ -12,6 +12,7 @@ import {
   CheckCircleOutlined,
   ControlOutlined,
 } from '@ant-design/icons'
+import { storage } from '../shared/utils/storage'
 
 export function OpsShell() {
   const navigate = useNavigate()
@@ -50,7 +51,10 @@ export function OpsShell() {
         <Space size={16}>
           <Button
             icon={<ArrowLeftOutlined />}
-            onClick={() => navigate('/')}
+            onClick={() => {
+              const lastSid = storage.get<string>('food_agent_last_active_session', '')
+              navigate(lastSid ? `/chat/${lastSid}` : '/chat')
+            }}
           >
             返回对话端
           </Button>

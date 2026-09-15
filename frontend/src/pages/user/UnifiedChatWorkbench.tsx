@@ -107,9 +107,11 @@ export function UnifiedChatWorkbench() {
   const navigate = useNavigate()
   const { showToast } = useToast()
 
-  // Current session ID (clean new session by default)
+  // Current session ID (restore last active session if opening without route parameter)
   const [currentSessionId, setCurrentSessionId] = useState<string>(() => {
-    return routeSessionId || ''
+    if (routeSessionId) return routeSessionId
+    const lastSid = storage.get<string>('food_agent_last_active_session', '')
+    return lastSid || ''
   })
 
   // Default snapshot (only used if explicitly navigating to a demo URL)
@@ -251,12 +253,25 @@ export function UnifiedChatWorkbench() {
   const [accounts, setAccounts] = useState(platformAccountsApi.getLocalAccounts())
   const [loginModalPlatform, setLoginModalPlatform] = useState<'xhs_pc' | 'dianping' | null>(null)
 
+  // Track last active session ID in storage
+  useEffect(() => {
+    if (currentSessionId) {
+      storage.set('food_agent_last_active_session', currentSessionId)
+    }
+  }, [currentSessionId])
+
   // Synchronize route
   useEffect(() => {
     if (routeSessionId && routeSessionId !== currentSessionId) {
       setCurrentSessionId(routeSessionId)
+    } else if (!routeSessionId) {
+      const lastSid = storage.get<string>('food_agent_last_active_session', '')
+      if (lastSid && lastSid !== currentSessionId) {
+        setCurrentSessionId(lastSid)
+        navigate(`/chat/${lastSid}`, { replace: true })
+      }
     }
-  }, [routeSessionId, currentSessionId])
+  }, [routeSessionId, currentSessionId, navigate])
 
   // Restore turns when session changes
   useEffect(() => {
@@ -440,6 +455,7 @@ export function UnifiedChatWorkbench() {
       activeAbortRef.current.abort()
       activeAbortRef.current = null
     }
+    storage.remove('food_agent_last_active_session')
     setCurrentSessionId('')
     setSessionTurns([])
     setRightPanelOpen(false)
@@ -474,6 +490,7 @@ export function UnifiedChatWorkbench() {
     storage.set('food_agent_search_history', next)
     storage.remove(`food_agent_turns_${sid}`)
     if (currentSessionId === sid) {
+      storage.remove('food_agent_last_active_session')
       if (next.length > 0 && next[0]) {
         handleSelectSession(next[0].session_id)
       } else {
