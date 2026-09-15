@@ -94,6 +94,7 @@ export interface ChatTurn {
     profiles?: any[]
     evidence?: any[]
     isRunning?: boolean
+    statusMessage?: string
     error?: string
     createdAt: string
   }
@@ -126,6 +127,7 @@ export function UnifiedChatWorkbench() {
   // Sequential multi-turn dialogue state
   const [sessionTurns, setSessionTurns] = useState<ChatTurn[]>([])
   const activeAbortRef = useRef<AbortController | null>(null)
+  const isSendingRef = useRef(false)
 
   // Whether current session is a brand-new, unstarted draft session
   const isNewSession = useMemo(() => {
@@ -266,7 +268,19 @@ export function UnifiedChatWorkbench() {
     // 1. Check localStorage first
     const saved = storage.get<ChatTurn[]>(`food_agent_turns_${currentSessionId}`, [])
     if (saved && saved.length > 0) {
-      setSessionTurns(saved)
+      const cleaned = saved.map((t) => ({
+        ...t,
+        assistantMessage: {
+          ...t.assistantMessage,
+          isRunning: false,
+          statusMessage: undefined,
+          plan: (t.assistantMessage?.plan || [])
+            .filter((s) => s.id !== 'thinking')
+            .map((s) => (s.status === 'running' ? { ...s, status: 'succeeded' as const } : s)),
+        },
+      }))
+      setSessionTurns(cleaned)
+      storage.set(`food_agent_turns_${currentSessionId}`, cleaned)
       return
     }
 
@@ -497,6 +511,10 @@ export function UnifiedChatWorkbench() {
               assistantMessage: {
                 ...t.assistantMessage,
                 isRunning: false,
+                statusMessage: undefined,
+                plan: (t.assistantMessage.plan || [])
+                  .filter((s) => s.id !== 'thinking')
+                  .map((s) => (s.status === 'running' ? { ...s, status: 'succeeded' as const } : s)),
               },
             }
           : t,
@@ -534,7 +552,7 @@ export function UnifiedChatWorkbench() {
       if (eventName === 'step_start') {
         const stepId = data.step || `step_${Date.now()}`
         const stepMsg = data.message || '进行中...'
-        const plan = [...(assistant.plan || [])]
+        const plan = [...(assistant.plan || []).filter((p) => p.id !== 'thinking')]
         if (Array.isArray(data.steps) && data.steps.length > 0) {
           assistant.plan = data.steps.map((s: any) => ({
             id: s.id || s.stepId || stepId,
@@ -558,7 +576,7 @@ export function UnifiedChatWorkbench() {
         }
       } else if (eventName === 'step_done') {
         const stepId = data.step
-        const plan = [...(assistant.plan || [])]
+        const plan = [...(assistant.plan || []).filter((p) => p.id !== 'thinking')]
         const existing = plan.findIndex((p) => p.id === stepId)
         if (existing >= 0 && plan[existing]) {
           plan[existing] = {
@@ -570,13 +588,8 @@ export function UnifiedChatWorkbench() {
         }
         assistant.plan = plan
       } else if (eventName === 'progress') {
-        if (data.message && (!assistant.plan || assistant.plan.length === 0)) {
-          assistant.plan = [{
-            id: 'thinking',
-            label: data.message,
-            status: 'running',
-            detail: data.detail,
-          }]
+        if (data.message) {
+          assistant.statusMessage = data.message
         }
       } else if (eventName === 'restaurant') {
         const currentRecs = [...(assistant.recommendations || [])]
@@ -611,6 +624,18 @@ export function UnifiedChatWorkbench() {
         if (data.summary) {
           assistant.summary = data.summary
         }
+        if (Array.isArray(data.steps)) {
+          if (data.steps.length === 0) {
+            assistant.plan = []
+          } else {
+            assistant.plan = data.steps.map((s: any) => ({
+              id: s.id || s.stepId,
+              label: s.label || s.message,
+              status: s.status === 'done' ? 'succeeded' : (s.status === 'loading' ? 'running' : 'idle'),
+              detail: s.message,
+            }))
+          }
+        }
         if (Array.isArray(data.restaurants) && data.restaurants.length > 0) {
           assistant.recommendations = data.restaurants.map((r: any, idx: number) => ({
             recommendationId: r.id || `rec_${idx + 1}`,
@@ -634,9 +659,21 @@ export function UnifiedChatWorkbench() {
         }
       } else if (eventName === 'done') {
         assistant.isRunning = false
+        assistant.statusMessage = undefined
+        if (assistant.plan && assistant.plan.length > 0) {
+          assistant.plan = assistant.plan
+            .filter((s) => s.id !== 'thinking')
+            .map((s) => (s.status === 'running' ? { ...s, status: 'succeeded' as const } : s))
+        }
       } else if (eventName === 'error') {
         assistant.isRunning = false
+        assistant.statusMessage = undefined
         assistant.error = data.error || data.message || '生成失败'
+        if (assistant.plan && assistant.plan.length > 0) {
+          assistant.plan = assistant.plan
+            .filter((s) => s.id !== 'thinking')
+            .map((s) => (s.status === 'running' ? { ...s, status: 'failed' as const } : s))
+        }
       }
 
       const nextTurns = [...prev]
@@ -712,6 +749,10 @@ export function UnifiedChatWorkbench() {
                 assistantMessage: {
                   ...t.assistantMessage,
                   isRunning: false,
+                  statusMessage: undefined,
+                  plan: (t.assistantMessage.plan || [])
+                    .filter((s) => s.id !== 'thinking')
+                    .map((s) => (s.status === 'running' ? { ...s, status: 'succeeded' as const } : s)),
                 },
               }
             : t,
@@ -729,6 +770,10 @@ export function UnifiedChatWorkbench() {
                   assistantMessage: {
                     ...t.assistantMessage,
                     isRunning: false,
+                    statusMessage: undefined,
+                    plan: (t.assistantMessage.plan || [])
+                      .filter((s) => s.id !== 'thinking')
+                      .map((s) => (s.status === 'running' ? { ...s, status: 'succeeded' as const } : s)),
                   },
                 }
               : t,
@@ -745,7 +790,8 @@ export function UnifiedChatWorkbench() {
   // Send message
   const handleSendMessage = async (overrideText?: string) => {
     const text = (overrideText || inputText).trim()
-    if (!text || isRunning) return
+    if (!text || isRunning || isSendingRef.current) return
+    isSendingRef.current = true
 
     const fullPrompt = attachedContext
       ? `[针对: ${attachedContext.title}] ${text}`
@@ -769,11 +815,25 @@ export function UnifiedChatWorkbench() {
         profiles: [],
         evidence: [],
         isRunning: true,
+        statusMessage: '正在为您组织回答...',
         createdAt: new Date().toISOString(),
       },
     }
 
-    const nextTurns = [...sessionTurns, newTurn]
+    // Ensure all previous turns are strictly finalized and not running
+    const prevTurnsCleaned = sessionTurns.map((t) => ({
+      ...t,
+      assistantMessage: {
+        ...t.assistantMessage,
+        isRunning: false,
+        statusMessage: undefined,
+        plan: (t.assistantMessage.plan || [])
+          .filter((s) => s.id !== 'thinking')
+          .map((s) => (s.status === 'running' ? { ...s, status: 'succeeded' as const } : s)),
+      },
+    }))
+
+    const nextTurns = [...prevTurnsCleaned, newTurn]
     setSessionTurns(nextTurns)
     setInputText('')
     setAttachedContext(null)
@@ -817,6 +877,7 @@ export function UnifiedChatWorkbench() {
                 assistantMessage: {
                   ...t.assistantMessage,
                   isRunning: false,
+                  statusMessage: undefined,
                   error: err.message || '请求失败',
                 },
               }
@@ -826,6 +887,7 @@ export function UnifiedChatWorkbench() {
         return updated
       })
     } finally {
+      isSendingRef.current = false
       if (activeAbortRef.current === abortController) {
         activeAbortRef.current = null
       }
@@ -1424,8 +1486,8 @@ export function UnifiedChatWorkbench() {
                                     <Timeline
                                       style={{ marginTop: 8 }}
                                       items={turnPlan.map((s) => ({
-                                        color: s.status === 'succeeded' ? 'green' : s.status === 'running' ? 'blue' : 'gray',
-                                        dot: s.status === 'running' ? <LoadingOutlined /> : undefined,
+                                        color: s.status === 'succeeded' ? 'green' : (turnRunning && s.status === 'running' ? 'blue' : 'gray'),
+                                        dot: (turnRunning && s.status === 'running') ? <LoadingOutlined /> : undefined,
                                         children: (
                                           <div>
                                             <Typography.Text strong style={{ fontSize: 12 }}>{s.label}</Typography.Text>
@@ -1444,20 +1506,29 @@ export function UnifiedChatWorkbench() {
                             />
                           )}
 
-                          {/* 2. Synthesis Summary */}
+                          {/* 2. Synthesis Summary or Single Loading State */}
                           {turnSummary ? (
                             <Typography.Paragraph style={{ fontSize: 14, lineHeight: 1.8, marginBottom: 0, whiteSpace: 'pre-line' }}>
                               {turnSummary}
                             </Typography.Paragraph>
                           ) : turnRunning ? (
-                            <Space style={{ padding: '12px 0' }}>
-                              <LoadingOutlined style={{ color: '#1677ff' }} />
-                              <Typography.Text type="secondary">
-                                {mcpServices.length > 0
-                                  ? `正在调取已接入的 ${mcpServices.map((s) => s.name).join('、')} 真实探店数据...`
-                                  : '正在调用大模型进行深度美食推演与口碑核实...'}
-                              </Typography.Text>
-                            </Space>
+                            turnPlan.length === 0 ? (
+                              <Space style={{ padding: '8px 0' }}>
+                                <LoadingOutlined style={{ color: '#1677ff' }} />
+                                <Typography.Text type="secondary">
+                                  {turn.assistantMessage.statusMessage || (mcpServices.length > 0
+                                    ? `正在调取已接入的 ${mcpServices.map((s) => s.name).join('、')} 真实探店数据...`
+                                    : '正在为您组织回答...')}
+                                </Typography.Text>
+                              </Space>
+                            ) : turnPlan.every((s) => s.status === 'succeeded') ? (
+                              <Space style={{ padding: '8px 0' }}>
+                                <LoadingOutlined style={{ color: '#1677ff' }} />
+                                <Typography.Text type="secondary">
+                                  {turn.assistantMessage.statusMessage || '步骤已就绪，正在综合生成最终分析...'}
+                                </Typography.Text>
+                              </Space>
+                            ) : null
                           ) : turn.assistantMessage.error ? (
                             <Alert type="error" message={turn.assistantMessage.error} showIcon />
                           ) : null}
