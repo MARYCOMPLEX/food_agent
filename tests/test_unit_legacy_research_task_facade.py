@@ -128,7 +128,7 @@ async def test_start_new_spawns_the_legacy_runner_exactly_once(
     ]
     assert user_messages == [("new-session", "自贡冷吃兔")]
     assert emitter.reset_count == 1
-    assert emitter.queries == ["自贡冷吃兔"]
+    assert emitter.queries == []  # init_steps deferred to orchestrator intent routing
     assert admission.model_dump(mode="json", exclude={"schema_version"}) == {
         "task_id": "new-session",
         "session_id": "new-session",
@@ -184,7 +184,7 @@ async def test_refine_spawns_the_legacy_runner_exactly_once(
     assert len(spawner.coroutines) == 1
     assert state == {"status": "loading", "turn_id": 5, "query": "不要辣"}
     assert emitter.reset_count == 1
-    assert emitter.queries == ["不要辣"]
+    assert emitter.queries == []  # init_steps deferred to orchestrator intent routing
     assert admission.turn_id == 5
     assert admission.operation.value == "refine"
 

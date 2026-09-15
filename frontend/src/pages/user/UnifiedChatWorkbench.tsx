@@ -59,7 +59,7 @@ import { ShopProfileDrawer } from '../../components/research-surface/ShopProfile
 import { QrLoginModal } from '../../components/auth/QrLoginModal'
 import { useToast } from '../../context/ToastContext'
 import { storage } from '../../shared/utils/storage'
-import { apiGet } from '../../api/client'
+import { apiGet, apiPost } from '../../api/client'
 import { startSearch } from '../../api/searchApi'
 import { platformAccountsApi } from '../../features/platform-accounts/api/platformAccountsApi'
 import {
@@ -69,8 +69,35 @@ import {
 import type {
   ResearchProfileViewV1,
   ResearchRecommendationViewV1,
+  ResearchControversyViewV1,
 } from '../../shared/contracts/research'
 import type { Restaurant } from '../../shared/contracts'
+
+export interface ChatTurn {
+  id: string
+  turnId: number
+  userMessage: {
+    content: string
+    attachedContext?: { type: 'shop' | 'controversy'; title: string } | null
+    createdAt: string
+  }
+  assistantMessage: {
+    summary: string
+    plan?: Array<{
+      id: string
+      label: string
+      status: 'loading' | 'running' | 'succeeded' | 'failed' | 'idle'
+      detail?: string
+    }>
+    recommendations?: any[]
+    controversies?: any[]
+    profiles?: any[]
+    evidence?: any[]
+    isRunning?: boolean
+    error?: string
+    createdAt: string
+  }
+}
 
 type RightPanelTab = 'evidence' | 'controversies' | 'profile'
 
@@ -96,16 +123,17 @@ export function UnifiedChatWorkbench() {
     return storage.get<any[]>('food_agent_search_history', [])
   })
 
+  // Sequential multi-turn dialogue state
+  const [sessionTurns, setSessionTurns] = useState<ChatTurn[]>([])
+  const activeAbortRef = useRef<AbortController | null>(null)
+
   // Whether current session is a brand-new, unstarted draft session
   const isNewSession = useMemo(() => {
-    if (!currentSessionId) return true
-    const found = historyList.find((h) => h.session_id === currentSessionId)
-    if (found) return false
-    if (defaultSnapshot) return false
-    return true
-  }, [historyList, currentSessionId, defaultSnapshot])
+    if (!currentSessionId && sessionTurns.length === 0) return true
+    return false
+  }, [currentSessionId, sessionTurns.length])
 
-  // Research session hook
+  // Research session hook (keeps demo projections compatible)
   const {
     state,
     projection,
@@ -114,7 +142,7 @@ export function UnifiedChatWorkbench() {
     initializeSnapshot,
   } = useResearchSessionReact(currentSessionId, {
     snapshot: defaultSnapshot,
-    autoStart: !isNewSession,
+    autoStart: Boolean(defaultSnapshot),
   })
 
   // UI States
@@ -228,19 +256,153 @@ export function UnifiedChatWorkbench() {
     }
   }, [routeSessionId, currentSessionId])
 
+  // Restore turns when session changes
+  useEffect(() => {
+    if (!currentSessionId) {
+      setSessionTurns([])
+      return
+    }
+
+    // 1. Check localStorage first
+    const saved = storage.get<ChatTurn[]>(`food_agent_turns_${currentSessionId}`, [])
+    if (saved && saved.length > 0) {
+      setSessionTurns(saved)
+      return
+    }
+
+    // 2. Demo snapshot
+    if (currentSessionId === 'session_demo_cd_hotpot' || currentSessionId === 'session_demo_gz_tea') {
+      const demo = currentSessionId === 'session_demo_cd_hotpot' ? DEMO_CD_HOTPOT_PROJECTION : DEMO_GZ_TEA_PROJECTION
+      const demoTurn: ChatTurn = {
+        id: `turn_demo_${currentSessionId}`,
+        turnId: 1,
+        userMessage: {
+          content: demo.intent?.objective || '探索特色美食',
+          createdAt: new Date().toISOString(),
+        },
+        assistantMessage: {
+          summary: demo.summary || '',
+          plan: (demo.plan || []).map((s: any) => ({
+            id: s.stepId || s.id,
+            label: s.label,
+            status: (s.status === 'completed' ? 'succeeded' : s.status) || 'succeeded',
+            detail: s.detail,
+          })),
+          recommendations: demo.recommendations as any,
+          controversies: demo.controversies as any,
+          profiles: demo.profiles as any,
+          evidence: demo.evidence as any,
+          isRunning: false,
+          createdAt: new Date().toISOString(),
+        },
+      }
+      setSessionTurns([demoTurn])
+      storage.set(`food_agent_turns_${currentSessionId}`, [demoTurn])
+      return
+    }
+
+    // 3. Fallback: recover turns from backend
+    let isCancelled = false
+    apiPost<any>('/v1/search/', { sessionId: currentSessionId })
+      .then((res: any) => {
+        if (isCancelled) return
+        const d = res?.data || res
+        if (d?.turns && Array.isArray(d.turns) && d.turns.length > 0) {
+          const recovered: ChatTurn[] = d.turns.map((t: any, idx: number) => ({
+            id: `turn_rec_${t.turnId || idx + 1}`,
+            turnId: t.turnId || idx + 1,
+            userMessage: {
+              content: t.query || '美食探店需求',
+              createdAt: t.createdAt || new Date().toISOString(),
+            },
+            assistantMessage: {
+              summary: t.summary || '',
+              recommendations: (t.restaurants || []).map((r: any, rIdx: number) => ({
+                recommendationId: r.id || `rec_${rIdx + 1}`,
+                title: r.name || r.title,
+                rank: rIdx + 1,
+                summary: r.one_liner || r.summary || '',
+                highlights: r.features || r.highlights || [],
+                warnings: r.warnings || [],
+                mustTry: r.must_try || [],
+                score: r.score,
+                confidence: r.confidence,
+              })),
+              profiles: (t.restaurants || []).map((r: any) => ({
+                profileId: r.id,
+                name: r.name || r.title,
+                averagePrice: r.cost_per_person || r.price,
+                address: r.location || r.address,
+                tags: r.tags || [],
+                dishRecommendations: r.must_try?.map((m: any) => typeof m === 'string' ? m : (m?.name || '')) || [],
+              })),
+              isRunning: false,
+              createdAt: t.createdAt || new Date().toISOString(),
+            },
+          }))
+          setSessionTurns(recovered)
+          storage.set(`food_agent_turns_${currentSessionId}`, recovered)
+        } else if (d?.summary || (d?.restaurants && d.restaurants.length > 0)) {
+          const singleTurn: ChatTurn = {
+            id: `turn_rec_1`,
+            turnId: 1,
+            userMessage: {
+              content: d.query || historyList.find((h) => h.session_id === currentSessionId)?.query || '美食探店需求',
+              createdAt: new Date().toISOString(),
+            },
+            assistantMessage: {
+              summary: d.summary || '',
+              recommendations: (d.restaurants || []).map((r: any, rIdx: number) => ({
+                recommendationId: r.id || `rec_${rIdx + 1}`,
+                title: r.name || r.title,
+                rank: rIdx + 1,
+                summary: r.one_liner || r.summary || '',
+                highlights: r.features || r.highlights || [],
+                warnings: r.warnings || [],
+                mustTry: r.must_try || [],
+                score: r.score,
+                confidence: r.confidence,
+              })),
+              profiles: (d.restaurants || []).map((r: any) => ({
+                profileId: r.id,
+                name: r.name || r.title,
+                averagePrice: r.cost_per_person || r.price,
+                address: r.location || r.address,
+                tags: r.tags || [],
+                dishRecommendations: r.must_try?.map((m: any) => typeof m === 'string' ? m : (m?.name || '')) || [],
+              })),
+              isRunning: false,
+              createdAt: new Date().toISOString(),
+            },
+          }
+          setSessionTurns([singleTurn])
+          storage.set(`food_agent_turns_${currentSessionId}`, [singleTurn])
+        }
+      })
+      .catch(() => {
+        // Silently ignore if session is new or not found
+      })
+
+    return () => {
+      isCancelled = true
+    }
+  }, [currentSessionId])
+
   // Auto scroll chat
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [projection?.summary, projection?.recommendations?.length])
+  }, [sessionTurns])
 
   // Is investigation running
-  const isRunning = state.syncState === 'synced' && projection?.status === 'running'
+  const isRunning = useMemo(() => {
+    return sessionTurns.some((t) => t.assistantMessage.isRunning)
+  }, [sessionTurns])
 
   // Current session query title
   const currentQuery = useMemo(() => {
     const found = historyList.find((h) => h.session_id === currentSessionId)
-    return found?.query || projection?.intent?.objective || '美食深度调查'
-  }, [historyList, currentSessionId, projection])
+    return found?.query || sessionTurns[0]?.userMessage?.content || '美食深度调查'
+  }, [historyList, currentSessionId, sessionTurns])
 
   // Check account health
   const xhsDegraded = accounts.some(
@@ -260,7 +422,12 @@ export function UnifiedChatWorkbench() {
 
   // Start new search
   const handleStartNewChat = () => {
+    if (activeAbortRef.current) {
+      activeAbortRef.current.abort()
+      activeAbortRef.current = null
+    }
     setCurrentSessionId('')
+    setSessionTurns([])
     setRightPanelOpen(false)
     setAttachedContext(null)
     setInputText('')
@@ -270,8 +437,13 @@ export function UnifiedChatWorkbench() {
 
   // Switch session
   const handleSelectSession = (sid: string) => {
+    if (activeAbortRef.current) {
+      activeAbortRef.current.abort()
+      activeAbortRef.current = null
+    }
     setCurrentSessionId(sid)
     setRightPanelOpen(false)
+    setAttachedContext(null)
     setFeedbackRating(null)
     navigate(`/chat/${sid}`)
   }
@@ -279,17 +451,28 @@ export function UnifiedChatWorkbench() {
   // Delete session
   const handleDeleteSession = (sid: string, e: React.MouseEvent) => {
     e.stopPropagation()
+    if (currentSessionId === sid && activeAbortRef.current) {
+      activeAbortRef.current.abort()
+      activeAbortRef.current = null
+    }
     const next = historyList.filter((h) => h.session_id !== sid)
     setHistoryList(next)
     storage.set('food_agent_search_history', next)
-    if (currentSessionId === sid && next.length > 0 && next[0]) {
-      handleSelectSession(next[0].session_id)
+    storage.remove(`food_agent_turns_${sid}`)
+    if (currentSessionId === sid) {
+      if (next.length > 0 && next[0]) {
+        handleSelectSession(next[0].session_id)
+      } else {
+        handleStartNewChat()
+      }
     }
   }
 
   // Copy response
-  const handleCopyResponse = async () => {
-    const textToCopy = `${currentQuery}\n\n${projection?.summary || ''}`
+  const handleCopyResponse = async (summaryText?: string, queryText?: string) => {
+    const textToCopy = summaryText
+      ? `${queryText ? `${queryText}\n\n` : ''}${summaryText}`
+      : `${currentQuery}\n\n${projection?.summary || ''}`
     try {
       await navigator.clipboard.writeText(textToCopy)
       setHasCopied(true)
@@ -300,23 +483,263 @@ export function UnifiedChatWorkbench() {
     }
   }
 
+  // Stop running generation
+  const handleStop = () => {
+    if (activeAbortRef.current) {
+      activeAbortRef.current.abort()
+      activeAbortRef.current = null
+    }
+    setSessionTurns((prev) => {
+      const updated = prev.map((t) =>
+        t.assistantMessage.isRunning
+          ? {
+              ...t,
+              assistantMessage: {
+                ...t.assistantMessage,
+                isRunning: false,
+              },
+            }
+          : t,
+      )
+      if (currentSessionId) {
+        storage.set(`food_agent_turns_${currentSessionId}`, updated)
+      }
+      return updated
+    })
+  }
+
   // Regenerate / Retry response
   const handleRegenerate = () => {
-    showToast('正在重新综合研判评论与档案...', 'info')
-    appendEvent({
-      schemaVersion: 'research-event/v1',
-      eventId: `ev_${Date.now()}`,
-      sessionId: currentSessionId,
-      taskId: projection?.taskId || 'task_1',
-      turnId: (projection?.turnId || 1) + 1,
-      sequence: (projection?.lastSequence || 0) + 1,
-      occurredAt: new Date().toISOString(),
-      kind: 'run_progress',
-      mutation: 'patch',
-      payload: {
-        summary: '已重新调取小红书与大众点评多源证据，正在二次核验口碑交叉点...',
-      },
+    if (sessionTurns.length === 0 || isRunning) return
+    const lastTurn = sessionTurns[sessionTurns.length - 1]
+    if (!lastTurn) return
+    const lastQuery = lastTurn.userMessage.content
+    setSessionTurns((prev) => prev.slice(0, -1))
+    handleSendMessage(lastQuery)
+  }
+
+  const handleSseEvent = (
+    turnId: string,
+    eventName: string,
+    data: any,
+    sessionId: string,
+  ) => {
+    setSessionTurns((prev) => {
+      const turnIndex = prev.findIndex((t) => t.id === turnId)
+      if (turnIndex === -1 || !prev[turnIndex]) return prev
+
+      const currentTurn = prev[turnIndex]!
+      const assistant = { ...currentTurn.assistantMessage }
+
+      if (eventName === 'step_start') {
+        const stepId = data.step || `step_${Date.now()}`
+        const stepMsg = data.message || '进行中...'
+        const plan = [...(assistant.plan || [])]
+        if (Array.isArray(data.steps) && data.steps.length > 0) {
+          assistant.plan = data.steps.map((s: any) => ({
+            id: s.id || s.stepId || stepId,
+            label: s.label || s.message || stepMsg,
+            status: s.status === 'done' ? 'succeeded' : (s.status === 'loading' ? 'running' : 'idle'),
+            detail: s.message || undefined,
+          }))
+        } else {
+          const existing = plan.findIndex((p) => p.id === stepId)
+          if (existing >= 0 && plan[existing]) {
+            plan[existing] = {
+              id: plan[existing]!.id,
+              label: plan[existing]!.label,
+              status: 'running',
+              detail: stepMsg,
+            }
+          } else {
+            plan.push({ id: stepId, label: stepMsg, status: 'running', detail: stepMsg })
+          }
+          assistant.plan = plan
+        }
+      } else if (eventName === 'step_done') {
+        const stepId = data.step
+        const plan = [...(assistant.plan || [])]
+        const existing = plan.findIndex((p) => p.id === stepId)
+        if (existing >= 0 && plan[existing]) {
+          plan[existing] = {
+            id: plan[existing]!.id,
+            label: plan[existing]!.label,
+            status: 'succeeded',
+            detail: data.message,
+          }
+        }
+        assistant.plan = plan
+      } else if (eventName === 'progress') {
+        if (data.message && (!assistant.plan || assistant.plan.length === 0)) {
+          assistant.plan = [{
+            id: 'thinking',
+            label: data.message,
+            status: 'running',
+            detail: data.detail,
+          }]
+        }
+      } else if (eventName === 'restaurant') {
+        const currentRecs = [...(assistant.recommendations || [])]
+        const currentProfiles = [...(assistant.profiles || [])]
+        if (data.name || data.title) {
+          const recId = data.id || `rec_${currentRecs.length + 1}`
+          if (!currentRecs.some((r) => r.recommendationId === recId || r.title === (data.name || data.title))) {
+            currentRecs.push({
+              recommendationId: recId,
+              title: data.name || data.title,
+              rank: currentRecs.length + 1,
+              summary: data.one_liner || data.summary || '',
+              highlights: data.features || data.highlights || [],
+              warnings: data.warnings || [],
+              mustTry: data.must_try?.map((m: any) => typeof m === 'string' ? { name: m } : m) || [],
+              score: data.score,
+              confidence: data.confidence,
+            })
+            currentProfiles.push({
+              profileId: recId,
+              name: data.name || data.title,
+              averagePrice: data.cost_per_person || data.price,
+              address: data.location || data.address,
+              tags: data.tags || [],
+              dishRecommendations: data.must_try?.map((m: any) => typeof m === 'string' ? m : (m?.name || '')) || [],
+            })
+            assistant.recommendations = currentRecs
+            assistant.profiles = currentProfiles
+          }
+        }
+      } else if (eventName === 'result') {
+        if (data.summary) {
+          assistant.summary = data.summary
+        }
+        if (Array.isArray(data.restaurants) && data.restaurants.length > 0) {
+          assistant.recommendations = data.restaurants.map((r: any, idx: number) => ({
+            recommendationId: r.id || `rec_${idx + 1}`,
+            title: r.name || r.title,
+            rank: idx + 1,
+            summary: r.one_liner || r.summary || '',
+            highlights: r.features || r.highlights || [],
+            warnings: r.warnings || [],
+            mustTry: r.must_try?.map((m: any) => typeof m === 'string' ? { name: m } : m) || [],
+            score: r.score,
+            confidence: r.confidence,
+          }))
+          assistant.profiles = data.restaurants.map((r: any) => ({
+            profileId: r.id,
+            name: r.name || r.title,
+            averagePrice: r.cost_per_person || r.price,
+            address: r.location || r.address,
+            tags: r.tags || [],
+            dishRecommendations: r.must_try?.map((m: any) => typeof m === 'string' ? m : (m?.name || '')) || [],
+          }))
+        }
+      } else if (eventName === 'done') {
+        assistant.isRunning = false
+      } else if (eventName === 'error') {
+        assistant.isRunning = false
+        assistant.error = data.error || data.message || '生成失败'
+      }
+
+      const nextTurns = [...prev]
+      nextTurns[turnIndex] = {
+        ...currentTurn,
+        assistantMessage: assistant,
+      }
+      storage.set(`food_agent_turns_${sessionId}`, nextTurns)
+      return nextTurns
     })
+  }
+
+  const readSseStream = async (sessionId: string, turnId: string, signal: AbortSignal) => {
+    try {
+      const response = await fetch(`/v1/search/stream/${sessionId}`, {
+        headers: {
+          Accept: 'text/event-stream',
+          'X-Device-Id': storage.get('deviceId', '') || 'default-device',
+        },
+        signal,
+      })
+
+      if (!response.ok) {
+        throw new Error(`SSE 状态异常: ${response.status}`)
+      }
+
+      const reader = response.body?.getReader()
+      if (!reader) return
+
+      const decoder = new TextDecoder('utf-8')
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        let currentEvent = 'message'
+        let currentDataLines: string[] = []
+
+        for (const line of lines) {
+          const trimmed = line.trim()
+          if (!trimmed) {
+            if (currentDataLines.length > 0) {
+              const rawData = currentDataLines.join('\n')
+              let parsed: any = rawData
+              try {
+                parsed = JSON.parse(rawData)
+              } catch {}
+              handleSseEvent(turnId, currentEvent, parsed, sessionId)
+            }
+            currentEvent = 'message'
+            currentDataLines = []
+            continue
+          }
+          if (trimmed.startsWith('event:')) {
+            currentEvent = trimmed.slice(6).trim()
+          } else if (trimmed.startsWith('data:')) {
+            currentDataLines.push(line.slice(line.indexOf(':') + 1).trim())
+          }
+        }
+      }
+
+      // Finalize turn running state
+      setSessionTurns((prev) => {
+        const updated = prev.map((t) =>
+          t.id === turnId
+            ? {
+                ...t,
+                assistantMessage: {
+                  ...t.assistantMessage,
+                  isRunning: false,
+                },
+              }
+            : t,
+        )
+        storage.set(`food_agent_turns_${sessionId}`, updated)
+        return updated
+      })
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        setSessionTurns((prev) => {
+          const updated = prev.map((t) =>
+            t.id === turnId
+              ? {
+                  ...t,
+                  assistantMessage: {
+                    ...t.assistantMessage,
+                    isRunning: false,
+                  },
+                }
+              : t,
+          )
+          storage.set(`food_agent_turns_${sessionId}`, updated)
+          return updated
+        })
+        return
+      }
+      throw err
+    }
   }
 
   // Send message
@@ -328,32 +751,46 @@ export function UnifiedChatWorkbench() {
       ? `[针对: ${attachedContext.title}] ${text}`
       : text
 
-    // Record to history if existing valid session
-    if (currentSessionId && !historyList.some((h) => h.session_id === currentSessionId)) {
-      const newHistoryItem = {
-        session_id: currentSessionId,
-        query: text,
-        created_at: new Date().toISOString(),
-      }
-      const nextHistory = [newHistoryItem, ...historyList]
-      setHistoryList(nextHistory)
-      storage.set('food_agent_search_history', nextHistory)
+    const targetSessionId = currentSessionId || undefined
+    const newTurnId = sessionTurns.length + 1
+    const newTurn: ChatTurn = {
+      id: `turn_${Date.now()}_${newTurnId}`,
+      turnId: newTurnId,
+      userMessage: {
+        content: text,
+        attachedContext: attachedContext ? { ...attachedContext } : null,
+        createdAt: new Date().toISOString(),
+      },
+      assistantMessage: {
+        summary: '',
+        plan: [],
+        recommendations: [],
+        controversies: [],
+        profiles: [],
+        evidence: [],
+        isRunning: true,
+        createdAt: new Date().toISOString(),
+      },
     }
 
+    const nextTurns = [...sessionTurns, newTurn]
+    setSessionTurns(nextTurns)
     setInputText('')
     setAttachedContext(null)
 
+    const abortController = new AbortController()
+    activeAbortRef.current = abortController
+
     try {
       showToast('已提交需求，Agent 正在分析...', 'info')
-      const targetSessionId = isNewSession ? undefined : currentSessionId
       const res: any = await startSearch(fullPrompt, targetSessionId, selectedModel || undefined)
       const data = res?.data || res
-      const newSid = data?.sessionId || res?.sessionId
-      if (newSid) {
-        // Record to history if new
-        if (!historyList.some((h) => h.session_id === newSid)) {
+      const activeSessionId = data?.sessionId || res?.sessionId || targetSessionId
+
+      if (activeSessionId) {
+        if (!historyList.some((h) => h.session_id === activeSessionId)) {
           const newHistoryItem = {
-            session_id: newSid,
+            session_id: activeSessionId,
             query: text,
             created_at: new Date().toISOString(),
           }
@@ -361,13 +798,37 @@ export function UnifiedChatWorkbench() {
           setHistoryList(nextHistory)
           storage.set('food_agent_search_history', nextHistory)
         }
-        if (newSid !== currentSessionId) {
-          setCurrentSessionId(newSid)
-          navigate(`/chat/${newSid}`, { replace: true })
+        if (activeSessionId !== currentSessionId) {
+          setCurrentSessionId(activeSessionId)
+          navigate(`/chat/${activeSessionId}`, { replace: true })
         }
       }
+
+      // Stream events from SSE
+      await readSseStream(activeSessionId, newTurn.id, abortController.signal)
     } catch (err: any) {
+      if (err.name === 'AbortError') return
       showToast('发起请求失败: ' + (err.message || '后端服务异常'), 'error')
+      setSessionTurns((prev) => {
+        const updated = prev.map((t) =>
+          t.id === newTurn.id
+            ? {
+                ...t,
+                assistantMessage: {
+                  ...t.assistantMessage,
+                  isRunning: false,
+                  error: err.message || '请求失败',
+                },
+              }
+            : t,
+        )
+        if (currentSessionId) storage.set(`food_agent_turns_${currentSessionId}`, updated)
+        return updated
+      })
+    } finally {
+      if (activeAbortRef.current === abortController) {
+        activeAbortRef.current = null
+      }
     }
   }
 
@@ -439,12 +900,27 @@ export function UnifiedChatWorkbench() {
     showToast(`已将 ${rec.title} 加入对比`, 'success')
   }
 
-  // Recommendations & Active items
-  const recommendations = projection?.recommendations || []
-  const evidenceItems = projection?.evidence || []
-  const controversies = projection?.controversies || []
-  const profiles = projection?.profiles || []
-  const plan = projection?.plan || []
+  // Recommendations & Active items across turns
+  const latestTurnWithData = useMemo(() => {
+    for (let i = sessionTurns.length - 1; i >= 0; i--) {
+      const t = sessionTurns[i]
+      if (!t) continue
+      if (
+        (t.assistantMessage.recommendations && t.assistantMessage.recommendations.length > 0) ||
+        (t.assistantMessage.evidence && t.assistantMessage.evidence.length > 0) ||
+        (t.assistantMessage.controversies && t.assistantMessage.controversies.length > 0)
+      ) {
+        return t
+      }
+    }
+    return sessionTurns[sessionTurns.length - 1] || null
+  }, [sessionTurns])
+
+  const recommendations = latestTurnWithData?.assistantMessage?.recommendations || projection?.recommendations || []
+  const evidenceItems = latestTurnWithData?.assistantMessage?.evidence || projection?.evidence || []
+  const controversies = latestTurnWithData?.assistantMessage?.controversies || projection?.controversies || []
+  const profiles = latestTurnWithData?.assistantMessage?.profiles || projection?.profiles || []
+  const plan = latestTurnWithData?.assistantMessage?.plan || projection?.plan || []
 
   return (
     <Layout style={{ height: '100vh', width: '100vw', overflow: 'hidden' }}>
@@ -880,296 +1356,329 @@ export function UnifiedChatWorkbench() {
                 </div>
               </div>
             ) : (
-              <>
-                {/* User Message Bubble */}
-                <Flex justify="flex-end">
-                  <Card
-                    size="small"
-                    style={{
-                      maxWidth: '85%',
-                      backgroundColor: '#f5f5f5',
-                      borderRadius: 16,
-                      borderColor: '#e8e8e8',
-                    }}
-                  >
-                    <Typography.Text style={{ fontSize: 14 }}>{currentQuery}</Typography.Text>
-                  </Card>
-                </Flex>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                {sessionTurns.map((turn, turnIdx) => {
+                  const isLatest = turnIdx === sessionTurns.length - 1
+                  const turnRunning = turn.assistantMessage.isRunning
+                  const turnPlan = turn.assistantMessage.plan || []
+                  const turnSummary = turn.assistantMessage.summary
+                  const turnRecs = turn.assistantMessage.recommendations || []
+                  const turnControversies = turn.assistantMessage.controversies || []
+                  const turnProfiles = turn.assistantMessage.profiles || []
 
-            {/* Assistant Answer Box */}
-            <Flex align="flex-start" gap={12}>
-              <Avatar
-                icon={<RobotOutlined />}
-                style={{ backgroundColor: '#1677ff', flexShrink: 0, marginTop: 2 }}
-              />
-
-              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {/* 1. Thought Accordion (Ant Design Collapse) */}
-                {plan.length > 0 && (
-                  <Collapse
-                    ghost
-                    size="small"
-                    items={[
-                      {
-                        key: '1',
-                        label: (
-                          <Space>
-                            {isRunning ? (
-                              <LoadingOutlined style={{ color: '#1677ff' }} />
-                            ) : (
-                              <ClockCircleOutlined style={{ color: '#52c41a' }} />
-                            )}
-                            <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-                              {isRunning ? '正在分阶段搜集分析...' : `思考与调查步骤 (${plan.length} 步)`}
-                            </Typography.Text>
-                          </Space>
-                        ),
-                        children: (
-                          <Timeline
-                            style={{ marginTop: 8 }}
-                            items={plan.map((s) => ({
-                              color: s.status === 'succeeded' ? 'green' : s.status === 'running' ? 'blue' : 'gray',
-                              dot: s.status === 'running' ? <LoadingOutlined /> : undefined,
-                              children: (
-                                <div>
-                                  <Typography.Text strong style={{ fontSize: 12 }}>{s.label}</Typography.Text>
-                                  {s.detail && (
-                                    <div>
-                                      <Typography.Text type="secondary" style={{ fontSize: 11 }}>{s.detail}</Typography.Text>
-                                    </div>
-                                  )}
-                                </div>
-                              ),
-                            }))}
-                          />
-                        ),
-                      },
-                    ]}
-                  />
-                )}
-
-                {/* 2. Synthesis Summary */}
-                {projection?.summary ? (
-                  <Typography.Paragraph style={{ fontSize: 14, lineHeight: 1.8, marginBottom: 0, whiteSpace: 'pre-line' }}>
-                    {projection.summary}
-                  </Typography.Paragraph>
-                ) : (
-                  <Space style={{ padding: '12px 0' }}>
-                    <LoadingOutlined style={{ color: '#1677ff' }} />
-                    <Typography.Text type="secondary">
-                      {mcpServices.length > 0
-                        ? `正在调取已接入的 ${mcpServices.map((s) => s.name).join('、')} 真实探店数据...`
-                        : '正在调用大模型进行深度美食推演与口碑核实...'}
-                    </Typography.Text>
-                  </Space>
-                )}
-
-                {/* 3. Embedded Recommendation Cards */}
-                {recommendations.length > 0 && (
-                  <div>
-                    <Typography.Text strong style={{ fontSize: 13, color: '#8c8c8c', display: 'block', marginBottom: 10 }}>
-                      精选候选餐厅 ({recommendations.length})
-                    </Typography.Text>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                      {recommendations.map((rec, idx) => {
-                        const matchedProfile = profiles.find(
-                          (p) => p.name === rec.title || p.profileId === rec.profileRef,
-                        )
-                        const isFavorite = favorites.includes(rec.recommendationId)
-
-                        return (
+                  return (
+                    <div key={turn.id} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                      {/* User Message Bubble */}
+                      <Flex justify="flex-end">
+                        <div style={{ maxWidth: '85%', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                          {turn.userMessage.attachedContext && (
+                            <Tag color="blue" style={{ borderRadius: 10, margin: 0 }}>
+                              针对: {turn.userMessage.attachedContext.title}
+                            </Tag>
+                          )}
                           <Card
-                            key={rec.recommendationId}
                             size="small"
-                            hoverable
-                            style={{ borderRadius: 10, borderColor: '#e8e8e8' }}
-                            title={
-                              <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
-                                <Space>
-                                  <Avatar size={20} style={{ backgroundColor: '#1677ff', fontSize: 11 }}>
-                                    {rec.rank || idx + 1}
-                                  </Avatar>
-                                  <Typography.Text
-                                    strong
-                                    style={{ fontSize: 15, cursor: 'pointer' }}
-                                    onClick={() => openStandaloneProfile(matchedProfile || null, rec)}
-                                  >
-                                    {rec.title}
-                                  </Typography.Text>
-                                  {matchedProfile?.averagePrice && (
-                                    <Tag color="blue">￥{matchedProfile.averagePrice}/人</Tag>
-                                  )}
-                                </Space>
+                            style={{
+                              backgroundColor: '#f5f5f5',
+                              borderRadius: 16,
+                              borderColor: '#e8e8e8',
+                            }}
+                          >
+                            <Typography.Text style={{ fontSize: 14, whiteSpace: 'pre-wrap' }}>
+                              {turn.userMessage.content}
+                            </Typography.Text>
+                          </Card>
+                        </div>
+                      </Flex>
 
+                      {/* Assistant Answer Box */}
+                      <Flex align="flex-start" gap={12}>
+                        <Avatar
+                          icon={<RobotOutlined />}
+                          style={{ backgroundColor: '#1677ff', flexShrink: 0, marginTop: 2 }}
+                        />
+
+                        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                          {/* 1. Thought Accordion (Ant Design Collapse) */}
+                          {turnPlan.length > 0 && (
+                            <Collapse
+                              ghost
+                              size="small"
+                              defaultActiveKey={turnRunning ? ['1'] : []}
+                              items={[
+                                {
+                                  key: '1',
+                                  label: (
+                                    <Space>
+                                      {turnRunning ? (
+                                        <LoadingOutlined style={{ color: '#1677ff' }} />
+                                      ) : (
+                                        <ClockCircleOutlined style={{ color: '#52c41a' }} />
+                                      )}
+                                      <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+                                        {turnRunning ? '正在分阶段搜集分析...' : `思考与调查步骤 (${turnPlan.length} 步)`}
+                                      </Typography.Text>
+                                    </Space>
+                                  ),
+                                  children: (
+                                    <Timeline
+                                      style={{ marginTop: 8 }}
+                                      items={turnPlan.map((s) => ({
+                                        color: s.status === 'succeeded' ? 'green' : s.status === 'running' ? 'blue' : 'gray',
+                                        dot: s.status === 'running' ? <LoadingOutlined /> : undefined,
+                                        children: (
+                                          <div>
+                                            <Typography.Text strong style={{ fontSize: 12 }}>{s.label}</Typography.Text>
+                                            {s.detail && (
+                                              <div>
+                                                <Typography.Text type="secondary" style={{ fontSize: 11 }}>{s.detail}</Typography.Text>
+                                              </div>
+                                            )}
+                                          </div>
+                                        ),
+                                      }))}
+                                    />
+                                  ),
+                                },
+                              ]}
+                            />
+                          )}
+
+                          {/* 2. Synthesis Summary */}
+                          {turnSummary ? (
+                            <Typography.Paragraph style={{ fontSize: 14, lineHeight: 1.8, marginBottom: 0, whiteSpace: 'pre-line' }}>
+                              {turnSummary}
+                            </Typography.Paragraph>
+                          ) : turnRunning ? (
+                            <Space style={{ padding: '12px 0' }}>
+                              <LoadingOutlined style={{ color: '#1677ff' }} />
+                              <Typography.Text type="secondary">
+                                {mcpServices.length > 0
+                                  ? `正在调取已接入的 ${mcpServices.map((s) => s.name).join('、')} 真实探店数据...`
+                                  : '正在调用大模型进行深度美食推演与口碑核实...'}
+                              </Typography.Text>
+                            </Space>
+                          ) : turn.assistantMessage.error ? (
+                            <Alert type="error" message={turn.assistantMessage.error} showIcon />
+                          ) : null}
+
+                          {/* 3. Embedded Recommendation Cards */}
+                          {turnRecs.length > 0 && (
+                            <div>
+                              <Typography.Text strong style={{ fontSize: 13, color: '#8c8c8c', display: 'block', marginBottom: 10 }}>
+                                精选候选餐厅 ({turnRecs.length})
+                              </Typography.Text>
+
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                                {turnRecs.map((rec, idx) => {
+                                  const matchedProfile = turnProfiles.find(
+                                    (p) => p.name === rec.title || p.profileId === rec.profileRef,
+                                  )
+                                  const isFavorite = favorites.includes(rec.recommendationId)
+
+                                  return (
+                                    <Card
+                                      key={rec.recommendationId || `rec_${idx}`}
+                                      size="small"
+                                      hoverable
+                                      style={{ borderRadius: 10, borderColor: '#e8e8e8' }}
+                                      title={
+                                        <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
+                                          <Space>
+                                            <Avatar size={20} style={{ backgroundColor: '#1677ff', fontSize: 11 }}>
+                                              {rec.rank || idx + 1}
+                                            </Avatar>
+                                            <Typography.Text
+                                              strong
+                                              style={{ fontSize: 15, cursor: 'pointer' }}
+                                              onClick={() => openStandaloneProfile(matchedProfile || null, rec)}
+                                            >
+                                              {rec.title}
+                                            </Typography.Text>
+                                            {matchedProfile?.averagePrice && (
+                                              <Tag color="blue">￥{matchedProfile.averagePrice}/人</Tag>
+                                            )}
+                                          </Space>
+
+                                          <Button
+                                            type="text"
+                                            size="small"
+                                            icon={isFavorite ? <StarFilled style={{ color: '#faad14' }} /> : <StarOutlined />}
+                                            onClick={() => handleToggleFavorite(rec.recommendationId, rec.title)}
+                                            title={isFavorite ? '已收藏' : '收藏'}
+                                          />
+                                        </Space>
+                                      }
+                                    >
+                                      <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                                        {matchedProfile?.address && (
+                                          <Space size={4} style={{ fontSize: 12, color: '#8c8c8c' }}>
+                                            <EnvironmentOutlined />
+                                            <span>{matchedProfile.address}</span>
+                                          </Space>
+                                        )}
+
+                                        {/* Highlights & Warnings */}
+                                        <Space wrap size={[4, 4]}>
+                                          {rec.highlights?.map((h: any, i: number) => (
+                                            <Tag key={`high_${i}`} color="success">
+                                              {h}
+                                            </Tag>
+                                          ))}
+                                          {rec.warnings?.map((w: any, i: number) => (
+                                            <Tag key={`warn_${i}`} color="warning">
+                                              避雷: {w}
+                                            </Tag>
+                                          ))}
+                                        </Space>
+
+                                        {rec.summary && (
+                                          <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 4 }}>
+                                            {rec.summary}
+                                          </Typography.Paragraph>
+                                        )}
+
+                                        <Divider style={{ margin: '8px 0' }} />
+
+                                        {/* Card Action Row */}
+                                        <Flex justify="space-between" align="center" wrap="wrap" gap={8}>
+                                          <Space size={6}>
+                                            <Button
+                                              size="small"
+                                              icon={<FileTextOutlined />}
+                                              onClick={() => openInspector('evidence', matchedProfile || null, rec)}
+                                            >
+                                              真实评论 ({rec.evidenceRefs?.length || 0})
+                                            </Button>
+                                            <Button
+                                              size="small"
+                                              icon={<ShopOutlined />}
+                                              onClick={() => openStandaloneProfile(matchedProfile || null, rec)}
+                                            >
+                                              店铺档案
+                                            </Button>
+                                            <Button
+                                              size="small"
+                                              icon={<DiffOutlined />}
+                                              onClick={() => handleAddToCompare(rec, matchedProfile)}
+                                            >
+                                              加入对比
+                                            </Button>
+                                          </Space>
+
+                                          <Button
+                                            type="primary"
+                                            size="small"
+                                            icon={<ArrowRightOutlined />}
+                                            onClick={() => {
+                                              setAttachedContext({ type: 'shop', title: rec.title })
+                                              textareaRef.current?.focus()
+                                            }}
+                                          >
+                                            就此店追问
+                                          </Button>
+                                        </Flex>
+                                      </Space>
+                                    </Card>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* 4. Controversy Alert */}
+                          {turnControversies.length > 0 && (
+                            <Alert
+                              message={`发现 ${turnControversies.length} 项评论分歧争议焦点（如排队耗时、服务体验）`}
+                              type="warning"
+                              showIcon
+                              action={
+                                <Button
+                                  size="small"
+                                  type="primary"
+                                  ghost
+                                  onClick={() => openInspector('controversies')}
+                                >
+                                  查阅争议
+                                </Button>
+                              }
+                            />
+                          )}
+
+                          {/* 5. Assistant Action Row */}
+                          {!turnRunning && turnSummary && (
+                            <Space size={8}>
+                              <Tooltip title="复制回答">
                                 <Button
                                   type="text"
                                   size="small"
-                                  icon={isFavorite ? <StarFilled style={{ color: '#faad14' }} /> : <StarOutlined />}
-                                  onClick={() => handleToggleFavorite(rec.recommendationId, rec.title)}
-                                  title={isFavorite ? '已收藏' : '收藏'}
+                                  icon={hasCopied ? <CheckOutlined style={{ color: '#52c41a' }} /> : <CopyOutlined />}
+                                  onClick={() => handleCopyResponse(turnSummary, turn.userMessage.content)}
                                 />
-                              </Space>
-                            }
-                          >
-                            <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                              {matchedProfile?.address && (
-                                <Space size={4} style={{ fontSize: 12, color: '#8c8c8c' }}>
-                                  <EnvironmentOutlined />
-                                  <span>{matchedProfile.address}</span>
-                                </Space>
-                              )}
-
-                              {/* Highlights & Warnings */}
-                              <Space wrap size={[4, 4]}>
-                                {rec.highlights?.map((h, i) => (
-                                  <Tag key={`high_${i}`} color="success">
-                                    {h}
-                                  </Tag>
-                                ))}
-                                {rec.warnings?.map((w, i) => (
-                                  <Tag key={`warn_${i}`} color="warning">
-                                    避雷: {w}
-                                  </Tag>
-                                ))}
-                              </Space>
-
-                              {rec.summary && (
-                                <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 4 }}>
-                                  {rec.summary}
-                                </Typography.Paragraph>
-                              )}
-
-                              <Divider style={{ margin: '8px 0' }} />
-
-                              {/* Card Action Row */}
-                              <Flex justify="space-between" align="center" wrap="wrap" gap={8}>
-                                <Space size={6}>
-                                  <Button
-                                    size="small"
-                                    icon={<FileTextOutlined />}
-                                    onClick={() => openInspector('evidence', matchedProfile || null, rec)}
-                                  >
-                                    真实评论 ({rec.evidenceRefs?.length || 0})
-                                  </Button>
-                                  <Button
-                                    size="small"
-                                    icon={<ShopOutlined />}
-                                    onClick={() => openStandaloneProfile(matchedProfile || null, rec)}
-                                  >
-                                    店铺档案
-                                  </Button>
-                                  <Button
-                                    size="small"
-                                    icon={<DiffOutlined />}
-                                    onClick={() => handleAddToCompare(rec, matchedProfile)}
-                                  >
-                                    加入对比
-                                  </Button>
-                                </Space>
-
+                              </Tooltip>
+                              <Tooltip title="正面好评">
                                 <Button
-                                  type="primary"
+                                  type="text"
                                   size="small"
-                                  icon={<ArrowRightOutlined />}
+                                  icon={<LikeOutlined style={{ color: feedbackRating === 'up' ? '#1677ff' : undefined }} />}
                                   onClick={() => {
-                                    setAttachedContext({ type: 'shop', title: rec.title })
-                                    textareaRef.current?.focus()
+                                    setFeedbackRating(feedbackRating === 'up' ? null : 'up')
+                                    showToast('感谢你的反馈', 'success')
                                   }}
-                                >
-                                  就此店追问
-                                </Button>
-                              </Flex>
+                                />
+                              </Tooltip>
+                              <Tooltip title="体验欠佳">
+                                <Button
+                                  type="text"
+                                  size="small"
+                                  icon={<DislikeOutlined style={{ color: feedbackRating === 'down' ? '#faad14' : undefined }} />}
+                                  onClick={() => {
+                                    setFeedbackRating(feedbackRating === 'down' ? null : 'down')
+                                    showToast('已记录反馈，持续优化模型', 'info')
+                                  }}
+                                />
+                              </Tooltip>
+                              {isLatest && (
+                                <Tooltip title="重新生成">
+                                  <Button
+                                    type="text"
+                                    size="small"
+                                    icon={<ReloadOutlined />}
+                                    onClick={handleRegenerate}
+                                  />
+                                </Tooltip>
+                              )}
                             </Space>
-                          </Card>
-                        )
-                      })}
+                          )}
+                        </div>
+                      </Flex>
                     </div>
-                  </div>
+                  )
+                })}
+
+                {/* 6. Quick Suggestions at the bottom of the conversation */}
+                {!isRunning && sessionTurns.length > 0 && (
+                  <Flex justify="flex-start" style={{ paddingLeft: 44 }}>
+                    <Space wrap size={6}>
+                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                        建议追问：
+                      </Typography.Text>
+                      {suggestions.map((sug, i) => (
+                        <Button
+                          key={i}
+                          shape="round"
+                          size="small"
+                          onClick={() => handleSendMessage(sug)}
+                        >
+                          {sug}
+                        </Button>
+                      ))}
+                    </Space>
+                  </Flex>
                 )}
 
-                {/* 4. Controversy Alert */}
-                {controversies.length > 0 && (
-                  <Alert
-                    message={`发现 ${controversies.length} 项评论分歧争议焦点（如排队耗时、服务体验）`}
-                    type="warning"
-                    showIcon
-                    action={
-                      <Button
-                        size="small"
-                        type="primary"
-                        ghost
-                        onClick={() => openInspector('controversies')}
-                      >
-                        查阅争议
-                      </Button>
-                    }
-                  />
-                )}
-
-                {/* 5. Assistant Action Row */}
-                <Space size={8}>
-                  <Tooltip title="复制回答">
-                    <Button
-                      type="text"
-                      size="small"
-                      icon={hasCopied ? <CheckOutlined style={{ color: '#52c41a' }} /> : <CopyOutlined />}
-                      onClick={handleCopyResponse}
-                    />
-                  </Tooltip>
-                  <Tooltip title="正面好评">
-                    <Button
-                      type="text"
-                      size="small"
-                      icon={<LikeOutlined style={{ color: feedbackRating === 'up' ? '#1677ff' : undefined }} />}
-                      onClick={() => {
-                        setFeedbackRating(feedbackRating === 'up' ? null : 'up')
-                        showToast('感谢你的反馈', 'success')
-                      }}
-                    />
-                  </Tooltip>
-                  <Tooltip title="体验欠佳">
-                    <Button
-                      type="text"
-                      size="small"
-                      icon={<DislikeOutlined style={{ color: feedbackRating === 'down' ? '#faad14' : undefined }} />}
-                      onClick={() => {
-                        setFeedbackRating(feedbackRating === 'down' ? null : 'down')
-                        showToast('已记录反馈，持续优化模型', 'info')
-                      }}
-                    />
-                  </Tooltip>
-                  <Tooltip title="重新生成">
-                    <Button
-                      type="text"
-                      size="small"
-                      icon={<ReloadOutlined />}
-                      onClick={handleRegenerate}
-                    />
-                  </Tooltip>
-                </Space>
-
-                {/* 6. Quick Suggestions */}
-                <Space wrap size={6} style={{ paddingTop: 4 }}>
-                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                    建议追问：
-                  </Typography.Text>
-                  {suggestions.map((sug, i) => (
-                    <Button
-                      key={i}
-                      shape="round"
-                      size="small"
-                      onClick={() => handleSendMessage(sug)}
-                    >
-                      {sug}
-                    </Button>
-                  ))}
-                </Space>
+                <div ref={chatBottomRef} style={{ height: 16 }} />
               </div>
-            </Flex>
-
-            <div ref={chatBottomRef} style={{ height: 16 }} />
-              </>
             )}
           </div>
         </Layout.Content>
@@ -1272,7 +1781,7 @@ export function UnifiedChatWorkbench() {
                     icon={<StopOutlined />}
                     onClick={(e) => {
                       e.stopPropagation()
-                      stop()
+                      handleStop()
                     }}
                     title="停止生成"
                     style={{ width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center' }}

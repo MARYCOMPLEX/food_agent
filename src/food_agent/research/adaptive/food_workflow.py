@@ -1098,7 +1098,11 @@ def _canonical_observation_envelope(
         "capability": operation,
         "items": items,
         "data": food_data,
-        "raw_payload": _json_safe(observation.raw_payload),
+        "raw_payload": (
+            _json_safe(observation.raw_payload)
+            if observation.raw_payload is not None
+            else (_json_safe(food_data) if food_data is not None else None)
+        ),
         "evidence_refs": tuple(observation.evidence_refs),
         "cursor": observation.cursor,
         "next_cursor": next_cursor,

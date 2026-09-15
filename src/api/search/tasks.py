@@ -123,6 +123,11 @@ async def _persist_results(
         restaurants.append(rec_dict)
 
     result_summary = context_snapshot.last_summary or summary
+    if not summary and result_summary:
+        try:
+            await manager.add_assistant_message(session_id, result_summary)
+        except Exception as exc:
+            logger.warning(f"add_assistant_message failed: {exc}")
 
     try:
         await storage.save_search_result(
