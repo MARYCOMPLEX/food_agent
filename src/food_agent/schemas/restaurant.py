@@ -175,24 +175,6 @@ class RestaurantRecommendation:
             "sourceGaps": self.source_gaps,
         }
 
-    def to_table_row(self) -> Dict[str, str]:
-        wanghong_status = "未知"
-        if self.wanghong_analysis:
-            score = self.wanghong_analysis.score
-            if score in (WanghongScore.DEFINITELY_LOCAL, WanghongScore.LIKELY_LOCAL):
-                wanghong_status = "本地老店"
-            elif score in (WanghongScore.DEFINITELY_WANGHONG, WanghongScore.LIKELY_WANGHONG):
-                wanghong_status = "网红店"
-            else:
-                wanghong_status = "待验证"
-        return {
-            "店名": self.name,
-            "位置": self.location or "见评论区",
-            "特点": "、".join(self.features[:3]) if self.features else "-",
-            "类型判断": wanghong_status,
-            "来源数": str(len(self.source_notes)),
-        }
-
 
 @dataclass
 class XHSFoodResponse:
@@ -217,18 +199,3 @@ class XHSFoodResponse:
             "researchMetadata": self.research_metadata,
             "gaps": self.gaps,
         }
-
-    def to_markdown_table(self) -> str:
-        if not self.recommendations:
-            return "暂无推荐结果"
-        rows = [r.to_table_row() for r in self.recommendations if r.is_recommended]
-        if not rows:
-            return "所有店铺都被过滤（可能都是网红店）"
-        headers = list(rows[0].keys())
-        lines = [
-            "| " + " | ".join(headers) + " |",
-            "| " + " | ".join(["---"] * len(headers)) + " |",
-        ]
-        for row in rows:
-            lines.append("| " + " | ".join(row.values()) + " |")
-        return "\n".join(lines)

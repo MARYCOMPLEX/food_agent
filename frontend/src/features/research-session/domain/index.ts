@@ -1,5 +1,4 @@
 export * from './reducer'
 export * from './store'
 export * from './transport'
-export * from './useResearchSession'
 export * from './useResearchSessionReact'

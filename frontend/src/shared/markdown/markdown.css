@@ -1,0 +1,184 @@
+/*
+ * 助手回复正文的 markdown 样式。
+ * 全部规则限定在 .md-content 下，不污染全局。
+ * 之所以要显式写这些，是因为浏览器默认样式 / antd 的排版重置会把
+ * ul、ol 的 list-style 和缩进抹掉，标题、表格、引用块也需要统一的间距。
+ */
+
+.md-content {
+  color: #0d0d0d;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* 首尾元素去掉多余外边距，避免气泡上下留白突兀 */
+.md-content > *:first-child {
+  margin-top: 0;
+}
+
+.md-content > *:last-child {
+  margin-bottom: 0;
+}
+
+.md-content p {
+  margin: 0 0 0.7em;
+}
+
+/* 标题：只做字号字重和间距，不做下划线装饰，贴合 ChatGPT 观感 */
+.md-content h1,
+.md-content h2,
+.md-content h3,
+.md-content h4,
+.md-content h5,
+.md-content h6 {
+  margin: 1.1em 0 0.5em;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.md-content h1 {
+  font-size: 1.5em;
+}
+
+.md-content h2 {
+  font-size: 1.3em;
+}
+
+.md-content h3 {
+  font-size: 1.15em;
+}
+
+.md-content h4,
+.md-content h5,
+.md-content h6 {
+  font-size: 1em;
+}
+
+.md-content strong {
+  font-weight: 600;
+}
+
+.md-content em {
+  font-style: italic;
+}
+
+.md-content del {
+  color: #8c8c8c;
+}
+
+/* 列表：必须显式恢复 list-style 和左缩进 */
+.md-content ul,
+.md-content ol {
+  margin: 0.4em 0 0.8em;
+  padding-left: 1.5em;
+}
+
+.md-content ul {
+  list-style: disc;
+}
+
+.md-content ol {
+  list-style: decimal;
+}
+
+.md-content ul ul {
+  list-style: circle;
+}
+
+.md-content ul ul ul {
+  list-style: square;
+}
+
+.md-content li {
+  margin: 0.25em 0;
+}
+
+.md-content li > p {
+  margin: 0;
+}
+
+.md-content a {
+  color: #1677ff;
+  text-decoration: none;
+}
+
+.md-content a:hover {
+  text-decoration: underline;
+}
+
+/* 行内代码与代码块（本应用不展示编程内容，仅作为兜底渲染） */
+.md-content code {
+  padding: 0.15em 0.35em;
+  font-family: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  background: #f5f5f5;
+  border-radius: 4px;
+}
+
+.md-content pre {
+  margin: 0.6em 0;
+  padding: 12px 14px;
+  overflow-x: auto;
+  background: #f6f8fa;
+  border-radius: 8px;
+}
+
+.md-content pre code {
+  padding: 0;
+  background: none;
+  border-radius: 0;
+}
+
+.md-content blockquote {
+  margin: 0.6em 0;
+  padding: 0.1em 0 0.1em 12px;
+  color: #595959;
+  border-left: 3px solid #e8e8e8;
+}
+
+.md-content hr {
+  margin: 1.2em 0;
+  border: none;
+  border-top: 1px solid #e8e8e8;
+}
+
+/* 表格：后端 prompt 会输出 markdown 表格，需要可读的边框与横向滚动 */
+.md-content table {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  margin: 0.6em 0;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 0.95em;
+}
+
+.md-content th,
+.md-content td {
+  padding: 6px 12px;
+  text-align: left;
+  border: 1px solid #e8e8e8;
+}
+
+.md-content th {
+  font-weight: 600;
+  background: #fafafa;
+}
+
+.md-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
+/* 流式打字机光标，动画关键帧在 design-tokens.css 的 cursorBlink */
+.md-cursor {
+  display: inline-block;
+  width: 2.5px;
+  height: 1em;
+  margin-left: 4px;
+  vertical-align: -0.15em;
+  background: #1677ff;
+  border-radius: 1px;
+  animation: cursorBlink 0.8s infinite;
+}

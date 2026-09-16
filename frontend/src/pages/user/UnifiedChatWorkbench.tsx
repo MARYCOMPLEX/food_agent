@@ -52,6 +52,7 @@ import {
   CheckOutlined,
 } from '@ant-design/icons'
 import { useResearchSessionReact } from '../../features/research-session/domain/useResearchSessionReact'
+import { MarkdownContent } from '../../shared/markdown/MarkdownContent'
 import { EvidenceTimeline } from '../../components/research-surface/EvidenceTimeline'
 import { ControversyPanel } from '../../components/research-surface/ControversyPanel'
 import { RestaurantComparisonModal } from '../../components/restaurant/RestaurantComparisonModal'
@@ -1533,23 +1534,7 @@ export function UnifiedChatWorkbench() {
 
                           {/* 2. Synthesis Summary or Single Loading State */}
                           {turnSummary ? (
-                            <Typography.Paragraph style={{ fontSize: 14, lineHeight: 1.8, marginBottom: 0, whiteSpace: 'pre-line' }}>
-                              {turnSummary}
-                              {turnRunning && (
-                                <span
-                                  style={{
-                                    display: 'inline-block',
-                                    width: 2.5,
-                                    height: 14,
-                                    backgroundColor: '#1677ff',
-                                    marginLeft: 4,
-                                    verticalAlign: '-1px',
-                                    borderRadius: 1,
-                                    animation: 'cursorBlink 0.8s infinite',
-                                  }}
-                                />
-                              )}
-                            </Typography.Paragraph>
+                            <MarkdownContent content={turnSummary} streaming={turnRunning} />
                           ) : turnRunning ? (
                             turnPlan.length === 0 ? (
                               <Space style={{ padding: '8px 0' }}>
