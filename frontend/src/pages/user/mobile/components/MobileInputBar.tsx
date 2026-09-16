@@ -1,4 +1,4 @@
-import React, { useRef } from 'react'
+import React, { useRef, useState } from 'react'
 import { Input, Button, Tag, Space } from 'antd'
 import {
   SendOutlined,
@@ -31,6 +31,9 @@ export function MobileInputBar({
   textareaRef,
 }: MobileInputBarProps) {
   const isComposingRef = useRef(false)
+  const [isFocused, setIsFocused] = useState(false)
+
+  const isMultiline = inputText.includes('\n') || inputText.length > 28
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey && !isComposingRef.current) {
@@ -54,6 +57,19 @@ export function MobileInputBar({
         boxShadow: '0 -2px 10px rgba(0,0,0,0.03)',
       }}
     >
+      <style>{`
+        .mobile-input-capsule .ant-input,
+        .mobile-input-capsule .ant-input:focus,
+        .mobile-input-capsule textarea,
+        .mobile-input-capsule textarea:focus,
+        .mobile-input-capsule textarea:focus-visible {
+          outline: none !important;
+          box-shadow: none !important;
+          border: none !important;
+          background: transparent !important;
+        }
+      `}</style>
+
       {/* 1. Quick Suggestions (Horizontal scroll row) */}
       {!isRunning && suggestions.length > 0 && (
         <div
@@ -105,14 +121,17 @@ export function MobileInputBar({
 
       {/* 3. Input Box Row */}
       <div
+        className="mobile-input-capsule"
         style={{
           display: 'flex',
-          alignItems: 'flex-end',
+          alignItems: isMultiline ? 'flex-end' : 'center',
           gap: 8,
-          backgroundColor: '#f8f9fa',
-          borderRadius: 20,
-          border: '1px solid #e8e8e8',
-          padding: '6px 10px',
+          backgroundColor: isFocused ? '#fff' : '#f8f9fa',
+          borderRadius: 22,
+          border: isFocused ? '1.5px solid #1677ff' : '1px solid #e8e8e8',
+          boxShadow: isFocused ? '0 0 0 3px rgba(22, 119, 255, 0.1)' : 'none',
+          padding: '5px 8px 5px 12px',
+          transition: 'border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease',
         }}
       >
         <Input.TextArea
@@ -120,6 +139,8 @@ export function MobileInputBar({
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           onKeyDown={handleKeyDown}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
           onCompositionStart={() => {
             isComposingRef.current = true
           }}
@@ -135,12 +156,15 @@ export function MobileInputBar({
           variant="borderless"
           disabled={isRunning}
           style={{
-            padding: 0,
+            padding: '2px 0',
             fontSize: 14,
-            lineHeight: 1.4,
+            lineHeight: '22px',
             resize: 'none',
             flex: 1,
             backgroundColor: 'transparent',
+            border: 'none',
+            outline: 'none',
+            boxShadow: 'none',
           }}
         />
 

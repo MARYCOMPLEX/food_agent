@@ -424,10 +424,10 @@ export function ModelGovernancePage() {
 
   return (
     <Space direction="vertical" size="large" style={{ width: '100%' }}>
-      {/* Header Banner */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <Typography.Title level={4} style={{ margin: 0 }}>
+          <Typography.Title level={4} style={{ margin: 0, fontSize: 18 }}>
             <SettingOutlined style={{ color: '#1677ff', marginRight: 8 }} />
             大模型推理与策略在线治理
           </Typography.Title>
@@ -436,7 +436,7 @@ export function ModelGovernancePage() {
           </Typography.Text>
         </div>
 
-        <Space>
+        <Space wrap>
           <Button icon={<ReloadOutlined />} onClick={fetchModels} loading={loading}>
             刷新配置
           </Button>
@@ -462,6 +462,7 @@ export function ModelGovernancePage() {
             <Badge count={models.length} overflowCount={99} style={{ backgroundColor: '#1677ff' }} />
           </Space>
         }
+        styles={{ body: { padding: '12px 16px' } }}
       >
         <Table
           rowKey="model_id"
@@ -469,6 +470,7 @@ export function ModelGovernancePage() {
           columns={columns}
           dataSource={models}
           pagination={false}
+          scroll={{ x: 850 }}
         />
       </Card>
 

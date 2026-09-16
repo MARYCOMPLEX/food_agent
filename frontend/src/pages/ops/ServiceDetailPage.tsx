@@ -196,6 +196,7 @@ export function ServiceDetailPage() {
       <Card
         title={<span>暴露的 MCP 工具清单 ({tools.length})</span>}
         extra={<Typography.Text type="secondary">仅放行工具允许被 Agent 内部规划编排</Typography.Text>}
+        styles={{ body: { padding: '12px 16px' } }}
       >
         <Table
           dataSource={tools}
@@ -203,6 +204,7 @@ export function ServiceDetailPage() {
           rowKey="toolName"
           pagination={false}
           size="middle"
+          scroll={{ x: 650 }}
         />
       </Card>
     </Space>

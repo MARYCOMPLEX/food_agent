@@ -132,7 +132,7 @@ export function TaskObservabilityPage() {
     <Space direction="vertical" size="large" style={{ width: '100%' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <Typography.Title level={4} style={{ margin: 0 }}>
+          <Typography.Title level={4} style={{ margin: 0, fontSize: 18 }}>
             <HistoryOutlined style={{ color: '#1677ff', marginRight: 8 }} />
             任务执行观测台
           </Typography.Title>
@@ -146,18 +146,19 @@ export function TaskObservabilityPage() {
           prefix={<SearchOutlined />}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          style={{ width: 260 }}
+          style={{ width: 260, maxWidth: '100%' }}
           allowClear
         />
       </div>
 
-      <Card>
+      <Card styles={{ body: { padding: '12px 16px' } }}>
         <Table
           dataSource={filteredTasks}
           columns={columns}
           rowKey="taskId"
           pagination={{ pageSize: 10 }}
           size="middle"
+          scroll={{ x: 800 }}
         />
       </Card>
 

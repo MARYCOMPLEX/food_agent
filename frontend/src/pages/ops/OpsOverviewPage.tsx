@@ -42,9 +42,9 @@ export function OpsOverviewPage() {
   return (
     <Space direction="vertical" size="large" style={{ width: '100%' }}>
       {/* Top Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <Typography.Title level={4} style={{ margin: 0 }}>
+          <Typography.Title level={4} style={{ margin: 0, fontSize: 18 }}>
             <DashboardOutlined style={{ color: '#1677ff', marginRight: 8 }} />
             系统总览与通道健康
           </Typography.Title>
@@ -66,9 +66,9 @@ export function OpsOverviewPage() {
         <Alert
           message="当前未接入任何 MCP 外部采集通道"
           description={
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
               <span>系统目前处于纯大模型待命状态。若需要增强探店真实评论与商户事实数据，可前往「服务目录」进行即时接入。</span>
-              <Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => navigate('/ops/service-catalog')}>
+              <Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => navigate('/ops/services')}>
                 去接入 MCP 数据源
               </Button>
             </div>

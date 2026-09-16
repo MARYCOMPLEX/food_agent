@@ -107,7 +107,7 @@ export function EvidenceObservabilityPage() {
     <Space direction="vertical" size="large" style={{ width: '100%' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <Typography.Title level={4} style={{ margin: 0 }}>
+          <Typography.Title level={4} style={{ margin: 0, fontSize: 18 }}>
             <DatabaseOutlined style={{ color: '#1677ff', marginRight: 8 }} />
             证据数据质量与 Bundle 观测
           </Typography.Title>
@@ -121,12 +121,12 @@ export function EvidenceObservabilityPage() {
           prefix={<SearchOutlined />}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          style={{ width: 260 }}
+          style={{ width: 260, maxWidth: '100%' }}
           allowClear
         />
       </div>
 
-      <Row gutter={[16, 16]}>
+      <Row gutter={[12, 12]}>
         <Col span={24} sm={8}>
           <Card>
             <Statistic
@@ -168,13 +168,14 @@ export function EvidenceObservabilityPage() {
         </Col>
       </Row>
 
-      <Card>
+      <Card styles={{ body: { padding: '12px 16px' } }}>
         <Table
           dataSource={filteredBundles}
           columns={columns}
           rowKey="bundleId"
           pagination={false}
           size="middle"
+          scroll={{ x: 800 }}
         />
       </Card>
     </Space>

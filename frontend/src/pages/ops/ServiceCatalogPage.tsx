@@ -496,9 +496,10 @@ export function ServiceCatalogPage() {
 
   return (
     <Space direction="vertical" size="large" style={{ width: '100%' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <Typography.Title level={4} style={{ margin: 0 }}>
+          <Typography.Title level={4} style={{ margin: 0, fontSize: 18 }}>
             <CloudServerOutlined style={{ color: '#1677ff', marginRight: 8 }} />
             服务与 MCP 工具目录
           </Typography.Title>
@@ -506,9 +507,9 @@ export function ServiceCatalogPage() {
             数据库持久化与实时在线热配置，支持即时接入大众点评、小红书等第三方 MCP 数据源
           </Typography.Text>
         </div>
-        <Space size={10}>
+        <Space size={10} wrap>
           <Button icon={<BookOutlined />} onClick={() => setIsGuideModalOpen(true)}>
-            接入对接规范
+            接入规范
           </Button>
           <Button icon={<ReloadOutlined spin={loading} />} onClick={() => fetchServices(false)}>
             刷新探活
@@ -519,13 +520,14 @@ export function ServiceCatalogPage() {
         </Space>
       </div>
 
-      <Card>
+      <Card styles={{ body: { padding: '12px 16px' } }}>
         <Table
           dataSource={services}
           columns={columns}
           rowKey="serviceId"
           pagination={false}
           loading={loading}
+          scroll={{ x: 880 }}
           locale={{ emptyText: '暂无注册的 MCP 数据源，点击右上角「添加 MCP 数据源」即可即时接入' }}
         />
       </Card>
