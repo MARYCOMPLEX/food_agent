@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react'
 import { Input, Button, Tag, Space } from 'antd'
 import {
-  SendOutlined,
+  ArrowUpOutlined,
   StopOutlined,
   CloseCircleOutlined,
 } from '@ant-design/icons'
@@ -190,7 +190,7 @@ export function MobileInputBar({
             type="primary"
             shape="circle"
             size="small"
-            icon={<SendOutlined style={{ fontSize: 13 }} />}
+            icon={<ArrowUpOutlined style={{ fontSize: 15 }} />}
             disabled={!inputText.trim()}
             onClick={() => onSendMessage()}
             style={{
@@ -202,6 +202,7 @@ export function MobileInputBar({
               justifyContent: 'center',
               backgroundColor: inputText.trim() ? '#1677ff' : '#d9d9d9',
               borderColor: inputText.trim() ? '#1677ff' : '#d9d9d9',
+              color: '#fff',
             }}
           />
         )}
