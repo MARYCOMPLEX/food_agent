@@ -21,6 +21,7 @@ const md = new MarkdownIt({
 // 外链补 target/rel，避免反向 tabnabbing；站内相对链接不动。
 md.renderer.rules.link_open = (tokens, idx, options, _env, self) => {
   const token = tokens[idx]
+  if (!token) return ''
   const href = token.attrGet('href') ?? ''
   if (/^https?:\/\//i.test(href)) {
     token.attrSet('target', '_blank')

@@ -74,6 +74,8 @@ export function dispatchLegacyTransportMessageToStore(
   return events.map(event => store.appendEvent(event, message.cursor))
 }
 
+export const dispatchLegacyTransportMessage = dispatchLegacyTransportMessageToStore
+
 export function useResearchSessionReact(
   sessionId: string,
   options: UseResearchSessionReactOptions = {},
