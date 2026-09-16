@@ -243,7 +243,7 @@ class HttpAccountServiceClient:
             category = _category_for_status(response.status_code)
             raise RemoteAccountServiceError(
                 category,
-                "remote account service request failed",
+                f"remote account service request failed ({method} {path} -> HTTP {response.status_code})",
                 service_id=self.config.service_id,
                 status_code=response.status_code,
                 capability=capability,

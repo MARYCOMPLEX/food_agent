@@ -241,7 +241,7 @@ export function ServiceCatalogPage() {
       name: '',
       base_url: 'http://127.0.0.1:8103',
       mcp_url: '',
-      protocol: 'http+mcp',
+      protocol: 'mcp',
       channels: ['dianping'],
       timeout_seconds: 30,
       enabled: true,
@@ -593,12 +593,13 @@ export function ServiceCatalogPage() {
               label="接入协议"
               rules={[{ required: true }]}
               style={{ flex: 1 }}
+              extra="常规第三方/自研 MCP 工具服务请直接选择「mcp」模式"
             >
               <Select
                 options={[
-                  { label: 'http+mcp (推荐全功能模式)', value: 'http+mcp' },
-                  { label: 'mcp (轻量工具模式)', value: 'mcp' },
-                  { label: 'http (传统控制面模式)', value: 'http' },
+                  { label: 'mcp (标准 MCP 工具模式 - 推荐自研/第三方数据源)', value: 'mcp' },
+                  { label: 'http+mcp (双模全功能：工具 + 账号控制面)', value: 'http+mcp' },
+                  { label: 'http (纯 HTTP 账号控制面)', value: 'http' },
                 ]}
               />
             </Form.Item>

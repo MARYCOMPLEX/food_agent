@@ -320,25 +320,51 @@ class AccountServiceRegistry:
         capabilities = []
         state = "ready"
         detail = None
-        start_t = asyncio.get_event_loop().time()
+        http_error: Exception | None = None
+        mcp_error: Exception | None = None
+
         try:
             if config.protocol in {AccountServiceProtocol.HTTP, AccountServiceProtocol.HTTP_MCP}:
-                desc = await http_client.capabilities()
-                capabilities = list(desc.capabilities)
+                try:
+                    desc = await http_client.capabilities()
+                    capabilities = list(desc.capabilities)
+                except Exception as exc:
+                    http_error = exc
+
             if config.protocol in {AccountServiceProtocol.MCP, AccountServiceProtocol.HTTP_MCP}:
-                tools = await mcp_client.list_tools()
-                discovered_tools = [
-                    {
-                        "name": t.name,
-                        "description": t.description,
-                        "side_effect": getattr(t, "side_effect", "read_only"),
-                        "inputSchema": getattr(t, "input_schema", {}),
-                    }
-                    for t in tools
-                ]
-        except Exception as exc:
-            state = "dependency-unavailable"
-            detail = str(exc)
+                try:
+                    tools = await mcp_client.list_tools()
+                    discovered_tools = [
+                        {
+                            "name": t.name,
+                            "description": t.description,
+                            "side_effect": getattr(t, "side_effect", "read_only"),
+                            "inputSchema": getattr(t, "input_schema", {}),
+                        }
+                        for t in tools
+                    ]
+                except Exception as exc:
+                    mcp_error = exc
+
+            if config.protocol is AccountServiceProtocol.HTTP:
+                if http_error:
+                    state = "dependency-unavailable"
+                    detail = str(http_error)
+            elif config.protocol is AccountServiceProtocol.MCP:
+                if mcp_error:
+                    state = "dependency-unavailable"
+                    detail = str(mcp_error)
+            else:  # HTTP_MCP
+                if mcp_error and http_error:
+                    state = "dependency-unavailable"
+                    detail = f"MCP: {mcp_error}; HTTP: {http_error}"
+                elif mcp_error:
+                    state = "degraded"
+                    detail = f"MCP 工具探测失败: {mcp_error}"
+                elif http_error:
+                    # Discovered MCP tools successfully, HTTP control-plane is not implemented
+                    state = "ready"
+                    detail = f"成功探测到 {len(discovered_tools)} 个 MCP 工具 (注: HTTP 控制面端点未实现或返回错误: {http_error})"
         finally:
             if hasattr(http_client, "aclose"):
                 try:
