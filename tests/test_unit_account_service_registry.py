@@ -254,3 +254,108 @@ async def test_remote_platform_adapter_translates_existing_login_shape() -> None
     )
     assert qr.presentation_ref.startswith("fixture://")
     await registry.aclose()
+
+
+@pytest.mark.asyncio
+async def test_expired_descriptor_auto_refreshes_seamlessly() -> None:
+    class ExpiringClient(_FakeClient):
+        def __init__(self, config: AccountServiceConfig) -> None:
+            super().__init__(config)
+            self.refresh_count = 0
+
+        async def capabilities(self) -> AccountServiceDescriptor:
+            self.refresh_count += 1
+            # First return expired descriptor, subsequent returns valid descriptor
+            ttl_minutes = -10 if self.refresh_count == 1 else 10
+            self.descriptor = AccountServiceDescriptor(
+                service_id=self.config.service_id,
+                service_version="fixture-v1",
+                protocol=self.config.protocol,
+                platform_channels=self.config.channels,
+                capabilities=self.config.capabilities,
+                login_modes=("qr",),
+                expires_at=datetime.now(UTC) + timedelta(minutes=ttl_minutes),
+            )
+            return self.descriptor
+
+    client_holder: dict[str, ExpiringClient] = {}
+
+    def factory(config: AccountServiceConfig) -> ExpiringClient:
+        client = ExpiringClient(config)
+        client_holder[config.service_id] = client
+        return client
+
+    registry = AccountServiceRegistry(
+        (_config("xhs-account", PlatformChannel.XHS_PC),),
+        http_client_factory=factory,
+        mcp_client_factory=_FakeMcp,
+    )
+    # Refresh once - loads expired descriptor (refresh_count = 1)
+    await registry.refresh()
+    assert client_holder["xhs-account"].refresh_count == 1
+    assert registry._descriptors["xhs-account"].expires_at <= datetime.now(UTC)
+
+    # Calling tools_for does not crash even with expired descriptor
+    tools = registry.tools_for(PlatformChannel.XHS_PC)
+    assert len(tools) == 1
+
+    # Calling start_qr_login triggers auto-refresh seamlessly
+    flow = await registry.start_qr_login(
+        platform=PlatformChannel.XHS_PC,
+        account_ref="primary",
+        tenant_ref="tenant-a",
+    )
+    assert flow.flow_id.startswith("xhs-account-flow")
+    assert client_holder["xhs-account"].refresh_count == 2
+    assert registry._descriptors["xhs-account"].expires_at > datetime.now(UTC)
+    await registry.aclose()
+
+
+@pytest.mark.asyncio
+async def test_expired_descriptor_serves_degraded_if_refresh_fails() -> None:
+    class FailingRefreshClient(_FakeClient):
+        def __init__(self, config: AccountServiceConfig) -> None:
+            super().__init__(config)
+            self.call_count = 0
+
+        async def capabilities(self) -> AccountServiceDescriptor:
+            self.call_count += 1
+            if self.call_count == 1:
+                # Initially provide expired descriptor
+                return AccountServiceDescriptor(
+                    service_id=self.config.service_id,
+                    service_version="fixture-v1",
+                    protocol=self.config.protocol,
+                    platform_channels=self.config.channels,
+                    capabilities=self.config.capabilities,
+                    login_modes=("qr",),
+                    expires_at=datetime.now(UTC) - timedelta(minutes=5),
+                )
+            # Subsequent refreshes fail
+            from food_agent.contracts.account_service import RemoteErrorCategory
+            from food_agent.gateways.account_service import RemoteAccountServiceError
+            raise RemoteAccountServiceError(
+                RemoteErrorCategory.DEPENDENCY_UNAVAILABLE,
+                "remote network unreachable",
+                service_id=self.config.service_id,
+            )
+
+    registry = AccountServiceRegistry(
+        (_config("xhs-account", PlatformChannel.XHS_PC),),
+        http_client_factory=FailingRefreshClient,
+        mcp_client_factory=_FakeMcp,
+    )
+    await registry.refresh()
+    # Expired descriptor is stored
+    assert registry._descriptors["xhs-account"].expires_at <= datetime.now(UTC)
+
+    # Calling start_qr_login attempts refresh, refresh fails, but it still succeeds with cached descriptor in degraded state
+    flow = await registry.start_qr_login(
+        platform=PlatformChannel.XHS_PC,
+        account_ref="primary",
+        tenant_ref="tenant-a",
+    )
+    assert flow.flow_id.startswith("xhs-account-flow")
+    assert registry._health["xhs-account"].state == "degraded"
+    await registry.aclose()
+

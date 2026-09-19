@@ -148,14 +148,24 @@ def _subject_ref(http_request: Request) -> str:
     return headers.get("X-User-Id") or headers.get("X-Device-Id") or "anonymous"
 
 
+def _effective_tenant_ref(http_request: Request) -> str:
+    subject = _subject_ref(http_request)
+    if not subject or subject in ("anonymous", "default", "00000000-0000-0000-0000-000000000000") or str(subject).startswith("user_"):
+        return "default"
+    return subject
+
+
 def _tool_context(
     request: UnifiedSearchRequest,
     http_request: Request,
 ) -> AgentToolExecutionContext:
+    account_refs = dict(request.accountRefs)
+    for p in request.platforms:
+        account_refs.setdefault(p, "default")
     return AgentToolExecutionContext(
-        tenant_ref=_subject_ref(http_request),
+        tenant_ref=_effective_tenant_ref(http_request),
         platforms=tuple(PlatformChannel(item) for item in request.platforms),
-        account_refs=request.accountRefs,
+        account_refs=account_refs,
         expected_session_versions=request.expectedSessionVersions,
     )
 
@@ -269,25 +279,12 @@ async def unified_search(
 
     # Case 2: refine (sessionId + query)
     if request.query:
-        try:
-            admission = await tasks.refine(
-                session_id,
-                request.query,
-                tool_context=_tool_context(request, http_request),
-            )
-        except ResearchTaskNotFoundError:
-            admission = await tasks.start_new(
-                request.query,
-                tool_context=_tool_context(request, http_request),
-            )
-            return {
-                "success": True,
-                "data": {
-                    "sessionId": admission.session_id,
-                    "streamUrl": admission.stream_ref,
-                    "action": "new_search",
-                },
-            }
+        admission = await tasks.refine(
+            session_id,
+            request.query,
+            tool_context=_tool_context(request, http_request),
+            history=request.history,
+        )
         return {
             "success": True,
             "data": {

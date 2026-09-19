@@ -63,6 +63,7 @@ _XHS_COMMENTS_ARGUMENTS = frozenset(
 _DIANPING_SEARCH_ARGUMENTS = frozenset(
     {
         "keyword",
+        "city",
         "city_id",
         "channel_id",
         "category_id",
@@ -2963,9 +2964,16 @@ class FoodAdaptivePack:
                 minimum=1,
                 maximum=10,
             )
+            dp_args: dict[str, Any] = {"keyword": query, "page": page}
+            city_val = text("city", "city_name", "target_city")
+            if city_val:
+                dp_args["city"] = city_val
+            city_id_val = details.get("city_id")
+            if city_id_val:
+                dp_args["city_id"] = city_id_val
             return capability, cls._schema_arguments(
                 capability,
-                {"keyword": query, "page": page},
+                dp_args,
             )
 
         if capability in {"places.detail", "reviews.search"}:

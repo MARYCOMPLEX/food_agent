@@ -161,6 +161,7 @@ docs/*
 !docs/frontend-ui-requirements.md
 !docs/account-services.md
 !docs/mcp-service-integration-guide.md
+!docs/account-session-and-qr-spec.md
 
 # OpenSpec project artifacts and Codex skills
 !openspec/**/*.md

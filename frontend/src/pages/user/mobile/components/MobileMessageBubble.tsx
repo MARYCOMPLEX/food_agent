@@ -23,6 +23,7 @@ import {
 } from '@ant-design/icons'
 import { MarkdownContent } from '../../../../shared/markdown/MarkdownContent'
 import { MobileRestaurantCard } from './MobileRestaurantCard'
+import { ManusThoughtCard } from '../../../../components/chat/ManusThoughtCard'
 import type { ChatTurn } from '../../types'
 
 interface MobileMessageBubbleProps {
@@ -126,48 +127,13 @@ export function MobileMessageBubble({
           )}
         </Flex>
 
-        {/* 2.1 Investigation Step Timeline Accordion */}
+        {/* 2.1 Manus-style Investigation Thought Card */}
         {turnPlan.length > 0 && (
-          <Collapse
-            ghost
-            size="small"
-            defaultActiveKey={turnRunning ? ['1'] : []}
-            items={[
-              {
-                key: '1',
-                label: (
-                  <Space size={6}>
-                    {turnRunning ? (
-                      <LoadingOutlined style={{ color: '#1677ff', fontSize: 12 }} />
-                    ) : (
-                      <ClockCircleOutlined style={{ color: '#52c41a', fontSize: 12 }} />
-                    )}
-                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                      {turnRunning ? '探店调查步骤推进中...' : `调查步骤记录 (${turnPlan.length} 步)`}
-                    </Typography.Text>
-                  </Space>
-                ),
-                children: (
-                  <Timeline
-                    style={{ marginTop: 6, paddingLeft: 4 }}
-                    items={turnPlan.map((s) => ({
-                      color: s.status === 'succeeded' ? 'green' : (turnRunning && s.status === 'running' ? 'blue' : 'gray'),
-                      dot: (turnRunning && s.status === 'running') ? <LoadingOutlined style={{ fontSize: 11 }} /> : undefined,
-                      children: (
-                        <div>
-                          <Typography.Text strong style={{ fontSize: 12 }}>{s.label}</Typography.Text>
-                          {s.detail && (
-                            <div>
-                              <Typography.Text type="secondary" style={{ fontSize: 11 }}>{s.detail}</Typography.Text>
-                            </div>
-                          )}
-                        </div>
-                      ),
-                    }))}
-                  />
-                ),
-              },
-            ]}
+          <ManusThoughtCard
+            plan={turnPlan}
+            isRunning={turnRunning}
+            statusMessage={turn.assistantMessage.statusMessage}
+            style={{ marginBottom: 10 }}
           />
         )}
 

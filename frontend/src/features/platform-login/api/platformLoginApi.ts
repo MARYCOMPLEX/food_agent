@@ -6,10 +6,11 @@ import type {
 
 export const platformLoginApi = {
   startQrLogin: async (platform: string, accountRef: string): Promise<PlatformLoginFlow> => {
-    return httpClient.post<PlatformLoginFlow>(
+    const res = await httpClient.post<any>(
       `/v1/platform/accounts/${platform}/${accountRef}/login/qr`,
       { mode: 'qr' },
     )
+    return (res?.flow || res) as PlatformLoginFlow
   },
 
   getQrPresentation: async (flowId: string): Promise<PlatformQrPresentation> => {
@@ -17,7 +18,8 @@ export const platformLoginApi = {
   },
 
   pollLoginStatus: async (flowId: string): Promise<PlatformLoginFlow> => {
-    return httpClient.post<PlatformLoginFlow>(`/v1/platform/login/${flowId}/poll`)
+    const res = await httpClient.post<any>(`/v1/platform/login/${flowId}/poll`)
+    return (res?.flow || res) as PlatformLoginFlow
   },
 
   cancelLogin: async (flowId: string, reason?: string): Promise<{ success: boolean }> => {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react'
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   Layout,
@@ -112,11 +112,10 @@ export function UnifiedChatWorkbench() {
   const navigate = useNavigate()
   const { showToast } = useToast()
 
-  // Current session ID (restore last active session if opening without route parameter)
+  // Current session ID (only set from route parameter; clean new chat if no route parameter)
   const [currentSessionId, setCurrentSessionId] = useState<string>(() => {
     if (routeSessionId) return routeSessionId
-    const lastSid = storage.get<string>('food_agent_last_active_session', '')
-    return lastSid || ''
+    return ''
   })
 
   // Default snapshot (only used if explicitly navigating to a demo URL)
@@ -138,7 +137,7 @@ export function UnifiedChatWorkbench() {
 
   // Whether current session is a brand-new, unstarted draft session
   const isNewSession = useMemo(() => {
-    if (!currentSessionId && sessionTurns.length === 0) return true
+    if (!currentSessionId || sessionTurns.length === 0) return true
     return false
   }, [currentSessionId, sessionTurns.length])
 
@@ -197,38 +196,48 @@ export function UnifiedChatWorkbench() {
     }
   }, [])
 
-  // Registered MCP Data Sources (Dynamic from DB)
+  // Registered MCP Data Sources (Dynamic from real-time heartbeat)
   const [mcpServices, setMcpServices] = useState<Array<{
     service_id: string
     name: string
     base_url: string
     mcp_url: string
     protocol: string
+    platform?: string
     channels?: string[]
     is_active: boolean
+    service_online?: boolean
+    is_authenticated?: boolean
+    account_status?: string
+    account_alias?: string
+    status_text?: string
     health_status?: string
+    tools_count?: number
   }>>([])
 
-  useEffect(() => {
-    let isMounted = true
-    apiGet('/v1/platform/ops/mcp-services')
-      .then((res: any) => {
-        if (!isMounted) return
-        const list = res?.data || res || []
-        if (Array.isArray(list)) {
-          setMcpServices(list)
-        } else {
-          setMcpServices([])
-        }
-      })
-      .catch(() => {
-        if (!isMounted) return
-        setMcpServices([])
-      })
-    return () => {
-      isMounted = false
+  const fetchConnectorHeartbeat = useCallback(async () => {
+    try {
+      const res: any = await apiGet('/v1/platform/connectors/heartbeat')
+      const data = res?.data || res
+      const list = data?.connectors || (Array.isArray(data) ? data : [])
+      if (Array.isArray(list) && list.length > 0) {
+        setMcpServices(list)
+      }
+    } catch {
+      // Keep existing state on transient error
     }
   }, [])
+
+  useEffect(() => {
+    fetchConnectorHeartbeat()
+    const timer = setInterval(fetchConnectorHeartbeat, 5000)
+    const handleFocus = () => fetchConnectorHeartbeat()
+    window.addEventListener('focus', handleFocus)
+    return () => {
+      clearInterval(timer)
+      window.removeEventListener('focus', handleFocus)
+    }
+  }, [fetchConnectorHeartbeat])
 
   // Follow-up context
   const [attachedContext, setAttachedContext] = useState<{
@@ -256,7 +265,7 @@ export function UnifiedChatWorkbench() {
 
   // Platform Accounts & QR Modal
   const [accounts, setAccounts] = useState(platformAccountsApi.getLocalAccounts())
-  const [loginModalPlatform, setLoginModalPlatform] = useState<'xhs_pc' | 'dianping' | null>(null)
+  const [loginModalPlatform, setLoginModalPlatform] = useState<'xhs_pc' | 'dianping' | 'ctrip' | 'xiecheng' | null>(null)
 
   // Track last active session ID in storage
   useEffect(() => {
@@ -267,16 +276,14 @@ export function UnifiedChatWorkbench() {
 
   // Synchronize route
   useEffect(() => {
-    if (routeSessionId && routeSessionId !== currentSessionId) {
+    if (routeSessionId) {
       setCurrentSessionId(routeSessionId)
-    } else if (!routeSessionId) {
-      const lastSid = storage.get<string>('food_agent_last_active_session', '')
-      if (lastSid && lastSid !== currentSessionId) {
-        setCurrentSessionId(lastSid)
-        navigate(`/chat/${lastSid}`, { replace: true })
-      }
+    } else {
+      // When at /chat, ensure clean new chat state
+      setCurrentSessionId('')
+      setSessionTurns([])
     }
-  }, [routeSessionId, currentSessionId, navigate])
+  }, [routeSessionId])
 
   // Restore turns when session changes
   useEffect(() => {
@@ -476,7 +483,6 @@ export function UnifiedChatWorkbench() {
       activeAbortRef.current.abort()
       activeAbortRef.current = null
     }
-    setCurrentSessionId(sid)
     setRightPanelOpen(false)
     setAttachedContext(null)
     setFeedbackRating(null)
@@ -709,7 +715,7 @@ export function UnifiedChatWorkbench() {
         ...currentTurn,
         assistantMessage: assistant,
       }
-      if (eventName !== 'chunk' && eventName !== 'text_chunk') {
+      if (eventName !== 'chunk' && eventName !== 'text_chunk' && nextTurns.length > 0) {
         storage.set(`food_agent_turns_${sessionId}`, nextTurns)
       }
       return nextTurns
@@ -772,6 +778,7 @@ export function UnifiedChatWorkbench() {
 
       // Finalize turn running state
       setSessionTurns((prev) => {
+        if (prev.length === 0) return prev
         const updated = prev.map((t) =>
           t.id === turnId
             ? {
@@ -787,12 +794,15 @@ export function UnifiedChatWorkbench() {
               }
             : t,
         )
-        storage.set(`food_agent_turns_${sessionId}`, updated)
+        if (updated.length > 0) {
+          storage.set(`food_agent_turns_${sessionId}`, updated)
+        }
         return updated
       })
     } catch (err: any) {
       if (err.name === 'AbortError') {
         setSessionTurns((prev) => {
+          if (prev.length === 0) return prev
           const updated = prev.map((t) =>
             t.id === turnId
               ? {
@@ -808,7 +818,9 @@ export function UnifiedChatWorkbench() {
                 }
               : t,
           )
-          storage.set(`food_agent_turns_${sessionId}`, updated)
+          if (updated.length > 0) {
+            storage.set(`food_agent_turns_${sessionId}`, updated)
+          }
           return updated
         })
         return
@@ -871,17 +883,34 @@ export function UnifiedChatWorkbench() {
     const abortController = new AbortController()
     activeAbortRef.current = abortController
 
+    // Collect conversation history for multi-turn continuity
+    const conversationHistory: Array<{ role: string; content: string }> = []
+    for (const turn of sessionTurns) {
+      if (turn.userMessage?.content) {
+        conversationHistory.push({ role: 'user', content: turn.userMessage.content })
+      }
+      if (turn.assistantMessage?.summary) {
+        conversationHistory.push({ role: 'assistant', content: turn.assistantMessage.summary })
+      }
+    }
+
     try {
       showToast('已提交需求，Agent 正在分析...', 'info')
-      const res: any = await startSearch(fullPrompt, targetSessionId, selectedModel || undefined)
+      const res: any = await startSearch(
+        fullPrompt,
+        targetSessionId,
+        selectedModel || undefined,
+        conversationHistory.length > 0 ? conversationHistory : undefined,
+      )
       const data = res?.data || res
-      const activeSessionId = data?.sessionId || res?.sessionId || targetSessionId
+      const activeSessionId = targetSessionId || data?.sessionId || res?.sessionId
 
       if (activeSessionId) {
+        storage.set(`food_agent_turns_${activeSessionId}`, nextTurns)
         if (!historyList.some((h) => h.session_id === activeSessionId)) {
           const newHistoryItem = {
             session_id: activeSessionId,
-            query: text,
+            query: sessionTurns[0]?.userMessage?.content || text,
             created_at: new Date().toISOString(),
           }
           const nextHistory = [newHistoryItem, ...historyList]
@@ -913,7 +942,7 @@ export function UnifiedChatWorkbench() {
               }
             : t,
         )
-        if (currentSessionId) storage.set(`food_agent_turns_${currentSessionId}`, updated)
+        if (currentSessionId && updated.length > 0) storage.set(`food_agent_turns_${currentSessionId}`, updated)
         return updated
       })
     } finally {
@@ -1038,6 +1067,7 @@ export function UnifiedChatWorkbench() {
     setSelectedModel,
     modelOptions,
     mcpServices,
+    onRefreshConnectors: fetchConnectorHeartbeat,
     compareList,
     setCompareList,
     favorites,

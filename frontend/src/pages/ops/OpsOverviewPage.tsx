@@ -79,7 +79,10 @@ export function OpsOverviewPage() {
         />
       ) : (
         <Row gutter={[16, 16]}>
-          {services.map((svc) => (
+          {services.map((svc) => {
+            const isActive = Boolean(svc.is_active ?? (svc.enabled && (svc.live_state === 'ready' || svc.live_state === 'healthy')))
+            const toolsCount = svc.registered_tools_count ?? svc.tools_count ?? (svc.discovered_tools?.length || 0)
+            return (
             <Col key={svc.service_id} span={24} md={12}>
               <Card
                 title={
@@ -89,8 +92,8 @@ export function OpsOverviewPage() {
                   </Space>
                 }
                 extra={
-                  <Tag color={svc.is_active ? 'success' : 'default'}>
-                    {svc.is_active ? 'ACTIVE' : 'DISABLED'}
+                  <Tag color={isActive ? 'success' : 'default'}>
+                    {isActive ? 'ACTIVE' : 'DISABLED'}
                   </Tag>
                 }
               >
@@ -102,20 +105,20 @@ export function OpsOverviewPage() {
                   <Col span={8}>
                     <Statistic
                       title="健康状态"
-                      value={svc.is_active ? '健康就绪' : '未激活'}
-                      valueStyle={{ color: svc.is_active ? '#52c41a' : '#8c8c8c', fontSize: 16 }}
+                      value={isActive ? '健康就绪' : '未激活'}
+                      valueStyle={{ color: isActive ? '#52c41a' : '#8c8c8c', fontSize: 16 }}
                     />
                   </Col>
                   <Col span={8}>
                     <Statistic title="通道渠道" value={svc.channels?.join(', ') || '通用'} valueStyle={{ fontSize: 16 }} />
                   </Col>
                   <Col span={8}>
-                    <Statistic title="已注册工具" value={svc.registered_tools_count ?? 0} suffix="个" valueStyle={{ fontSize: 16 }} />
+                    <Statistic title="已注册工具" value={toolsCount} suffix="个" valueStyle={{ fontSize: 16 }} />
                   </Col>
                 </Row>
               </Card>
             </Col>
-          ))}
+          )})}
         </Row>
       )}
 

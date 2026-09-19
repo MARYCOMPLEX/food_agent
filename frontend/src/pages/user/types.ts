@@ -71,6 +71,7 @@ export interface SharedWorkbenchProps {
   setSelectedModel: (m: string) => void
   modelOptions: ModelOption[]
   mcpServices: any[]
+  onRefreshConnectors?: () => void
 
   // Compare & Favorites
   compareList: any[]
@@ -85,8 +86,8 @@ export interface SharedWorkbenchProps {
   // Platform Accounts & Login
   accounts: any
   setAccounts: (acc: any) => void
-  loginModalPlatform: 'xhs_pc' | 'dianping' | null
-  setLoginModalPlatform: (p: 'xhs_pc' | 'dianping' | null) => void
+  loginModalPlatform: 'xhs_pc' | 'dianping' | 'ctrip' | 'xiecheng' | null
+  setLoginModalPlatform: (p: 'xhs_pc' | 'dianping' | 'ctrip' | 'xiecheng' | null) => void
   rightPanelOpen: boolean
   setRightPanelOpen: (open: boolean) => void
   rightPanelTab: RightPanelTab

@@ -54,6 +54,7 @@ from food_agent.contracts import (
 )
 from food_agent.contracts.adaptive_investigation import (
     ObservationEnvelope as CanonicalObservationEnvelope,
+    ObservationOutcome,
 )
 from food_agent.domain_packs.food.adaptive_pack import (
     FoodAdaptationResult,
@@ -133,6 +134,9 @@ class ManagedMcpToolPort:
         "places.search",
         "places.detail",
         "reviews.search",
+        "dianping.search",
+        "dianping.detail",
+        "dianping.reviews",
     })
 
     def __init__(
@@ -243,13 +247,31 @@ class ManagedMcpToolPort:
                 return PlatformChannel.XHS_PC
             if normalized in {"dianping", "dp"}:
                 return PlatformChannel.DIANPING
+            if normalized in {"ctrip", "xiecheng"}:
+                return PlatformChannel("ctrip")
             raise ValueError(f"unsupported Food tool source: {explicit}")
-        if capability in cls._XHS_CAPABILITIES or capability.startswith("comments."):
+        if (
+            capability in cls._XHS_CAPABILITIES
+            or capability.startswith("comments.")
+            or capability.startswith("notes.")
+            or capability.startswith("xhs.")
+        ):
             return PlatformChannel.XHS_PC
-        if capability in cls._DIANPING_CAPABILITIES or capability.startswith("places."):
+        if (
+            capability in cls._DIANPING_CAPABILITIES
+            or capability.startswith("places.")
+            or capability.startswith("dianping.")
+            or capability.startswith("reviews.")
+        ):
             return PlatformChannel.DIANPING
-        if capability.startswith("reviews."):
-            return PlatformChannel.DIANPING
+        if (
+            capability.startswith("ctrip")
+            or capability.startswith("hotel.")
+            or capability.startswith("train.")
+            or capability.startswith("bus.")
+            or capability.startswith("flight.")
+        ):
+            return PlatformChannel("ctrip")
         raise ValueError(f"cannot infer platform for capability: {capability}")
 
 
@@ -394,8 +416,9 @@ class AdaptiveFoodResearchWorkflow:
         context.add_user_message(user_input)
         context.turn_count += 1
         authority = tool_context or AgentToolExecutionContext(
-            tenant_ref="local-anonymous",
+            tenant_ref="default",
             platforms=(PlatformChannel.XHS_PC, PlatformChannel.DIANPING),
+            account_refs={"xhs_pc": "default", "dianping": "default"},
         )
         run_id = f"food-adaptive:{uuid4().hex}"
         recorder = recorder_for(self._observation_port, run_id)
@@ -713,9 +736,14 @@ class AdaptiveFoodResearchWorkflow:
 
     @staticmethod
     def _goal(user_input: str, context: ConversationContext, run_id: str) -> dict[str, Any]:
+        target_city = context.target_city
+        augmented_objective = user_input.strip()
+        if target_city and target_city not in augmented_objective:
+            augmented_objective = f"{target_city} {augmented_objective}"
+
         return {
             "run_id": run_id,
-            "objective": user_input.strip(),
+            "objective": augmented_objective,
             "user_request": user_input,
             "conversation_history": context.get_history_for_llm(),
             "context": {
@@ -795,6 +823,32 @@ class AdaptiveFoodResearchWorkflow:
             item.name: item.to_dict() for item in recommendations
         }
         context.last_summary = summary
+
+        # Extract and persist target_city into context for multi-turn awareness
+        city = None
+        for rec in recommendations:
+            if getattr(rec, "city", None):
+                city = rec.city
+                break
+        if not city:
+            for prof in typed_profiles:
+                if getattr(prof, "city", None):
+                    city = prof.city
+                    break
+        if not city and hasattr(state, "intent") and getattr(state.intent, "location", None):
+            city = state.intent.location
+        if not city and context.conversation_history:
+            for msg_item in (context.conversation_history[0], context.conversation_history[-1]):
+                query_text = str(msg_item.get("content", ""))
+                for candidate in ("连云港", "北京", "上海", "广州", "深圳", "成都", "杭州", "南京", "武汉", "重庆", "西安", "苏州", "天津", "长沙", "郑州", "青岛", "大连", "厦门", "三亚", "昆明"):
+                    if candidate in query_text:
+                        city = candidate
+                        break
+                if city:
+                    break
+        if city:
+            context.target_city = city
+
         return AdaptiveWorkflowExecution(
             response=response,
             run=run,
@@ -1084,6 +1138,9 @@ def _canonical_observation_envelope(
         completeness = "partial"
     elif derived_completeness == "partial" or completeness == "unknown":
         completeness = str(derived_completeness or completeness)
+    if not observation.success or observation.outcome != ObservationOutcome.SUCCESS:
+        if completeness == "complete":
+            completeness = "partial"
     food_data = (
         _strip_pagination_more_signals(data) if missing_cursor else _json_safe(data)
     )
@@ -1122,7 +1179,10 @@ def _canonical_observation_envelope(
                 "error_message": gap.message,
             }
         )
-    return ObservationEnvelope.coerce(payload)
+    try:
+        return ObservationEnvelope.coerce(payload)
+    except Exception:
+        return _fallback_envelope(payload, action=None, action_id=observation.action_id)
 
 
 def _raw_return_projection(observation: CanonicalObservationEnvelope) -> Any:
@@ -1499,6 +1559,59 @@ def _recommendations(adaptation: FoodAdaptationResult) -> list[RestaurantRecomme
                 source_gaps=[gap.model_dump(mode="json") for gap in adaptation.gaps],
             )
         )
+    if not output:
+        # Fallback to discovered shop entities from secondary search (e.g. Dianping)
+        for entity in adaptation.entities:
+            if entity.get("entity_type") != FoodEntityType.SHOP.value:
+                continue
+            entity_id = str(entity.get("entity_id") or "")
+            name = str(entity.get("name") or entity_id)
+            if not name or name == "unknown":
+                continue
+            profile = profiles.get(entity_id)
+            fields = entity.get("structured_fields") or {}
+            if not isinstance(fields, Mapping):
+                fields = {}
+            location = _first_string(
+                (profile or {}).get("address") if profile else None,
+                fields.get("address"),
+                fields.get("region"),
+                (profile or {}).get("location") if profile else None,
+            )
+            dishes = _string_values(entity.get("dishes")) or _string_values(fields.get("recommended_dishes"))
+            rating = fields.get("rating")
+            price = fields.get("average_price")
+            pros: list[str] = []
+            if rating:
+                pros.append(f"大众点评评分 {rating} 分")
+            if price:
+                pros.append(f"人均约 {price} 元")
+            if dishes:
+                pros.append(f"推荐菜：{'、'.join(list(dishes)[:3])}")
+            category = fields.get("category")
+            if category:
+                pros.append(f"类型：{category}")
+            refs = tuple(dict.fromkeys((*_string_values(entity.get("evidence_refs")), *claims_by_entity_refs(adaptation, entity_id))))
+            output.append(
+                RestaurantRecommendation(
+                    name=name,
+                    location=location,
+                    features=list(dishes),
+                    source_notes=list(refs),
+                    confidence=0.6,
+                    is_recommended=True,
+                    shop_profile=dict(profile) if profile else (dict(fields) if fields else None),
+                    pros=pros,
+                    evidence_refs=list(refs),
+                    evidence_summary={
+                        "claimCount": 0,
+                        "controversyCount": 0,
+                        "primarySource": "dianping_search",
+                        "secondarySource": None,
+                    },
+                    source_gaps=[gap.model_dump(mode="json") for gap in adaptation.gaps],
+                )
+            )
     return output
 
 
@@ -1629,6 +1742,50 @@ def _outcome(state: InvestigationState, adaptation: FoodAdaptationResult) -> Res
     return ResearchOutcome.COMPLETE
 
 
+_INTERNAL_STOP_KEYWORDS = {
+    "investigation terminated",
+    "critic model failed",
+    "planner model failed",
+    "critic requested stop",
+    "planner requested stop",
+    "tokens budget exhausted",
+    "rounds budget exhausted",
+    "budget exhausted",
+    "budget_exhausted",
+    "deadline exceeded",
+    "deadline_exceeded",
+    "round limit reached",
+    "max rounds reached",
+    "no progress",
+    "no_progress",
+    "evidence sufficient",
+    "evidence_sufficient",
+    "cancelled",
+    "failed",
+}
+
+
+def _is_internal_diagnostic(text: str) -> bool:
+    lowered = text.casefold()
+    if lowered in _INTERNAL_STOP_KEYWORDS:
+        return True
+    indicators = (
+        "tokens budget",
+        "budget exhausted",
+        "rounds budget",
+        "mcp_tool_error",
+        "mcp_",
+        "traceback",
+        "connectionerror",
+        "timeouterror",
+        "query.city_id",
+        "city_id=",
+        "http://",
+        "https://",
+    )
+    return any(ind in lowered for ind in indicators)
+
+
 def _final_synthesis(
     state: InvestigationState,
     adaptation: FoodAdaptationResult,
@@ -1658,22 +1815,38 @@ def _final_synthesis(
     )
     conclusion = _synthesis_conclusion(state, termination, final_critique)
 
-    base = _recommendation_summary(adaptation, outcome, recommendations)
-    parts = [base]
-    if conclusion:
-        parts.append(f"终局结论：{_truncate(conclusion, 180)}")
-    finding_texts = tuple(
-        _truncate(str(record["text"]), 140)
-        for record in finding_records
-        if record["text"]
-    )
-    if finding_texts:
-        parts.append(f"关键发现：{'；'.join(finding_texts[:3])}")
-    if evidence_refs:
-        preview = "、".join(evidence_refs[:3])
-        if len(evidence_refs) > 3:
-            preview += "…"
-        parts.append(f"依据证据：{len(evidence_refs)} 条（{preview}）")
+    if not recommendations:
+        if conclusion:
+            parts = [f"未识别到符合条件的候选店铺。{conclusion}"]
+        else:
+            parts = ["未识别到有充分评论证据支持的候选店铺，建议尝试更换具体商圈或放宽美食类型关键词重试。"]
+        user_findings = [
+            _truncate(str(record["text"]), 140)
+            for record in finding_records
+            if record["text"] and not _is_internal_diagnostic(str(record["text"]))
+        ]
+        if user_findings:
+            parts.append(f"关键线索：{'；'.join(user_findings[:3])}")
+    else:
+        base = _recommendation_summary(adaptation, outcome, recommendations)
+        parts = [base]
+        contradicting = ("不能给出", "无法给出", "未能识别", "不建议推荐", "0 家", "完全缺失", "无店铺", "0家")
+        if conclusion and not any(neg in conclusion for neg in contradicting):
+            parts.append(f"终局结论：{_truncate(conclusion, 180)}")
+        finding_texts = tuple(
+            _truncate(str(record["text"]), 140)
+            for record in finding_records
+            if record["text"]
+            and not _is_internal_diagnostic(str(record["text"]))
+            and not any(neg in str(record["text"]) for neg in contradicting)
+        )
+        if finding_texts:
+            parts.append(f"关键发现：{'；'.join(finding_texts[:3])}")
+        if evidence_refs:
+            preview = "、".join(evidence_refs[:3])
+            if len(evidence_refs) > 3:
+                preview += "…"
+            parts.append(f"依据证据：{len(evidence_refs)} 条（{preview}）")
 
     synthesis = {
         "schemaVersion": "evidence-synthesis/v1",
@@ -1752,13 +1925,7 @@ def _synthesis_conclusion(
     )
     for candidate in candidates:
         text = str(candidate or "").strip()
-        if text and text.casefold() not in {
-            "investigation terminated",
-            "critic model failed",
-            "planner model failed",
-            "critic requested stop",
-            "planner requested stop",
-        }:
+        if text and not _is_internal_diagnostic(text):
             return text
     return ""
 

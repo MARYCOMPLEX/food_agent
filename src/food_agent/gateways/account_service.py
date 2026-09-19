@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import itertools
+import re
 from collections.abc import Awaitable, Callable, Mapping
 from contextlib import suppress
 from typing import Any, Protocol, cast
@@ -173,6 +174,7 @@ class HttpAccountServiceClient:
                 "Accept": "application/json",
                 "X-Account-Service-Contract": ACCOUNT_SERVICE_CONTRACT_VERSION,
             },
+            trust_env=False,
         )
         self._owns_client = client is None
         self._auth_headers = auth_headers
@@ -317,7 +319,17 @@ class HttpAccountServiceClient:
         return descriptor
 
     def _check_channel(self, platform: PlatformChannel) -> None:
-        if platform not in self.config.channels:
+        val_str = str(getattr(platform, "value", platform))
+        norm_platform = (
+            PlatformChannel("xhs_pc")
+            if val_str in ("xhs", "xiaohongshu")
+            else (
+                PlatformChannel("ctrip")
+                if val_str in ("xiecheng", "ctrip_flight", "ctrip_hotel")
+                else platform
+            )
+        )
+        if norm_platform not in self.config.channels and platform not in self.config.channels:
             raise RemoteAccountServiceError(
                 RemoteErrorCategory.AUTHORIZATION,
                 "platform channel is not assigned to this service",
@@ -495,12 +507,15 @@ class McpAccountServiceClient:
     ) -> None:
         self.config = config
         endpoint = str(config.mcp_url or (str(config.base_url).rstrip("/") + "/mcp"))
-        self._client = client or httpx.AsyncClient(timeout=httpx.Timeout(config.timeout_seconds))
+        self._client = client or httpx.AsyncClient(
+            trust_env=False, timeout=httpx.Timeout(config.timeout_seconds)
+        )
         self._owns_client = client is None
         self._endpoint = endpoint
         self._auth_headers = auth_headers
         self._session_id: str | None = None
         self._next_id = itertools.count(1)
+        self._protocol_version: str = MCP_PROTOCOL_VERSION
         self._initialized = False
         self._tools: dict[str, McpToolDescriptor] = {}
         self._closed = False
@@ -517,9 +532,9 @@ class McpAccountServiceClient:
                 service_id=self.config.service_id,
             )
         headers = {
-            "Accept": "application/json",
+            "Accept": "application/json, text/event-stream",
             "Content-Type": "application/json",
-            "MCP-Protocol-Version": MCP_PROTOCOL_VERSION,
+            "MCP-Protocol-Version": self._protocol_version,
         }
         if self._session_id:
             headers["Mcp-Session-Id"] = self._session_id
@@ -556,14 +571,25 @@ class McpAccountServiceClient:
                 service_id=self.config.service_id,
                 status_code=response.status_code,
             )
-        try:
-            raw = response.json()
-        except ValueError as exc:
-            raise RemoteAccountServiceError(
-                RemoteErrorCategory.INVALID,
-                "MCP service returned non-JSON data",
-                service_id=self.config.service_id,
-            ) from exc
+        raw = None
+        content_type = response.headers.get("content-type", "").lower()
+        if "text/event-stream" in content_type or response.text.startswith("event:") or "data:" in response.text:
+            import json as _py_json
+            for line in response.text.splitlines():
+                trimmed = line.strip()
+                if trimmed.startswith("data:"):
+                    with suppress(Exception):
+                        raw = _py_json.loads(trimmed[5:].strip())
+                        break
+        if raw is None:
+            try:
+                raw = response.json()
+            except ValueError as exc:
+                raise RemoteAccountServiceError(
+                    RemoteErrorCategory.INVALID,
+                    "MCP service returned non-JSON data",
+                    service_id=self.config.service_id,
+                ) from exc
         value = _ensure_mapping(sanitize_remote_payload(raw), service_id=self.config.service_id)
         if value.get("jsonrpc") != "2.0" or value.get("id") != request_id:
             raise RemoteAccountServiceError(
@@ -571,7 +597,7 @@ class McpAccountServiceClient:
                 "MCP service returned an invalid JSON-RPC envelope",
                 service_id=self.config.service_id,
             )
-        session_id = response.headers.get("Mcp-Session-Id")
+        session_id = response.headers.get("Mcp-Session-Id") or response.headers.get("mcp-session-id")
         if session_id:
             self._session_id = session_id
         if "error" in value:
@@ -585,23 +611,66 @@ class McpAccountServiceClient:
         return _ensure_mapping(value.get("result", value), service_id=self.config.service_id)
 
     async def initialize(self) -> Mapping[str, Any]:
-        result = await self._rpc(
-            "initialize",
-            {
-                "protocolVersion": MCP_PROTOCOL_VERSION,
-                "capabilities": {},
-                "clientInfo": {"name": "xhs-food-agent", "version": "1"},
-            },
+        candidates = [
+            self._protocol_version,
+            MCP_PROTOCOL_VERSION,
+            "2025-06-18",
+            "2024-11-05",
+            "2024-10-07",
+            "2025-03-26",
+        ]
+        seen: set[str] = set()
+        versions_to_try: list[str] = []
+        for v in candidates:
+            if v and v not in seen:
+                seen.add(v)
+                versions_to_try.append(v)
+
+        last_error: Exception | None = None
+        idx = 0
+        while idx < len(versions_to_try):
+            version = versions_to_try[idx]
+            idx += 1
+            self._protocol_version = version
+            try:
+                result = await self._rpc(
+                    "initialize",
+                    {
+                        "protocolVersion": version,
+                        "capabilities": {},
+                        "clientInfo": {"name": "xhs-food-agent", "version": "1"},
+                    },
+                )
+                protocol_version = result.get("protocolVersion")
+                SUPPORTED_VERSIONS = {"2024-11-05", "2024-10-07", "2025-03-26", "2025-06-18", "latest"}
+                if protocol_version and protocol_version not in SUPPORTED_VERSIONS and not str(protocol_version).startswith("202"):
+                    raise RemoteAccountServiceError(
+                        RemoteErrorCategory.INVALID,
+                        f"MCP protocol version '{protocol_version}' is not supported",
+                        service_id=self.config.service_id,
+                    )
+                if protocol_version and isinstance(protocol_version, str):
+                    self._protocol_version = protocol_version
+                self._initialized = True
+                return result
+            except RemoteAccountServiceError as exc:
+                last_error = exc
+                err_text = str(exc.envelope.message if hasattr(exc, "envelope") else exc)
+                match = re.search(r"use\s+([0-9]{4}-[0-9]{2}-[0-9]{2})", err_text, re.IGNORECASE)
+                if match:
+                    suggested = match.group(1)
+                    if suggested not in seen:
+                        seen.add(suggested)
+                        versions_to_try.insert(idx, suggested)
+                if "protocol version" not in err_text.lower() and "unsupported" not in err_text.lower():
+                    raise
+        if last_error is not None:
+            raise last_error
+        raise RemoteAccountServiceError(
+            RemoteErrorCategory.INVALID,
+            "MCP initialization failed",
+            service_id=self.config.service_id,
         )
-        protocol_version = result.get("protocolVersion")
-        if protocol_version != MCP_PROTOCOL_VERSION:
-            raise RemoteAccountServiceError(
-                RemoteErrorCategory.INVALID,
-                "MCP protocol version is not supported",
-                service_id=self.config.service_id,
-            )
-        self._initialized = True
-        return result
 
     async def list_tools(self) -> tuple[McpToolDescriptor, ...]:
         if not self._initialized:

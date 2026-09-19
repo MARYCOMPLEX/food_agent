@@ -121,8 +121,16 @@ class XHSFoodOrchestrator:
         ]
         recommendations = {item.key: deepcopy(item.payload) for item in snapshot.recommendations}
         if merge:
-            self._context.conversation_history.extend(messages)
+            if not self._context.conversation_history:
+                self._context.conversation_history = messages
+            else:
+                existing_contents = {m.get("content") for m in self._context.conversation_history}
+                for m in messages:
+                    if m.get("content") not in existing_contents:
+                        self._context.conversation_history.append(m)
             self._context.last_recommendations.update(recommendations)
+            if snapshot.target_city:
+                self._context.target_city = snapshot.target_city
             if snapshot.last_summary:
                 self._context.last_summary = snapshot.last_summary  # type: ignore[attr-defined]
             return
@@ -133,7 +141,7 @@ class XHSFoodOrchestrator:
         self._context.accumulated_preferences = list(snapshot.accumulated_preferences)
         self._context.turn_count = snapshot.turn_count
         self._context.last_notes = [deepcopy(item) for item in snapshot.last_notes]
-        self._context.target_city = snapshot.target_city
+        self._context.target_city = snapshot.target_city or self._context.target_city
         self._context.last_summary = snapshot.last_summary  # type: ignore[attr-defined]
 
     def update_context_recommendation(self, key: str, recommendation: dict[str, Any]) -> None:

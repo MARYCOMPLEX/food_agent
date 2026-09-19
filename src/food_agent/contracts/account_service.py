@@ -378,6 +378,8 @@ class RemoteErrorEnvelope(_RemoteModel):
 
 
 class McpToolDescriptor(_RemoteModel):
+    model_config = ConfigDict(extra="ignore", frozen=True, str_strip_whitespace=False)
+
     name: str = Field(min_length=1, max_length=128)
     description: str = ""
     input_schema: Mapping[str, Any] = Field(default_factory=dict)
@@ -385,6 +387,7 @@ class McpToolDescriptor(_RemoteModel):
     capability: str = Field(min_length=1, max_length=128)
     capability_version: str = ACCOUNT_SERVICE_CONTRACT_VERSION
     side_effect: RemoteSideEffect = RemoteSideEffect.READ_ONLY
+    annotations: Mapping[str, Any] | None = None
 
     @field_validator("name", "capability")
     @classmethod

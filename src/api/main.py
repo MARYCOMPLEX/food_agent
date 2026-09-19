@@ -211,6 +211,55 @@ async def lifespan(application: FastAPI):
             except Exception as exc:
                 logger.warning("Failed to register stored service {}: {}", s.get("service_id"), exc)
 
+    from food_agent.composition.agent_tools import AccountServiceAgentToolCatalog
+    from food_agent.contracts import AgentToolPolicy, RemoteSideEffect
+    from food_agent.research.mcp import ManagedMcpToolSession, UnavailableMcpToolSession
+
+    def _create_dynamic_agent_tool_catalog(reg: AccountServiceRegistry) -> AccountServiceAgentToolCatalog | None:
+        if not reg or not getattr(reg, "enabled", False):
+            return None
+        all_channels = set()
+        all_caps = set()
+        for cfg in reg.configs:
+            for ch in cfg.channels:
+                all_channels.add(ch)
+                try:
+                    for tool in reg.tools_for(ch):
+                        if tool.capability and tool.side_effect == RemoteSideEffect.READ_ONLY:
+                            all_caps.add(tool.capability)
+                except Exception:
+                    pass
+        if not all_channels:
+            return None
+        default_caps = {
+            "notes.search", "notes.detail", "comments.search",
+            "places.search", "places.detail", "reviews.search",
+            "dianping.search", "dianping.detail", "dianping.reviews",
+            "ctrip_hotel_search", "ctrip_flight_search", "ctrip_train_search", "ctrip_bus_search",
+        }
+        policy = AgentToolPolicy(
+            enabled=True,
+            allowed_platforms=tuple(all_channels),
+            allowed_capabilities=tuple(all_caps | default_caps),
+        )
+        return AccountServiceAgentToolCatalog(reg, policy)
+
+    if application.state.account_service_registry is not None:
+        dynamic_catalog = _create_dynamic_agent_tool_catalog(application.state.account_service_registry)
+        if dynamic_catalog is not None:
+            application.state.agent_tool_catalog = dynamic_catalog
+
+    def dynamic_research_session() -> ManagedMcpToolSession:
+        catalog = getattr(application.state, "agent_tool_catalog", None)
+        if catalog is None:
+            reg = getattr(application.state, "account_service_registry", None)
+            if reg is not None and getattr(reg, "enabled", False):
+                catalog = _create_dynamic_agent_tool_catalog(reg)
+                application.state.agent_tool_catalog = catalog
+        if catalog is None:
+            return UnavailableMcpToolSession()
+        return ManagedMcpToolSession(catalog, catalog)
+
     if "agent_tool_catalog" in composition_root.logical_bindings:
         application.state.agent_tool_catalog = await composition_root.resolve_logical(
             "agent_tool_catalog"
@@ -219,6 +268,7 @@ async def lifespan(application: FastAPI):
     from food_agent.orchestrator import XHSFoodOrchestrator
 
     research_workflow = await composition_root.resolve_logical("research_agent")
+    research_workflow._session_factory = dynamic_research_session
     application.state.research_agent = research_workflow
     configure_orchestrator_factory(
         lambda: XHSFoodOrchestrator(workflow=research_workflow)
@@ -261,10 +311,33 @@ async def lifespan(application: FastAPI):
         await reliable_runtime.event_bus.ensure_available()
         logger.info("EventBus backend: RedisEventBusAdapter (reliable runtime)")
 
+    # Periodic background refresh for account service registry descriptors
+    async def _periodic_registry_refresh() -> None:
+        while True:
+            try:
+                await asyncio.sleep(60)
+                registry = application.state.account_service_registry
+                if registry and getattr(registry, "enabled", False):
+                    await registry.refresh()
+                    dynamic_catalog = _create_dynamic_agent_tool_catalog(registry)
+                    if dynamic_catalog is not None:
+                        application.state.agent_tool_catalog = dynamic_catalog
+            except asyncio.CancelledError:
+                break
+            except Exception as exc:
+                logger.warning("Background account service registry refresh error: {}", exc)
+
+    registry_refresh_task = asyncio.create_task(_periodic_registry_refresh())
+
     try:
         yield
     finally:
         logger.info("XHS Food Agent API shutting down…")
+        registry_refresh_task.cancel()
+        try:
+            await registry_refresh_task
+        except asyncio.CancelledError:
+            pass
         # Flush exactly once within the configured deadline.  Failures are
         # logged and isolated; CompositionRoot.close remains responsible for
         # final resource disposal and the business shutdown path continues.

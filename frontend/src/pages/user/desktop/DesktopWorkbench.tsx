@@ -48,6 +48,7 @@ import { EvidenceTimeline } from '../../../components/research-surface/EvidenceT
 import { ControversyPanel } from '../../../components/research-surface/ControversyPanel'
 import { RestaurantComparisonModal } from '../../../components/restaurant/RestaurantComparisonModal'
 import { ShopProfileDrawer } from '../../../components/research-surface/ShopProfileDrawer'
+import { ManusThoughtCard } from '../../../components/chat/ManusThoughtCard'
 import { QrLoginModal } from '../../../components/auth/QrLoginModal'
 import { platformAccountsApi } from '../../../features/platform-accounts/api/platformAccountsApi'
 import type { SharedWorkbenchProps, RightPanelTab } from '../types'
@@ -75,6 +76,7 @@ export function DesktopWorkbench(props: SharedWorkbenchProps) {
     setSelectedModel,
     modelOptions,
     mcpServices,
+    onRefreshConnectors,
     compareList,
     setCompareList,
     favorites,
@@ -189,6 +191,7 @@ export function DesktopWorkbench(props: SharedWorkbenchProps) {
                   return (
                     <div
                       key={item.session_id}
+                      className="session-history-item"
                       onClick={() => handleSelectSession(item.session_id)}
                       style={{
                         display: 'flex',
@@ -248,6 +251,9 @@ export function DesktopWorkbench(props: SharedWorkbenchProps) {
                     探店数据连接器
                   </Typography.Text>
                 </Space>
+                <Tag color="processing" style={{ margin: 0, fontSize: 9, padding: '0 4px', lineHeight: '14px', borderRadius: 4 }}>
+                  心跳检测
+                </Tag>
               </div>
 
               {mcpServices.length === 0 ? (
@@ -257,11 +263,24 @@ export function DesktopWorkbench(props: SharedWorkbenchProps) {
               ) : (
                 <Space direction="vertical" size={4} style={{ width: '100%' }}>
                   {mcpServices.map((svc) => {
-                    const isXhs = svc.service_id.includes('xiaohongshu') || svc.name.includes('小红书')
-                    const isDp = svc.service_id.includes('dianping') || svc.name.includes('大众点评')
-                    const hasXhs = accounts.xhs?.is_active
-                    const hasDp = accounts.dianping?.is_active
-                    const isLoggedIn = isXhs ? hasXhs : (isDp ? hasDp : svc.is_active)
+                    const sid = (svc.service_id || '').toLowerCase()
+                    const sname = (svc.name || '').toLowerCase()
+                    const isXhs = sid.includes('xhs') || sid.includes('xiaohongshu') || sname.includes('小红书')
+                    const isCtrip = sid.includes('ctrip') || sid.includes('xiecheng') || sname.includes('携程')
+                    const isDp = sid.includes('dianping') || sname.includes('大众点评') || sname.includes('点评')
+
+                    const platform = isXhs ? 'xhs_pc' : (isCtrip ? 'ctrip' : 'dianping')
+                    const isOnline = Boolean((svc as any).service_online ?? (svc as any).is_active ?? (svc.enabled && (svc.live_state === 'ready' || svc.live_state === 'healthy')))
+                    const isAuth = Boolean((svc as any).is_authenticated ?? (isCtrip ? isOnline : false))
+
+                    let dotColor = '#d9d9d9'
+                    if (!isOnline) {
+                      dotColor = '#bfbfbf'
+                    } else if (isAuth) {
+                      dotColor = '#52c41a'
+                    } else {
+                      dotColor = '#faad14'
+                    }
 
                     return (
                       <div
@@ -280,26 +299,30 @@ export function DesktopWorkbench(props: SharedWorkbenchProps) {
                               width: 6,
                               height: 6,
                               borderRadius: '50%',
-                              backgroundColor: isLoggedIn ? '#52c41a' : '#d9d9d9',
+                              backgroundColor: dotColor,
                               display: 'inline-block',
                             }}
                           />
                           <Typography.Text style={{ fontSize: 11 }}>{svc.name}</Typography.Text>
                         </Space>
                         <Space size={4}>
-                          {isLoggedIn ? (
+                          {isAuth ? (
                             <Tag color="success" style={{ margin: 0, fontSize: 10, padding: '0 4px', lineHeight: '16px' }}>
                               已连通
                             </Tag>
-                          ) : (
+                          ) : isOnline ? (
                             <Button
                               type="link"
                               size="small"
-                              style={{ padding: 0, fontSize: 11, height: 'auto' }}
-                              onClick={() => setLoginModalPlatform(isXhs ? 'xhs_pc' : 'dianping')}
+                              style={{ padding: 0, fontSize: 11, height: 'auto', color: '#fa8c16' }}
+                              onClick={() => setLoginModalPlatform(platform)}
                             >
                               扫码授权
                             </Button>
+                          ) : (
+                            <Tag color="default" style={{ margin: 0, fontSize: 10, padding: '0 4px', lineHeight: '16px' }}>
+                              服务离线
+                            </Tag>
                           )}
                         </Space>
                       </div>
@@ -552,48 +575,12 @@ export function DesktopWorkbench(props: SharedWorkbenchProps) {
                         />
 
                         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
-                          {/* 1. Thought Accordion (Ant Design Collapse) */}
+                          {/* 1. Manus-style Intelligent Agent Thought & Investigation Card */}
                           {turnPlan.length > 0 && (
-                            <Collapse
-                              ghost
-                              size="small"
-                              defaultActiveKey={turnRunning ? ['1'] : []}
-                              items={[
-                                {
-                                  key: '1',
-                                  label: (
-                                    <Space>
-                                      {turnRunning ? (
-                                        <LoadingOutlined style={{ color: '#1677ff' }} />
-                                      ) : (
-                                        <ClockCircleOutlined style={{ color: '#52c41a' }} />
-                                      )}
-                                      <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-                                        {turnRunning ? '正在分阶段搜集分析...' : `思考与调查步骤 (${turnPlan.length} 步)`}
-                                      </Typography.Text>
-                                    </Space>
-                                  ),
-                                  children: (
-                                    <Timeline
-                                      style={{ marginTop: 8 }}
-                                      items={turnPlan.map((s) => ({
-                                        color: s.status === 'succeeded' ? 'green' : (turnRunning && s.status === 'running' ? 'blue' : 'gray'),
-                                        dot: (turnRunning && s.status === 'running') ? <LoadingOutlined /> : undefined,
-                                        children: (
-                                          <div>
-                                            <Typography.Text strong style={{ fontSize: 12 }}>{s.label}</Typography.Text>
-                                            {s.detail && (
-                                              <div>
-                                                <Typography.Text type="secondary" style={{ fontSize: 11 }}>{s.detail}</Typography.Text>
-                                              </div>
-                                            )}
-                                          </div>
-                                        ),
-                                      }))}
-                                    />
-                                  ),
-                                },
-                              ]}
+                            <ManusThoughtCard
+                              plan={turnPlan}
+                              isRunning={turnRunning}
+                              statusMessage={turn.assistantMessage.statusMessage}
                             />
                           )}
 
@@ -889,15 +876,56 @@ export function DesktopWorkbench(props: SharedWorkbenchProps) {
 
               <Flex justify="space-between" align="center" style={{ marginTop: 12, paddingTop: 8, borderTop: '1px solid #f8f8f8' }}>
                 <Space size={8} align="center">
-                  {mcpServices.length > 0 ? (
-                    <Tag
-                      color={mcpServices.some((s) => s.is_active) ? 'green' : 'warning'}
-                      variant="filled"
-                      style={{ fontSize: 12, borderRadius: 10, padding: '1px 8px' }}
-                    >
-                      {mcpServices.some((s) => s.is_active) ? '● 探店 MCP 数据源已连接' : '○ 探店 MCP 数据源未激活'}
-                    </Tag>
-                  ) : (
+                  {mcpServices.length > 0 ? (() => {
+                    const xhsConnected = mcpServices.some((s) => {
+                      const sid = (s.service_id || '').toLowerCase()
+                      const plat = (s.platform || (s.channels && s.channels[0]) || '').toLowerCase()
+                      return (plat.includes('xhs') || sid.includes('xhs')) && (s.is_authenticated || s.account_status === 'active')
+                    })
+                    const dpConnected = mcpServices.some((s) => {
+                      const sid = (s.service_id || '').toLowerCase()
+                      const plat = (s.platform || (s.channels && s.channels[0]) || '').toLowerCase()
+                      return (plat.includes('dianping') || sid.includes('dianping')) && (s.is_authenticated || s.account_status === 'active')
+                    })
+                    const ctripConnected = mcpServices.some((s) => {
+                      const sid = (s.service_id || '').toLowerCase()
+                      const plat = (s.platform || (s.channels && s.channels[0]) || '').toLowerCase()
+                      return (plat.includes('ctrip') || plat.includes('xiecheng') || sid.includes('ctrip') || sid.includes('xiecheng')) && (s.is_authenticated || s.service_online || s.is_active)
+                    })
+
+                    let tagColor = 'default'
+                    let tagText = '○ 探店 MCP 服务离线'
+
+                    if (xhsConnected && dpConnected && ctripConnected) {
+                      tagColor = 'green'
+                      tagText = '● 探店全数据源已连通 (大众点评/小红书/携程)'
+                    } else if (xhsConnected && dpConnected) {
+                      tagColor = 'green'
+                      tagText = '● 探店双数据源已连通 (大众点评/小红书)'
+                    } else if (xhsConnected) {
+                      tagColor = 'green'
+                      tagText = '● 小红书数据源已连通 (大众点评待授权)'
+                    } else if (dpConnected) {
+                      tagColor = 'green'
+                      tagText = '● 大众点评数据源已连通 (小红书待授权)'
+                    } else if (ctripConnected) {
+                      tagColor = 'blue'
+                      tagText = '● 携程公开数据已连通 (点评/小红书待授权)'
+                    } else if (mcpServices.some((s) => (s as any).service_online ?? (s as any).is_active)) {
+                      tagColor = 'warning'
+                      tagText = '○ 探店 MCP 待扫码授权 (点击左侧授权)'
+                    }
+
+                    return (
+                      <Tag
+                        color={tagColor}
+                        variant="filled"
+                        style={{ fontSize: 12, borderRadius: 10, padding: '1px 8px' }}
+                      >
+                        {tagText}
+                      </Tag>
+                    )
+                  })() : (
                     <Tag
                       color="default"
                       variant="filled"
@@ -1048,6 +1076,7 @@ export function DesktopWorkbench(props: SharedWorkbenchProps) {
           onSuccess={() => {
             setAccounts(platformAccountsApi.getLocalAccounts())
             setLoginModalPlatform(null)
+            onRefreshConnectors?.()
           }}
         />
       )}

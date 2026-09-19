@@ -7,11 +7,17 @@ interface SearchStartResponse {
   message?: string
 }
 
-export async function startSearch(query: string, sessionId?: string, model?: string): Promise<SearchStartResponse> {
+export async function startSearch(
+  query: string,
+  sessionId?: string,
+  model?: string,
+  history?: Array<{ role: string; content: string }>,
+): Promise<SearchStartResponse> {
   return apiPost('/v1/search/', {
     query,
     sessionId,
     model,
+    history,
     // Comment evidence is always primary; the profile source is a secondary
     // enrichment pass for the same research turn.
     platforms: ['xhs_pc', 'dianping'],

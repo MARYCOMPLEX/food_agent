@@ -228,8 +228,11 @@ export interface PlatformQrPresentation {
   flow_id: string
   qr_code_url?: string
   qr_code_data?: string
+  image_url?: string
+  presentation_ref?: string
+  content_type?: string
   expires_in_seconds?: number
-  status: string
+  status?: string
 }
 
 export interface PlatformReadinessResponse {

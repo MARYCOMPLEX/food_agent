@@ -56,6 +56,10 @@ class UnifiedSearchRequest(BaseModel):
         default_factory=dict,
         description="按平台固定的账户会话版本",
     )
+    history: list[dict[str, Any]] | None = Field(
+        default=None,
+        description="会话历史记录（多轮对话上下文）",
+    )
 
     @field_validator("platforms")
     @classmethod

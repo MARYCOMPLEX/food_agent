@@ -36,16 +36,19 @@ async def run_stream_search(
         manager = await get_session_manager()
         history = await manager.get_context(session_id)
         if history and len(history) > 1:
-            orchestrator.restore_context(
-                ResearchContextSnapshot(
-                    messages=tuple(
-                        ContextMessage(role=msg["role"], content=msg["content"])
-                        for msg in history[:-1]
-                        if msg["role"] in {"user", "assistant"}
-                    )
-                ),
-                merge=True,
+            prev_messages = tuple(
+                ContextMessage(role=msg["role"], content=msg["content"])
+                for msg in history[:-1]
+                if msg["role"] in {"user", "assistant"}
             )
+            if not orchestrator._context.conversation_history:
+                orchestrator.restore_context(
+                    ResearchContextSnapshot(
+                        messages=prev_messages,
+                        target_city=orchestrator._context.target_city,
+                    ),
+                    merge=False,
+                )
 
         stream = orchestrator.search_stream
         if "tool_context" in inspect.signature(stream).parameters:

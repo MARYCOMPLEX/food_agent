@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from collections.abc import Callable, Coroutine
+from collections.abc import Callable, Coroutine, Mapping, Sequence
 from copy import deepcopy
 from typing import Any, cast
 
@@ -98,12 +98,16 @@ class ResearchTaskFacade:
         query: str,
         *,
         tool_context: AgentToolExecutionContext | None = None,
+        history: Sequence[Mapping[str, Any]] | None = None,
     ) -> ResearchTaskAdmission:
         state = await search_state.load_state(session_id)
         if state is None:
-            state = await self._restore_state_from_storage(session_id)
+            try:
+                state = await self._restore_state_from_storage(session_id)
+            except Exception:
+                state = None
 
-        turn_id = (state.get("turn_id") or 1) + 1
+        turn_id = (state.get("turn_id") or 1) + 1 if state else ((len(history) // 2 + 1) if history else 2)
         await search_state.update_state(
             session_id,
             status="loading",
@@ -113,9 +117,43 @@ class ResearchTaskFacade:
 
         try:
             manager = await get_session_manager()
+            if history:
+                for msg in history:
+                    r = str(msg.get("role", "user"))
+                    c = str(msg.get("content", ""))
+                    if r == "user":
+                        await manager.add_user_message(session_id, c)
+                    elif r == "assistant":
+                        await manager.add_assistant_message(session_id, c)
             await manager.add_user_message(session_id, query)
         except Exception as exc:  # noqa: BLE001 - frozen best-effort policy
             logger.warning(f"add_user_message failed: {exc}")
+
+        # Also restore orchestrator context directly if history is provided
+        orchestrator = search_state.get_orchestrator(session_id)
+        if history:
+            messages = tuple(
+                ContextMessage(role=str(msg["role"]), content=str(msg["content"]))
+                for msg in history
+                if msg.get("role") in {"user", "assistant"}
+            )
+            hist_city = orchestrator._context.target_city
+            if not hist_city:
+                for msg in history:
+                    c = str(msg.get("content", ""))
+                    for city_candidate in ("连云港", "北京", "上海", "广州", "深圳", "成都", "杭州", "南京", "武汉", "重庆", "西安", "苏州", "天津", "长沙", "郑州"):
+                        if city_candidate in c:
+                            hist_city = city_candidate
+                            break
+                    if hist_city:
+                        break
+            orchestrator.restore_context(
+                ResearchContextSnapshot(
+                    messages=messages,
+                    target_city=hist_city,
+                ),
+                merge=False,
+            )
 
         emitter = await get_emitter(session_id)
         if hasattr(emitter, "areset"):

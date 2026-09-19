@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable, Mapping
+import inspect
+from collections.abc import Callable, Mapping, Sequence
 from contextlib import suppress
 from datetime import UTC, datetime
 from types import MappingProxyType
@@ -179,11 +180,20 @@ class ResearchCoordinator:
         query: str,
         *,
         tool_context: AgentToolExecutionContext | None = None,
+        history: Sequence[Mapping[str, Any]] | None = None,
     ) -> ResearchTaskAdmission:
-        admission = await self._legacy_policy.refine(
+        refine_fn = self._legacy_policy.refine
+        kwargs: dict[str, Any] = {"tool_context": tool_context}
+        try:
+            sig = inspect.signature(refine_fn)
+            if "history" in sig.parameters:
+                kwargs["history"] = history
+        except Exception:
+            pass
+        admission = await refine_fn(
             session_id,
             query,
-            tool_context=tool_context,
+            **kwargs,
         )
         await self._record_admission_safely(admission, query=query)
         return admission

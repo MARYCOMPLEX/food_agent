@@ -51,6 +51,7 @@ interface ServiceRecord {
   status: 'ready' | 'degraded' | 'unavailable' | 'disabled'
   p95Latency: number
   lastRefreshed: string
+  toolsList?: string[]
 }
 
 export function ServiceCatalogPage() {
@@ -118,6 +119,7 @@ export function ServiceCatalogPage() {
               lastRefreshed: s.updated_at
                 ? new Date(s.updated_at).toLocaleTimeString()
                 : new Date().toLocaleTimeString(),
+              toolsList: s.discovered_tools || [],
             }
           })
           setServices(mapped)
@@ -344,37 +346,40 @@ export function ServiceCatalogPage() {
     {
       title: '服务名称 / ID',
       key: 'name',
+      width: 230,
       render: (_: any, record: ServiceRecord) => (
-        <Space direction="vertical" size={2}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <Typography.Text
             strong
-            style={{ color: '#1677ff', cursor: 'pointer' }}
+            style={{ color: '#1677ff', cursor: 'pointer', fontSize: 13 }}
             onClick={() => navigate(`/ops/services/${record.serviceId}`)}
           >
             {record.name}
           </Typography.Text>
-          <Space size={4}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             <Typography.Text type="secondary" code style={{ fontSize: 11 }}>
               {record.serviceId}
             </Typography.Text>
             {record.baseUrl && (
               <Typography.Text type="secondary" style={{ fontSize: 11 }}>
-                ({record.baseUrl})
+                {record.baseUrl}
               </Typography.Text>
             )}
-          </Space>
-        </Space>
+          </div>
+        </div>
       ),
     },
     {
       title: '协议',
       dataIndex: 'protocol',
       key: 'protocol',
+      width: 80,
       render: (val: string) => <Tag color="geekblue">{val.toUpperCase()}</Tag>,
     },
     {
       title: '渠道',
       key: 'channels',
+      width: 100,
       render: (_: any, record: ServiceRecord) => (
         <Space size={4} wrap>
           {(record.channels && record.channels.length > 0 ? record.channels : [record.platform]).map(
@@ -388,17 +393,23 @@ export function ServiceCatalogPage() {
       ),
     },
     {
-      title: '工具放行',
+      title: '可用工具能力',
       key: 'tools',
+      width: 140,
       render: (_: any, record: ServiceRecord) => (
-        <Space>
-          <span>
-            {record.allowedTools} / {record.discoveredTools}
-          </span>
+        <Space direction="vertical" size={2}>
+          <Space>
+            <Typography.Text strong>
+              {record.allowedTools} 放行
+            </Typography.Text>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              / 共 {record.discoveredTools} 个
+            </Typography.Text>
+          </Space>
           {record.discoveredTools > 0 ? (
-            <Tag color="success">已发现 {record.discoveredTools} 个</Tag>
+            <Tag color="cyan">已发现 {record.discoveredTools} 个 MCP 工具</Tag>
           ) : (
-            <Tag color="default">待探活</Tag>
+            <Tag color="default">待探活发现</Tag>
           )}
         </Space>
       ),
@@ -407,6 +418,7 @@ export function ServiceCatalogPage() {
       title: '健康状态',
       dataIndex: 'status',
       key: 'status',
+      width: 95,
       render: (status: ServiceRecord['status']) => {
         if (status === 'ready') {
           return (
@@ -439,6 +451,7 @@ export function ServiceCatalogPage() {
     {
       title: '在线状态',
       key: 'enabled',
+      width: 75,
       render: (_: any, record: ServiceRecord) => (
         <Tooltip title={record.enabled ? '点击禁用该服务' : '点击启用该服务'}>
           <Switch
@@ -451,6 +464,7 @@ export function ServiceCatalogPage() {
     {
       title: '操作',
       key: 'actions',
+      width: 315,
       render: (_: any, record: ServiceRecord) => (
         <Space size={8}>
           <Button
@@ -487,7 +501,7 @@ export function ServiceCatalogPage() {
             icon={<ArrowRightOutlined />}
             onClick={() => navigate(`/ops/services/${record.serviceId}`)}
           >
-            工具详情
+            管理工具
           </Button>
         </Space>
       ),
@@ -527,7 +541,7 @@ export function ServiceCatalogPage() {
           rowKey="serviceId"
           pagination={false}
           loading={loading}
-          scroll={{ x: 880 }}
+          scroll={{ x: 'max-content' }}
           locale={{ emptyText: '暂无注册的 MCP 数据源，点击右上角「添加 MCP 数据源」即可即时接入' }}
         />
       </Card>

@@ -27,7 +27,7 @@ interface MobileSessionDrawerProps {
   onStartNewChat: () => void
   mcpServices: any[]
   accounts: any
-  onOpenLoginModal: (platform: 'xhs_pc' | 'dianping') => void
+  onOpenLoginModal: (platform: 'xhs_pc' | 'dianping' | 'ctrip' | 'xiecheng') => void
 }
 
 export function MobileSessionDrawer({
@@ -167,11 +167,23 @@ export function MobileSessionDrawer({
           ) : (
             <Space direction="vertical" size={4} style={{ width: '100%' }}>
               {mcpServices.map((svc) => {
-                const isXhs = svc.service_id.includes('xiaohongshu') || svc.name.includes('小红书')
-                const isDp = svc.service_id.includes('dianping') || svc.name.includes('大众点评')
-                const hasXhs = accounts.xhs?.is_active
-                const hasDp = accounts.dianping?.is_active
-                const isLoggedIn = isXhs ? hasXhs : (isDp ? hasDp : svc.is_active)
+                const sid = (svc.service_id || '').toLowerCase()
+                const sname = (svc.name || '').toLowerCase()
+                const isXhs = sid.includes('xhs') || sid.includes('xiaohongshu') || sname.includes('小红书')
+                const isCtrip = sid.includes('ctrip') || sid.includes('xiecheng') || sname.includes('携程')
+                const platform = isXhs ? 'xhs_pc' : (isCtrip ? 'ctrip' : 'dianping')
+
+                const isOnline = Boolean((svc as any).service_online ?? (svc as any).is_active ?? true)
+                const isAuth = Boolean((svc as any).is_authenticated ?? (isCtrip ? isOnline : false))
+
+                let dotColor = '#d9d9d9'
+                if (!isOnline) {
+                  dotColor = '#bfbfbf'
+                } else if (isAuth) {
+                  dotColor = '#52c41a'
+                } else {
+                  dotColor = '#faad14'
+                }
 
                 return (
                   <div
@@ -190,29 +202,33 @@ export function MobileSessionDrawer({
                           width: 6,
                           height: 6,
                           borderRadius: '50%',
-                          backgroundColor: isLoggedIn ? '#52c41a' : '#d9d9d9',
+                          backgroundColor: dotColor,
                           display: 'inline-block',
                         }}
                       />
                       <Typography.Text style={{ fontSize: 11 }}>{svc.name}</Typography.Text>
                     </Space>
 
-                    {isLoggedIn ? (
+                    {isAuth ? (
                       <Tag color="success" style={{ margin: 0, fontSize: 10, padding: '0 4px', lineHeight: '16px' }}>
                         已连通
                       </Tag>
-                    ) : (
+                    ) : isOnline ? (
                       <Button
                         type="link"
                         size="small"
-                        style={{ padding: 0, fontSize: 11, height: 'auto' }}
+                        style={{ padding: 0, fontSize: 11, height: 'auto', color: '#fa8c16' }}
                         onClick={() => {
-                          onOpenLoginModal(isXhs ? 'xhs_pc' : 'dianping')
+                          onOpenLoginModal(platform)
                           onClose()
                         }}
                       >
                         授权
                       </Button>
+                    ) : (
+                      <Tag color="default" style={{ margin: 0, fontSize: 10, padding: '0 4px', lineHeight: '16px' }}>
+                        服务离线
+                      </Tag>
                     )}
                   </div>
                 )

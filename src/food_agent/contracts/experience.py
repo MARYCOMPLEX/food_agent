@@ -88,6 +88,7 @@ class ResearchTaskPort(Protocol):
         query: str,
         *,
         tool_context: AgentToolExecutionContext | None = None,
+        history: Sequence[Mapping[str, Any]] | None = None,
     ) -> ResearchTaskAdmission: ...
 
     async def recover(self, session_id: str) -> ContractPayload: ...
