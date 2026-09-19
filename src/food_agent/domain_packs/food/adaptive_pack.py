@@ -1760,6 +1760,10 @@ class FoodAdaptivePack:
             "summary",
             "description",
         )
+        if not name and claim_text:
+            extracted_shops = self._extract_shops_from_text(claim_text)
+            if extracted_shops:
+                name = extracted_shops[0]
         if not refs:
             self._add_model_gap(gaps, index, "finding")
             return
@@ -2337,6 +2341,10 @@ class FoodAdaptivePack:
         direct_shop = self._first_string(item, "shop_name", "restaurant", "entity_name")
         if direct_shop:
             shops = tuple(dict.fromkeys((*shops, direct_shop)))
+        if not shops and text:
+            discovered_shops = self._extract_shops_from_text(text)
+            if discovered_shops:
+                shops = discovered_shops
         dishes = self.string_values(
             item.get("mentioned_dishes", item.get("dish_mentions", item.get("dishes")))
         )
@@ -2873,6 +2881,27 @@ class FoodAdaptivePack:
                 if note_id and note_id not in note_ids:
                     note_ids.append(note_id)
         return tuple(note_ids)
+
+    @classmethod
+    def _extract_shops_from_text(cls, text: str) -> tuple[str, ...]:
+        if not text:
+            return ()
+        quoted = re.findall(r'[“"「【《]([^“”"」】》]{2,20})[”"」】》]', text)
+        suffixes = (
+            r"海鲜大排档|大排档|融合菜|海鲜城|海鲜馆|家常菜|酒家|饭店|面馆|面庄|"
+            r"汤包|烧烤|麻辣烫|卷饼|豆腐卷|烤肉|火锅|老店|菜馆|私房菜|餐厅|小吃部|菜庄"
+        )
+        pattern = re.compile(rf'([A-Za-z0-9\u4e00-\u9fa5·]{{2,14}}(?:{suffixes})(?:\([A-Za-z0-9\u4e00-\u9fa5]+\))?)')
+        candidates = list(quoted) + pattern.findall(text)
+        results: list[str] = []
+        lead_noise = re.compile(r'^(?:去|在|吃|到|推荐|打卡|这家|那家|去吃|尝尝|本地|一家|寻找|发现|探店)')
+        generic = {"海鲜大排档", "特色小吃", "火锅店", "烧烤店", "融合菜餐厅", "家常菜馆", "本地老店"}
+        for cand in candidates:
+            cleaned = lead_noise.sub('', cand.strip()).strip()
+            if len(cleaned) >= 3 and cleaned not in generic:
+                if cleaned not in results:
+                    results.append(cleaned)
+        return tuple(results[:10])
 
     @staticmethod
     def _schema_arguments(

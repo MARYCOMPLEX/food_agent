@@ -102,6 +102,14 @@ class ManagedMcpToolSession:
                 message=type(exc).__name__,
             )
 
+        if any(isinstance(v, str) and "${" in v and "}" in v for v in translated.values()):
+            return _failure(
+                platform.value,
+                capability,
+                "MCP_ARGUMENT_UNRESOLVED_PLACEHOLDER",
+                message="arguments contain unresolved template placeholder",
+            )
+
         call = ToolCall(
             call_id=f"research:{uuid4().hex}",
             tool_name=definition.name,

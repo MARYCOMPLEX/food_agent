@@ -710,6 +710,9 @@ class ActionScheduler:
             if failed:
                 rejected.append((action_id, self._gap(action, "dependency_failed", f"dependencies failed: {failed!r}")))
                 continue
+            if _has_unresolved_placeholder(_inputs(action)):
+                rejected.append((action_id, self._gap(action, "unresolved_placeholder", "action inputs contain unresolved template placeholder")))
+                continue
             if all(dep in self._terminal for dep in dependencies):
                 ready.append(action_id)
         return tuple(ready), tuple(rejected)
@@ -1192,6 +1195,16 @@ def _inputs(action: Any) -> Mapping[str, Any]:
         data = action.model_dump(mode="json")
         return data.get("inputs", data.get("arguments", {})) if isinstance(data, Mapping) else {}
     return {}
+
+
+def _has_unresolved_placeholder(value: Any) -> bool:
+    if isinstance(value, str):
+        return "${" in value and "}" in value
+    if isinstance(value, Mapping):
+        return any(_has_unresolved_placeholder(v) for v in value.values())
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return any(_has_unresolved_placeholder(v) for v in value)
+    return False
 
 
 def _token_estimate(action: Any) -> int:

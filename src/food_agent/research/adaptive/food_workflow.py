@@ -145,6 +145,7 @@ class ManagedMcpToolPort:
         *,
         capabilities: Iterable[str] | None = None,
         observation_recorder: Any | None = None,
+        target_city: str | None = None,
     ) -> None:
         self.session = session
         self._observation_recorder = observation_recorder
@@ -153,6 +154,7 @@ class ManagedMcpToolPort:
             if capabilities is not None
             else None
         )
+        self.target_city = target_city
 
     @property
     def capabilities(self) -> frozenset[str] | None:
@@ -176,9 +178,24 @@ class ManagedMcpToolPort:
             if normalized_cap.startswith(p + "."):
                 normalized_cap = normalized_cap[len(p) + 1:]
                 break
+        effective_args = dict(arguments)
+        if self.target_city:
+            if normalized_cap in {"notes.search", "notes"}:
+                query = str(effective_args.get("query") or effective_args.get("keyword") or "").strip()
+                if query and self.target_city not in query:
+                    if "query" in effective_args:
+                        effective_args["query"] = f"{self.target_city} {query}"
+                    if "keyword" in effective_args:
+                        effective_args["keyword"] = f"{self.target_city} {query}"
+            elif normalized_cap in {"places.search", "places", "shops.search"}:
+                if not effective_args.get("city") and not effective_args.get("city_name"):
+                    effective_args["city"] = self.target_city
+                query = str(effective_args.get("keyword") or effective_args.get("query") or "").strip()
+                if query and self.target_city not in query:
+                    effective_args["keyword"] = f"{self.target_city} {query}"
         started = monotonic()
         try:
-            result = await self.session.call(platform, normalized_cap, dict(arguments))
+            result = await self.session.call(platform, normalized_cap, effective_args)
         except asyncio.CancelledError:
             self._record_tool_call(
                 capability,
@@ -421,6 +438,11 @@ class AdaptiveFoodResearchWorkflow:
 
         context.add_user_message(user_input)
         context.turn_count += 1
+        if not getattr(context, "target_city", None):
+            for candidate in ("连云港", "北京", "上海", "广州", "深圳", "成都", "杭州", "南京", "武汉", "重庆", "西安", "苏州", "天津", "长沙", "郑州", "青岛", "大连", "厦门", "三亚", "昆明"):
+                if candidate in user_input:
+                    context.target_city = candidate
+                    break
         authority = tool_context or AgentToolExecutionContext(
             tenant_ref="default",
             platforms=(PlatformChannel.XHS_PC, PlatformChannel.DIANPING),
@@ -448,6 +470,7 @@ class AdaptiveFoodResearchWorkflow:
                 session,
                 capabilities=capability_names,
                 observation_recorder=recorder,
+                target_city=getattr(context, "target_city", None),
             )
             scheduler = self._scheduler or ActionScheduler(
                 tool_port=port,

@@ -683,7 +683,10 @@ def build_model_request(
                     "You are one bounded research component; never call tools, emit "
                     "tool calls, or name executable MCP methods. Use only logical "
                     "capability identifiers from the context. Never output provider "
-                    "credentials, account context, or raw provider payloads."
+                    "credentials, account context, or raw provider payloads. "
+                    "Never use template expressions, variable placeholders, or syntax "
+                    "such as ${...} or ${binding:...} in action arguments. Every argument "
+                    "must be a literal string, number, or boolean known from context."
                 ),
             ),
             ModelMessage(
@@ -823,6 +826,7 @@ class AdaptivePlanner:
             instruction=(
                 "Create the next bounded research plan. "
                 "Only emit semantic typed actions with dependencies and idempotency keys. "
+                "All action arguments must be literal strings/numbers, never template placeholders like ${binding:...}. "
                 f"This is the {mode} rolling-horizon turn {round_index}."
             ),
             context=context,
