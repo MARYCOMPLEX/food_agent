@@ -158,16 +158,26 @@ class SearchEventEmitter:
                 SearchEvent(type=SearchEventType.CHUNK, data={"text": text})
             )
 
-    async def emit_result(self, summary: str, total: int, filtered: int = 0) -> None:
+    async def emit_result(
+        self,
+        summary: str,
+        total: int,
+        filtered: int = 0,
+        restaurants: list[dict[str, Any]] | None = None,
+    ) -> None:
+        data: dict[str, Any] = {
+            "summary": summary,
+            "total": total,
+            "filtered": filtered,
+            "steps": self.steps,
+        }
+        if restaurants is not None:
+            data["restaurants"] = restaurants
+            data["recommendations"] = restaurants
         await self.emit(
             SearchEvent(
                 type=SearchEventType.RESULT,
-                data={
-                    "summary": summary,
-                    "total": total,
-                    "filtered": filtered,
-                    "steps": self.steps,
-                },
+                data=data,
             )
         )
 

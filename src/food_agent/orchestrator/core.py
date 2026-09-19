@@ -389,6 +389,7 @@ class XHSFoodOrchestrator:
                 response.summary,
                 len(response.recommendations),
                 response.filtered_count,
+                restaurants=[r.to_dict() for r in response.recommendations],
             )
             if response.status == "error":
                 await emitter.emit_error(response.error_message or response.summary)

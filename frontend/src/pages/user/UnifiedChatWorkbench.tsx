@@ -634,29 +634,31 @@ export function UnifiedChatWorkbench() {
           assistant.statusMessage = data.message
         }
       } else if (eventName === 'restaurant') {
+        const item = data.restaurant || data
         const currentRecs = [...(assistant.recommendations || [])]
         const currentProfiles = [...(assistant.profiles || [])]
-        if (data.name || data.title) {
-          const recId = data.id || `rec_${currentRecs.length + 1}`
-          if (!currentRecs.some((r) => r.recommendationId === recId || r.title === (data.name || data.title))) {
+        if (item && (item.name || item.title)) {
+          const title = item.name || item.title
+          const recId = item.id || `rec_${currentRecs.length + 1}`
+          if (!currentRecs.some((r) => r.recommendationId === recId || r.title === title)) {
             currentRecs.push({
               recommendationId: recId,
-              title: data.name || data.title,
+              title: title,
               rank: currentRecs.length + 1,
-              summary: data.one_liner || data.summary || '',
-              highlights: data.features || data.highlights || [],
-              warnings: data.warnings || [],
-              mustTry: data.must_try?.map((m: any) => typeof m === 'string' ? { name: m } : m) || [],
-              score: data.score,
-              confidence: data.confidence,
+              summary: item.one_liner || item.summary || '',
+              highlights: item.features || item.highlights || [],
+              warnings: item.warnings || [],
+              mustTry: item.must_try?.map((m: any) => typeof m === 'string' ? { name: m } : m) || [],
+              score: item.score,
+              confidence: item.confidence,
             })
             currentProfiles.push({
               profileId: recId,
-              name: data.name || data.title,
-              averagePrice: data.cost_per_person || data.price,
-              address: data.location || data.address,
-              tags: data.tags || [],
-              dishRecommendations: data.must_try?.map((m: any) => typeof m === 'string' ? m : (m?.name || '')) || [],
+              name: title,
+              averagePrice: item.cost_per_person || item.price,
+              address: item.location || item.address,
+              tags: item.tags || [],
+              dishRecommendations: item.must_try?.map((m: any) => typeof m === 'string' ? m : (m?.name || '')) || [],
             })
             assistant.recommendations = currentRecs
             assistant.profiles = currentProfiles
@@ -678,8 +680,11 @@ export function UnifiedChatWorkbench() {
             }))
           }
         }
-        if (Array.isArray(data.restaurants) && data.restaurants.length > 0) {
-          assistant.recommendations = data.restaurants.map((r: any, idx: number) => ({
+        const recList = Array.isArray(data.restaurants) && data.restaurants.length > 0
+          ? data.restaurants
+          : (Array.isArray(data.recommendations) && data.recommendations.length > 0 ? data.recommendations : null)
+        if (recList) {
+          assistant.recommendations = recList.map((r: any, idx: number) => ({
             recommendationId: r.id || `rec_${idx + 1}`,
             title: r.name || r.title,
             rank: idx + 1,
@@ -690,7 +695,7 @@ export function UnifiedChatWorkbench() {
             score: r.score,
             confidence: r.confidence,
           }))
-          assistant.profiles = data.restaurants.map((r: any) => ({
+          assistant.profiles = recList.map((r: any) => ({
             profileId: r.id,
             name: r.name || r.title,
             averagePrice: r.cost_per_person || r.price,

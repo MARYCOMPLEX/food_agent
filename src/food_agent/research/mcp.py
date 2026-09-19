@@ -202,7 +202,8 @@ def _translate_arguments(
             # or integer; omission is the contractually correct value.
             if value is None:
                 continue
-            effective = _apply_numeric_bounds(value, property_schema)
+            coerced = _coerce_schema_type(value, property_schema, str(name))
+            effective = _apply_numeric_bounds(coerced, property_schema)
             translated[str(name)] = effective
             if effective != value:
                 adjustments.append(
@@ -256,6 +257,35 @@ def _argument_value(name: str, arguments: Mapping[str, Any]) -> tuple[Any, str]:
         if candidate in arguments:
             return arguments[candidate], candidate
     return _MISSING, ""
+
+
+def _coerce_schema_type(value: Any, property_schema: Any, name: str) -> Any:
+    if not isinstance(property_schema, Mapping):
+        return value
+    schema_type = property_schema.get("type")
+    if schema_type == "string":
+        if not isinstance(value, str):
+            if isinstance(value, Mapping):
+                for k in ("shop_id", "id", "provider_id", "value", "keyword"):
+                    if k in value and isinstance(value[k], (str, int)):
+                        value = str(value[k])
+                        break
+            elif isinstance(value, (int, float)):
+                value = str(value)
+        if isinstance(value, str) and name.casefold() in {"shop_id", "shopid"}:
+            if ":" in value:
+                value = value.split(":")[-1]
+        return value
+    if schema_type == "integer" and not isinstance(value, int):
+        if isinstance(value, str):
+            if value.isdigit() or (value.startswith("-") and value[1:].isdigit()):
+                return int(value)
+            default = property_schema.get("default")
+            if isinstance(default, int):
+                return default
+        elif isinstance(value, float):
+            return int(value)
+    return value
 
 
 def _apply_numeric_bounds(value: Any, property_schema: Any) -> Any:

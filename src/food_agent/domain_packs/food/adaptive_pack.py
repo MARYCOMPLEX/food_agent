@@ -1074,18 +1074,30 @@ class ObservationEnvelope(AdaptiveObservationEnvelope):
             payload["continuation"] = continuation
             payload["has_more"] = False
         explicit_completeness = payload.get("completeness")
-        if success is False and explicit_completeness is None:
-            # The generic contract rejects a failed observation marked
-            # complete.  A failed call has unknown coverage unless the
-            # provider explicitly supplied a partial/unknown marker.
+        current_outcome = payload.get("outcome")
+        is_failed = (
+            success is False
+            or current_outcome in {
+                ObservationOutcome.FAILURE,
+                ObservationOutcome.REJECTED,
+                ObservationOutcome.SKIPPED,
+                "failure",
+                "rejected",
+                "skipped",
+                "failed",
+            }
+        )
+        if is_failed:
             payload["completeness"] = "unknown"
             explicit_completeness = "unknown"
-        if explicit_completeness is None or isinstance(explicit_completeness, Mapping):
+        elif explicit_completeness is None or isinstance(explicit_completeness, Mapping):
             payload["completeness"] = derived.get("completeness", "unknown")
         elif isinstance(explicit_completeness, str):
             normalized = explicit_completeness.casefold()
             if normalized not in {"complete", "partial", "unknown"}:
                 payload["completeness"] = derived.get("completeness", "unknown")
+        if is_failed and payload.get("completeness") == "complete":
+            payload["completeness"] = "unknown"
         derived_metadata = {
             key: value
             for key, value in derived.items()
@@ -1444,9 +1456,10 @@ class FoodAdaptivePack:
             self._append_envelope_gaps(envelope, gaps)
             direct_comment_observation = self._is_comment_observation(envelope)
             nested_comment_items = self._nested_comment_items(envelope)
-            if direct_comment_observation or nested_comment_items:
+            is_note_observation = (envelope.source or "").casefold() in {"xhs", "xiaohongshu", "xhs_pc"} and envelope.operation.casefold().startswith("notes.")
+            if direct_comment_observation or nested_comment_items or (is_note_observation and envelope.items):
                 comment_envelopes += 1
-                comment_items = envelope.items if direct_comment_observation else nested_comment_items
+                comment_items = envelope.items if direct_comment_observation else (nested_comment_items if nested_comment_items else envelope.items)
                 expected_comments += (
                     self._expected_count(envelope)
                     if direct_comment_observation
@@ -1634,6 +1647,12 @@ class FoodAdaptivePack:
             if entity.get("entity_type") == FoodEntityType.SHOP.value
             and entity.get("candidate")
         )
+        if candidate_count == 0:
+            candidate_count = sum(
+                1
+                for entity in entities.values()
+                if entity.get("entity_type") == FoodEntityType.SHOP.value
+            )
         dimensions = dict(adaptation.coverage.dimensions)
         dimensions["entities"] = 1.0 if candidate_count else 0.0
         dimensions["claims"] = min(
@@ -1973,10 +1992,17 @@ class FoodAdaptivePack:
             for entity in result.entities
             if entity.get("entity_type") == FoodEntityType.SHOP.value
         }
+        has_comment_candidates = any(
+            bool(e.get("candidate", False)) for e in profiles_by_entity.values()
+        )
+        detail_candidate_count = 0
         for entity_id in sorted(profiles_by_entity):
             entity = profiles_by_entity[entity_id]
-            if not bool(entity.get("candidate", False)):
-                continue
+            is_cand = bool(entity.get("candidate", False))
+            if not is_cand:
+                if has_comment_candidates or detail_candidate_count >= 5:
+                    continue
+            detail_candidate_count += 1
             if entity.get("status") == "enriched" or entity_id in {
                 str(profile.get("entity_id")) for profile in result.profiles
             }:
@@ -2002,7 +2028,11 @@ class FoodAdaptivePack:
                 # schemas and must never receive a guessed id.
                 capability = "places.search"
                 kind = PlanActionKind.SEARCH
-                arguments = self._schema_arguments(capability, {"keyword": name})
+                search_params: dict[str, Any] = {"keyword": name}
+                city_val = entity.get("city") or (entity.get("structured_fields") or {}).get("city")
+                if city_val:
+                    search_params["city"] = city_val
+                arguments = self._schema_arguments(capability, search_params)
                 reason = "resolve a candidate shop's Dianping identity before profile detail"
                 trigger = "candidate_entity_lookup"
             action = self._action(
@@ -2298,7 +2328,7 @@ class FoodAdaptivePack:
             note_id = "unknown"
         explicit_ref = self._first_string(item, "evidence_ref", "comment_ref", "ref")
         evidence_ref = explicit_ref or self._comment_ref(envelope.source, note_id, comment_id)
-        text = self._first_string(item, "text", "content", "comment", "body") or ""
+        text = self._first_string(item, "text", "content", "comment", "body", "title", "summary", "desc") or ""
         sentiment = self._normalize_sentiment(item)
         correction = bool(item.get("is_correction", item.get("correction", False)))
         shops = self.string_values(

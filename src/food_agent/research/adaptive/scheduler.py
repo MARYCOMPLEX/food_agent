@@ -1537,20 +1537,49 @@ def _supported_result_object(value: Any) -> bool:
 
 def _evidence_refs(value: Any, action: Any) -> tuple[str, ...]:
     refs: set[str] = set(_action_evidence_refs(action))
-    if isinstance(value, Mapping):
-        for key in ("evidence_refs", "evidence_ref", "citations", "references", "refs"):
-            candidate = value.get(key)
-            if isinstance(candidate, str):
-                refs.add(candidate)
-            elif isinstance(candidate, Sequence):
-                refs.update(str(item) for item in candidate if str(item))
-    else:
-        for key in ("evidence_refs", "evidence_ref", "citations", "references", "refs"):
-            candidate = getattr(value, key, None)
-            if isinstance(candidate, str):
-                refs.add(candidate)
-            elif isinstance(candidate, Sequence):
-                refs.update(str(item) for item in candidate if str(item))
+    containers: list[Any] = [value]
+    if hasattr(value, "data"):
+        containers.append(getattr(value, "data"))
+    if hasattr(value, "raw_payload"):
+        containers.append(getattr(value, "raw_payload"))
+
+    for container in containers:
+        if container is None:
+            continue
+        if isinstance(container, Mapping):
+            for key in ("evidence_refs", "evidence_ref", "citations", "references", "refs"):
+                candidate = container.get(key)
+                if isinstance(candidate, str):
+                    refs.add(candidate)
+                elif isinstance(candidate, Sequence) and not isinstance(candidate, (str, bytes)):
+                    refs.update(str(item) for item in candidate if str(item))
+            items = (
+                container.get("items")
+                or container.get("notes")
+                or container.get("shops")
+                or container.get("comments")
+            )
+            if isinstance(items, Sequence) and not isinstance(items, (str, bytes)):
+                for item in items:
+                    if isinstance(item, Mapping):
+                        note_id = item.get("note_id") or item.get("noteId")
+                        comment_id = item.get("comment_id") or item.get("commentId")
+                        if not comment_id and note_id and item.get("id") and item.get("id") != note_id:
+                            comment_id = item.get("id")
+                        shop_id = item.get("shop_id") or item.get("shopId")
+                        if note_id and comment_id:
+                            refs.add(f"xhs:note:{note_id}:comment:{comment_id}")
+                        elif note_id:
+                            refs.add(f"xhs:note:{note_id}")
+                        elif shop_id:
+                            refs.add(f"dianping:shop:{shop_id}")
+        else:
+            for key in ("evidence_refs", "evidence_ref", "citations", "references", "refs"):
+                candidate = getattr(container, key, None)
+                if isinstance(candidate, str):
+                    refs.add(candidate)
+                elif isinstance(candidate, Sequence) and not isinstance(candidate, (str, bytes)):
+                    refs.update(str(item) for item in candidate if str(item))
     return tuple(sorted(refs))
 
 

@@ -1162,6 +1162,8 @@ def _canonical_observation(item: ActionObservation, investigation_id: str) -> Ob
             if outcome is ObservationOutcome.SUCCESS
             else ObservationCompleteness.UNKNOWN
         )
+    if outcome is not ObservationOutcome.SUCCESS and completeness is ObservationCompleteness.COMPLETE:
+        completeness = ObservationCompleteness.UNKNOWN
     capability = str(item.capability)
     source = _observation_source(capability, raw_value)
     canonical_gap = item.gap
