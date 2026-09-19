@@ -1648,10 +1648,11 @@ def _notes_from_adaptation(adaptation: FoodAdaptationResult) -> tuple[Any, ...]:
             continue
         items: Iterable[Any] = envelope.items
         if is_nested_note_observation:
-            items = food_provider_comment_items(
+            comment_items = food_provider_comment_items(
                 (envelope.data, envelope.raw_payload, envelope.items),
                 operation=operation,
             )
+            items = comment_items if comment_items else envelope.items
         for item in items:
             if not isinstance(item, Mapping):
                 continue
@@ -1667,7 +1668,7 @@ def _notes_from_adaptation(adaptation: FoodAdaptationResult) -> tuple[Any, ...]:
                 item.get("id"),
                 item.get("external_id"),
             ) or f"comment:{note_id}:{len(grouped.get(note_id, {}).get('comments', {}))}"
-            text = _first_string(item.get("text"), item.get("content"), item.get("comment"), item.get("body")) or ""
+            text = _first_string(item.get("text"), item.get("content"), item.get("comment"), item.get("body"), item.get("desc"), item.get("summary"), item.get("title")) or ""
             if not text:
                 continue
             bucket = grouped.setdefault(

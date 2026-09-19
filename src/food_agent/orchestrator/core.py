@@ -367,9 +367,12 @@ class XHSFoodOrchestrator:
             await emitter.step_start("step2", "采集小红书笔记及完整评论...")
             if run.notes:
                 comment_count = sum(len(note.comments) for note in run.notes)
-                await emitter.step_done("step2", f"获得 {len(run.notes)} 篇笔记、{comment_count} 条评论")
+                if comment_count > 0:
+                    await emitter.step_done("step2", f"获得 {len(run.notes)} 篇笔记、{comment_count} 条评论")
+                else:
+                    await emitter.step_done("step2", f"获得 {len(run.notes)} 篇笔记")
             else:
-                await emitter.step_error("step2", "未获得可分析的评论证据")
+                await emitter.step_error("step2", "未获得可分析的笔记或评论证据")
             await emitter.step_start("step3", "从评论争议与共识中提取店铺线索...")
             await emitter.step_done("step3", f"识别到 {len(response.recommendations)} 家候选店铺")
             await emitter.step_start("step4", "登记评论证据并合并候选...")

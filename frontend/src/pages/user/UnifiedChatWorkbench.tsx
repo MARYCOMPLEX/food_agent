@@ -629,6 +629,19 @@ export function UnifiedChatWorkbench() {
           }
         }
         assistant.plan = plan
+      } else if (eventName === 'step_error') {
+        const stepId = data.step
+        const plan = [...(assistant.plan || []).filter((p) => p.id !== 'thinking')]
+        const existing = plan.findIndex((p) => p.id === stepId)
+        if (existing >= 0 && plan[existing]) {
+          plan[existing] = {
+            id: plan[existing]!.id,
+            label: plan[existing]!.label,
+            status: 'failed',
+            detail: data.message || data.error,
+          }
+        }
+        assistant.plan = plan
       } else if (eventName === 'progress') {
         if (data.message) {
           assistant.statusMessage = data.message
