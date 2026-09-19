@@ -2894,13 +2894,27 @@ class FoodAdaptivePack:
         pattern = re.compile(rf'([A-Za-z0-9\u4e00-\u9fa5·]{{2,14}}(?:{suffixes})(?:\([A-Za-z0-9\u4e00-\u9fa5]+\))?)')
         candidates = list(quoted) + pattern.findall(text)
         results: list[str] = []
-        lead_noise = re.compile(r'^(?:去|在|吃|到|推荐|打卡|这家|那家|去吃|尝尝|本地|一家|寻找|发现|探店)')
-        generic = {"海鲜大排档", "特色小吃", "火锅店", "烧烤店", "融合菜餐厅", "家常菜馆", "本地老店"}
+        lead_noise = re.compile(
+            r'^(?:到底是谁在(?:吹捧|推荐|说)|是谁在(?:吹捧|推荐|说)|谁在(?:吹捧|推荐)|'
+            r'千万(?:别去|不要去|不要|别)|吹捧|避雷|吐槽|踩雷|拔草|种草|听说|到底|'
+            r'去|在|吃|到|推荐|打卡|这家|那家|去吃|尝尝|本地|一家|寻找|发现|探店)+'
+        )
+        generic = {
+            "海鲜大排档", "特色小吃", "火锅店", "烧烤店", "融合菜餐厅", "家常菜馆", "本地老店",
+            "连岛的饭店", "景区的饭店", "附近的饭店", "周边的饭店", "路边的饭店", "门口的饭店",
+            "市区的饭店", "海边的饭店", "当地的饭店", "连岛海鲜", "景区海鲜", "大众点评", "小红书",
+        }
         for cand in candidates:
             cleaned = lead_noise.sub('', cand.strip()).strip()
-            if len(cleaned) >= 3 and cleaned not in generic:
-                if cleaned not in results:
-                    results.append(cleaned)
+            if len(cleaned) < 3 or cleaned in generic:
+                continue
+            # Exclude descriptive phrases containing possessive '的' + category (e.g., 连岛的饭店, 附近的小吃)
+            if re.search(r'的(?:饭店|餐厅|店|馆|大排档|小吃|菜馆|酒家|排档)', cleaned):
+                continue
+            if cleaned.startswith(("连岛的", "景区的", "附近的", "周边的", "路边的", "门口的", "街边的", "市区的", "海边的")):
+                continue
+            if cleaned not in results:
+                results.append(cleaned)
         return tuple(results[:10])
 
     @staticmethod

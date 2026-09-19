@@ -20,6 +20,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
+import re
 from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
 from contextlib import suppress
 from dataclasses import dataclass, replace
@@ -1564,8 +1565,24 @@ def _recommendations(adaptation: FoodAdaptationResult) -> list[RestaurantRecomme
             (profile or {}).get("location") if profile else None,
             (profile or {}).get("district") if profile else None,
             (profile or {}).get("city") if profile else None,
+            entity.get("address"),
+            entity.get("location"),
+            entity.get("district"),
+            entity.get("city"),
         )
         dishes = _string_values(entity.get("dishes"))
+        fallback_profile = (
+            {
+                "name": name,
+                "entity_id": entity_id,
+                "address": location,
+                "recommended_dishes": list(dishes),
+                "tags": list(dishes[:3]),
+                "source": "note_evidence",
+            }
+            if not profile
+            else None
+        )
         output.append(
             RestaurantRecommendation(
                 name=name,
@@ -1574,7 +1591,7 @@ def _recommendations(adaptation: FoodAdaptationResult) -> list[RestaurantRecomme
                 source_notes=list(refs),
                 confidence=0.5,
                 is_recommended=True,
-                shop_profile=dict(profile) if profile else None,
+                shop_profile=dict(profile) if profile else fallback_profile,
                 pros=claims[:5],
                 evidence_refs=list(refs),
                 evidence_summary={
@@ -1796,7 +1813,12 @@ _INTERNAL_STOP_KEYWORDS = {
 
 
 def _is_internal_diagnostic(text: str) -> bool:
-    lowered = text.casefold()
+    if not text:
+        return True
+    trimmed = text.strip()
+    if trimmed.startswith(("{", "[", "<", "```")):
+        return True
+    lowered = trimmed.casefold()
     if lowered in _INTERNAL_STOP_KEYWORDS:
         return True
     indicators = (
@@ -1812,6 +1834,42 @@ def _is_internal_diagnostic(text: str) -> bool:
         "city_id=",
         "http://",
         "https://",
+        "mentioned_shops",
+        "mentioned_dishes",
+        "candidate_entity",
+        "candidate_profile_missing",
+        "food_projection",
+        "comment_collected",
+        "evidence_ref",
+        "secondary-source",
+        "verification failed",
+        "risk patterns",
+        "schemaversion",
+        "notes.search",
+        "places.search",
+        "comments.search",
+        "reviews.search",
+        "sentiment 均",
+        "entity_id",
+        '"claims"',
+        '"source"',
+        '"evidence_refs"',
+        '"raw_payload"',
+        "dianpingchallengerequired",
+        "spiderindefence",
+        "spider in defence",
+        "places.detail",
+        "canonical",
+        "controvers",
+        "shop_id",
+        "消解流程",
+        "跨源去重",
+        "依赖失败",
+        "候选扩展",
+        "争议计数",
+        "合并分析",
+        "observation:",
+        "food-adaptive:",
     )
     return any(ind in lowered for ind in indicators)
 
@@ -1846,7 +1904,7 @@ def _final_synthesis(
     conclusion = _synthesis_conclusion(state, termination, final_critique)
 
     if not recommendations:
-        if conclusion:
+        if conclusion and not _is_internal_diagnostic(conclusion):
             parts = [f"未识别到符合条件的候选店铺。{conclusion}"]
         else:
             parts = ["未识别到有充分评论证据支持的候选店铺，建议尝试更换具体商圈或放宽美食类型关键词重试。"]
@@ -1873,10 +1931,7 @@ def _final_synthesis(
         if finding_texts:
             parts.append(f"关键发现：{'；'.join(finding_texts[:3])}")
         if evidence_refs:
-            preview = "、".join(evidence_refs[:3])
-            if len(evidence_refs) > 3:
-                preview += "…"
-            parts.append(f"依据证据：{len(evidence_refs)} 条（{preview}）")
+            parts.append(f"依据证据：{len(evidence_refs)} 条")
 
     synthesis = {
         "schemaVersion": "evidence-synthesis/v1",

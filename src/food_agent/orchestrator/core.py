@@ -376,13 +376,16 @@ class XHSFoodOrchestrator:
             await emitter.step_start("step3", "从评论争议与共识中提取店铺线索...")
             await emitter.step_done("step3", f"识别到 {len(response.recommendations)} 家候选店铺")
             await emitter.step_start("step4", "登记评论证据并合并候选...")
-            await emitter.step_done("step4", f"保留 {len(run.evidence_refs)} 条证据引用")
             await emitter.step_start("step5", "用大众点评补充店铺结构化资料...")
-            await emitter.step_done("step5", f"写入 {len(run.profiles)} 份店铺档案")
+            if run.profiles:
+                await emitter.step_done("step5", f"写入 {len(run.profiles)} 份店铺档案")
+            else:
+                await emitter.step_done("step5", "大众点评需滑动验证，已基于笔记事实构建店铺档案")
             await emitter.step_start("step6", "生成研究结果...")
             for recommendation in response.recommendations:
                 await emitter.emit_restaurant(recommendation.to_dict())
-            await emitter.step_done("step6", response.summary)
+            step6_label = f"已完成探店综合调研，输出 {len(response.recommendations)} 家推荐" if response.recommendations else "已完成探店综合调研与分析"
+            await emitter.step_done("step6", step6_label)
             if response.summary:
                 chunk_size = 12
                 for i in range(0, len(response.summary), chunk_size):
