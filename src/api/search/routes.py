@@ -149,10 +149,11 @@ def _subject_ref(http_request: Request) -> str:
 
 
 def _effective_tenant_ref(http_request: Request) -> str:
-    subject = _subject_ref(http_request)
-    if not subject or subject in ("anonymous", "default", "00000000-0000-0000-0000-000000000000") or str(subject).startswith("user_"):
+    headers = getattr(http_request, "headers", {})
+    tenant = headers.get("X-Tenant-Id") or headers.get("X-Tenant-Ref")
+    if not tenant or tenant in ("anonymous", "default", "00000000-0000-0000-0000-000000000000") or str(tenant).startswith("user_"):
         return "default"
-    return subject
+    return tenant
 
 
 def _tool_context(
@@ -222,7 +223,7 @@ async def unified_search(
                 public_inputs=public_inputs,
                 identity=RequestIdentity(
                     subject_ref=subject_ref,
-                    tenant_ref=subject_ref,
+                    tenant_ref=_effective_tenant_ref(http_request),
                     session_ref=session_id,
                     authorization_refs=tuple(
                         f"{platform}:{account_ref}"

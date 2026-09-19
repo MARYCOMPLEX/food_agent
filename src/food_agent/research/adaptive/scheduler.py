@@ -930,12 +930,18 @@ class ActionScheduler:
     def _capability_allowed(self, capability: str) -> bool:
         if self._capabilities is None:
             return True
-        return any(
-            capability == allowed
-            or capability.startswith(allowed + ".")
-            or allowed == "*"
-            for allowed in self._capabilities
-        )
+        for allowed in self._capabilities:
+            if (
+                capability == allowed
+                or capability.startswith(allowed + ".")
+                or allowed == "*"
+                or allowed.endswith("." + capability)
+                or capability.endswith("." + allowed)
+                or capability.replace("_", ".") == allowed.replace("_", ".")
+                or capability.replace(".", "_") == allowed.replace(".", "_")
+            ):
+                return True
+        return False
 
     def _record_preflight(self, action: Any, gap: ResearchGap, round_index: int) -> None:
         observation = self._failed_observation(

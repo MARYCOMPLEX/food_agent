@@ -69,10 +69,18 @@ class ManagedMcpToolSession:
         if self._catalog is None or self._executor is None or self._snapshot is None:
             return _failure(platform.value, capability, "MCP_NOT_CONFIGURED")
 
+        normalized_cap = capability
+        for p in (platform.value, "xhs_pc", "xhs", "dianping", "dp", "ctrip"):
+            if normalized_cap.startswith(p + "."):
+                normalized_cap = normalized_cap[len(p) + 1:]
+                break
         matches = tuple(
             item
             for item in self._snapshot.projection
-            if item.platform == platform and item.capability == capability
+            if item.platform == platform and (
+                item.capability in (capability, normalized_cap)
+                or item.public_name in (capability, normalized_cap)
+            )
         )
         if len(matches) == 0:
             return _failure(platform.value, capability, "MCP_CAPABILITY_UNAVAILABLE")

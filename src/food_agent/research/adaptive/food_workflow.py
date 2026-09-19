@@ -171,9 +171,14 @@ class ManagedMcpToolPort:
         action: Any | None = None,
     ) -> SourceCall:
         platform = self._platform_for(capability, action, arguments)
+        normalized_cap = capability
+        for p in (platform.value, "xhs_pc", "xhs", "dianping", "dp", "ctrip"):
+            if normalized_cap.startswith(p + "."):
+                normalized_cap = normalized_cap[len(p) + 1:]
+                break
         started = monotonic()
         try:
-            result = await self.session.call(platform, capability, dict(arguments))
+            result = await self.session.call(platform, normalized_cap, dict(arguments))
         except asyncio.CancelledError:
             self._record_tool_call(
                 capability,
@@ -255,6 +260,7 @@ class ManagedMcpToolPort:
             or capability.startswith("comments.")
             or capability.startswith("notes.")
             or capability.startswith("xhs.")
+            or capability.startswith("xhs_pc.")
         ):
             return PlatformChannel.XHS_PC
         if (

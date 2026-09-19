@@ -5,6 +5,7 @@ import {
   LoadingOutlined,
   DownOutlined,
   CompassOutlined,
+  ClockCircleOutlined,
 } from '@ant-design/icons'
 
 export interface PlanStep {
@@ -81,12 +82,15 @@ export const ManusThoughtCard: React.FC<ManusThoughtCardProps> = ({
       <style>{`
         @keyframes manusPulseRing {
           0% {
+            transform: scale(0.95);
             box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.4);
           }
           70% {
+            transform: scale(1);
             box-shadow: 0 0 0 6px rgba(37, 99, 235, 0);
           }
           100% {
+            transform: scale(0.95);
             box-shadow: 0 0 0 0 rgba(37, 99, 235, 0);
           }
         }
@@ -117,15 +121,21 @@ export const ManusThoughtCard: React.FC<ManusThoughtCardProps> = ({
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
           {isRunning ? (
             <span className="manus-pulse-dot" />
-          ) : (
+          ) : completedSteps > 0 ? (
             <CheckCircleFilled style={{ color: '#10b981', fontSize: 13 }} />
+          ) : (
+            <ClockCircleOutlined style={{ color: '#94a3b8', fontSize: 13 }} />
           )}
 
           <Typography.Text strong style={{ fontSize: 13, color: '#0f172a' }}>
-            {isRunning ? 'Agent 深度探店与分析中' : '全网探店调研已完成'}
+            {isRunning
+              ? 'Agent 深度探店与分析中'
+              : completedSteps > 0
+              ? '全网探店调研已完成'
+              : '探店调研步骤'}
           </Typography.Text>
 
-          {isRunning && runningStep ? (
+          {isRunning ? (
             <Tag
               bordered={false}
               style={{
@@ -141,21 +151,25 @@ export const ManusThoughtCard: React.FC<ManusThoughtCardProps> = ({
                 whiteSpace: 'nowrap',
               }}
             >
-              {runningStep.label}
+              {runningStep ? runningStep.label : '进行中...'}
             </Tag>
           ) : (
             <Tag
               bordered={false}
               style={{
-                background: '#ecfdf5',
-                color: '#047857',
+                background: completedSteps > 0 ? '#ecfdf5' : '#f1f5f9',
+                color: completedSteps > 0 ? '#047857' : '#64748b',
                 borderRadius: 12,
                 fontSize: 11,
                 padding: '0 8px',
                 margin: 0,
               }}
             >
-              {allCompleted ? `全部 ${totalSteps} 阶段` : `已完成 ${completedSteps}/${totalSteps} 步`}
+              {allCompleted
+                ? `全部 ${totalSteps} 阶段`
+                : completedSteps > 0
+                ? `已完成 ${completedSteps}/${totalSteps} 步`
+                : `共 ${totalSteps} 步`}
             </Tag>
           )}
 

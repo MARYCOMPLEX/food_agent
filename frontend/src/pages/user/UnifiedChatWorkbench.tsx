@@ -280,6 +280,7 @@ export function UnifiedChatWorkbench() {
       setCurrentSessionId(routeSessionId)
     } else {
       // When at /chat, ensure clean new chat state
+      if (isSendingRef.current) return
       setCurrentSessionId('')
       setSessionTurns([])
     }
@@ -287,6 +288,11 @@ export function UnifiedChatWorkbench() {
 
   // Restore turns when session changes
   useEffect(() => {
+    // If a turn is actively being sent or running in memory, DO NOT overwrite with stopped turns
+    if (isSendingRef.current || sessionTurns.some((t) => t.assistantMessage.isRunning)) {
+      return
+    }
+
     if (!currentSessionId) {
       setSessionTurns([])
       return
@@ -467,6 +473,7 @@ export function UnifiedChatWorkbench() {
       activeAbortRef.current.abort()
       activeAbortRef.current = null
     }
+    isSendingRef.current = false
     storage.remove('food_agent_last_active_session')
     setCurrentSessionId('')
     setSessionTurns([])
@@ -483,6 +490,7 @@ export function UnifiedChatWorkbench() {
       activeAbortRef.current.abort()
       activeAbortRef.current = null
     }
+    isSendingRef.current = false
     setRightPanelOpen(false)
     setAttachedContext(null)
     setFeedbackRating(null)
