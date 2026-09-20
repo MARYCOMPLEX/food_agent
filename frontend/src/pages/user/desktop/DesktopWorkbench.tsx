@@ -251,7 +251,12 @@ export function DesktopWorkbench(props: SharedWorkbenchProps) {
                     探店数据连接器
                   </Typography.Text>
                 </Space>
-                <Tag color="processing" style={{ margin: 0, fontSize: 9, padding: '0 4px', lineHeight: '14px', borderRadius: 4 }}>
+                <Tag
+                  color="processing"
+                  style={{ margin: 0, fontSize: 9, padding: '0 4px', lineHeight: '14px', borderRadius: 4, cursor: 'pointer' }}
+                  title="点击立即检测并刷新连接状态"
+                  onClick={() => onRefreshConnectors?.()}
+                >
                   心跳检测
                 </Tag>
               </div>
@@ -290,10 +295,24 @@ export function DesktopWorkbench(props: SharedWorkbenchProps) {
                           alignItems: 'center',
                           justifyContent: 'space-between',
                           fontSize: 11,
-                          padding: '2px 0',
+                          padding: '3px 4px',
+                          borderRadius: 4,
+                          cursor: !isCtrip ? 'pointer' : 'default',
+                          transition: 'background-color 0.2s',
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isCtrip) e.currentTarget.style.backgroundColor = '#f5f5f5'
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isCtrip) e.currentTarget.style.backgroundColor = 'transparent'
                         }}
                       >
-                        <Space size={4}>
+                        <Space
+                          size={4}
+                          onClick={() => {
+                            if (!isCtrip) setLoginModalPlatform(platform)
+                          }}
+                        >
                           <span
                             style={{
                               width: 6,
@@ -307,15 +326,33 @@ export function DesktopWorkbench(props: SharedWorkbenchProps) {
                         </Space>
                         <Space size={4}>
                           {isAuth ? (
-                            <Tag color="success" style={{ margin: 0, fontSize: 10, padding: '0 4px', lineHeight: '16px' }}>
-                              已连通
-                            </Tag>
+                            <>
+                              <Tag color="success" style={{ margin: 0, fontSize: 10, padding: '0 4px', lineHeight: '16px' }}>
+                                已连通
+                              </Tag>
+                              {!isCtrip && (
+                                <Button
+                                  type="link"
+                                  size="small"
+                                  style={{ padding: 0, fontSize: 11, height: 'auto', color: '#1677ff' }}
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setLoginModalPlatform(platform)
+                                  }}
+                                >
+                                  重新授权
+                                </Button>
+                              )}
+                            </>
                           ) : isOnline ? (
                             <Button
                               type="link"
                               size="small"
                               style={{ padding: 0, fontSize: 11, height: 'auto', color: '#fa8c16' }}
-                              onClick={() => setLoginModalPlatform(platform)}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setLoginModalPlatform(platform)
+                              }}
                             >
                               扫码授权
                             </Button>

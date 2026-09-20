@@ -210,9 +210,24 @@ export function MobileSessionDrawer({
                     </Space>
 
                     {isAuth ? (
-                      <Tag color="success" style={{ margin: 0, fontSize: 10, padding: '0 4px', lineHeight: '16px' }}>
-                        已连通
-                      </Tag>
+                      <Space size={4}>
+                        <Tag color="success" style={{ margin: 0, fontSize: 10, padding: '0 4px', lineHeight: '16px' }}>
+                          已连通
+                        </Tag>
+                        {!isCtrip && (
+                          <Button
+                            type="link"
+                            size="small"
+                            style={{ padding: 0, fontSize: 11, height: 'auto', color: '#1677ff' }}
+                            onClick={() => {
+                              onOpenLoginModal(platform)
+                              onClose()
+                            }}
+                          >
+                            重新授权
+                          </Button>
+                        )}
+                      </Space>
                     ) : isOnline ? (
                       <Button
                         type="link"
